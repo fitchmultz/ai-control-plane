@@ -63,7 +63,7 @@ func runStatusCommand(args []string, stdout *os.File, stderr *os.File) int {
 	var jsonOutput, wide, watchMode bool
 	var watchInterval int
 
-	for i := 0; i < len(args); i++ {
+	for i := range args {
 		arg := args[i]
 		switch {
 		case arg == "--help" || arg == "-h":

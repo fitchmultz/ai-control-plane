@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -202,13 +203,7 @@ func occupiedPortsBelongToRunningACP(ctx context.Context, occupied []int, opts O
 		}
 	}
 
-	hasGatewayPort := false
-	for _, port := range occupied {
-		if port == gatewayPort {
-			hasGatewayPort = true
-			break
-		}
-	}
+	hasGatewayPort := slices.Contains(occupied, gatewayPort)
 	if !hasGatewayPort {
 		return false
 	}
@@ -341,8 +336,8 @@ func loadEnvFromFile(path, key string) string {
 	lines := strings.Split(string(content), "\n")
 	prefix := key + "="
 	for _, line := range lines {
-		if strings.HasPrefix(line, prefix) {
-			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		if after, ok := strings.CutPrefix(line, prefix); ok {
+			return strings.TrimSpace(after)
 		}
 	}
 	return ""
@@ -546,7 +541,7 @@ func (c dbConnectableCheck) Fix(ctx context.Context, opts Options) (bool, string
 }
 
 func firstNonEmptyLine(raw string) string {
-	for _, line := range strings.Split(raw, "\n") {
+	for line := range strings.SplitSeq(raw, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" {
 			return trimmed

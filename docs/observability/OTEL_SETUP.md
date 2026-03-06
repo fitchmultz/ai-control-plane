@@ -192,7 +192,7 @@ make logs
 Located at `demo/config/otel-collector/config.yaml`:
 
 - **Receivers:** OTLP gRPC (4317), OTLP HTTP (4318)
-- **Processors:** Batch, resource enrichment
+- **Processors:** Memory limiter, batch, resource enrichment
 - **Exporters:** Console (debug), file (persistent)
 
 ## Telemetry Data

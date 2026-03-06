@@ -22,6 +22,7 @@ package prereq
 import (
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
@@ -57,10 +58,8 @@ func (c *Checker) RequireCommand(cmd string) error {
 
 // RequireAnyCommand checks if at least one of the commands exists
 func (c *Checker) RequireAnyCommand(label string, cmds ...string) error {
-	for _, cmd := range cmds {
-		if CommandExists(cmd) {
-			return nil
-		}
+	if slices.ContainsFunc(cmds, CommandExists) {
+		return nil
 	}
 	c.missing = append(c.missing, label)
 	return fmt.Errorf("required binary not found: '%s' (tried: %s)", label, strings.Join(cmds, ", "))

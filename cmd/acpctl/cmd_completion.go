@@ -369,7 +369,7 @@ func extractModelNames(repoRoot string) []string {
 
 	// Simple line-based parsing to extract model_name values
 	// Handles both: "model_name: value" and "  - model_name: value" formats
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
 		// Check if line contains model_name (could be "- model_name:" or just "model_name:")
 		if strings.Contains(trimmed, "model_name:") {
@@ -400,7 +400,7 @@ func extractPresetNames(repoRoot string) []string {
 	}
 
 	inPresets := false
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if strings.Contains(line, "presets:") && !strings.HasPrefix(strings.TrimSpace(line), "-") {
 			inPresets = true
 			continue
@@ -480,7 +480,7 @@ func extractKeyAliases(repoRoot string) []string {
 		}
 
 		// Look for KEY_ALIAS patterns
-		for _, line := range strings.Split(string(data), "\n") {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			if strings.Contains(line, "KEY_ALIAS=") || strings.Contains(line, "SCENARIO_KEY_ALIAS=") {
 				parts := strings.SplitN(line, "=", 2)
 				if len(parts) == 2 {
@@ -510,7 +510,7 @@ func extractConfigKeys(repoRoot string) []string {
 		return keys
 	}
 
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" && !strings.HasPrefix(line, "#") && strings.HasSuffix(line, ":") {
 			key := strings.TrimSuffix(line, ":")
