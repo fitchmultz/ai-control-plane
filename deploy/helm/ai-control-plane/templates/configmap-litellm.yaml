@@ -1,0 +1,131 @@
+{{/*
+LiteLLM Configuration ConfigMap
+
+Responsibilities:
+  - Provides LiteLLM configuration file (config.yaml)
+  - Supports both online (real providers) and offline (mock) modes
+
+Non-scope:
+  - Does NOT contain secrets (use Secrets for credentials)
+  - Does NOT configure provider API keys (use environment variables)
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "acp.litellmConfigName" . }}
+  labels:
+    {{- include "acp.litellmLabels" . | nindent 4 }}
+data:
+  config.yaml: |
+    ---
+    # AI Control Plane - LiteLLM Configuration
+    # 
+    # Deployed by Helm chart: {{ include "acp.chart" . }}
+    # Release: {{ .Release.Name }}
+    # Namespace: {{ .Release.Namespace }}
+    # Mode: {{ .Values.litellm.mode }}
+    
+    {{- if eq .Values.litellm.mode "online" }}
+    # =============================================================================
+    # ONLINE MODE - Real AI Providers
+    # =============================================================================
+    #
+    # Add your model configurations here or via litellm.extraEnv for API keys.
+    # See docs/deployment/KUBERNETES_HELM.md for configuration patterns.
+    
+    model_list:
+      # Example: OpenAI GPT model
+      # Uncomment and configure with your API key via environment variable
+      # - model_name: openai-gpt5.2
+      #   litellm_params:
+      #     model: openai/gpt-5.2
+      #     api_key: os.environ/OPENAI_API_KEY
+      #   rpm: 60
+      #   tpm: 90000
+    
+      # Example: Anthropic Claude model
+      # Uncomment and configure with your API key via environment variable
+      # - model_name: claude-sonnet-4-5
+      #   litellm_params:
+      #     model: anthropic/claude-sonnet-4-5
+      #     api_key: os.environ/ANTHROPIC_API_KEY
+    
+    general_settings:
+      database_url: os.environ/DATABASE_URL
+      
+      # Forward client Authorization header to upstream provider
+      # Required for Claude Code OAuth token forwarding (subscription mode)
+      forward_client_headers_to_llm_api: true
+    
+    litellm_settings:
+      # Reduce the risk of leaking secrets in logs/metadata
+      redact_user_api_key_info: true
+      master_key: os.environ/LITELLM_MASTER_KEY
+      
+      # Do NOT log request/response bodies by default
+      set_verbose: false
+      
+      # Budget and Rate Limit Enforcement
+      # Global proxy-level budget limit
+      max_budget: 100.0
+      budget_duration: 30d
+      
+      # Maximum parallel requests across all keys
+      max_parallel_requests: 100
+      
+      # Default per-user budget limits
+      max_internal_user_budget: 10.0
+      internal_user_budget_duration: 7d
+      
+      # Budget rescheduler timing
+      proxy_budget_rescheduler_min_time: 1
+      proxy_budget_rescheduler_max_time: 1
+    {{- else }}
+    # =============================================================================
+    # OFFLINE MODE - Mock Upstream Service
+    # =============================================================================
+    # This configuration uses a mock upstream for demos without real API keys.
+    
+    model_list:
+      # Mock GPT model (simulates OpenAI GPT-style responses)
+      - model_name: mock-gpt
+        litellm_params:
+          model: openai/mock-gpt
+          api_base: http://{{ include "acp.mockUpstreamService" . }}:8080/v1
+          api_key: "fake-key-not-used"
+        rpm: 60
+        tpm: 90000
+    
+      # Mock Claude model (simulates Anthropic Claude-style responses)
+      - model_name: mock-claude
+        litellm_params:
+          model: openai/mock-claude
+          api_base: http://{{ include "acp.mockUpstreamService" . }}:8080/v1
+          api_key: "fake-key-not-used"
+        rpm: 60
+        tpm: 90000
+    
+    general_settings:
+      database_url: os.environ/DATABASE_URL
+      
+      # Note: In offline mode, there are no real OAuth tokens to forward,
+      # but we keep this enabled for consistency with online mode
+      forward_client_headers_to_llm_api: true
+    
+    litellm_settings:
+      # Reduce the risk of leaking secrets in logs/metadata
+      redact_user_api_key_info: true
+      master_key: os.environ/LITELLM_MASTER_KEY
+      
+      # Do NOT log request/response bodies by default
+      set_verbose: false
+      
+      # Budget and Rate Limit Enforcement
+      max_budget: 100.0
+      budget_duration: 30d
+      max_parallel_requests: 100
+      max_internal_user_budget: 10.0
+      internal_user_budget_duration: 7d
+      proxy_budget_rescheduler_min_time: 1
+      proxy_budget_rescheduler_max_time: 1
+    {{- end }}

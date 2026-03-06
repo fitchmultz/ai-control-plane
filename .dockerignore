@@ -1,0 +1,169 @@
+# ============================================================================
+# .dockerignore - AI Control Plane
+# ============================================================================
+# Purpose: Exclude unnecessary and sensitive files from Docker build context
+# Security: Prevents secrets and sensitive data from being included in images
+# Performance: Reduces build context size for faster builds
+#
+# Last Updated: RQ-0123 (2026-02-05)
+# Documentation: See AGENTS.md for project conventions
+# ============================================================================
+
+# -----------------------------------------------------------------------------
+# SECURITY CRITICAL - Files containing secrets
+# -----------------------------------------------------------------------------
+# API keys, master keys, database credentials, OAuth tokens
+.env
+.env.*
+*.env
+!.env.example
+!demo/.env.example
+# Note: Add !local/.env.example if that file is created in the future
+
+# Ralph task management state (contains cache and queue data)
+.ralph/
+
+# Database backups (may contain sensitive production data)
+demo/backups/
+backups/
+
+# Application logs (may contain OAuth tokens in subscription mode)
+demo/logs/
+logs/
+*.log
+
+# Documentation and scripts (contain example configurations that trigger false positives)
+docs/
+scripts/
+*.md
+AGENTS.md
+
+# Local configuration files (may contain actual keys)
+.claude/
+.claude/*
+
+# Compliance export logs (may contain audit data)
+demo/logs/compliance/
+!demo/logs/compliance/.gitkeep
+
+# Gateway export logs (may contain audit data)
+demo/logs/gateway/
+!demo/logs/gateway/.gitkeep
+
+# Normalized merged evidence (may contain audit data)
+demo/logs/normalized/
+!demo/logs/normalized/.gitkeep
+
+# -----------------------------------------------------------------------------
+# VERSION CONTROL - Git metadata (not needed in containers)
+# -----------------------------------------------------------------------------
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# GitHub-specific files
+.github/
+
+# -----------------------------------------------------------------------------
+# DOCUMENTATION - Not needed at container runtime
+# -----------------------------------------------------------------------------
+docs/
+*.md
+!README.md
+
+# -----------------------------------------------------------------------------
+# DEPLOYMENT ARTIFACTS - Kubernetes/Helm (not needed for Docker builds)
+# -----------------------------------------------------------------------------
+deploy/
+
+# Ralph documentation (agent guidelines)
+AGENTS.md
+
+# -----------------------------------------------------------------------------
+# DEVELOPMENT ARTIFACTS - Editor and IDE files
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editors
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*.temp
+.vim/
+.vscode/
+.idea/
+
+# -----------------------------------------------------------------------------
+# DEPENDENCIES - Language-specific cache directories
+# -----------------------------------------------------------------------------
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# -----------------------------------------------------------------------------
+# TESTING AND CI - Test files and CI artifacts
+# -----------------------------------------------------------------------------
+# Test files
+*_test.*
+test_*
+*.test
+tests/
+.test/
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# -----------------------------------------------------------------------------
+# DOCKER - Docker artifacts (don't nest Docker)
+# -----------------------------------------------------------------------------
+Dockerfile*
+*.dockerfile
+docker-compose*.yml
+!docker-compose.yml
+
+# -----------------------------------------------------------------------------
+# LOCAL DEVELOPMENT - Local-only files
+# -----------------------------------------------------------------------------
+local/
+*.local
+
+# -----------------------------------------------------------------------------
+# BUILD ARTIFACTS - Temporary build files
+# -----------------------------------------------------------------------------
+*.tar
+*.tar.gz
+*.zip
+*.rar
+
+# -----------------------------------------------------------------------------
+# MISC - Miscellaneous exclusions
+# -----------------------------------------------------------------------------
+# Note: .ralph/ is already excluded above; no need to exclude specific files

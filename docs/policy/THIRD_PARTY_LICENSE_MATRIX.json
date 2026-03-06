@@ -1,0 +1,138 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "acp-third-party-license-boundary",
+  "last_updated": "2026-02-09",
+  "description": "Third-party license policy matrix for AI Control Plane. Defines allowed, restricted, and conditional components for OSS/customer packaging.",
+  "scan_scope": {
+    "description": "Paths to scan for license boundary enforcement. Only packaging-sensitive files are included.",
+    "include": [
+      "Makefile",
+      "mk/**/*.mk",
+      "scripts/**/*.sh",
+      "cmd/acpctl/**/*.go",
+      "internal/**/*.go",
+      "demo/docker-compose*.yml",
+      "demo/config/**/*.yaml",
+      "deploy/**/*"
+    ],
+    "exclude": [
+      ".ralph/**",
+      ".git/**",
+      "demo/logs/**",
+      "demo/backups/**",
+      "handoff-packet/**",
+      "**/node_modules/**",
+      "**/vendor/**",
+      "*.min.js",
+      "*.min.css",
+      "docs/policy/THIRD_PARTY_LICENSE_MATRIX.json",
+      "docs/policy/THIRD_PARTY_LICENSE_MATRIX.md",
+      "docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md"
+    ]
+  },
+  "allowed_components": [
+    {
+      "name": "litellm",
+      "version_constraint": ">=1.0.0",
+      "license": "MIT",
+      "boundary": "non-enterprise-only",
+      "source": "https://raw.githubusercontent.com/BerriAI/litellm/main/LICENSE",
+      "description": "LiteLLM Proxy (OSS edition) - MIT licensed open source components",
+      "usage_in_project": [
+        "Gateway proxy server",
+        "Virtual key management",
+        "Budget and rate limiting",
+        "Model routing"
+      ]
+    },
+    {
+      "name": "librechat",
+      "version_constraint": ">=0.7.0",
+      "license": "MIT",
+      "source": "https://raw.githubusercontent.com/danny-avila/LibreChat/main/LICENSE",
+      "description": "LibreChat - MIT licensed AI chat interface",
+      "usage_in_project": [
+        "Optional chat UI component",
+        "Web-based model interaction"
+      ]
+    },
+    {
+      "name": "postgresql",
+      "version_constraint": ">=16.0",
+      "license": "PostgreSQL License (MIT-like)",
+      "source": "https://www.postgresql.org/about/licence/",
+      "description": "PostgreSQL database for LiteLLM metadata and spend logs",
+      "usage_in_project": [
+        "Database persistence",
+        "Spend log storage",
+        "Virtual key metadata"
+      ]
+    },
+    {
+      "name": "caddy",
+      "version_constraint": ">=2.0.0",
+      "license": "Apache-2.0",
+      "source": "https://github.com/caddyserver/caddy/blob/master/LICENSE",
+      "description": "Caddy web server and reverse proxy",
+      "usage_in_project": [
+        "TLS termination",
+        "Reverse proxy",
+        "Automatic HTTPS"
+      ]
+    }
+  ],
+  "restricted_components": [
+    {
+      "name": "litellm-enterprise",
+      "reason": "commercial-license-boundary",
+      "severity": "blocking",
+      "description": "LiteLLM Enterprise components require commercial license for production use",
+      "license_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/enterprise/LICENSE.md",
+      "match": {
+        "path_regex": [
+          "(^|/)litellm/enterprise(/|$)",
+          "(^|/)litellm-enterprise(/|$)",
+          "BerriAI/litellm/.*/enterprise/",
+          "litellm[_-]enterprise"
+        ],
+        "content_regex": [
+          "litellm-enterprise",
+          "litellm_enterprise",
+          "BerriAI/litellm/.*/enterprise/",
+          "from litellm.enterprise",
+          "import litellm.enterprise",
+          "litellm\\.enterprise\\."
+        ],
+        "package_references": [
+          "litellm-enterprise",
+          "litellm[enterprise]"
+        ]
+      },
+      "remediation": "Use LiteLLM OSS edition only. Enterprise features (SSO, audit logs, enterprise admin UI) require separate commercial license.",
+      "references": [
+        "https://docs.litellm.ai/docs/enterprise",
+        "https://github.com/BerriAI/litellm/tree/main/enterprise"
+      ]
+    }
+  ],
+  "conditional_components": [],
+  "overrides": [],
+  "override_policy": {
+    "description": "Process for approving restricted component usage",
+    "required_fields": [
+      "id (Unique override identifier)",
+      "approver (Person or process approving)",
+      "rationale (Business justification)",
+      "expires_at (ISO 8601 timestamp, must be finite)",
+      "scope (Component and path scope)",
+      "reviewed_by_legal (Legal review status)"
+    ],
+    "expiration_behavior": "fail_on_expired",
+    "audit_requirements": "All overrides must be logged in generated reports"
+  },
+  "compliance_notes": {
+    "litellm_boundary": "The LiteLLM repository contains both MIT-licensed OSS code (root) and commercially-licensed enterprise code (enterprise/ subdirectory). Only OSS components may be used in customer packages without explicit enterprise agreement.",
+    "verification_method": "Static analysis of manifests, configs, and scripts for restricted path/content patterns. No runtime dependency scanning.",
+    "update_frequency": "Policy should be reviewed quarterly or when upstream license changes are detected."
+  }
+}

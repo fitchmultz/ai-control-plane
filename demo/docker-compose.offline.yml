@@ -1,0 +1,162 @@
+# Docker Compose for OFFLINE Demo Mode
+#
+# This configuration runs the AI Control Plane without requiring external
+# provider API keys. All LLM requests are routed to a local mock upstream
+# service that returns deterministic responses.
+#
+# Usage:
+#   make up-offline     # Start services in offline mode
+#   make down-offline   # Stop offline services
+#   make demo-offline   # Run offline demo scenarios
+#
+# Services:
+#   - mock-upstream: OpenAI-compatible mock LLM service (port 8080 internal)
+#   - postgres: PostgreSQL database for LiteLLM (port 5432)
+#   - litellm: AI Control Plane gateway (port 4000)
+#
+# IMPORTANT: This is for demo/testing purposes only.
+# Production deployments must use docker-compose.yml with real providers.
+
+# =============================================================================
+# YAML Anchors - Shared Configuration
+# =============================================================================
+
+x-acp-logging: &acp-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-acp-security-defaults: &acp-security-defaults
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  init: true
+
+# =============================================================================
+# Services
+# =============================================================================
+
+services:
+  mock-upstream:
+    build:
+      context: ./mock_upstream
+      dockerfile: Dockerfile
+    container_name: ai-control-plane-mock-upstream
+    environment:
+      - PORT=8080
+      - MOCK_LATENCY_MS=100
+      - MOCK_TOKENS_PER_CHAR=0.25
+    expose:
+      - "8080"
+    restart: unless-stopped
+    logging: *acp-logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  postgres:
+    # NOTE: PostgreSQL cannot use cap_drop: ALL due to chown/chmod requirements
+    # for volume initialization. no-new-privileges provides security boundary.
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    # Pinned to prevent drift (Chainguard PostgreSQL 18)
+    image: cgr.dev/chainguard/postgres@sha256:cf06f490d5b25b321cf614d430c6fa428409f5ca4144bb59f9f0b0b9a7c86e1c
+    container_name: ai-control-plane-postgres
+    env_file: .env
+    environment:
+      # These must be set in .env (no defaults to prevent misconfiguration)
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    logging: *acp-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  litellm:
+    <<: *acp-security-defaults
+    # Default to first-party hardened image pinned by digest.
+    # Override via LITELLM_IMAGE for private mirror/airgap registries.
+    image: ${LITELLM_IMAGE:-ghcr.io/fitchmultz/acp/litellm-hardened:20260212@sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801}
+    container_name: ai-control-plane-litellm
+    env_file: .env
+    ports:
+      # Bind to LITELLM_PUBLISH_HOST (default: 127.0.0.1 for security)
+      - "${LITELLM_PUBLISH_HOST:-127.0.0.1}:4000:4000"
+    volumes:
+      - ./config/litellm-offline.yaml:/app/config.yaml:ro
+      - ./logs:/var/log/litellm
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-upstream:
+        condition: service_healthy
+      presidio-analyzer:
+        condition: service_healthy
+      presidio-anonymizer:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *acp-logging
+    healthcheck:
+      # Require authorized health probe to verify key-based access path.
+      test: ["CMD", "python", "-c", "import os, urllib.request, urllib.error, sys;\nkey = os.getenv('LITELLM_MASTER_KEY', '').strip();\nif not key:\n    sys.exit(1)\nreq = urllib.request.Request('http://127.0.0.1:4000/health', headers={'Authorization': f'Bearer {key}'});\ntry:\n    urllib.request.urlopen(req);\n    sys.exit(0)\nexcept urllib.error.HTTPError as e:\n    sys.exit(0) if e.code == 200 else sys.exit(1)\nexcept Exception:\n    sys.exit(1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  presidio-analyzer:
+    <<: *acp-security-defaults
+    # Deterministic entity detection for advanced DLP and custom recognizers.
+    # Pinned to prevent drift (v2.2.361)
+    image: mcr.microsoft.com/presidio-analyzer:2.2.361@sha256:7e0d954193e820bc3b63e11af4897887ffa88639e368b1e252051f38e3c714cb
+    container_name: ai-control-plane-presidio-analyzer
+    expose:
+      - "3000"
+    restart: unless-stopped
+    logging: *acp-logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  presidio-anonymizer:
+    <<: *acp-security-defaults
+    # Applies MASK/REDACT actions for Presidio detections.
+    # Pinned to prevent drift (v2.2.361)
+    image: mcr.microsoft.com/presidio-anonymizer:2.2.361@sha256:022fc4bb42cd43b0c27526b6a0394b2b14aaf4b972a4814845eb8b48761bee7b
+    container_name: ai-control-plane-presidio-anonymizer
+    expose:
+      - "3000"
+    restart: unless-stopped
+    logging: *acp-logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+# =============================================================================
+# Volumes
+# =============================================================================
+
+volumes:
+  pgdata:
+    name: ai_control_plane_pgdata_${ACP_SLOT:-active}

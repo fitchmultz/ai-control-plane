@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "AI Control Plane Helm Chart Values",
+  "description": "Configuration values for the AI Control Plane Helm chart",
+  "required": ["profile", "litellm", "secrets", "postgres"],
+  "properties": {
+    "profile": {
+      "type": "string",
+      "enum": ["demo", "production"],
+      "description": "Deployment profile: demo (quick start) or production (hardened)"
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Pod annotations"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Common labels for all resources"
+    },
+    "litellm": {
+      "type": "object",
+      "description": "LiteLLM gateway configuration",
+      "required": ["replicaCount", "image", "service"],
+      "properties": {
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of gateway replicas"
+        },
+        "image": {
+          "type": "object",
+          "required": ["repository", "digest", "pullPolicy"],
+          "properties": {
+            "repository": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "nodePort": {
+              "type": ["integer", "null"],
+              "minimum": 30000,
+              "maximum": 32767
+            }
+          }
+        },
+        "resources": {
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "type": "object"
+        },
+        "securityContext": {
+          "type": "object"
+        },
+        "healthCheck": {
+          "type": "object"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["online", "offline"]
+        },
+        "publicUrl": {
+          "type": "string"
+        },
+        "extraEnv": {
+          "type": "array"
+        },
+        "extraVolumeMounts": {
+          "type": "array"
+        },
+        "extraVolumes": {
+          "type": "array"
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "description": "Secrets configuration",
+      "required": ["create"],
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create secrets via Helm (not recommended for production)"
+        },
+        "existingSecret": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "masterKeyKey": {
+              "type": "string"
+            },
+            "saltKeyKey": {
+              "type": "string"
+            },
+            "databaseUrlKey": {
+              "type": "string"
+            }
+          }
+        },
+        "litellm": {
+          "type": "object",
+          "properties": {
+            "masterKey": {
+              "type": "string",
+              "minLength": 1,
+              "description": "LiteLLM master key"
+            },
+            "saltKey": {
+              "type": "string",
+              "minLength": 1,
+              "description": "LiteLLM salt key"
+            }
+          }
+        },
+        "externalDatabaseUrl": {
+          "type": "string"
+        }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "description": "PostgreSQL configuration",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable embedded PostgreSQL"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            },
+            "database": {
+              "type": "string"
+            }
+          }
+        },
+        "service": {
+          "type": "object"
+        },
+        "persistence": {
+          "type": "object"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "securityContext": {
+          "type": "object"
+        },
+        "healthCheck": {
+          "type": "object"
+        }
+      }
+    },
+    "externalDatabase": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "existingSecretKey": {
+          "type": "string"
+        }
+      }
+    },
+    "mockUpstream": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "replicaCount": {
+          "type": "integer"
+        },
+        "service": {
+          "type": "object"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "securityContext": {
+          "type": "object"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "className": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "hosts": {
+          "type": "array"
+        },
+        "tls": {
+          "type": "array"
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object"
+    },
+    "autoscaling": {
+      "type": "object"
+    },
+    "networkPolicy": {
+      "type": "object"
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Monitoring configuration",
+      "properties": {
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor for Prometheus Operator",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable ServiceMonitor creation",
+              "default": false
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Namespace for ServiceMonitor (defaults to release namespace)"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Additional labels for ServiceMonitor",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "interval": {
+              "type": "string",
+              "description": "Scrape interval",
+              "default": "30s",
+              "pattern": "^[0-9]+(ms|s|m|h)$"
+            },
+            "scrapeTimeout": {
+              "type": "string",
+              "description": "Scrape timeout",
+              "default": "10s",
+              "pattern": "^[0-9]+(ms|s|m|h)$"
+            },
+            "honorLabels": {
+              "type": "boolean",
+              "description": "Honor labels from scraped targets",
+              "default": false
+            },
+            "relabelings": {
+              "type": "array",
+              "description": "Relabeling rules applied to target labels before scraping",
+              "items": {
+                "type": "object"
+              }
+            },
+            "metricRelabelings": {
+              "type": "array",
+              "description": "Relabeling rules applied to metrics after scraping",
+              "items": {
+                "type": "object"
+              }
+            },
+            "tlsConfig": {
+              "type": "object",
+              "description": "TLS configuration for HTTPS scraping",
+              "properties": {
+                "caFile": {
+                  "type": "string",
+                  "description": "CA certificate file path"
+                },
+                "certFile": {
+                  "type": "string",
+                  "description": "Client certificate file path"
+                },
+                "keyFile": {
+                  "type": "string",
+                  "description": "Client key file path"
+                },
+                "insecureSkipVerify": {
+                  "type": "boolean",
+                  "description": "Skip TLS certificate verification"
+                },
+                "serverName": {
+                  "type": "string",
+                  "description": "Server name for TLS verification"
+                }
+              }
+            },
+            "targetLabels": {
+              "type": "array",
+              "description": "Labels to copy from Service to target",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "description": "PrometheusRule configuration"
+        },
+        "alerts": {
+          "type": "object",
+          "description": "Alert threshold configuration",
+          "properties": {
+            "runbookBaseUrl": {
+              "type": "string",
+              "description": "Optional base URL used to populate Prometheus alert runbook_url annotations",
+              "default": ""
+            }
+          }
+        }
+      }
+    }
+  }
+}

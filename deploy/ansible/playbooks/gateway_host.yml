@@ -1,0 +1,255 @@
+# AI Control Plane - Gateway Host Convergence Playbook
+#
+# Purpose: Idempotently converge a single ACP gateway host to desired state
+#          using existing validated scripts for configuration and health checks.
+#
+# Responsibilities:
+#   - Validate prerequisites (variables, binaries, paths)
+#   - Validate deployment configuration
+#   - Converge Docker Compose services
+#   - Run post-apply health and smoke validation
+#
+# Non-scope:
+#   - Does NOT generate secrets or env files (assumes they exist)
+#   - Does NOT manage external PostgreSQL (assumes connectivity)
+#   - Does NOT handle rollback (use make db-restore separately)
+#
+# Invariants:
+#   - Safe to run multiple times (idempotent)
+#   - Uses existing validated scripts (no duplicate logic)
+#   - Fails fast on validation errors
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.yml \
+#     playbooks/gateway_host.yml -l gateway
+#
+# Variables (required):
+#   - acp_repo_path: Path to cloned repository on host
+#   - acp_env_file: Path to environment file
+#   - acp_tls_mode: 'plain' or 'tls'
+#   - acp_public_url: Public URL for smoke checks
+
+---
+- name: Converge ACP Gateway Host
+  hosts: gateway
+  gather_facts: false
+  vars:
+    acp_wait_for_stabilization: true
+    acp_stabilization_seconds: 5
+    acp_run_smoke_tests: true
+
+  tasks:
+    # =========================================================================
+    # Phase 1: Variable Validation
+    # =========================================================================
+    - name: Validate required variables are defined
+      ansible.builtin.assert:
+        that:
+          - acp_repo_path is defined
+          - acp_env_file is defined
+          - acp_tls_mode is defined
+          - acp_public_url is defined
+          - acp_tls_mode in ['plain', 'tls']
+        fail_msg: >-
+          Missing required variables. Check inventory and --extra-vars.
+        success_msg: "All required variables present"
+
+    - name: Display convergence plan
+      ansible.builtin.debug:
+        msg:
+          - "ACP Gateway Host Convergence Plan:"
+          - "  Repository path: {{ acp_repo_path }}"
+          - "  Environment file: {{ acp_env_file }}"
+          - "  TLS mode: {{ acp_tls_mode }}"
+          - "  Public URL: {{ acp_public_url }}"
+
+    # =========================================================================
+    # Phase 2: Prerequisite Checks
+    # =========================================================================
+    - name: Check required binaries exist
+      ansible.builtin.command: "{{ item }}"
+      loop:
+        - "docker --version"
+        - "make --version"
+      changed_when: false
+      register: binary_check
+
+    - name: Verify Docker daemon is accessible
+      ansible.builtin.command: docker ps
+      changed_when: false
+
+    - name: Check for docker-compose or docker compose
+      ansible.builtin.shell: |
+        if docker compose version >/dev/null 2>&1; then
+          echo "docker compose"
+        elif docker-compose version >/dev/null 2>&1; then
+          echo "docker-compose"
+        else
+          echo "MISSING"
+          exit 1
+        fi
+      args:
+        executable: /bin/bash
+      changed_when: false
+      register: compose_cmd_check
+
+    - name: Display detected compose command
+      ansible.builtin.debug:
+        msg: "Detected compose command: {{ compose_cmd_check.stdout }}"
+
+    # =========================================================================
+    # Phase 3: Repository and Environment Validation
+    # =========================================================================
+    - name: Verify repository path exists
+      ansible.builtin.stat:
+        path: "{{ acp_repo_path }}"
+      register: repo_path_stat
+
+    - name: Assert repository exists
+      ansible.builtin.assert:
+        that:
+          - repo_path_stat.stat.exists
+          - repo_path_stat.stat.isdir
+        fail_msg: "Repository path does not exist: {{ acp_repo_path }}"
+
+    - name: Verify environment file exists
+      ansible.builtin.stat:
+        path: "{{ acp_env_file }}"
+      register: env_file_stat
+
+    - name: Assert environment file exists
+      ansible.builtin.assert:
+        that:
+          - env_file_stat.stat.exists
+          - env_file_stat.stat.isreg
+        fail_msg: "Environment file does not exist: {{ acp_env_file }}"
+
+    - name: Verify Makefile exists in repository
+      ansible.builtin.stat:
+        path: "{{ acp_repo_path }}/Makefile"
+      register: makefile_stat
+
+    - name: Assert Makefile exists
+      ansible.builtin.assert:
+        that:
+          - makefile_stat.stat.exists
+        fail_msg: >-
+          Makefile not found in repository: {{ acp_repo_path }}/Makefile
+
+    # =========================================================================
+    # Phase 4: Configuration Validation
+    # =========================================================================
+    - name: Determine compose env file path
+      ansible.builtin.set_fact:
+        acp_compose_env_file: "{{ acp_repo_path }}/demo/.env"
+
+    - name: Sync compose env file when acp_env_file override is used
+      ansible.builtin.copy:
+        src: "{{ acp_env_file }}"
+        dest: "{{ acp_compose_env_file }}"
+        remote_src: true
+        mode: "0600"
+      when: acp_env_file != acp_compose_env_file
+      no_log: true
+
+    - name: Run deployment configuration validation
+      ansible.builtin.command:
+        cmd: >
+          demo/scripts/validate_deployment_config.sh
+          --env-file {{ acp_env_file }}
+          --profile production
+          {{ '--tls-required' if acp_tls_mode == 'tls' else '' }}
+        chdir: "{{ acp_repo_path }}"
+      changed_when: false
+      register: config_validation
+      no_log: true  # Prevent any secret leakage
+
+    - name: Display configuration validation success
+      ansible.builtin.debug:
+        msg: "Configuration validation passed"
+
+    # =========================================================================
+    # Phase 5: Service Convergence
+    # =========================================================================
+    - name: Determine make target based on TLS mode
+      ansible.builtin.set_fact:
+        acp_make_target: "{{ 'up-tls' if acp_tls_mode == 'tls' else 'up' }}"
+
+    - name: Converge Docker Compose services
+      ansible.builtin.command:
+        cmd: "make {{ acp_make_target }}"
+        chdir: "{{ acp_repo_path }}"
+      register: converge_result
+      changed_when: >
+        ('Creating' in converge_result.stdout) or
+        ('Recreating' in converge_result.stdout) or
+        ('Starting' in converge_result.stdout) or
+        ('Started' in converge_result.stdout) or
+        ('Pulling' in converge_result.stdout)
+
+    - name: Display convergence result
+      ansible.builtin.debug:
+        msg:
+          - "Service convergence completed:"
+          - "  Changed: {{ converge_result.changed }}"
+          - "  stdout: {{ converge_result.stdout | default('') }}"
+          - "  stderr: {{ converge_result.stderr | default('') }}"
+
+    # =========================================================================
+    # Phase 6: Health Validation
+    # =========================================================================
+    - name: Wait for services to stabilize
+      ansible.builtin.pause:
+        seconds: "{{ acp_stabilization_seconds }}"
+      when:
+        - converge_result.changed
+        - acp_wait_for_stabilization | bool
+
+    - name: Run health check
+      ansible.builtin.command:
+        cmd: "make health"
+        chdir: "{{ acp_repo_path }}"
+      changed_when: false
+      register: health_check
+
+    - name: Display health check result
+      ansible.builtin.debug:
+        msg: "Health check passed"
+
+    # =========================================================================
+    # Phase 7: Smoke Validation (Optional but Recommended)
+    # =========================================================================
+    - name: Run production smoke check
+      ansible.builtin.shell: |
+        set -euo pipefail
+        set -a
+        source "{{ acp_env_file }}"
+        set +a
+        make prod-smoke PUBLIC_URL="{{ acp_public_url }}"
+      args:
+        chdir: "{{ acp_repo_path }}"
+        executable: /bin/bash
+      changed_when: false
+      register: smoke_check
+      no_log: true  # Prevent secret leakage
+      when: acp_run_smoke_tests | bool
+
+    - name: Display smoke check result
+      ansible.builtin.debug:
+        msg: "Smoke check passed"
+      when: acp_run_smoke_tests | bool
+
+    # =========================================================================
+    # Phase 8: Summary
+    # =========================================================================
+    - name: Convergence summary
+      ansible.builtin.debug:
+        msg:
+          - "=== ACP Gateway Host Convergence Summary ==="
+          - "Host: {{ inventory_hostname }}"
+          - "Services changed: {{ converge_result.changed }}"
+          - "Health check: PASSED"
+          - >-
+            Smoke check: {{ 'SKIPPED' if not (acp_run_smoke_tests | bool)
+            else 'PASSED' }}
+          - "Status: CONVERGED"

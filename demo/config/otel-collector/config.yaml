@@ -1,0 +1,63 @@
+# OpenTelemetry Collector Configuration
+# Purpose: Ingest telemetry from direct/bypass AI tool paths and optional client-side correlation telemetry
+#
+# Documentation: docs/observability/OTEL_SETUP.md
+# Logs: demo/logs/otel/telemetry.jsonl
+#
+# Receivers:
+#   - OTLP gRPC (port 4317): Standard protocol for OTEL telemetry
+#   - OTLP HTTP (port 4318): Alternative HTTP protocol
+#
+# Exporters:
+#   - debug: Console output for demo/development
+#   - file: Persistent telemetry storage in JSONL format
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  resource/add_environment:
+    attributes:
+      - key: environment
+        value: demo
+        action: upsert
+      - key: deployment
+        value: local
+        action: upsert
+
+exporters:
+  debug: {}
+
+  file:
+    path: /var/log/otel/telemetry.jsonl
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource/add_environment]
+      exporters: [debug, file]
+
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resource/add_environment]
+      exporters: [debug, file]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource/add_environment]
+      exporters: [debug, file]

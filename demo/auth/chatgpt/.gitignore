@@ -1,0 +1,4 @@
+# ChatGPT OAuth cache artifacts are local-only secrets.
+auth.json
+auth.json.bak.*
+*.tmp

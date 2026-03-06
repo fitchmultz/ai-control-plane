@@ -1,0 +1,114 @@
+# Offline Mode Values for AI Control Plane Helm Chart
+#
+# Purpose: Demo/testing configuration with mock upstream (no real API keys required)
+#
+# Usage:
+#   helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp \
+#     -f ./deploy/helm/ai-control-plane/examples/values.offline.yaml
+#
+# IMPORTANT: This is for demo/testing purposes only.
+# Production deployments must use real providers with actual API keys.
+
+# -----------------------------------------------------------------------------
+# Profile
+# -----------------------------------------------------------------------------
+
+profile: demo
+
+# -----------------------------------------------------------------------------
+# LiteLLM Gateway
+# -----------------------------------------------------------------------------
+
+litellm:
+  # Single replica is sufficient for offline demos
+  replicaCount: 1
+
+  # Offline mode uses mock upstream service
+  mode: offline
+
+  service:
+    type: ClusterIP
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# -----------------------------------------------------------------------------
+# Secrets (Chart-managed for demo)
+# -----------------------------------------------------------------------------
+
+# Chart creates secrets (acceptable for local demo only)
+secrets:
+  create: true
+  litellm:
+    # These are demo keys - change if deploying in shared environment
+    masterKey: "sk-offline-demo-master-key-123456789012"
+    saltKey: "sk-offline-demo-salt-key-12345678901234567"
+
+# -----------------------------------------------------------------------------
+# Embedded PostgreSQL
+# -----------------------------------------------------------------------------
+
+postgres:
+  enabled: true
+
+  auth:
+    username: litellm
+    password: litellm-offline-demo-password
+    database: litellm
+
+  persistence:
+    enabled: true
+    size: 5Gi
+
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# -----------------------------------------------------------------------------
+# Mock Upstream Service
+# -----------------------------------------------------------------------------
+
+mockUpstream:
+  enabled: true
+
+  replicaCount: 1
+
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# -----------------------------------------------------------------------------
+# Access (No Ingress - Port-forward only)
+# -----------------------------------------------------------------------------
+
+# No ingress for offline demos - use port-forward:
+#   kubectl port-forward -n acp svc/acp-ai-control-plane-litellm 4000:4000
+ingress:
+  enabled: false
+
+# -----------------------------------------------------------------------------
+# No HA/Monitoring (not needed for demos)
+# -----------------------------------------------------------------------------
+
+podDisruptionBudget:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+monitoring:
+  serviceMonitor:
+    enabled: false

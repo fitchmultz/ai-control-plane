@@ -1,0 +1,34 @@
+# AI Control Plane - Gateway Group Variables
+#
+# Purpose: Default variables for all gateway hosts.
+#          These are merged with host-specific variables.
+#
+# Security Notes:
+#   - No secrets in this file (use env files or vault)
+#   - Use password_file paths, not actual passwords
+
+---
+# Connection defaults
+ansible_python_interpreter: /usr/bin/python3
+ansible_connection: ssh
+ansible_port: 22
+
+# ACP defaults (can be overridden per-host)
+acp_repo_path: /opt/ai-control-plane
+acp_env_file: /opt/ai-control-plane/demo/.env
+acp_tls_mode: plain
+
+# External database defaults
+acp_external_db:
+  enabled: false
+  host: localhost
+  port: 5432
+  database: litellm
+  user: litellm
+  sslmode: prefer
+  password_file: ""
+
+# Convergence behavior
+acp_wait_for_stabilization: true
+acp_stabilization_seconds: 5
+acp_run_smoke_tests: true

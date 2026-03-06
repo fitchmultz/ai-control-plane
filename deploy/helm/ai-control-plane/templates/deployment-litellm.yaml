@@ -1,0 +1,163 @@
+{{/*
+LiteLLM Gateway Deployment
+
+Responsibilities:
+  - Deploys the LiteLLM proxy/gateway container
+  - Configures health checks (accepts 200 or 401 as healthy)
+  - Mounts configuration from ConfigMap
+  - Connects to PostgreSQL for persistence
+
+Non-scope:
+  - Does NOT manage the Ingress (see ingress.yaml)
+  - Does NOT create the database (PostgreSQL creates schema on first startup)
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "acp.fullname" . }}-litellm
+  labels:
+    {{- include "acp.litellmLabels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.litellm.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "acp.litellmSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Force redeployment when config changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-litellm.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "acp.litellmSelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "acp.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.litellm.podSecurityContext | nindent 8 }}
+      containers:
+        - name: litellm
+          securityContext:
+            {{- toYaml .Values.litellm.securityContext | nindent 12 }}
+          image: "{{ .Values.litellm.image.repository }}@{{ .Values.litellm.image.digest }}"
+          imagePullPolicy: {{ .Values.litellm.image.pullPolicy }}
+          command:
+            - "litellm"
+          args:
+            - "--config"
+            - "/app/config.yaml"
+            - "--port"
+            - "4000"
+            - "--num_workers"
+            - "2"
+          ports:
+            - name: http
+              containerPort: 4000
+              protocol: TCP
+          env:
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "acp.litellmSecretName" . }}
+                  key: {{ .Values.secrets.existingSecret.masterKeyKey | default "LITELLM_MASTER_KEY" }}
+            - name: LITELLM_SALT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "acp.litellmSecretName" . }}
+                  key: {{ .Values.secrets.existingSecret.saltKeyKey | default "LITELLM_SALT_KEY" }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "acp.dbSecretName" . }}
+                  key: {{ include "acp.dbSecretKey" . }}
+            - name: LITELLM_BEHIND_PROXY
+              value: {{ ternary "true" "false" .Values.ingress.enabled | quote }}
+            {{- if .Values.litellm.publicUrl }}
+            - name: LITELLM_PUBLIC_URL
+              value: {{ .Values.litellm.publicUrl | quote }}
+            {{- else if .Values.ingress.enabled }}
+            {{- range .Values.ingress.hosts }}
+            - name: LITELLM_PUBLIC_URL
+              value: "https://{{ .host }}"
+            {{- end }}
+            {{- end }}
+            {{- with .Values.litellm.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.litellm.healthCheck.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - |
+                  import urllib.request, urllib.error, sys
+                  req = urllib.request.Request("http://127.0.0.1:4000/health")
+                  try:
+                      urllib.request.urlopen(req)
+                      sys.exit(0)
+                  except urllib.error.HTTPError as e:
+                      sys.exit(0) if e.code in (200, 401) else sys.exit(1)
+                  except Exception:
+                      sys.exit(1)
+            initialDelaySeconds: {{ .Values.litellm.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.litellm.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.litellm.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.litellm.healthCheck.failureThreshold }}
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - |
+                  import urllib.request, urllib.error, sys
+                  req = urllib.request.Request("http://127.0.0.1:4000/health")
+                  try:
+                      urllib.request.urlopen(req)
+                      sys.exit(0)
+                  except urllib.error.HTTPError as e:
+                      sys.exit(0) if e.code in (200, 401) else sys.exit(1)
+                  except Exception:
+                      sys.exit(1)
+            initialDelaySeconds: {{ add .Values.litellm.healthCheck.initialDelaySeconds 30 }}
+            periodSeconds: {{ .Values.litellm.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.litellm.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.litellm.healthCheck.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.litellm.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            {{- with .Values.litellm.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "acp.litellmConfigName" . }}
+        {{- with .Values.litellm.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

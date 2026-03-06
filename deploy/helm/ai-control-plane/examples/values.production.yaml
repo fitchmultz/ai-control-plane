@@ -1,0 +1,190 @@
+# Production Values for AI Control Plane Helm Chart
+#
+# Purpose: Production-ready configuration with external database and existing secrets
+#
+# Usage:
+#   1. Create your secrets first:
+#      kubectl create secret generic ai-control-plane-secrets \
+#        --from-literal=LITELLM_MASTER_KEY='your-secure-master-key-32-chars-min' \
+#        --from-literal=LITELLM_SALT_KEY='your-secure-salt-key-32-chars-min' \
+#        --from-literal=DATABASE_URL='postgresql://user:pass@postgres-host:5432/litellm' \
+#        -n acp
+#
+#   2. Install with production values:
+#      helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp \
+#        -f ./deploy/helm/ai-control-plane/examples/values.production.yaml
+#
+# See also: docs/deployment/KUBERNETES_HELM.md
+
+# -----------------------------------------------------------------------------
+# Profile
+# -----------------------------------------------------------------------------
+
+profile: production
+
+# -----------------------------------------------------------------------------
+# Secrets (External)
+# -----------------------------------------------------------------------------
+
+# Do NOT create secrets via Helm - use existing secrets managed externally
+secrets:
+  create: false
+  existingSecret:
+    name: ai-control-plane-secrets
+    masterKeyKey: LITELLM_MASTER_KEY
+    saltKeyKey: LITELLM_SALT_KEY
+    databaseUrlKey: DATABASE_URL
+
+# -----------------------------------------------------------------------------
+# External Database (Required)
+# -----------------------------------------------------------------------------
+
+# Disable embedded PostgreSQL (use external database for production)
+postgres:
+  enabled: false
+
+# Reference to external database secret
+externalDatabase:
+  existingSecret: ai-control-plane-secrets
+  existingSecretKey: DATABASE_URL
+
+# -----------------------------------------------------------------------------
+# LiteLLM Gateway
+# -----------------------------------------------------------------------------
+
+litellm:
+  # Multiple replicas for high availability
+  replicaCount: 2
+
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+  # Enable pod security (if using custom image that supports non-root)
+  # podSecurityContext:
+  #   runAsNonRoot: true
+  #   runAsUser: 1000
+  #   fsGroup: 1000
+
+  # Health check configuration
+  healthCheck:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+  # Online mode with real AI providers
+  mode: online
+
+# -----------------------------------------------------------------------------
+# External Access (Ingress)
+# -----------------------------------------------------------------------------
+
+ingress:
+  enabled: true
+  className: nginx
+
+  annotations:
+    # cert-manager for automatic TLS certificates
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Enable HTTPS redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Proxy settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+  hosts:
+    - host: ai-control-plane.example.com  # Change to your domain
+      paths:
+        - path: /
+          pathType: Prefix
+
+  tls:
+    - secretName: ai-control-plane-tls
+      hosts:
+        - ai-control-plane.example.com  # Change to your domain
+
+# -----------------------------------------------------------------------------
+# High Availability
+# -----------------------------------------------------------------------------
+
+# Pod Disruption Budget ensures minimum availability during disruptions
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Horizontal Pod Autoscaler for automatic scaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus  # Match your Prometheus Operator release label
+    interval: 30s
+    scrapeTimeout: 10s
+
+# -----------------------------------------------------------------------------
+# Network Security
+# -----------------------------------------------------------------------------
+
+# Optional: Enable NetworkPolicy to restrict traffic
+networkPolicy:
+  enabled: false
+  # Example: Only allow ingress from specific namespace
+  # ingress:
+  #   - from:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             name: app-namespace
+
+# -----------------------------------------------------------------------------
+# Service Account
+# -----------------------------------------------------------------------------
+
+serviceAccount:
+  create: true
+  annotations: {}
+    # Example for AWS IRSA:
+    # eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/ai-control-plane
+
+# -----------------------------------------------------------------------------
+# Additional Labels
+# -----------------------------------------------------------------------------
+
+commonLabels:
+  environment: production
+  managed-by: helm
+
+# -----------------------------------------------------------------------------
+# Backup Configuration (Production)
+# -----------------------------------------------------------------------------
+
+backup:
+  # DISABLED: Production uses AWS RDS which has its own backup mechanisms.
+  # The backup CronJob is intended for embedded PostgreSQL only.
+  # For RDS backups:
+  #   - Automated backups: Configured via Terraform (backup_retention_period)
+  #   - Cross-region replication: Configure RDS read replicas
+  enabled: false
+
+  # If enabling for external database (not recommended), you MUST set:
+  # externalDatabase:
+  #   host: "your-postgres-host"
+  #   username: "litellm"
+  #   database: "litellm"

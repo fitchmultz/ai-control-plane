@@ -1,0 +1,521 @@
+# AI Control Plane - Helm Chart Values
+#
+# This is a YAML-formatted file. Follow indentation rules carefully.
+#
+# Quick Start (demo with embedded Postgres):
+#   helm install acp ./deploy/helm/ai-control-plane -n acp --create-namespace
+#
+# Production (external database):
+#   helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp \
+#     -f ./deploy/helm/ai-control-plane/examples/values.production.yaml
+
+# -----------------------------------------------------------------------------
+# Profile Selection
+# -----------------------------------------------------------------------------
+
+# profile determines validation strictness:
+#   - "demo": Quick start, allows placeholders, embedded postgres ok
+#   - "production": Requires strong secrets, external DB recommended
+profile: demo
+
+# -----------------------------------------------------------------------------
+# Global Settings
+# -----------------------------------------------------------------------------
+
+# Image pull secrets for private registries
+imagePullSecrets: []
+# - name: my-registry-secret
+
+# Pod annotations (applied to all pods)
+podAnnotations: {}
+
+# Common labels (applied to all resources)
+commonLabels: {}
+
+# -----------------------------------------------------------------------------
+# LiteLLM Gateway Configuration
+# -----------------------------------------------------------------------------
+
+litellm:
+  # Number of gateway replicas
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/fitchmultz/acp/litellm-hardened
+    # Pinned digest for reproducibility (first-party hardened build 2026-02-12)
+    digest: "sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801"
+    pullPolicy: IfNotPresent
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 4000
+    # Node port (only used when type is NodePort)
+    nodePort: null
+
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  # Pod security context
+  podSecurityContext:
+    runAsNonRoot: false  # LiteLLM image may require root; override if using custom image
+    fsGroup: 0
+
+  # Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false  # Set to true only if using read-only root FS
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Health check configuration
+  healthCheck:
+    # Accepts 200 or 401 as healthy (401 = auth required is expected)
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 12
+
+  # LiteLLM configuration mode
+  #   - "online": Use real providers (requires API keys)
+  #   - "offline": Use mock upstream service
+  mode: online
+
+  # Public URL (used when behind ingress/proxy)
+  publicUrl: ""
+
+  # Extra environment variables
+  extraEnv: []
+  # - name: CUSTOM_VAR
+  #   value: custom_value
+
+  # Extra volume mounts
+  extraVolumeMounts: []
+
+  # Extra volumes
+  extraVolumes: []
+
+# -----------------------------------------------------------------------------
+# Secrets Configuration
+# -----------------------------------------------------------------------------
+#
+# WARNING: Never commit actual secrets to Git. Use one of these approaches:
+#
+#   1. Chart creates secrets from literal values (dev/demo only):
+#      secrets.create: true
+#      secrets.litellm.masterKey: "your-secure-key"
+#
+#   2. Reference existing secrets (production recommended):
+#      secrets.create: false
+#      secrets.existingSecret.name: "ai-control-plane-secrets"
+#
+#   3. Use External Secrets Operator (production recommended):
+#      secrets.create: false
+#      secrets.existingSecret.name: "ai-control-plane-secrets"  # Managed by ESO
+
+secrets:
+  # Create secrets via Helm (not recommended for production)
+  create: true
+
+  # Existing secret reference (used when create: false)
+  existingSecret:
+    name: ""
+    # Keys within the secret
+    masterKeyKey: LITELLM_MASTER_KEY
+    saltKeyKey: LITELLM_SALT_KEY
+    databaseUrlKey: DATABASE_URL
+
+  # Literal values (only used when create: true)
+  # These are placeholders - change before deployment!
+  litellm:
+    # Master key for admin authentication (>=32 chars, no whitespace)
+    masterKey: "sk-litellm-master-change-me"
+    # Salt key for encryption (>=32 chars, no whitespace, never change after set)
+    saltKey: "sk-litellm-salt-change-me"
+
+  # External database connection string (required when postgres.enabled: false)
+  # Format: postgresql://user:password@host:5432/dbname
+  externalDatabaseUrl: ""
+
+# -----------------------------------------------------------------------------
+# PostgreSQL Configuration
+# -----------------------------------------------------------------------------
+
+postgres:
+  # Enable embedded PostgreSQL (StatefulSet)
+  # Set to false for production (use external database)
+  enabled: true
+
+  image:
+    repository: cgr.dev/chainguard/postgres
+    # Pinned digest for reproducibility (Chainguard PostgreSQL 18)
+    digest: "sha256:cf06f490d5b25b321cf614d430c6fa428409f5ca4144bb59f9f0b0b9a7c86e1c"
+    pullPolicy: IfNotPresent
+
+  # Database authentication (used when postgres.enabled: true)
+  auth:
+    username: litellm
+    password: litellm-password-change-me
+    database: litellm
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 5432
+
+  # Persistence configuration
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  # Security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    # NOTE: PostgreSQL cannot drop ALL capabilities due to volume initialization
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Health check configuration
+  healthCheck:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 5
+
+# -----------------------------------------------------------------------------
+# External Database Configuration
+# -----------------------------------------------------------------------------
+# Use this when postgres.enabled: false
+
+externalDatabase:
+  # Existing secret containing DATABASE_URL
+  existingSecret: ""
+  existingSecretKey: DATABASE_URL
+
+# -----------------------------------------------------------------------------
+# Mock Upstream Configuration (Offline Mode)
+# -----------------------------------------------------------------------------
+
+mockUpstream:
+  # Enable mock upstream service (for offline demos)
+  enabled: false
+
+  image:
+    repository: cgr.dev/chainguard/python
+    # Pinned digest for reproducibility (python:latest)
+    digest: "sha256:4e0071d93c68dc02059f220342a75cec135b252970416cb4e4bfd28024c7e2e1"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+# -----------------------------------------------------------------------------
+# Ingress Configuration
+# -----------------------------------------------------------------------------
+
+ingress:
+  enabled: false
+  className: ""  # e.g., "nginx", "traefik", "alb"
+
+  # Additional annotations
+  annotations: {}
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+  hosts:
+    - host: ai-control-plane.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+  # TLS configuration
+  tls: []
+  # - secretName: ai-control-plane-tls
+  #   hosts:
+  #     - ai-control-plane.local
+
+# -----------------------------------------------------------------------------
+# Service Account
+# -----------------------------------------------------------------------------
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use (auto-generated if not set)
+  name: ""
+
+# -----------------------------------------------------------------------------
+# Pod Disruption Budget
+# -----------------------------------------------------------------------------
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# -----------------------------------------------------------------------------
+# Autoscaling (HPA)
+# -----------------------------------------------------------------------------
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# -----------------------------------------------------------------------------
+# Network Policy
+# -----------------------------------------------------------------------------
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  # - from:
+  #     - podSelector:
+  #         matchLabels:
+  #           app.kubernetes.io/name: my-app
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+
+monitoring:
+  # ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    labels: {}
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false          # Preserve labels from scraped targets when conflicts occur
+    relabelings: []             # Relabeling rules applied before scraping
+    metricRelabelings: []       # Relabeling rules applied after scraping (before ingestion)
+    tlsConfig: {}               # TLS configuration for HTTPS scraping
+    targetLabels: []            # Labels to copy from Service to target
+
+  # PrometheusRule alerts configuration
+  prometheusRule:
+    enabled: false
+    labels: {}
+    # release: prometheus  # Match your Prometheus Operator release label
+
+  # Alert threshold configuration
+  alerts:
+    # Optional base URL for alert runbook links.
+    # Example: https://github.com/<your-org>/ai-control-plane/blob/main
+    # Leave empty to omit runbook_url annotations from Prometheus alerts.
+    runbookBaseUrl: ""
+
+    # Auth failure alerting
+    authFailureRateThreshold: 1              # failures per second threshold
+    authFailureWindow: 5m                    # evaluation window
+    authFailureDuration: 5m                  # duration before firing
+
+    # Detection/guardrail error alerting
+    detectionErrorWindow: 10m                # evaluation window
+    detectionErrorThreshold: 0.1             # errors per second threshold
+    detectionErrorDuration: 10m              # duration before firing
+
+    # Gateway performance alerting
+    gatewayLatencyThreshold: 5               # P95 latency threshold in seconds
+    gatewayErrorRateThreshold: 0.1           # error rate threshold (10%)
+
+    # Resource usage alerting
+    cpuThreshold: 0.8                        # CPU usage threshold (80%)
+    memoryThreshold: 0.85                    # Memory usage threshold (85%)
+
+# -----------------------------------------------------------------------------
+# Backup Configuration
+# -----------------------------------------------------------------------------
+
+backup:
+  # Enable automated backup CronJob
+  enabled: false
+
+  # Cron schedule for backups (default: daily at 2 AM)
+  # Format: standard cron expression
+  schedule: "0 2 * * *"
+
+  # Number of successful/failed jobs to keep in history
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # Backup image configuration
+  image:
+    repository: postgres
+    tag: "18-alpine"
+    pullPolicy: IfNotPresent
+
+  # Resource limits for backup jobs
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Retention policy
+  retention:
+    # Delete backups older than N days (0 = disable age-based cleanup)
+    days: 7
+    # Maximum number of backups to keep (0 = disable count-based cleanup)
+    maxCount: 10
+    # Alert threshold for stale backups (seconds since last backup)
+    staleAlertThreshold: 90000  # 25 hours
+
+  # Persistent storage for backups
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+
+  # Backup verification
+  verification:
+    enabled: true
+    # Schedule for verification job (default: daily at 3 AM)
+    schedule: "0 3 * * *"
+    # Resource limits for verification jobs
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  # External database settings (used when postgres.enabled: false)
+  externalDatabase:
+    # PostgreSQL host (required for external database)
+    host: ""
+    # PostgreSQL username
+    username: "litellm"
+    # PostgreSQL database name
+    database: "litellm"
+
+  # Node scheduling options for backup jobs
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  # Monitoring and alerting
+  monitoring:
+    enabled: true
+    prometheusRule:
+      enabled: true
+      # labels:
+      #   release: prometheus  # Match your Prometheus Operator release label
+      labels: {}
+
+# -----------------------------------------------------------------------------
+# Chargeback Report Generation Configuration
+# -----------------------------------------------------------------------------
+
+chargeback:
+  # Enable automated chargeback report generation CronJob
+  enabled: false
+
+  # Cron schedule for report generation (default: 9 AM on 1st of each month)
+  # Format: standard cron expression
+  schedule: "0 9 1 * *"
+
+  # Number of successful/failed jobs to keep in history
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # Variance detection threshold (percent change vs previous month)
+  # If variance exceeds this threshold, job exits with code 1 (alert condition)
+  varianceThreshold: 15
+
+  # Anomaly detection threshold (percent spike vs previous month)
+  # Cost centers with spend increase above this threshold are flagged
+  anomalyThreshold: 200
+
+  # Container image configuration
+  image:
+    repository: postgres
+    tag: "18-alpine"
+    pullPolicy: IfNotPresent
+
+  # Resource limits for chargeback jobs
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Notification settings
+  notifications:
+    enabled: false
+    # Slack webhook URL for notifications (stored in secret)
+    # slackWebhookUrl: ""
+    # Generic webhook URL for finance system integration
+    # genericWebhookUrl: ""
+
+  # Persistent storage for generated reports
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+
+  # External database settings (used when postgres.enabled: false)
+  externalDatabase:
+    # PostgreSQL host (required for external database)
+    host: ""
+    # PostgreSQL username
+    username: "litellm"
+    # PostgreSQL database name
+    database: "litellm"
+
+  # Node scheduling options for chargeback jobs
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

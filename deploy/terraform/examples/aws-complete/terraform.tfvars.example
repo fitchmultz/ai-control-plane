@@ -1,0 +1,178 @@
+#------------------------------------------------------------------------------
+# AWS Complete Example - Terraform Variables Example
+#------------------------------------------------------------------------------
+# Copy this file to terraform.tfvars and customize for your environment.
+# DO NOT commit terraform.tfvars with real values to Git.
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+# General Configuration
+#------------------------------------------------------------------------------
+
+# AWS region for deployment
+aws_region = "us-east-1"
+
+# Environment: dev, staging, or production
+environment = "dev"
+
+# Prefix for all resource names
+name_prefix = "ai-control-plane"
+
+# Additional tags for all resources
+tags = {
+  Team        = "platform"
+  CostCenter  = "engineering"
+  Owner       = "ai-team@example.com"
+}
+
+#------------------------------------------------------------------------------
+# VPC Configuration
+#------------------------------------------------------------------------------
+
+# VPC CIDR block
+vpc_cidr = "10.0.0.0/16"
+
+# Availability zones (leave empty to use first 3 AZs in the region)
+availability_zones = []
+
+# Private subnet CIDRs (one per AZ)
+private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+
+# Public subnet CIDRs (one per AZ)
+public_subnet_cidrs = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+# Use single NAT gateway for cost savings (not recommended for production)
+single_nat_gateway = true
+
+#------------------------------------------------------------------------------
+# EKS Configuration
+#------------------------------------------------------------------------------
+
+# Kubernetes version
+cluster_version = "1.29"
+
+# Enable public access to cluster endpoint
+cluster_endpoint_public_access = true
+
+# Enable private access to cluster endpoint
+cluster_endpoint_private_access = true
+
+# CIDR blocks allowed for public cluster access (restrict in production)
+cluster_public_access_cidrs = ["0.0.0.0/0"]
+
+# EKS node groups configuration
+node_groups = {
+  general = {
+    desired_size   = 2
+    min_size       = 1
+    max_size       = 5
+    instance_types = ["t3.medium"]
+    capacity_type  = "ON_DEMAND"
+    disk_size      = 50
+    labels = {
+      role = "general"
+    }
+  }
+}
+
+# Enable cluster autoscaler IAM permissions
+enable_cluster_autoscaler = true
+
+#------------------------------------------------------------------------------
+# RDS Configuration
+#------------------------------------------------------------------------------
+
+# RDS instance class (environment-specific defaults exist)
+#   dev:        db.t3.micro
+#   staging:    db.t3.small
+#   production: db.t3.medium
+rds_instance_class = "db.t3.micro"
+
+# PostgreSQL engine version
+rds_engine_version = "16.3"
+
+# Initial storage size in GB
+rds_allocated_storage = 20
+
+# Maximum storage size in GB for autoscaling
+rds_max_allocated_storage = 100
+
+# Enable Multi-AZ for high availability
+rds_multi_az = false
+
+# Backup retention period in days
+rds_backup_retention_period = 7
+
+# Enable deletion protection (recommended for production)
+rds_deletion_protection = false
+
+# Skip final snapshot when destroying (set to false in production)
+rds_skip_final_snapshot = true
+
+# Enable Performance Insights
+rds_performance_insights_enabled = false
+
+# Database name
+rds_database_name = "litellm"
+
+# Database username
+rds_username = "litellm"
+
+#------------------------------------------------------------------------------
+# ALB Configuration
+#------------------------------------------------------------------------------
+
+# Enable Application Load Balancer
+enable_alb = true
+
+# Enable HTTPS on ALB
+alb_enable_https = false
+
+# ACM certificate ARN (required if HTTPS is enabled)
+alb_certificate_arn = ""
+
+#------------------------------------------------------------------------------
+# Helm Chart Configuration
+#------------------------------------------------------------------------------
+
+# Kubernetes namespace
+namespace = "acp"
+
+# Helm release name
+helm_release_name = "acp"
+
+# Number of LiteLLM replicas
+litellm_replica_count = 2
+
+# LiteLLM resource limits and requests
+litellm_resources = {
+  limits = {
+    cpu    = "1000m"
+    memory = "1Gi"
+  }
+  requests = {
+    cpu    = "250m"
+    memory = "512Mi"
+  }
+}
+
+# LiteLLM master key (leave empty to auto-generate)
+# IMPORTANT: If manually set, use a strong key (>=32 chars, no whitespace)
+litellm_master_key = ""
+
+# LiteLLM salt key (leave empty to auto-generate)
+# IMPORTANT: If manually set, use a strong key (>=32 chars, no whitespace)
+# WARNING: Never change this after initial deployment - it will corrupt encrypted data
+litellm_salt_key = ""
+
+# Enable autoscaling
+enable_autoscaling = true
+
+# Enable Kubernetes ingress
+enable_ingress = false
+
+# Ingress hostname (required if ingress is enabled)
+ingress_host = ""
+
+# Ingress class name (e.g., alb, nginx, traefik)
+ingress_class_name = "alb"

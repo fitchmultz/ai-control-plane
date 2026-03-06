@@ -1,0 +1,30 @@
+{{/*
+Chargeback Reports PersistentVolumeClaim
+
+Responsibilities:
+  - Persistent storage for generated chargeback reports
+  - Retain report history for variance analysis
+  - Support finance system integration via shared storage
+
+Non-scope:
+  - Does NOT manage backup/restore of reports
+  - Does NOT handle object storage integration
+*/}}
+{{- if and .Values.chargeback.enabled .Values.chargeback.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "acp.fullname" . }}-chargeback-reports
+  labels:
+    {{- include "acp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chargeback
+spec:
+  accessModes:
+    - {{ .Values.chargeback.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.chargeback.persistence.size }}
+  {{- if .Values.chargeback.persistence.storageClass }}
+  storageClassName: {{ .Values.chargeback.persistence.storageClass }}
+  {{- end }}
+{{- end }}

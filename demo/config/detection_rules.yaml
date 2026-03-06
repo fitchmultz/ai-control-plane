@@ -1,0 +1,500 @@
+# AI Control Plane - SIEM-Style Detection Rules
+#
+# This file defines detection rules for identifying security anomalies,
+# policy violations, and cost risks in the AI gateway.
+#
+# Rules are executed by run_detection.sh, which runs SQL queries
+# against LiteLLM-managed usage/cost logs (e.g., "LiteLLM_SpendLogs")
+# and related tables.
+
+---
+detection_rules:
+  - rule_id: DR-001
+    name: "Non-Approved Model Access"
+    description: "Detects requests to models not in the approved list"
+    severity: "high"
+    category: "policy_violation"
+    operational_status: "validated"
+    coverage_tier: "decision-grade"
+    expected_signal: "Any request model not in approved list within last 24h"
+    enabled: true
+    auto_response:
+      enabled: true
+      action: "suspend_key"
+      grace_period_minutes: 0
+    sql_query: |
+      SELECT
+        s.request_id,
+        s.model AS model_id,
+        COALESCE(v.key_alias, 'unknown') AS key_alias,
+        CASE
+          WHEN NULLIF(BTRIM(s."user"), '') IS NOT NULL
+            AND LOWER(BTRIM(s."user")) <> 'unknown'
+            AND BTRIM(s."user") !~ '\\s'
+            THEN BTRIM(s."user")
+          WHEN NULLIF(BTRIM(v.user_id), '') IS NOT NULL
+            AND LOWER(BTRIM(v.user_id)) <> 'unknown'
+            AND BTRIM(v.user_id) !~ '\\s'
+            THEN BTRIM(v.user_id)
+          WHEN NULLIF(BTRIM(v.key_alias), '') IS NOT NULL
+            AND LOWER(BTRIM(v.key_alias)) <> 'unknown'
+            AND BTRIM(v.key_alias) !~ '\\s'
+            THEN BTRIM(v.key_alias)
+          ELSE 'unknown'
+        END AS user_id,
+        TO_CHAR(s."startTime", 'YYYY-MM-DD HH24:MI:SS') AS timestamp,
+        s.status
+      FROM "LiteLLM_SpendLogs" s
+      LEFT JOIN "LiteLLM_VerificationToken" v
+        ON s.api_key = v.token
+      WHERE s.model NOT IN (
+        SELECT jsonb_array_elements_text(:'APPROVED_MODELS_JSON'::jsonb)
+      )
+        AND s."startTime" > NOW() - INTERVAL '24 hours'
+      ORDER BY s."startTime" DESC
+      LIMIT 100;
+    remediation: >-
+      Add model to approved list in litellm.yaml or revoke key access
+
+  - rule_id: DR-002
+    name: "Token Usage Spike"
+    description: "Detects unusual token consumption patterns per key"
+    severity: "medium"
+    category: "anomaly"
+    operational_status: "example"
+    coverage_tier: "demo"
+    expected_signal: "Keys exceeding static 24h token threshold"
+    enabled: true
+    auto_response:
+      enabled: false
+      action: "alert_only"
+      grace_period_minutes: 0
+    parameters:
+      threshold_tokens: 100000
+      window_hours: 24
+    sql_query: |
+      SELECT
+        COALESCE(v.key_alias, 'unknown') AS key_alias,
+        SUM(s."prompt_tokens" + s."completion_tokens") AS total_tokens,
+        COUNT(*) AS request_count,
+        TO_CHAR(MAX(s."startTime"), 'YYYY-MM-DD HH24:MI:SS') AS last_seen
+      FROM "LiteLLM_SpendLogs" s
+      LEFT JOIN "LiteLLM_VerificationToken" v
+        ON s.api_key = v.token
+      WHERE s."startTime" > NOW() - INTERVAL '24 hours'
+      GROUP BY COALESCE(v.key_alias, 'unknown')
+      HAVING SUM(s."prompt_tokens" + s."completion_tokens") > 100000
+      ORDER BY total_tokens DESC;
+    remediation: "Investigate key usage and verify legitimate activity"
+
+  - rule_id: DR-003
+    name: "High Block/Error Rate"
+    description: "Detects keys with elevated failure rates"
+    severity: "medium"
+    category: "availability"
+    operational_status: "validated"
+    coverage_tier: "decision-grade"
+    expected_signal: "Keys with >10% non-success status over >=10 requests"
+    enabled: true
+    auto_response:
+      enabled: false
+      action: "alert_only"
+      grace_period_minutes: 0
+    parameters:
+      error_threshold_percent: 10
+      min_requests: 10
+    sql_query: |
+      SELECT
+        COALESCE(v.key_alias, 'unknown') AS key_alias,
+        COUNT(*) FILTER (WHERE s.status != 'success') AS error_count,
+        COUNT(*) AS total_requests,
+        ROUND(100.0 * COUNT(*) FILTER (WHERE s.status != 'success')
+          / NULLIF(COUNT(*), 0), 2) AS error_rate
+      FROM "LiteLLM_SpendLogs" s
+      LEFT JOIN "LiteLLM_VerificationToken" v
+        ON s.api_key = v.token
+      WHERE s."startTime" > NOW() - INTERVAL '24 hours'
+      GROUP BY COALESCE(v.key_alias, 'unknown')
+      HAVING COUNT(*) >= 10
+        AND COUNT(*) FILTER (WHERE s.status != 'success')
+          * 100.0 / NULLIF(COUNT(*), 0) > 10
+      ORDER BY error_rate DESC;
+    remediation: "Review authentication and verify provider credentials"
+
+  - rule_id: DR-004
+    name: "Budget Exhaustion Warning"
+    description: "Alerts when keys approach budget limits"
+    severity: "low"
+    category: "cost_management"
+    operational_status: "validated"
+    coverage_tier: "decision-grade"
+    expected_signal: "Keys with less than 20% budget remaining"
+    enabled: true
+    auto_response:
+      enabled: false
+      action: "alert_only"
+      grace_period_minutes: 0
+    parameters:
+      warning_threshold_percent: 80
+    sql_query: |
+      SELECT
+        v.key_alias,
+        ROUND(v.spend::numeric, 4) AS spent,
+        ROUND(b.max_budget::numeric, 4) AS maximum,
+        ROUND(((b.max_budget - v.spend) / NULLIF(b.max_budget, 0)
+          * 100)::numeric, 2) AS percent_remaining
+      FROM "LiteLLM_VerificationToken" v
+      JOIN "LiteLLM_BudgetTable" b ON v.budget_id = b.budget_id
+      WHERE b.max_budget > 0
+        AND ((b.max_budget - v.spend) / NULLIF(b.max_budget, 0)) < 0.2
+      ORDER BY percent_remaining ASC;
+    remediation: "Increase budget limit or review usage patterns"
+
+  - rule_id: DR-005
+    name: "Rapid Request Rate"
+    description: "Detects suspiciously high request frequency per key"
+    severity: "medium"
+    category: "anomaly"
+    operational_status: "example"
+    coverage_tier: "demo"
+    expected_signal: "Any key exceeding 60 requests/minute in last hour"
+    enabled: true
+    auto_response:
+      enabled: false
+      action: "alert_only"
+      grace_period_minutes: 0
+    parameters:
+      max_requests_per_minute: 60
+    sql_query: |
+      SELECT
+        COALESCE(v.key_alias, 'unknown') AS key_alias,
+        COUNT(*) AS request_count,
+        TO_CHAR(MIN(s."startTime"), 'YYYY-MM-DD HH24:MI:SS') AS first_request,
+        TO_CHAR(MAX(s."startTime"), 'YYYY-MM-DD HH24:MI:SS') AS last_request
+      FROM "LiteLLM_SpendLogs" s
+      LEFT JOIN "LiteLLM_VerificationToken" v
+        ON s.api_key = v.token
+      WHERE s."startTime" > NOW() - INTERVAL '1 hour'
+      GROUP BY
+        COALESCE(v.key_alias, 'unknown'),
+        DATE_TRUNC('minute', s."startTime")
+      HAVING COUNT(*) > 60
+      ORDER BY request_count DESC
+      LIMIT 50;
+    remediation: "Investigate potential automated abuse or API key leakage"
+
+  - rule_id: DR-006
+    name: "Failed Authentication Attempts"
+    description: "Detects repeated authentication failures"
+    severity: "high"
+    category: "security"
+    operational_status: "validated"
+    coverage_tier: "decision-grade"
+    expected_signal: "Keys with >=5 failed attempts in last 24h"
+    enabled: true
+    auto_response:
+      enabled: true
+      action: "suspend_key"
+      grace_period_minutes: 5
+    parameters:
+      max_failures: 5
+    sql_query: |
+      SELECT
+        COALESCE(v.key_alias, 'unknown') AS key_alias,
+        COUNT(*) FILTER (WHERE s.status = 'failure') AS failed_attempts,
+        COUNT(*) AS total_attempts,
+        TO_CHAR(MAX(s."startTime"), 'YYYY-MM-DD HH24:MI:SS') AS last_attempt
+      FROM "LiteLLM_SpendLogs" s
+      LEFT JOIN "LiteLLM_VerificationToken" v
+        ON s.api_key = v.token
+      WHERE s."startTime" > NOW() - INTERVAL '24 hours'
+      GROUP BY COALESCE(v.key_alias, 'unknown')
+      HAVING COUNT(*) FILTER (WHERE s.status = 'failure') >= 5
+      ORDER BY failed_attempts DESC;
+    remediation: >-
+      Revoke compromised key and investigate source of failed attempts
+
+  - rule_id: DR-007
+    name: "Budget Threshold Alert"
+    description: "Alerts when keys exceed configurable budget usage threshold"
+    severity: "medium"
+    category: "cost_management"
+    operational_status: "validated"
+    coverage_tier: "decision-grade"
+    expected_signal: "Keys with spend at or above 80% of budget"
+    enabled: true
+    auto_response:
+      enabled: false
+      action: "alert_only"
+      grace_period_minutes: 0
+    parameters:
+      threshold_percent: 80
+    sql_query: |
+      SELECT
+        v.key_alias,
+        ROUND(v.spend::numeric, 4) AS spend,
+        ROUND(b.max_budget::numeric, 4) AS max_budget,
+        ROUND((v.spend / NULLIF(b.max_budget, 0) * 100)::numeric, 2)
+          AS percent_used
+      FROM "LiteLLM_VerificationToken" v
+      JOIN "LiteLLM_BudgetTable" b ON v.budget_id = b.budget_id
+      WHERE b.max_budget > 0
+        AND (v.spend / NULLIF(b.max_budget, 0)) >= 0.8
+      ORDER BY percent_used DESC;
+    remediation: "Review usage and increase budget or investigate patterns"
+
+  - rule_id: DR-008
+    name: "DLP Block Event Detected"
+    description: >-
+      Detects requests blocked by Presidio DLP guardrails
+      due to PII or sensitive data detection
+    severity: "high"
+    category: "security"
+    operational_status: "validated"
+    coverage_tier: "decision-grade"
+    expected_signal: >-
+      Requests blocked by guardrail markers in status/response
+      metadata
+    enabled: true
+    auto_response:
+      enabled: false
+      action: "alert_only"
+      grace_period_minutes: 0
+    parameters:
+      detection_window_hours: 24
+    sql_query: |
+      SELECT
+        s.request_id,
+        COALESCE(v.key_alias, 'unknown') AS key_alias,
+        CASE
+          WHEN NULLIF(BTRIM(s."user"), '') IS NOT NULL
+            AND LOWER(BTRIM(s."user")) <> 'unknown'
+            AND BTRIM(s."user") !~ '\\s'
+            THEN BTRIM(s."user")
+          WHEN NULLIF(BTRIM(v.user_id), '') IS NOT NULL
+            AND LOWER(BTRIM(v.user_id)) <> 'unknown'
+            AND BTRIM(v.user_id) !~ '\\s'
+            THEN BTRIM(v.user_id)
+          WHEN NULLIF(BTRIM(v.key_alias), '') IS NOT NULL
+            AND LOWER(BTRIM(v.key_alias)) <> 'unknown'
+            AND BTRIM(v.key_alias) !~ '\\s'
+            THEN BTRIM(v.key_alias)
+          ELSE 'unknown'
+        END AS user_id,
+        s.model AS model_id,
+        TO_CHAR(s."startTime", 'YYYY-MM-DD HH24:MI:SS') AS timestamp,
+        s.status,
+        COALESCE(s."response"->>'guardrail_action', 'blocked')
+          AS guardrail_action
+      FROM "LiteLLM_SpendLogs" s
+      LEFT JOIN "LiteLLM_VerificationToken" v
+        ON s.api_key = v.token
+      WHERE s."startTime" > NOW() - INTERVAL '24 hours'
+        AND (
+          s.status = 'failure'
+          OR s."response"::text ILIKE '%guardrail%'
+          OR s."response"::text ILIKE '%presidio%'
+          OR s."response"::text ILIKE '%blocked%'
+        )
+      ORDER BY s."startTime" DESC
+      LIMIT 100;
+    remediation: >-
+      Investigate blocked requests.
+      If legitimate, educate user on safe data handling.
+      If malicious, review key access.
+
+  - rule_id: DR-009
+    name: "Repeated PII Submission Attempts"
+    description: >-
+      Detects keys with multiple DLP blocks indicating
+      persistent PII exposure attempts
+    severity: "high"
+    category: "security"
+    operational_status: "example"
+    coverage_tier: "demo"
+    expected_signal: >-
+      Same key repeatedly triggering DLP-style failures within
+      one hour
+    enabled: true
+    auto_response:
+      enabled: true
+      action: "suspend_key"
+      grace_period_minutes: 10
+    parameters:
+      block_threshold: 3
+      window_hours: 1
+    sql_query: |
+      WITH attributed_events AS (
+        SELECT
+          COALESCE(v.key_alias, 'unknown') AS key_alias,
+          CASE
+            WHEN NULLIF(BTRIM(s."user"), '') IS NOT NULL
+              AND LOWER(BTRIM(s."user")) <> 'unknown'
+              AND BTRIM(s."user") !~ '\\s'
+              THEN BTRIM(s."user")
+            WHEN NULLIF(BTRIM(v.user_id), '') IS NOT NULL
+              AND LOWER(BTRIM(v.user_id)) <> 'unknown'
+              AND BTRIM(v.user_id) !~ '\\s'
+              THEN BTRIM(v.user_id)
+            WHEN NULLIF(BTRIM(v.key_alias), '') IS NOT NULL
+              AND LOWER(BTRIM(v.key_alias)) <> 'unknown'
+              AND BTRIM(v.key_alias) !~ '\\s'
+              THEN BTRIM(v.key_alias)
+            ELSE 'unknown'
+          END AS user_id,
+          s.model,
+          s."startTime"
+        FROM "LiteLLM_SpendLogs" s
+        LEFT JOIN "LiteLLM_VerificationToken" v
+          ON s.api_key = v.token
+        WHERE s."startTime" > NOW() - INTERVAL '1 hour'
+          AND s.status = 'failure'
+          AND (
+            s."response"::text ILIKE '%guardrail%'
+            OR s."response"::text ILIKE '%presidio%'
+            OR s."response"::text ILIKE '%pii%'
+            OR s."response"::text ILIKE '%blocked%'
+          )
+      )
+      SELECT
+        key_alias,
+        user_id,
+        COUNT(*) AS block_count,
+        TO_CHAR(MIN("startTime"), 'YYYY-MM-DD HH24:MI:SS') AS first_block,
+        TO_CHAR(MAX("startTime"), 'YYYY-MM-DD HH24:MI:SS') AS last_block,
+        STRING_AGG(DISTINCT model, ', ') AS models_accessed
+      FROM attributed_events
+      GROUP BY key_alias, user_id
+      HAVING COUNT(*) >= 3
+      ORDER BY block_count DESC;
+    remediation: >-
+      Key shows suspicious pattern of PII submission.
+      Suspend immediately and investigate.
+      May indicate compromised credentials or insider threat.
+
+  - rule_id: DR-010
+    name: "Potential Prompt Injection Attempt"
+    description: >-
+      Detects requests with patterns associated with
+      prompt injection or jailbreak attempts
+    severity: "medium"
+    category: "policy_violation"
+    operational_status: "example"
+    coverage_tier: "demo"
+    expected_signal: >-
+      Failed requests containing prompt-injection or jailbreak markers in
+      gateway response metadata within the last 24 hours
+    enabled: true
+    auto_response:
+      enabled: false
+      action: "alert_only"
+      grace_period_minutes: 0
+    parameters:
+      window_hours: 24
+    sql_query: |
+      SELECT
+        s.request_id,
+        COALESCE(v.key_alias, 'unknown') AS key_alias,
+        CASE
+          WHEN NULLIF(BTRIM(s."user"), '') IS NOT NULL
+            AND LOWER(BTRIM(s."user")) <> 'unknown'
+            AND BTRIM(s."user") !~ '\\s'
+            THEN BTRIM(s."user")
+          WHEN NULLIF(BTRIM(v.user_id), '') IS NOT NULL
+            AND LOWER(BTRIM(v.user_id)) <> 'unknown'
+            AND BTRIM(v.user_id) !~ '\\s'
+            THEN BTRIM(v.user_id)
+          WHEN NULLIF(BTRIM(v.key_alias), '') IS NOT NULL
+            AND LOWER(BTRIM(v.key_alias)) <> 'unknown'
+            AND BTRIM(v.key_alias) !~ '\\s'
+            THEN BTRIM(v.key_alias)
+          ELSE 'unknown'
+        END AS user_id,
+        s.model AS model_id,
+        TO_CHAR(s."startTime", 'YYYY-MM-DD HH24:MI:SS') AS timestamp,
+        s.status
+      FROM "LiteLLM_SpendLogs" s
+      LEFT JOIN "LiteLLM_VerificationToken" v
+        ON s.api_key = v.token
+      WHERE s."startTime" > NOW() - INTERVAL '24 hours'
+        AND s.status = 'failure'
+        AND (
+          s."response"::text ILIKE '%ignore previous%'
+          OR s."response"::text ILIKE '%jailbreak%'
+          OR s."response"::text ILIKE '%prompt injection%'
+          OR s."response"::text ILIKE '%dAN%'
+          OR s."response"::text ILIKE '%developer mode%'
+        )
+      ORDER BY s."startTime" DESC
+      LIMIT 100;
+    remediation: >-
+      Review request content for prompt injection patterns.
+      Consider content filtering or key restrictions.
+
+# Global settings
+settings:
+  output_format: "table"  # table, json, csv
+  max_results_per_rule: 100
+  time_window_hours: 24
+  log_file: "demo/logs/detection_results.log"
+
+# Alert routing configuration for real-time notifications
+#
+# IMPORTANT: Only the 'enabled' field is read from this YAML configuration.
+# All routing details (webhook URLs, mentions, colors) are configured via
+# environment variables. See docs/security/DETECTION.md for details.
+#
+# Environment variables used:
+#   SLACK_SECURITY_WEBHOOK_URL  - High severity Slack alerts
+#   SLACK_ALERTS_WEBHOOK_URL    - Medium severity Slack alerts
+#   SLACK_NOTIFICATIONS_WEBHOOK_URL - Low severity Slack alerts
+#   PAGERDUTY_ROUTING_KEY       - PagerDuty Events API v2 key
+#   GENERIC_WEBHOOK_URL         - Generic webhook for SIEM integration
+#   NOTIFICATIONS_ENABLED       - Master enable/disable switch
+#   NOTIFICATION_DEDUP_WINDOW   - Deduplication window in minutes (default: 5)
+#   NOTIFICATION_CACHE_TTL      - Cache TTL in hours (default: 24)
+#
+alert_routing:
+  enabled: false  # Master switch - set to true to enable notifications
+
+  # Deduplication settings (for documentation - use env vars to override)
+  deduplication:
+    enabled: true
+    # Default: 5 minutes (override via NOTIFICATION_DEDUP_WINDOW)
+    window_minutes: 5
+    # Default: 24 hours (override via NOTIFICATION_CACHE_TTL)
+    cache_ttl_hours: 24
+
+  # Severity-based routing rules (for docs only - configure via env vars)
+  # High severity: Slack (#security) + PagerDuty
+  routes:
+    high:
+      - channel: slack
+        webhook_url: "${SLACK_SECURITY_WEBHOOK_URL}"  # Set via environment
+        mention: "@channel"
+        color: "danger"
+      - channel: pagerduty
+        routing_key: "${PAGERDUTY_ROUTING_KEY}"  # Set via environment
+        severity: "critical"
+
+    # Medium severity: Slack (#alerts) + Generic webhook
+    medium:
+      - channel: slack
+        webhook_url: "${SLACK_ALERTS_WEBHOOK_URL}"  # Set via environment
+        mention: "@here"
+        color: "warning"
+
+    # Low severity: Slack (#notifications)
+    low:
+      - channel: slack
+        webhook_url: "${SLACK_NOTIFICATIONS_WEBHOOK_URL}"  # Set via environment
+        color: "#808080"  # Gray for low priority
+
+  # Generic webhook endpoint (optional, for SIEM integration)
+  generic_webhooks:
+    - name: "siem_integration"
+      url: "${GENERIC_WEBHOOK_URL}"  # Set via environment
+      headers:
+        Authorization: "Bearer ${GENERIC_WEBHOOK_TOKEN}"  # Set via environment
+        Content-Type: "application/json"
+      filter_severity: ["high", "medium"]

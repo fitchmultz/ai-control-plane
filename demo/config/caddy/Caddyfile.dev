@@ -1,0 +1,100 @@
+# Caddyfile for local/demo deployment
+# Uses self-signed certificates for HTTPS
+#
+# Purpose: Provide HTTPS for local development and demo environments
+# Security: Self-signed certificates are suitable for local testing only
+# Usage: Docker Compose override (docker-compose.tls.yml) uses this file
+
+{
+    # Use internal CA for self-signed certificates
+    # Caddy will generate and trust its own certificates
+}
+
+# HTTPS endpoint on port 443
+:443 {
+    # Request body size limit (10MB) - prevents DoS from oversized payloads
+    request_body {
+        max_size 10MB
+    }
+
+    # Content-Type validation - only allow JSON for API endpoints
+    @nonJsonAPI {
+        path /v1/*
+        method POST PUT PATCH
+        not header Content-Type application/json
+        not header Content-Type application/json;*
+    }
+    respond @nonJsonAPI "Content-Type must be application/json" 415
+
+    # Handle request body too large errors
+    handle_errors 413 {
+        respond "Request body too large. Maximum size is 10MB." 413
+    }
+
+    # Reverse proxy to LiteLLM with retry logic for resilience
+    reverse_proxy litellm:4000 {
+        # Retry on connection failures (up to 3 attempts)
+        lb_retries 3
+    }
+
+    # TLS configuration with self-signed certs
+    tls internal {
+        on_demand
+    }
+
+    # Log configuration (IMPORTANT: do NOT log headers - OAuth token safety)
+    log {
+        output file /var/log/caddy/access.log
+        format json
+        # NO log_headers directive - headers must not be logged
+    }
+
+    # Security headers
+    header {
+        # Enable HSTS (shorter duration for self-signed certs)
+        Strict-Transport-Security "max-age=86400; includeSubDomains"
+        # Prevent MIME type sniffing
+        X-Content-Type-Options "nosniff"
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        # XSS protection
+        X-XSS-Protection "1; mode=block"
+        # Remove server identifier
+        -Server
+    }
+
+    # Health check endpoint ( bypasses proxy for direct health monitoring)
+    handle /health {
+        respond "Caddy Reverse Proxy - Healthy" 200
+    }
+}
+
+# HTTP to HTTPS redirect (optional)
+:80 {
+    # Request body size limit (10MB) - prevents DoS from oversized payloads
+    request_body {
+        max_size 10MB
+    }
+
+    # Content-Type validation - only allow JSON for API endpoints
+    @nonJsonAPI {
+        path /v1/*
+        method POST PUT PATCH
+        not header Content-Type application/json
+        not header Content-Type application/json;*
+    }
+    respond @nonJsonAPI "Content-Type must be application/json" 415
+
+    # Handle request body too large errors
+    handle_errors 413 {
+        respond "Request body too large. Maximum size is 10MB." 413
+    }
+
+    # Redirect all HTTP traffic to HTTPS
+    redir https://localhost{uri} permanent
+
+    # Health check for HTTP (useful for container health checks)
+    handle /health {
+        respond "Caddy Reverse Proxy - Use HTTPS on port 443" 200
+    }
+}

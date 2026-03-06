@@ -1,0 +1,84 @@
+{{/*
+Prometheus Rules for Backup Monitoring
+
+Responsibilities:
+  - Alert on backup job failures
+  - Alert on stale backups (no recent backup)
+  - Alert on backup verification failures
+
+Non-scope:
+  - Does NOT create ServiceMonitor (separate template)
+  - Does NOT configure alertmanager routing
+*/}}
+{{- if and .Values.backup.enabled .Values.backup.monitoring.enabled .Values.backup.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "acp.fullname" . }}-backup-alerts
+  labels:
+    {{- include "acp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-monitoring
+    {{- with .Values.backup.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- $runbookBase := trimSuffix "/" (dig "monitoring" "alerts" "runbookBaseUrl" "" .Values) }}
+  groups:
+    - name: ai-control-plane-backup
+      rules:
+        - alert: ACPBackupJobFailed
+          expr: |
+            kube_job_status_failed{job_name=~"{{ include "acp.fullname" . }}-backup-.*"} == 1
+          for: 0m
+          labels:
+            severity: warning
+            component: backup
+          annotations:
+            summary: "AI Control Plane backup job failed"
+            description: "Backup job {{ `{{` }} $labels.job_name {{ `}}` }} failed in namespace {{ `{{` }} $labels.namespace {{ `}}` }}. Check job logs for details."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/DISASTER_RECOVERY.md"
+            {{- end }}
+        
+        - alert: ACPBackupStale
+          expr: |
+            time() - max(kube_job_status_completion_time{job_name=~"{{ include "acp.fullname" . }}-backup-.*"}) > {{ .Values.backup.retention.staleAlertThreshold | default 86400 }}
+          for: 5m
+          labels:
+            severity: critical
+            component: backup
+          annotations:
+            summary: "AI Control Plane backup is stale"
+            description: "No successful backup in the last {{ `{{` }} $value | humanizeDuration {{ `}}` }}. Last backup: {{ `{{` }} $labels.job_name {{ `}}` }}."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/DISASTER_RECOVERY.md"
+            {{- end }}
+        
+        - alert: ACPBackupVerificationFailed
+          expr: |
+            kube_job_status_failed{job_name=~"{{ include "acp.fullname" . }}-backup-verify-.*"} == 1
+          for: 0m
+          labels:
+            severity: critical
+            component: backup
+          annotations:
+            summary: "AI Control Plane backup verification failed"
+            description: "Backup verification job {{ `{{` }} $labels.job_name {{ `}}` }} failed. Check verification logs immediately."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/DISASTER_RECOVERY.md"
+            {{- end }}
+        
+        - alert: ACPBackupDiskFull
+          expr: |
+            kubelet_volume_stats_available_bytes{persistentvolumeclaim="{{ include "acp.fullname" . }}-backups"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="{{ include "acp.fullname" . }}-backups"} < 0.1
+          for: 5m
+          labels:
+            severity: warning
+            component: backup
+          annotations:
+            summary: "AI Control Plane backup storage is nearly full"
+            description: "Backup storage is {{ `{{` }} $value | humanizePercentage {{ `}}` }} full. Consider increasing retention or storage size."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/DISASTER_RECOVERY.md"
+            {{- end }}
+{{- end }}

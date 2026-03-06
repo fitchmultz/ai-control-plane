@@ -1,0 +1,89 @@
+# AI Control Plane - Systemd Service Template
+# =============================================================================
+# Purpose: Systemd unit file template for AI Control Plane Docker Compose
+# Usage:   Render this template with your deployment tool (Ansible, Terraform,
+#          or manually) and install to /etc/systemd/system/ai-control-plane.service
+#
+# Template Variables:
+#   {{SERVICE_USER}}         - User to run the service as
+#   {{SERVICE_GROUP}}        - Group to run the service as
+#   {{WORKING_DIR}}          - Absolute path to the repository working directory
+#   {{ENV_FILE}}             - Path to canonical secrets file (e.g., /etc/ai-control-plane/secrets.env)
+#   {{COMPOSE_ENV_FILE}}     - Path to compose env file (e.g., demo/.env)
+#   {{SECRETS_FETCH_HOOK_ARG}} - Optional: rendered fetch-hook arg (e.g., --fetch-hook /path/to/hook.sh)
+#   {{COMPOSE_FILE}}         - Path to docker-compose.yml (e.g., docker-compose.yml)
+#   {{COMPOSE_BIN}}          - Docker Compose binary (e.g., docker compose or docker-compose)
+#
+# Installation:
+#   1. Render template with actual values
+#   2. Copy to /etc/systemd/system/ai-control-plane.service
+#   3. systemctl daemon-reload
+#   4. systemctl enable ai-control-plane
+#   5. systemctl start ai-control-plane
+#
+# Management:
+#   systemctl start ai-control-plane    # Start services
+#   systemctl stop ai-control-plane     # Stop services (preserves volumes)
+#   systemctl restart ai-control-plane  # Restart services
+#   systemctl status ai-control-plane   # Check status
+#
+# Security Notes:
+#   - Service runs as non-root user ({{SERVICE_USER}})
+#   - Requires docker.service to be running
+#   - Uses Type=oneshot with RemainAfterExit for proper state tracking
+# =============================================================================
+
+[Unit]
+Description=AI Control Plane - LiteLLM Gateway and PostgreSQL
+Documentation=https://github.com/tetrainsights/ai-control-plane/blob/main/docs/DEPLOYMENT.md
+After=network-online.target docker.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# User and Group
+User={{SERVICE_USER}}
+Group={{SERVICE_GROUP}}
+
+# Working Directory
+WorkingDirectory={{WORKING_DIR}}
+
+# Environment File
+EnvironmentFile={{ENV_FILE}}
+
+# Pre-start Secrets Preparation
+# Runs before every start/restart to fetch, validate, and sync secrets.
+# - Validates {{ENV_FILE}} meets security contract (permissions, file type)
+# - Syncs canonical secrets to {{COMPOSE_ENV_FILE}} for compose consumption
+# - Executes optional fetch hook {{SECRETS_FETCH_HOOK_ARG}} to refresh secrets
+# - All output is redacted to prevent secret leakage
+ExecStartPre={{WORKING_DIR}}/scripts/libexec/prepare_secrets_env_impl.sh --secrets-file {{ENV_FILE}} --compose-env-file {{COMPOSE_ENV_FILE}} {{SECRETS_FETCH_HOOK_ARG}} --service-user {{SERVICE_USER}}
+
+# Docker Compose Commands
+# Note: ExecStop uses "stop" (NOT down) to avoid surprise container deletion
+#       Volumes and data are preserved across restarts
+ExecStart={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} -f {{COMPOSE_FILE}} up -d --remove-orphans
+ExecStop={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} -f {{COMPOSE_FILE}} stop
+ExecReload={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} -f {{COMPOSE_FILE}} restart
+
+# Timeouts
+# Start timeout allows for image pulls and container initialization
+TimeoutStartSec=180
+# Stop timeout allows for graceful container shutdown
+TimeoutStopSec=120
+
+# Restart Policy
+# Note: Using RemainAfterExit=yes, restart is handled by systemd if the
+#       service unit itself fails, not the containers within
+Restart=no
+
+# Security Settings
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-control-plane
+
+[Install]
+WantedBy=multi-user.target

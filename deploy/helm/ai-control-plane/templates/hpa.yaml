@@ -1,0 +1,42 @@
+{{/*
+Horizontal Pod Autoscaler (HPA)
+
+Responsibilities:
+  - Automatically scales LiteLLM gateway replicas based on CPU/memory usage
+
+Non-scope:
+  - Does NOT scale PostgreSQL (StatefulSet, fixed replica count)
+  - Requires metrics-server to be installed in the cluster
+*/}}
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "acp.fullname" . }}-litellm
+  labels:
+    {{- include "acp.litellmLabels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "acp.fullname" . }}-litellm
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}

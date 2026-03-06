@@ -1,0 +1,28 @@
+{{/*
+PostgreSQL Service
+
+Responsibilities:
+  - Provides cluster-internal access to PostgreSQL
+  - Used by LiteLLM for database connections
+
+Non-scope:
+  - Does NOT expose PostgreSQL externally by default
+  - External access requires explicit configuration (port-forward or LoadBalancer)
+*/}}
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "acp.postgresService" . }}
+  labels:
+    {{- include "acp.postgresLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.postgres.service.type }}
+  ports:
+    - port: {{ .Values.postgres.service.port }}
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  selector:
+    {{- include "acp.postgresSelectorLabels" . | nindent 4 }}
+{{- end }}

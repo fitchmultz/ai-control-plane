@@ -1,0 +1,156 @@
+{{/*
+Backup Verification CronJob
+
+Responsibilities:
+  - Periodically verify backup integrity using stored checksums
+  - Alert on corrupted or missing backups
+  - Generate verification metrics for Prometheus
+
+Non-scope:
+  - Does NOT restore backups (test restore is out of scope for this CronJob)
+  - Does NOT fix corrupted backups
+
+Note on Full Restore Validation:
+  - This CronJob performs file integrity verification only (checksums, gzip)
+  - For automated restore drills with RTO/RPO evidence, use the drill script:
+    make helm-dr-drill NAMESPACE=<ns> RELEASE=<release>
+  - The drill script performs full restore simulation into temp databases
+  - See docs/deployment/DISASTER_RECOVERY.md for restore drill procedures
+*/}}
+{{- if and .Values.backup.enabled .Values.backup.verification.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "acp.fullname" . }}-backup-verify
+  labels:
+    {{- include "acp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-verification
+spec:
+  schedule: {{ .Values.backup.verification.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "acp.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup-verification
+        spec:
+          serviceAccountName: {{ include "acp.serviceAccountName" . }}
+          restartPolicy: OnFailure
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: verify
+              image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
+              imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  
+                  echo "=== Backup Verification ==="
+                  
+                  VERIFIED=0
+                  FAILED=0
+                  TOTAL=0
+                  
+                  for backup_file in /backups/litellm-backup-*.sql.gz; do
+                    [ -e "$backup_file" ] || continue
+                    TOTAL=$((TOTAL + 1))
+                    
+                    checksum_file="${backup_file}.md5"
+                    if [ ! -f "$checksum_file" ]; then
+                      echo "⚠ Missing checksum for: $(basename "$backup_file")"
+                      FAILED=$((FAILED + 1))
+                      continue
+                    fi
+                    
+                    # Verify checksum
+                    if md5sum -c "$checksum_file" >/dev/null 2>&1; then
+                      echo "✓ Verified: $(basename "$backup_file")"
+                      VERIFIED=$((VERIFIED + 1))
+                    else
+                      echo "✗ Corrupted: $(basename "$backup_file")"
+                      FAILED=$((FAILED + 1))
+                    fi
+                    
+                    # Test gzip integrity
+                    if gunzip -t "$backup_file" 2>/dev/null; then
+                      echo "  ✓ Gzip integrity OK"
+                    else
+                      echo "  ✗ Gzip integrity FAILED"
+                      FAILED=$((FAILED + 1))
+                    fi
+                  done
+                  
+                  echo ""
+                  echo "=== Verification Summary ==="
+                  echo "Total backups: $TOTAL"
+                  echo "Verified: $VERIFIED"
+                  echo "Failed: $FAILED"
+                  
+                  # Write metrics for Prometheus (if metrics directory exists)
+                  mkdir -p /backups/metrics
+                  cat > /backups/metrics/backup_verification.prom <<EOF
+                  # HELP acp_backup_verification_total Total number of backups verified
+                  # TYPE acp_backup_verification_total gauge
+                  acp_backup_verification_total $TOTAL
+                  # HELP acp_backup_verification_verified Number of verified backups
+                  # TYPE acp_backup_verification_verified gauge
+                  acp_backup_verification_verified $VERIFIED
+                  # HELP acp_backup_verification_failed Number of failed verifications
+                  # TYPE acp_backup_verification_failed gauge
+                  acp_backup_verification_failed $FAILED
+                  # HELP acp_backup_verification_timestamp Unix timestamp of last verification
+                  # TYPE acp_backup_verification_timestamp gauge
+                  acp_backup_verification_timestamp $(date +%s)
+                  EOF
+                  
+                  if [ $FAILED -gt 0 ]; then
+                    echo "✗ Verification failed for $FAILED backup(s)"
+                    exit 1
+                  fi
+                  
+                  echo "✓ All backups verified successfully"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                {{- toYaml .Values.backup.verification.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 999
+                seccompProfile:
+                  type: RuntimeDefault
+          volumes:
+            - name: backups
+              {{- if .Values.backup.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ include "acp.fullname" . }}-backups
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+{{- end }}

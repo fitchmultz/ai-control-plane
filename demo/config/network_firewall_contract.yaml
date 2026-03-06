@@ -1,0 +1,447 @@
+---
+version: 1
+contract: network-firewall
+owners:
+  - platform
+description: |
+  Canonical network and firewall contract for AI Control Plane deployments.
+  This document defines all required network flows with source, destination,
+  protocol, port, exposure semantics, and TLS requirements.
+shared_responsibility:
+  customer_mandatory_controls:
+    - Default-deny egress so only approved gateway paths can reach provider APIs.
+    - SWG/CASB enforcement for browser AI usage (block personal tenants, allow approved enterprise tenants).
+    - Endpoint/MDM enforcement to prevent local override of managed tool configuration.
+  provided_controls:
+    - Gateway policy patterns, deployment guidance, and validation criteria.
+    - Reference firewall contract artifacts and evidence pipeline integration patterns.
+
+flows:
+  # ============================================================================
+  # LiteLLM Gateway
+  # ============================================================================
+
+  - id: flow-litellm-http-local
+    source: client_host
+    destination: litellm_gateway
+    direction: ingress
+    protocol: tcp
+    port: 4000
+    exposure: localhost
+    tls_required_when_public: true
+    manifests:
+      - demo/docker-compose.yml:services.litellm.ports
+    justification: >
+      Gateway API access for clients and health endpoints
+      (localhost binding default for security)
+
+  - id: flow-litellm-http-public-tls
+    source: client_host
+    destination: litellm_gateway
+    direction: ingress
+    protocol: tcp
+    port: 4000
+    exposure: public
+    tls_required_when_public: true
+    manifests:
+      - demo/docker-compose.tls.yml:services.litellm.ports
+    justification: >
+      Gateway API access in TLS mode
+      (public exposure via Caddy TLS termination)
+
+  - id: flow-litellm-internal-helm
+    source: ingress_controller
+    destination: litellm_gateway
+    direction: ingress
+    protocol: tcp
+    port: 4000
+    exposure: internal_only
+    tls_required_when_public: true
+    manifests:
+      - deploy/helm/ai-control-plane/values.yaml:litellm.service
+    justification: >
+      Kubernetes ClusterIP service for internal cluster access
+      (ingress handles external traffic)
+
+  - id: flow-litellm-postgres-egress
+    source: litellm_gateway
+    destination: postgres
+    direction: egress
+    protocol: tcp
+    port: 5432
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.litellm.depends_on
+      - demo/docker-compose.offline.yml:services.litellm.depends_on
+    justification: >
+      Database connectivity for LiteLLM schema
+      and token storage
+
+  - id: flow-litellm-presidio-analyzer
+    source: litellm_gateway
+    destination: presidio_analyzer
+    direction: egress
+    protocol: tcp
+    port: 3000
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.litellm.depends_on
+      - demo/docker-compose.offline.yml:services.litellm.depends_on
+    justification: >
+      PII detection for request/response
+      content filtering
+
+  - id: flow-litellm-presidio-anonymizer
+    source: litellm_gateway
+    destination: presidio_anonymizer
+    direction: egress
+    protocol: tcp
+    port: 3000
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.litellm.depends_on
+      - demo/docker-compose.offline.yml:services.litellm.depends_on
+    justification: >
+      PII anonymization/redaction for request/response
+      content filtering
+
+  - id: flow-litellm-mock-upstream
+    source: litellm_gateway
+    destination: mock_upstream
+    direction: egress
+    protocol: tcp
+    port: 8080
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.offline.yml:services.litellm.depends_on
+    justification: >
+      Offline mode - LLM requests routed to mock upstream
+      instead of external providers
+
+  # ============================================================================
+  # PostgreSQL
+  # ============================================================================
+
+  - id: flow-postgres-internal-docker
+    source: litellm_gateway
+    destination: postgres
+    direction: ingress
+    protocol: tcp
+    port: 5432
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.postgres
+    justification: >
+      Database for LiteLLM token storage and audit logs
+      (internal Docker network only)
+
+  - id: flow-postgres-offline-exposed
+    source: client_host
+    destination: postgres
+    direction: ingress
+    protocol: tcp
+    port: 5432
+    exposure: localhost
+    tls_required_when_public: true
+    manifests:
+      - demo/docker-compose.offline.yml:services.postgres.ports
+    justification: >
+      PostgreSQL exposed on localhost for
+      offline/demo debugging only
+
+  - id: flow-postgres-helm-clusterip
+    source: litellm_gateway
+    destination: postgres
+    direction: ingress
+    protocol: tcp
+    port: 5432
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - deploy/helm/ai-control-plane/values.yaml:postgres.service
+    justification: >
+      Kubernetes ClusterIP service for PostgreSQL
+      (internal cluster access only)
+
+  # ============================================================================
+  # Caddy Proxy (TLS Mode)
+  # ============================================================================
+
+  - id: flow-caddy-http-local
+    source: client_host
+    destination: caddy_proxy
+    direction: ingress
+    protocol: tcp
+    port: 80
+    exposure: localhost
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.tls.yml:services.caddy.ports
+    justification: >
+      HTTP port for ACME challenge and redirect
+      (localhost by default, public in production)
+
+  - id: flow-caddy-http-public
+    source: client_host
+    destination: caddy_proxy
+    direction: ingress
+    protocol: tcp
+    port: 80
+    exposure: optional_public
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.tls.yml:services.caddy.ports
+    justification: >
+      HTTP port for ACME challenge
+      (public in production with automatic redirect to HTTPS)
+
+  - id: flow-caddy-https-local
+    source: client_host
+    destination: caddy_proxy
+    direction: ingress
+    protocol: tcp
+    port: 443
+    exposure: localhost
+    tls_required_when_public: true
+    manifests:
+      - demo/docker-compose.tls.yml:services.caddy.ports
+    justification: >
+      HTTPS port for secure gateway access
+      (localhost by default)
+
+  - id: flow-caddy-https-public
+    source: client_host
+    destination: caddy_proxy
+    direction: ingress
+    protocol: tcp
+    port: 443
+    exposure: public
+    tls_required_when_public: true
+    manifests:
+      - demo/docker-compose.tls.yml:services.caddy.ports
+    justification: >
+      HTTPS port for secure gateway access
+      (public in production deployments)
+
+  - id: flow-caddy-litellm-backend
+    source: caddy_proxy
+    destination: litellm_gateway
+    direction: egress
+    protocol: tcp
+    port: 4000
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.tls.yml:services.caddy.depends_on
+    justification: >
+      Caddy reverse proxy to LiteLLM backend
+      (internal Docker network)
+
+  # ============================================================================
+  # OTel Collector (Optional Telemetry)
+  # ============================================================================
+
+  - id: flow-otel-grpc
+    source: client_host
+    destination: otel_collector
+    direction: ingress
+    protocol: tcp
+    port: 4317
+    exposure: optional_public
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.otel-collector.ports
+    justification: >
+      OpenTelemetry gRPC endpoint for
+      optional direct/bypass and correlation telemetry collection
+
+  - id: flow-otel-http
+    source: client_host
+    destination: otel_collector
+    direction: ingress
+    protocol: tcp
+    port: 4318
+    exposure: optional_public
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.otel-collector.ports
+    justification: >
+      OpenTelemetry HTTP endpoint for
+      optional direct/bypass and correlation telemetry collection
+
+  - id: flow-otel-health
+    source: client_host
+    destination: otel_collector
+    direction: ingress
+    protocol: tcp
+    port: 13133
+    exposure: optional_public
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.otel-collector.ports
+    justification: >
+      OTel collector health check endpoint
+      for optional direct/bypass telemetry path
+
+  # ============================================================================
+  # Presidio Services
+  # ============================================================================
+
+  - id: flow-presidio-analyzer-internal
+    source: litellm_gateway
+    destination: presidio_analyzer
+    direction: ingress
+    protocol: tcp
+    port: 3000
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.presidio-analyzer.expose
+      - demo/docker-compose.offline.yml:services.presidio-analyzer.expose
+    justification: >
+      PII analysis service - detects sensitive entities in text
+      (internal Docker network only)
+
+  - id: flow-presidio-anonymizer-internal
+    source: litellm_gateway
+    destination: presidio_anonymizer
+    direction: ingress
+    protocol: tcp
+    port: 3000
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.presidio-anonymizer.expose
+      - demo/docker-compose.offline.yml:services.presidio-anonymizer.expose
+    justification: >
+      PII anonymization service - masks/redacts sensitive entities
+      (internal Docker network only)
+
+  # ============================================================================
+  # LibreChat (Standard Managed Web UI)
+  # ============================================================================
+
+  - id: flow-librechat-local
+    source: client_host
+    destination: librechat
+    direction: ingress
+    protocol: tcp
+    port: 3080
+    exposure: localhost
+    tls_required_when_public: true
+    manifests:
+      - demo/docker-compose.yml:services.librechat.ports
+    justification: >
+      LibreChat web UI (standard package,
+      localhost by default for security)
+
+  - id: flow-librechat-litellm
+    source: librechat
+    destination: litellm_gateway
+    direction: egress
+    protocol: tcp
+    port: 4000
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.librechat.depends_on
+    justification: >
+      LibreChat connects to LiteLLM gateway
+      for LLM API access (internal Docker network)
+
+  - id: flow-librechat-mongodb
+    source: librechat
+    destination: librechat_mongodb
+    direction: egress
+    protocol: tcp
+    port: 27017
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.librechat.environment
+    justification: >
+      LibreChat internal MongoDB connectivity
+      for session/chat storage
+
+  - id: flow-librechat-meilisearch
+    source: librechat
+    destination: librechat_meilisearch
+    direction: egress
+    protocol: tcp
+    port: 7700
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.librechat.environment
+    justification: >
+      LibreChat internal Meilisearch connectivity
+      for chat search functionality
+
+  # ============================================================================
+  # Mock Upstream (Offline Mode)
+  # ============================================================================
+
+  - id: flow-mock-upstream-internal
+    source: litellm_gateway
+    destination: mock_upstream
+    direction: ingress
+    protocol: tcp
+    port: 8080
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.offline.yml:services.mock-upstream.expose
+    justification: >
+      Mock LLM service for offline demos - returns deterministic responses
+      (internal only)
+
+  - id: flow-mock-upstream-helm-clusterip
+    source: litellm_gateway
+    destination: mock_upstream
+    direction: ingress
+    protocol: tcp
+    port: 8080
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - deploy/helm/ai-control-plane/values.yaml:mockUpstream.service
+    justification: >
+      Kubernetes ClusterIP service for mock upstream
+      (internal cluster access only)
+
+  # ============================================================================
+  # Kubernetes Helm Ingress (Optional)
+  # ============================================================================
+
+  - id: flow-helm-ingress-http
+    source: external_client
+    destination: litellm_gateway
+    direction: ingress
+    protocol: tcp
+    port: 80
+    exposure: optional_public
+    tls_required_when_public: false
+    manifests:
+      - deploy/helm/ai-control-plane/values.yaml:ingress
+    justification: >
+      Kubernetes ingress HTTP endpoint
+      (optional, redirects to HTTPS when TLS enabled)
+
+  - id: flow-helm-ingress-https
+    source: external_client
+    destination: litellm_gateway
+    direction: ingress
+    protocol: tcp
+    port: 443
+    exposure: optional_public
+    tls_required_when_public: true
+    manifests:
+      - deploy/helm/ai-control-plane/values.yaml:ingress.tls
+    justification: >
+      Kubernetes ingress HTTPS endpoint
+      (optional, for production TLS termination)

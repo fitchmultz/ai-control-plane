@@ -1,0 +1,18 @@
+apiVersion: v2
+name: ai-control-plane
+description: Single-tenant AI Control Plane (LiteLLM gateway + optional Postgres)
+type: application
+version: 0.1.0
+appVersion: "litellm-1.81.0"
+keywords:
+  - ai
+  - gateway
+  - litellm
+  - llm
+  - proxy
+home: https://github.com/fitchmultz/ai-control-plane
+sources:
+  - https://github.com/fitchmultz/ai-control-plane
+maintainers:
+  - name: Project Maintainer
+    email: maintainer@users.noreply.github.com

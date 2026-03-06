@@ -1,0 +1,172 @@
+# -----------------------------------------------------------------------------
+# GCP Complete Example - Terraform Variables Example
+# -----------------------------------------------------------------------------
+# Copy this file to terraform.tfvars and update with your values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# Then run:
+#   terraform init
+#   terraform plan
+#   terraform apply
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Required Variables
+# -----------------------------------------------------------------------------
+
+# GCP project ID (required)
+project_id = "your-gcp-project-id"
+
+# -----------------------------------------------------------------------------
+# General Configuration (Optional - reasonable defaults provided)
+# -----------------------------------------------------------------------------
+
+# GCP region for all resources
+# region = "us-central1"
+
+# Environment tag (dev, staging, production)
+# environment = "dev"
+
+# Resource name prefix
+# name_prefix = "ai-cp"
+
+# -----------------------------------------------------------------------------
+# VPC Configuration (Optional)
+# -----------------------------------------------------------------------------
+
+# VPC CIDR block
+# vpc_cidr = "10.0.0.0/16"
+
+# GKE subnet CIDR
+# gke_subnet_cidr = "10.0.0.0/20"
+
+# Pods IP range (secondary)
+# pods_ip_range = { name = "pods", cidr = "10.4.0.0/14" }
+
+# Services IP range (secondary)
+# services_ip_range = { name = "services", cidr = "10.0.32.0/20" }
+
+# -----------------------------------------------------------------------------
+# GKE Configuration (Optional)
+# -----------------------------------------------------------------------------
+
+# Kubernetes version
+# kubernetes_version = "1.29"
+
+# Release channel (UNSPECIFIED, RAPID, REGULAR, STABLE)
+# release_channel = "REGULAR"
+
+# Enable private nodes (recommended for production)
+# enable_private_nodes = true
+
+# Master authorized networks (recommended for production)
+# master_authorized_networks = [
+#   {
+#     cidr_block   = "YOUR_OFFICE_IP/32"
+#     display_name = "Office Network"
+#   }
+# ]
+
+# Custom node pools (if not specified, defaults based on environment)
+# node_pools = {
+#   general = {
+#     machine_type       = "e2-standard-2"
+#     initial_node_count = 2
+#     min_count          = 2
+#     max_count          = 5
+#     disk_size_gb       = 100
+#     spot               = false
+#     labels = {
+#       workload = "general"
+#     }
+#   }
+#   spot = {
+#     machine_type       = "e2-medium"
+#     initial_node_count = 0
+#     min_count          = 0
+#     max_count          = 3
+#     disk_size_gb       = 100
+#     spot               = true
+#     labels = {
+#       workload = "batch"
+#     }
+#   }
+# }
+
+# -----------------------------------------------------------------------------
+# Cloud SQL Configuration (Optional)
+# -----------------------------------------------------------------------------
+
+# Cloud SQL tier (auto-set per environment if not specified)
+# dev: db-f1-micro, staging: db-g1-small, production: db-n1-standard-2
+# cloudsql_tier = "db-f1-micro"
+
+# Cloud SQL availability (auto-set per environment if not specified)
+# dev/staging: ZONAL, production: REGIONAL
+# cloudsql_availability_type = "ZONAL"
+
+# Cloud SQL disk size
+# cloudsql_disk_size = 20
+
+# Enable automatic disk resizing
+# cloudsql_disk_autoresize = true
+
+# Backup retention count
+# cloudsql_backup_retention = 7
+
+# Database name
+# database_name = "litellm"
+
+# Database username
+# database_user = "litellm"
+
+# -----------------------------------------------------------------------------
+# Helm Release Configuration (Optional)
+# -----------------------------------------------------------------------------
+
+# Helm release name
+# helm_release_name = "acp"
+
+# Kubernetes namespace
+# namespace = "acp"
+
+# LiteLLM master key (auto-generated if not provided)
+# litellm_master_key = "sk-litellm-master-change-me-32-chars-long"
+
+# LiteLLM salt key (auto-generated if not provided)
+# litellm_salt_key = "sk-litellm-salt-change-me-32-chars-long"
+
+# Enable ingress
+# ingress_enabled = false
+
+# Ingress hostname (required if ingress_enabled = true)
+# ingress_host = "ai-control-plane.example.com"
+
+# Ingress class name
+# ingress_class_name = "nginx"
+
+# -----------------------------------------------------------------------------
+# Example Configurations
+# -----------------------------------------------------------------------------
+
+# Development configuration (minimal resources)
+# ---------------------------------------------
+# environment = "dev"
+# region = "us-central1"
+# cloudsql_tier = "db-f1-micro"
+# ingress_enabled = false
+
+# Production configuration (high availability)
+# ---------------------------------------------
+# environment = "production"
+# region = "us-central1"
+# cloudsql_tier = "db-n1-standard-2"
+# cloudsql_availability_type = "REGIONAL"
+# ingress_enabled = true
+# ingress_host = "ai-control-plane.yourdomain.com"
+# master_authorized_networks = [
+#   {
+#     cidr_block   = "YOUR_OFFICE_IP/32"
+#     display_name = "Office Network"
+#   }
+# ]

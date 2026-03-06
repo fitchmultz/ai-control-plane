@@ -1,0 +1,27 @@
+{{/*
+Mock Upstream Service (Offline Mode)
+
+Responsibilities:
+  - Provides cluster-internal access to mock LLM service
+  - Used by LiteLLM when running in offline mode
+
+Non-scope:
+  - Does NOT expose mock service externally
+*/}}
+{{- if .Values.mockUpstream.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "acp.mockUpstreamService" . }}
+  labels:
+    {{- include "acp.mockUpstreamLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.mockUpstream.service.type }}
+  ports:
+    - port: {{ .Values.mockUpstream.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "acp.mockUpstreamSelectorLabels" . | nindent 4 }}
+{{- end }}
