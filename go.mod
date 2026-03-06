@@ -1,6 +1,6 @@
 module github.com/mitchfultz/ai-control-plane
 
-go 1.25.0
+go 1.26.1
 
 require github.com/lib/pq v1.11.2
 

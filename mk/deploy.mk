@@ -10,9 +10,9 @@
 #   - Does not handle host-level deployment
 
 .PHONY: up
-up: validate-config validate-librechat-config ## Start default services
+up: hardened-images-build validate-config validate-librechat-config ## Start default services
 	@echo '$(COLOR_BOLD)Starting services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE) $(COMPOSE_DB_PROFILE) up -d
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d
 	@echo '$(COLOR_GREEN)✓ Services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
@@ -21,9 +21,9 @@ up: validate-config validate-librechat-config ## Start default services
 	@echo 'Run $(COLOR_BOLD)make health$(COLOR_RESET) to verify services.'
 
 .PHONY: up-core
-up-core: validate-config ## Start LiteLLM core services only (no managed web UI)
+up-core: hardened-images-build validate-config ## Start LiteLLM core services only (no managed web UI)
 	@echo '$(COLOR_BOLD)Starting LiteLLM core services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE) $(COMPOSE_DB_PROFILE) up -d \
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d \
 		$(if $(filter embedded,$(DB_MODE)),postgres,) presidio-analyzer presidio-anonymizer litellm
 	@echo '$(COLOR_GREEN)✓ LiteLLM core services started$(COLOR_RESET)'
 	@echo ''
@@ -34,9 +34,9 @@ up-core: validate-config ## Start LiteLLM core services only (no managed web UI)
 	@echo 'Run $(COLOR_BOLD)make health$(COLOR_RESET) to verify services.'
 
 .PHONY: librechat-up
-librechat-up: validate-config validate-librechat-config ## Start managed LibreChat services
+librechat-up: hardened-images-build validate-config validate-librechat-config ## Start managed LibreChat services
 	@echo '$(COLOR_BOLD)Starting managed LibreChat services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE) $(COMPOSE_DB_PROFILE) up -d librechat
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d librechat
 	@echo '$(COLOR_GREEN)✓ LibreChat services started$(COLOR_RESET)'
 	@echo 'Open http://127.0.0.1:$(LIBRECHAT_PORT)'
 
@@ -54,7 +54,7 @@ librechat-health: ## Check LibreChat HTTP health endpoint
 .PHONY: down
 down: ## Stop default services
 	@echo '$(COLOR_BOLD)Stopping services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE) $(COMPOSE_DB_PROFILE) down
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) down
 	@echo '$(COLOR_GREEN)✓ Services stopped$(COLOR_RESET)'
 
 .PHONY: restart
@@ -62,19 +62,19 @@ restart: down up ## Restart default services
 
 .PHONY: ps
 ps: ## Show running services
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) ps
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) ps
 
 .PHONY: logs
 logs: ## Tail service logs
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) logs -f
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) logs -f
 
 .PHONY: logs-litellm
 logs-litellm: ## Tail LiteLLM logs only
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) logs -f litellm
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) logs -f litellm
 
 .PHONY: logs-db
 logs-db: ## Tail database logs only
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) logs -f postgres
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) logs -f postgres
 
 .PHONY: health
 health: ## Run service health checks
@@ -104,7 +104,7 @@ doctor-json: ## Run doctor diagnostics with JSON output
 	@$(ACPCTL_BIN) doctor --json
 
 .PHONY: update
-update: ## Update dependencies (pull latest Docker images)
+update: install-binary ## Update dependencies (pull base images, rebuild local hardened images, refresh generated files)
 	@echo '$(COLOR_BOLD)Updating dependencies...$(COLOR_RESET)'
 	@if ! command -v docker >/dev/null 2>&1; then \
 		echo '$(COLOR_RED)✗ Docker not available$(COLOR_RESET)'; \
@@ -114,6 +114,8 @@ update: ## Update dependencies (pull latest Docker images)
 		echo '$(COLOR_RED)✗ Docker Compose not available$(COLOR_RESET)'; \
 		exit 2; \
 	fi
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) pull \
+	@$(MAKE) --silent generate
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) pull \
+		&& $(MAKE) --silent hardened-images-build \
 		&& echo '$(COLOR_GREEN)✓ Dependencies updated$(COLOR_RESET)' \
 		|| { exit_code=$$?; echo '$(COLOR_RED)✗ Docker image pull failed$(COLOR_RESET)'; exit $$exit_code; }

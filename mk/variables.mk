@@ -12,6 +12,7 @@
 
 # Environment variables from demo/.env
 -include demo/.env
+export ACP_SLOT
 export LITELLM_MASTER_KEY
 export LITELLM_SALT_KEY
 export ACP_DATABASE_MODE
@@ -24,6 +25,9 @@ COMPOSE_TLS_FILE := $(COMPOSE_DIR)/docker-compose.tls.yml
 
 # Auto-detect Docker Compose: prefer V2 (docker compose) over V1 (docker-compose)
 DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+ACP_SLOT ?= active
+ACP_COMPOSE_PROJECT ?= ai-control-plane-$(ACP_SLOT)
+DOCKER_COMPOSE_PROJECT := $(DOCKER_COMPOSE) --project-name $(ACP_COMPOSE_PROJECT)
 
 # Detect local Docker socket for CI runtime
 DOCKER_LOCAL_SOCKET := $(firstword $(wildcard /var/run/docker.sock /run/docker.sock))

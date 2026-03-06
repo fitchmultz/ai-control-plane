@@ -15,7 +15,7 @@ up-production: validate-config-production ## Start production profile with OTEL
 	@echo '$(COLOR_YELLOW)Note: Requires OTEL_EXPORTER_OTLP_ENDPOINT to be set$(COLOR_RESET)'
 	@cd $(COMPOSE_DIR) && \
 		OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml \
-		$(DOCKER_COMPOSE) --profile production up -d --timeout 120
+		$(DOCKER_COMPOSE_PROJECT) --profile production up -d --timeout 120
 	@echo '$(COLOR_GREEN)✓ Production services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
@@ -51,7 +51,7 @@ validate-config-production: ## Validate production configuration
 up-tls: ## Start TLS mode services
 	@echo '$(COLOR_BOLD)Starting TLS mode services...$(COLOR_RESET)'
 	@cd $(COMPOSE_DIR) && \
-		$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.tls.yml up -d
+		$(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml up -d
 	@echo '$(COLOR_GREEN)✓ TLS services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
@@ -61,7 +61,7 @@ up-tls: ## Start TLS mode services
 down-tls: ## Stop TLS mode services
 	@echo '$(COLOR_BOLD)Stopping TLS mode services...$(COLOR_RESET)'
 	@cd $(COMPOSE_DIR) && \
-		$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.tls.yml down
+		$(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml down
 	@echo '$(COLOR_GREEN)✓ TLS services stopped$(COLOR_RESET)'
 
 .PHONY: restart-tls
@@ -77,7 +77,7 @@ tls-health: ## Run TLS health checks
 .PHONY: tls-logs
 tls-logs: ## Tail TLS mode logs
 	@cd $(COMPOSE_DIR) && \
-		$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.tls.yml logs -f
+		$(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml logs -f
 
 .PHONY: tls-verify
 tls-verify: ## Verify TLS token logging safeguards
