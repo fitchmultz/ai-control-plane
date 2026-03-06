@@ -11,6 +11,11 @@
 # Exporters:
 #   - debug: Console output for demo/development
 #   - file: Persistent telemetry storage in JSONL format
+#
+# Processors:
+#   - memory_limiter: Prevents OOM conditions during local bursts
+#   - batch: Batches telemetry for efficiency
+#   - resource/add_environment: Adds deployment context
 
 receivers:
   otlp:
@@ -21,6 +26,11 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
+  memory_limiter:
+    check_interval: 2s
+    limit_mib: ${env:OTEL_MEMORY_LIMIT_MIB:-128}
+    spike_limit_mib: ${env:OTEL_MEMORY_SPIKE_LIMIT_MIB:-32}
+
   batch:
     timeout: 1s
     send_batch_size: 1024
@@ -32,6 +42,9 @@ processors:
         action: upsert
       - key: deployment
         value: local
+        action: upsert
+      - key: service.namespace
+        value: ai-control-plane
         action: upsert
 
 exporters:
@@ -49,15 +62,15 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, resource/add_environment]
+      processors: [memory_limiter, batch, resource/add_environment]
       exporters: [debug, file]
 
     metrics:
       receivers: [otlp]
-      processors: [batch, resource/add_environment]
+      processors: [memory_limiter, batch, resource/add_environment]
       exporters: [debug, file]
 
     logs:
       receivers: [otlp]
-      processors: [batch, resource/add_environment]
+      processors: [memory_limiter, batch, resource/add_environment]
       exporters: [debug, file]

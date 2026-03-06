@@ -111,9 +111,7 @@ func RunBaseline(ctx context.Context, opts BaselineOptions) (*Summary, error) {
 	results := make(chan Sample, normalized.Requests)
 	var wg sync.WaitGroup
 	for worker := 0; worker < normalized.Concurrency; worker++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for index := range jobs {
 				latency, requestErr := requestFn(ctx, normalized)
 				sample := Sample{Index: index, Latency: latency, Status: "ok"}
@@ -123,7 +121,7 @@ func RunBaseline(ctx context.Context, opts BaselineOptions) (*Summary, error) {
 				}
 				results <- sample
 			}
-		}()
+		})
 	}
 	for index := 0; index < normalized.Requests; index++ {
 		jobs <- index + 1

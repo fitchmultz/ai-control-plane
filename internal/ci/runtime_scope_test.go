@@ -29,7 +29,6 @@ func TestIsTruthy(t *testing.T) {
 	t.Parallel()
 	truthy := []string{"1", "true", "TRUE", "True", "yes", "YES", "Yes"}
 	for _, value := range truthy {
-		value := value
 		t.Run(value, func(t *testing.T) {
 			t.Parallel()
 			if !IsTruthy(value) {

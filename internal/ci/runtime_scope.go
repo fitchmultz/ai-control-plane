@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -108,10 +109,8 @@ func DecideRuntimeScope(ctx context.Context, options DecisionOptions) (DecisionR
 	}
 	sort.Strings(paths)
 
-	for _, path := range paths {
-		if isRuntimeImpacting(path) {
-			return DecisionResult{ShouldRun: true, Reason: "Runtime-impacting changes detected; runtime checks should run."}, nil
-		}
+	if slices.ContainsFunc(paths, isRuntimeImpacting) {
+		return DecisionResult{ShouldRun: true, Reason: "Runtime-impacting changes detected; runtime checks should run."}, nil
 	}
 
 	return DecisionResult{ShouldRun: false, Reason: "Docs/test-only changes detected; runtime checks can be skipped."}, nil

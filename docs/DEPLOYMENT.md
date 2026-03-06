@@ -1085,7 +1085,7 @@ curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   http://127.0.0.1:4000/v1/models
 
 # Test database connectivity
-docker exec ai-control-plane-postgres-1 \
+docker compose exec postgres \
   psql -U litellm -d litellm -c "SELECT version();"
 ```
 
@@ -1375,7 +1375,7 @@ docker compose ps postgres
 docker compose logs postgres
 
 # Test database connection
-docker exec ai-control-plane-postgres-1 \
+docker compose exec postgres \
   psql -U litellm -d litellm -c "SELECT 1;"
 ```
 
@@ -1388,7 +1388,7 @@ docker exec ai-control-plane-postgres-1 \
 **Solutions:**
 ```bash
 # Wait for PostgreSQL to be ready
-docker exec ai-control-plane-postgres-1 pg_isready -U litellm
+docker compose exec postgres pg_isready -U litellm
 
 # Check if tables exist
 make db-status

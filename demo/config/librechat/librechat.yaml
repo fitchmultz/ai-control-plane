@@ -42,7 +42,6 @@ endpoints:
       titleConvo: true
       titleModel: "claude-haiku-4-5"
       summarize: false
-      forcePrompt: false
       modelDisplayLabel: "LiteLLM"
       # Shared-key attribution contract:
       # - Keep LIBRECHAT_LITELLM_API_KEY as the single service credential.

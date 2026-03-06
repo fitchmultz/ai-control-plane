@@ -105,8 +105,8 @@ func GetDefaultVersion(repoRoot string) string {
 	}
 
 	ref := strings.TrimSpace(string(data))
-	if strings.HasPrefix(ref, "ref: ") {
-		refPath := filepath.Join(gitDir, strings.TrimPrefix(ref, "ref: "))
+	if after, ok := strings.CutPrefix(ref, "ref: "); ok {
+		refPath := filepath.Join(gitDir, after)
 		data, err = os.ReadFile(refPath)
 		if err != nil {
 			return "dev"

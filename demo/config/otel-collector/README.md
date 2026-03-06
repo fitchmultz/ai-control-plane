@@ -50,6 +50,7 @@ make logs
 
 ### Processors
 
+- **memory_limiter**: Prevents local burst traffic from pushing the collector into OOM/restart loops
 - **batch**: Batches telemetry data for efficient export
 - **resource/add_environment**: Adds environment metadata (demo, local)
 

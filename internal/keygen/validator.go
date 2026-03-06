@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -49,10 +50,8 @@ func ValidateAlias(alias string) error {
 // ValidateRole checks if the role is valid
 func ValidateRole(role string) error {
 	validRoles := []string{"admin", "team-lead", "developer", "auditor", ""}
-	for _, r := range validRoles {
-		if role == r {
-			return nil
-		}
+	if slices.Contains(validRoles, role) {
+		return nil
 	}
 	return &ValidationError{Field: "role", Message: fmt.Sprintf("invalid role: %s", role)}
 }

@@ -166,7 +166,7 @@ func (o *Output) Warning(text string) {
 }
 
 // Printf prints formatted text
-func (o *Output) Printf(format string, args ...interface{}) {
+func (o *Output) Printf(format string, args ...any) {
 	fmt.Printf(format, args...)
 }
 
@@ -179,19 +179,19 @@ func (o *Output) Println(text string) {
 var std = New()
 
 // Standard output functions
-func Red(text string) string                    { return std.Red(text) }
-func Green(text string) string                  { return std.Green(text) }
-func Yellow(text string) string                 { return std.Yellow(text) }
-func Blue(text string) string                   { return std.Blue(text) }
-func Bold(text string) string                   { return std.Bold(text) }
-func Pass(text string) string                   { return std.Pass(text) }
-func Fail(text string) string                   { return std.Fail(text) }
-func Warn(text string) string                   { return std.Warn(text) }
-func Info(text string) string                   { return std.Info(text) }
-func SectionHeader(title string)                { std.SectionHeader(title) }
-func InfoLine(text string)                      { std.InfoLine(text) }
-func Success(text string)                       { std.Success(text) }
-func Error(text string)                         { std.Error(text) }
-func Warning(text string)                       { std.Warning(text) }
-func Printf(format string, args ...interface{}) { std.Printf(format, args...) }
-func Println(text string)                       { std.Println(text) }
+func Red(text string) string            { return std.Red(text) }
+func Green(text string) string          { return std.Green(text) }
+func Yellow(text string) string         { return std.Yellow(text) }
+func Blue(text string) string           { return std.Blue(text) }
+func Bold(text string) string           { return std.Bold(text) }
+func Pass(text string) string           { return std.Pass(text) }
+func Fail(text string) string           { return std.Fail(text) }
+func Warn(text string) string           { return std.Warn(text) }
+func Info(text string) string           { return std.Info(text) }
+func SectionHeader(title string)        { std.SectionHeader(title) }
+func InfoLine(text string)              { std.InfoLine(text) }
+func Success(text string)               { std.Success(text) }
+func Error(text string)                 { std.Error(text) }
+func Warning(text string)               { std.Warning(text) }
+func Printf(format string, args ...any) { std.Printf(format, args...) }
+func Println(text string)               { std.Println(text) }

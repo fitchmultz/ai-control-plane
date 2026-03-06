@@ -35,7 +35,7 @@ func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
 	customName := ""
 	backupDir := os.Getenv("BACKUP_DIR")
 
-	for i := 0; i < len(args); i++ {
+	for i := range args {
 		switch args[i] {
 		case "--help", "-h":
 			printDBBackupHelp(stdout)
@@ -147,7 +147,7 @@ func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
 	// Parse arguments
 	backupFile := ""
 
-	for i := 0; i < len(args); i++ {
+	for i := range args {
 		switch args[i] {
 		case "--help", "-h":
 			printDBRestoreHelp(stdout)

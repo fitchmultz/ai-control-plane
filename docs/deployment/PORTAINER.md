@@ -185,12 +185,12 @@ The following table defines the clear boundary between systemd (owner) and Porta
 ### View Container Status
 
 1. Navigate to **Containers** in the Portainer UI
-2. Look for containers named `ai-control-plane-litellm-*` and `ai-control-plane-postgres-*`
+2. Look for containers named `ai-control-plane-<slot>-litellm-*` and `ai-control-plane-<slot>-postgres-*`
 3. Check status column (should show **running**)
 
 ### Inspect Logs
 
-1. Click on a container name (e.g., `ai-control-plane-litellm-1`)
+1. Click on a container name (for example, `ai-control-plane-active-litellm-1`)
 2. Select the **Logs** tab
 3. Use the search/filter box for specific entries
 

@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -163,13 +164,7 @@ func TestResolveSuggestions_RootCommands(t *testing.T) {
 	}
 
 	// Should include root commands
-	found := false
-	for _, s := range suggestions {
-		if s == "ci" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(suggestions, "ci")
 	if !found {
 		t.Errorf("expected 'ci' in suggestions, got: %v", suggestions)
 	}

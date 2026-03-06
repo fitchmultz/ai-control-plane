@@ -8,11 +8,11 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"github.com/mitchfultz/ai-control-plane/internal/status"
+	"github.com/mitchfultz/ai-control-plane/internal/status/runner"
 	"os/exec"
 	"strconv"
 	"strings"
-	"github.com/mitchfultz/ai-control-plane/internal/status"
-	"github.com/mitchfultz/ai-control-plane/internal/status/runner"
 )
 
 // DatabaseCollector checks PostgreSQL connectivity and metrics.
@@ -145,10 +145,7 @@ func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
 	if versionResult.Error == nil {
 		version := strings.TrimSpace(versionResult.Stdout)
 		if idx := strings.Index(version, "PostgreSQL"); idx != -1 {
-			end := idx + 20
-			if end > len(version) {
-				end = len(version)
-			}
+			end := min(idx+20, len(version))
 			version = strings.TrimSpace(version[idx:end])
 		}
 		details["version"] = version
