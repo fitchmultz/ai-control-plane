@@ -1,0 +1,161 @@
+{{/*
+Mock Upstream Deployment (Offline Mode)
+
+Responsibilities:
+  - Deploys a mock LLM service for offline demos
+  - Returns deterministic responses without requiring real API keys
+  - Compatible with OpenAI API format
+
+Non-scope:
+  - Does NOT provide real AI inference
+  - Only used for testing/demo when litellm.mode is "offline"
+
+WARNING: Do not use in production. This is for demo/testing only.
+*/}}
+{{- if .Values.mockUpstream.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "acp.fullname" . }}-mock-upstream
+  labels:
+    {{- include "acp.mockUpstreamLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.mockUpstream.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "acp.mockUpstreamSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "acp.mockUpstreamSelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: 65534  # nobody group
+      containers:
+        - name: mock-upstream
+          image: "{{ .Values.mockUpstream.image.repository }}@{{ .Values.mockUpstream.image.digest }}"
+          imagePullPolicy: {{ .Values.mockUpstream.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8080"
+            - name: MOCK_LATENCY_MS
+              value: "100"
+            - name: MOCK_TOKENS_PER_CHAR
+              value: "0.25"
+          command:
+            - python
+            - -c
+            - |
+              import http.server
+              import json
+              import os
+              import random
+              import time
+              import urllib.parse
+
+              PORT = int(os.environ.get('PORT', '8080'))
+              MOCK_LATENCY_MS = int(os.environ.get('MOCK_LATENCY_MS', '100'))
+              TOKENS_PER_CHAR = float(os.environ.get('MOCK_TOKENS_PER_CHAR', '0.25'))
+
+              class MockHandler(http.server.BaseHTTPRequestHandler):
+                  def log_message(self, format, *args):
+                      # Reduce log verbosity
+                      pass
+
+                  def do_GET(self):
+                      if self.path == '/health':
+                          self.send_response(200)
+                          self.send_header('Content-Type', 'application/json')
+                          self.end_headers()
+                          self.wfile.write(json.dumps({'status': 'healthy'}).encode())
+                      else:
+                          self.send_response(404)
+                          self.end_headers()
+
+                  def do_POST(self):
+                      # Simulate processing latency
+                      time.sleep(MOCK_LATENCY_MS / 1000.0)
+                      
+                      content_length = int(self.headers.get('Content-Length', 0))
+                      body = self.rfile.read(content_length).decode('utf-8')
+                      
+                      try:
+                          data = json.loads(body)
+                          messages = data.get('messages', [])
+                          model = data.get('model', 'unknown')
+                          stream = data.get('stream', False)
+                          
+                          # Generate mock response content
+                          response_content = f"This is a mock response from the AI Control Plane mock upstream service. Model: {model}"
+                          
+                          # Calculate mock token counts
+                          prompt_text = ' '.join([m.get('content', '') for m in messages])
+                          prompt_tokens = int(len(prompt_text) * TOKENS_PER_CHAR)
+                          completion_tokens = int(len(response_content) * TOKENS_PER_CHAR)
+                          total_tokens = prompt_tokens + completion_tokens
+                          
+                          response = {
+                              'id': f'mock-{random.randint(10000, 99999)}',
+                              'object': 'chat.completion',
+                              'created': int(time.time()),
+                              'model': model,
+                              'choices': [{
+                                  'index': 0,
+                                  'message': {
+                                      'role': 'assistant',
+                                      'content': response_content
+                                  },
+                                  'finish_reason': 'stop'
+                              }],
+                              'usage': {
+                                  'prompt_tokens': prompt_tokens,
+                                  'completion_tokens': completion_tokens,
+                                  'total_tokens': total_tokens
+                              }
+                          }
+                          
+                          self.send_response(200)
+                          self.send_header('Content-Type', 'application/json')
+                          self.end_headers()
+                          self.wfile.write(json.dumps(response).encode())
+                      except Exception as e:
+                          self.send_response(500)
+                          self.send_header('Content-Type', 'application/json')
+                          self.end_headers()
+                          self.wfile.write(json.dumps({'error': str(e)}).encode())
+
+              with http.server.HTTPServer(('0.0.0.0', PORT), MockHandler) as httpd:
+                  print(f'Mock upstream server running on port {PORT}')
+                  httpd.serve_forever()
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.mockUpstream.resources | nindent 12 }}
+{{- end }}

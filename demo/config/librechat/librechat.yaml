@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# LibreChat Configuration - Managed AI Control Plane Integration
+# =============================================================================
+# Purpose: LibreChat UI configuration for governed LiteLLM gateway access.
+#
+# Governance Invariants:
+#   - baseURL targets LiteLLM gateway only (no direct provider endpoints)
+#   - models.fetch = false prevents model list drift from approved aliases
+#   - models.default matches approved model list from litellm.yaml exactly
+#
+# Downstream Consumers:
+#   - demo/scripts/tests/librechat_allowed_models_contract_test.sh
+#
+# =============================================================================
+
+version: 1.2.8
+
+# =============================================================================
+# Cache Configuration
+# =============================================================================
+cache: true
+
+# =============================================================================
+# Endpoints Configuration
+# =============================================================================
+# Only the LiteLLM custom endpoint is configured - no direct provider access.
+# All traffic routes through the LiteLLM gateway for governance enforcement.
+# =============================================================================
+
+endpoints:
+  custom:
+    - name: "LiteLLM"
+      apiKey: "${LIBRECHAT_LITELLM_API_KEY}"
+      baseURL: "http://litellm:4000/v1"
+      models:
+        default:
+          - "openai-gpt5.2"
+          - "claude-sonnet-4-5"
+          - "claude-haiku-4-5"
+        fetch: false
+      titleConvo: true
+      titleModel: "claude-haiku-4-5"
+      summarize: false
+      forcePrompt: false
+      modelDisplayLabel: "LiteLLM"
+      # Shared-key attribution contract:
+      # - Keep LIBRECHAT_LITELLM_API_KEY as the single service credential.
+      # - Preserve LibreChat-authenticated user context in the OpenAI
+      #   "user" field.
+      # - Treat browser-supplied identity as untrusted.
+      #   Trust only LibreChat server auth context at the gateway boundary.

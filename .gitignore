@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# Secrets and local environment files
+# ---------------------------------------------------------------------------
+.env
+demo/.env
+demo/.env.*
+demo/**/.env
+!demo/.env.example
+demo/auth/chatgpt/auth.json
+
+# ---------------------------------------------------------------------------
+# Generated runtime and evidence artifacts (local-only)
+# ---------------------------------------------------------------------------
+demo/logs/
+demo/demo/logs/
+demo/backups/
+demo/.active_slot
+handoff-packet/
+
+# ---------------------------------------------------------------------------
+# Internal workflow/agent state (local-only)
+# ---------------------------------------------------------------------------
+.ralph/
+.scratchpad.md
+
+# ---------------------------------------------------------------------------
+# Presentation backups and local scratch outputs
+# ---------------------------------------------------------------------------
+docs/presentation/slides-internal/
+*.backup
+*.bak.*
+
+# ---------------------------------------------------------------------------
+# Local binaries/build outputs
+# ---------------------------------------------------------------------------
+.bin/
+bin/
+/acpctl
+.tmp-bin/
+.pi/
+
+# ---------------------------------------------------------------------------
+# Tool configuration directories (may contain secrets)
+# ---------------------------------------------------------------------------
+.claude/
+.opencode/
+.cursor/
+
+# Note: Home-directory paths like ~/.claude/ can't be ignored by git because
+# .gitignore applies only within this repository. Store tool configs in your
+# home directory, but never copy them into the repo.
+
+# ---------------------------------------------------------------------------
+# General caches
+# ---------------------------------------------------------------------------
+.DS_Store
+**/__pycache__/
+CLAUDE.md

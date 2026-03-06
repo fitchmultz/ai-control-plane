@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0.0",
+  "defaults": {
+    "warmup_requests": 5,
+    "measured_requests": 40,
+    "concurrency": 2
+  },
+  "profiles": {
+    "interactive": {
+      "description": "Low-latency interactive chat workloads (1-2 concurrent users)",
+      "workload": {
+        "warmup_requests": 5,
+        "measured_requests": 30,
+        "concurrency": 1
+      },
+      "latency_p95_ms_max": 1800,
+      "error_rate_percent_max": 1.0,
+      "throughput_rps_min": 1.0,
+      "estimated_cost_usd_max": 0.10
+    },
+    "burst": {
+      "description": "Short-duration burst workloads (spikes in traffic)",
+      "workload": {
+        "warmup_requests": 5,
+        "measured_requests": 60,
+        "concurrency": 4
+      },
+      "latency_p95_ms_max": 2500,
+      "error_rate_percent_max": 2.0,
+      "throughput_rps_min": 3.0,
+      "estimated_cost_usd_max": 0.30
+    },
+    "sustained": {
+      "description": "Sustained throughput workloads (batch processing, agents)",
+      "workload": {
+        "warmup_requests": 10,
+        "measured_requests": 100,
+        "concurrency": 6
+      },
+      "latency_p95_ms_max": 3000,
+      "error_rate_percent_max": 2.5,
+      "throughput_rps_min": 4.0,
+      "estimated_cost_usd_max": 0.50
+    }
+  },
+  "pricing_usd_per_1k_tokens": {
+    "mock-gpt": {
+      "input": 0.0015,
+      "output": 0.0020,
+      "description": "Mock GPT-4o-mini pricing for offline benchmarking"
+    },
+    "mock-claude": {
+      "input": 0.0020,
+      "output": 0.0040,
+      "description": "Mock Claude 3.5 Sonnet pricing for offline benchmarking"
+    },
+    "gpt-4o-mini": {
+      "input": 0.0015,
+      "output": 0.0060,
+      "description": "OpenAI GPT-4o-mini actual pricing"
+    },
+    "gpt-4o": {
+      "input": 0.0050,
+      "output": 0.0150,
+      "description": "OpenAI GPT-4o actual pricing"
+    },
+    "claude-3-5-sonnet": {
+      "input": 0.0030,
+      "output": 0.0150,
+      "description": "Anthropic Claude 3.5 Sonnet actual pricing"
+    },
+    "claude-3-haiku": {
+      "input": 0.0008,
+      "output": 0.0040,
+      "description": "Anthropic Claude 3 Haiku actual pricing"
+    }
+  },
+  "hardware_guidance": {
+    "single_host_minimum": {
+      "cpu_cores": 4,
+      "memory_gb": 8,
+      "storage_gb": 50,
+      "network_mbps": 100,
+      "recommended_for": "Development, testing, and light interactive workloads"
+    },
+    "single_host_recommended": {
+      "cpu_cores": 8,
+      "memory_gb": 16,
+      "storage_gb": 100,
+      "network_mbps": 1000,
+      "recommended_for": "Production interactive workloads up to 10 concurrent users"
+    },
+    "single_host_high_throughput": {
+      "cpu_cores": 16,
+      "memory_gb": 32,
+      "storage_gb": 200,
+      "network_mbps": 1000,
+      "recommended_for": "Burst and sustained throughput workloads, 20+ concurrent users"
+    }
+  }
+}

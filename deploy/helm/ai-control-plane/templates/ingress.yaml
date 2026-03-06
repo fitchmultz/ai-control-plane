@@ -1,0 +1,57 @@
+{{/*
+Ingress for External Access
+
+Responsibilities:
+  - Exposes the LiteLLM gateway via Kubernetes Ingress
+  - Supports TLS termination at the Ingress controller
+  - Compatible with cert-manager for automatic certificate provisioning
+
+Non-scope:
+  - Does NOT install an Ingress controller (must be pre-installed)
+  - Does NOT manage cert-manager (must be pre-installed if using)
+
+Security Notes:
+  - Ingress controllers should NOT log Authorization headers
+  - OAuth tokens may be forwarded through this path; ensure controller logs don't capture them
+*/}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "acp.fullname" . }}-litellm
+  labels:
+    {{- include "acp.litellmLabels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "acp.fullname" $ }}-litellm
+                port:
+                  number: {{ $.Values.litellm.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

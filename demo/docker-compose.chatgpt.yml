@@ -1,0 +1,17 @@
+# AI Control Plane - ChatGPT Subscription Overlay
+#
+# Purpose: Enable ChatGPT subscription-backed model routing for Codex demos.
+# Responsibilities:
+#   - Override LiteLLM config mount to a ChatGPT-capable config
+#   - Keep base compose stack unchanged for CI/default workflows
+#
+# Non-scope:
+#   - Does not alter service images or network topology
+#   - Does not manage OAuth login state
+
+services:
+  litellm:
+    volumes:
+      - ./config/litellm-chatgpt.yaml:/app/config.yaml:ro
+      - ./auth/chatgpt:/root/.config/litellm/chatgpt
+      - ./logs/${ACP_SLOT:-active}/litellm:/var/log/litellm

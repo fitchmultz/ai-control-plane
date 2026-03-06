@@ -1,0 +1,93 @@
+---
+# RBAC Configuration for AI Control Plane
+# Defines roles, permissions, model access tiers, and budget ceilings
+#
+# Purpose: Centralized role-based access control configuration for
+#          model access, key creation, and approval authority.
+#
+# Usage:
+#   - Modify roles to adjust permissions
+#   - Set ACP_USER_ROLE env var to override user role
+#   - Use rbac.sh CLI to check permissions
+#
+# See: docs/policy/ROLE_BASED_ACCESS_CONTROL.md
+
+roles:
+  admin:
+    # yamllint disable-line rule:line-length
+    description: "Full system access - can create keys for any model, approve any request, manage roles"
+    model_access:
+      - all  # Special value meaning all models
+    budget_ceiling: 500.00
+    can_approve: true
+    can_assign_roles: true
+    can_create_keys: true
+    read_only: false
+    approval_authority:
+      - all  # Can approve any request regardless of budget
+
+  team-lead:
+    # yamllint disable-line rule:line-length
+    description: "Team leadership - can create keys for standard models, approve team requests"
+    model_access:
+      - openai-gpt5.2
+      - claude-haiku-4-5
+      - claude-sonnet-4-5  # Team leads can access expensive models
+    budget_ceiling: 100.00
+    can_approve: true
+    can_assign_roles: false
+    can_create_keys: true
+    read_only: false
+    approval_authority:
+      max_budget: 50.00  # Can approve requests up to $50
+      models:
+        - openai-gpt5.2
+        - claude-haiku-4-5
+        - claude-sonnet-4-5
+
+  developer:
+    description: "Standard developer - limited to cost-effective models"
+    model_access:
+      - openai-gpt5.2
+      - claude-haiku-4-5  # No access to expensive claude-sonnet-4-5
+    budget_ceiling: 25.00
+    can_approve: false
+    can_assign_roles: false
+    can_create_keys: true
+    read_only: false
+    approval_authority: null  # Cannot approve requests
+
+  auditor:
+    # yamllint disable-line rule:line-length
+    description: "Read-only security auditor - can view keys, requests, audit logs"
+    model_access: []  # No model access - read only
+    budget_ceiling: 0.00
+    can_approve: false
+    can_assign_roles: false
+    can_create_keys: false
+    read_only: true
+    approval_authority: null
+
+# Model Tier Classification
+# Used for policy documentation and cost-based access control
+model_tiers:
+  expensive:
+    - claude-sonnet-4-5
+  standard:
+    - openai-gpt5.2
+  cheap:
+    - claude-haiku-4-5
+
+# Role Assignment Configuration
+# Users are mapped to roles via environment variable or config file
+# ACP_USER_ROLE env var overrides file-based assignment
+
+# Default role for users without explicit assignment
+default_role: developer
+
+# User-to-role mapping (optional - can also use ACP_USER_ROLE env var)
+# Format: username: role
+user_role_assignments:
+# Example:
+#   alice: admin
+#   bob: team-lead

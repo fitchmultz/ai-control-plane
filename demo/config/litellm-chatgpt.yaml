@@ -1,0 +1,187 @@
+# =============================================================================
+# APPROVED MODELS CONFIGURATION
+# =============================================================================
+#
+# This file defines the canonical allowlist of approved model aliases.
+# The model_name values below are the source of truth for all downstream
+# consumers. See docs/policy/APPROVED_MODELS.md for the complete contract.
+#
+# Downstream Consumers:
+#   - demo/scripts/lib/approved_models.sh (extraction library)
+#   - local/scripts/demo_scenarios/lib/common.sh (MODELS array)
+#   - demo/scripts/gen_key.sh (key generation payload)
+#   - scripts/acpctl.sh bridge onboard / scripts/lib/onboard_common.sh
+#   - demo/scripts/lib/detection_normalized.sh
+#   - demo/config/siem_queries.yaml (DR-001 query templates)
+#
+# YAML Shape Invariants (must be maintained for parser compatibility):
+#   - Use single-line format: "- model_name: <value>"
+#   - Model names are unquoted scalars
+#   - No other sections contain "- model_name:" lines
+#
+# Update Procedure:
+#   1. Edit model_list below
+#   2. Run: make script-tests && make ci
+#   3. Re-run: make ci
+#
+# Note: siem_queries.yaml DR-001 uses templates that render automatically.
+#   Run 'make render-siem-queries' to see fully rendered queries.
+#
+# =============================================================================
+
+---
+model_list:
+  # API-key mode example (optional)
+  - model_name: openai-gpt5.2
+    litellm_params:
+      model: openai/gpt-5.2
+      api_key: os.environ/OPENAI_API_KEY
+    # Per-model rate limits (rpm = requests per minute, tpm = tokens per minute)
+    rpm: 60
+    tpm: 90000
+
+  # ChatGPT subscription-backed upstream for Codex routed mode.
+  # This model can trigger device OAuth flow on LiteLLM startup.
+  - model_name: chatgpt-gpt5.3-codex
+    litellm_params:
+      model: chatgpt/gpt-5.3-codex
+    model_info:
+      mode: responses
+    rpm: 60
+    tpm: 90000
+
+  # Configure the models you want to use
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+general_settings:
+  database_url: os.environ/DATABASE_URL
+
+  # Shared-key attribution contract:
+  # - LibreChat authenticates end users and forwards trusted user context
+  #   via OpenAI-compatible request metadata (user field).
+  # - Keep LiteLLM behind trusted clients.
+  #   Do not expose it directly to browsers.
+  # Required for Claude Code subscription-through-gateway flows:
+  # Forward client Authorization header to upstream provider.
+  forward_client_headers_to_llm_api: true
+
+litellm_settings:
+  # Reduce the risk of leaking secrets (gateway keys) in logs/metadata
+  redact_user_api_key_info: true
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+  # IMPORTANT: Do NOT log request/response bodies by default in this lab.
+  # Start with metadata-only evidence. You can add transcript logging later.
+  set_verbose: false
+
+  # Budget and Rate Limit Enforcement
+  # Global proxy-level budget limit (demo: $100.00 for 30 days)
+  max_budget: 100.0
+  budget_duration: 30d
+
+  # Maximum parallel requests across all keys (demo: 100)
+  max_parallel_requests: 100
+
+  # Default per-user budget limits
+  max_internal_user_budget: 10.0
+  internal_user_budget_duration: 7d
+
+  # Budget rescheduler timing (demo: check every minute for faster testing)
+  # Production: default is 10 minutes min/max to reduce DB calls
+  proxy_budget_rescheduler_min_time: 1
+  proxy_budget_rescheduler_max_time: 1
+
+# ------------------------------------------------------------------------------
+# DLP/Guardrails Configuration (Presidio + LiteLLM)
+# ------------------------------------------------------------------------------
+# Architecture decision:
+# - LiteLLM native guardrails cover lightweight/in-memory checks (for example
+#   content_filter and prompt_injection_detection).
+# - Presidio is retained for deterministic entity detection + custom recognizers
+#   (e.g., employee IDs, customer account IDs, internal system keys).
+# Presidio analyzer detects entities; anonymizer handles MASK/REDACT actions.
+# BLOCK actions prevent the request from reaching the LLM.
+# ------------------------------------------------------------------------------
+
+guardrails:
+  - guardrail_name: "presidio-dlp-guardian"
+    litellm_params:
+      guardrail: presidio
+      mode: "pre_call"
+      presidio_analyzer_api_base: "http://presidio-analyzer:3000"
+      presidio_anonymizer_api_base: "http://presidio-anonymizer:3000"
+
+      # Connection resilience: retry configuration for transient failures
+      # Implements exponential backoff to handle Presidio service restarts
+      retry_policy:
+        max_retries: 5
+        retry_delay: 1.0
+        retry_delay_exponential: true
+        max_delay: 30.0
+
+      # Timeout for Presidio API calls (seconds)
+      timeout: 10.0
+
+      # Fail-secure: block requests if Presidio is unavailable
+      # Set to true to allow requests when Presidio fails (fail-open)
+      default_on_error: false
+
+      # PII Entity Configuration
+      # Actions: BLOCK = reject request, MASK = replace with placeholders
+      # Note: LiteLLM only supports BLOCK and MASK actions for Presidio
+      # Standard Presidio entity types. Custom recognizers can be added for
+      # additional types like AWS_ACCESS_KEY, GITHUB_TOKEN, etc.
+      pii_entities_config:
+        # High-risk PII: Always block
+        US_SSN: "BLOCK"
+        US_PASSPORT: "BLOCK"
+        US_DRIVER_LICENSE: "BLOCK"
+        US_BANK_NUMBER: "BLOCK"
+        US_ITIN: "BLOCK"
+
+        # Financial: Always block
+        CREDIT_CARD: "BLOCK"
+        CRYPTO: "BLOCK"
+        IBAN_CODE: "BLOCK"
+
+        # Credentials: Always block
+        AWS_ACCESS_KEY: "BLOCK"
+
+        # Contact info: Mask but allow (for legitimate use cases)
+        EMAIL_ADDRESS: "MASK"
+        PHONE_NUMBER: "MASK"
+
+        # Location data: Mask
+        LOCATION: "MASK"
+
+        # Person names: Mask (context-dependent)
+        PERSON: "MASK"
+
+        # === Custom Organization-Specific Entities ===
+        # Internal Employee ID: Block to prevent impersonation
+        ACP_EMPLOYEE_ID: "BLOCK"
+
+        # Customer Account: Block to protect business data
+        ACP_CUSTOMER_ACCOUNT: "BLOCK"
+
+        # Internal System Keys: Block to prevent credential leakage
+        ACP_SYSTEM_KEY: "BLOCK"
+
+        # Project Codes: Mask (lower risk, but sensitive)
+        ACP_PROJECT_CODE: "MASK"
+
+      # Enable for all requests by default
+      default_on: true
+
+      # Custom messages shown to users when blocked
+      blocked_message: >-
+        Request blocked: Potential PII or sensitive data detected.
+        Contact security team if this is a false positive.

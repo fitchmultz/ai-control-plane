@@ -1,0 +1,135 @@
+// acpctl is the typed CLI core for AI Control Plane operational workflows.
+//
+// Purpose:
+//
+//	Provide a statically-typed command implementation for shell-facing
+//	operational scripts and operator commands.
+//
+// Responsibilities:
+//   - Parse command-line arguments and flags.
+//   - Execute deterministic CI runtime-scope decisions.
+//   - Execute typed local filesystem workflows.
+//   - Delegate operator workflows to stable Make targets.
+//   - Emit stable exit codes aligned with the repository contract.
+//
+// Non-scope:
+//   - Does not execute runtime checks directly.
+//   - Does not replace Docker/Make orchestration.
+//
+// Invariants/Assumptions:
+//   - Exit codes remain: 0/1/2/3/64.
+//   - `ci should-run-runtime` behavior is stable and deterministic.
+//   - Operator commands run Make from the repository root.
+//
+// Architecture:
+//
+//	This file is a thin orchestrator. Command implementations are in:
+//	  - cmd_ci.go       : CI subcommands
+//	  - cmd_files.go    : File synchronization
+//	  - cmd_bridge.go   : Bridge to legacy scripts
+//	  - cmd_status.go   : System status collection
+//	  - cmd_doctor.go   : Environment diagnostics
+//	  - cmd_completion.go: Shell completions
+//	  - cmd_delegated.go: Make-delegated commands
+//	  - common.go       : Shared utilities
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+)
+
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func run(args []string, stdout *os.File, stderr *os.File) int {
+	if len(args) == 0 {
+		printRootHelp(stdout)
+		return exitcodes.ACPExitUsage
+	}
+
+	switch args[0] {
+	case "help", "--help", "-h":
+		printRootHelp(stdout)
+		return exitcodes.ACPExitSuccess
+	case "ci":
+		return runCISubcommand(args[1:], stdout, stderr)
+	case "files":
+		return runFilesSubcommand(args[1:], stdout, stderr)
+	case "status":
+		return runStatusCommand(args[1:], stdout, stderr)
+	case "health":
+		return runHealthCommand(args[1:], stdout, stderr)
+	case "bridge":
+		return runBridgeSubcommand(args[1:], stdout, stderr)
+	case "doctor":
+		return runDoctorCommand(args[1:], stdout, stderr)
+	case "benchmark":
+		return runBenchmarkCommand(args[1:], stdout, stderr)
+	case "completion":
+		return runCompletionSubcommand(args[1:], stdout, stderr)
+	case "__complete":
+		return runHiddenComplete(args[1:], stdout, stderr)
+	default:
+		group, ok := lookupDelegatedGroup(args[0])
+		if !ok {
+			fmt.Fprintf(stderr, "Error: Unknown command: %s\n", args[0])
+			printRootHelp(stderr)
+			return exitcodes.ACPExitUsage
+		}
+		return runDelegatedGroup(group, args[1:], stdout, stderr)
+	}
+}
+
+func printRootHelp(out *os.File) {
+	fmt.Fprint(out, `Usage: acpctl <command> [subcommand] [options or make args]
+
+Typed control-plane CLI for AI Control Plane operations.
+
+Commands:
+  ci               CI and local gate helpers
+  files            Typed local file synchronization helpers
+  status           Aggregated system health overview
+  health           Run service health checks
+  doctor           Environment preflight diagnostics
+  benchmark        Lightweight local performance baseline
+  bridge           Execute mapped legacy script implementations directly
+  completion       Generate shell completion scripts
+  deploy           Service lifecycle, release, and deployment helpers
+  validate         Validation and policy checks
+  db               Database operations
+  key              Virtual key operations
+  host             Host deployment and service operations
+  demo             Demo scenarios and state operations
+  terraform        Terraform provisioning helpers
+  help             Show this help message
+
+Examples:
+  acpctl ci should-run-runtime --quiet
+  acpctl files sync-helm
+  acpctl doctor
+  acpctl benchmark baseline --requests 20 --concurrency 2
+  acpctl doctor --json
+  acpctl bridge host_preflight --help
+  acpctl deploy up
+  acpctl deploy readiness-evidence run
+  acpctl validate config
+  acpctl db status
+  acpctl key gen alice --budget 10.00
+
+Exit codes:
+  0   Success
+  1   Domain non-success
+  2   Prerequisites not ready
+  3   Runtime/internal error
+  64  Usage error
+
+Environment:
+  ACPCTL_MAKE_BIN   Override make executable used by delegated commands
+                    (default: make)
+  ACP_REPO_ROOT     Override repository root detection
+`)
+}

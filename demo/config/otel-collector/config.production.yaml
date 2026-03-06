@@ -1,0 +1,101 @@
+# OpenTelemetry Collector Configuration - Production Profile
+# Purpose: Production-ready bypass/correlation telemetry ingestion with remote export and cost controls
+#
+# Documentation: docs/observability/OTEL_SETUP.md
+#
+# Receivers:
+#   - OTLP gRPC (port 4317): Standard protocol for OTEL telemetry
+#   - OTLP HTTP (port 4318): Alternative HTTP protocol
+#
+# Exporters:
+#   - otlphttp/primary: Remote OTLP endpoint (required for production)
+#
+# Processors:
+#   - memory_limiter: Prevents OOM conditions
+#   - probabilistic_sampler: Cost/cardinality control via sampling
+#   - batch: Batches telemetry for efficiency
+#   - resource/add_environment: Adds deployment context
+#   - attributes/sanitize: Removes sensitive fields
+#
+# Required Environment Variables:
+#   - OTEL_EXPORTER_OTLP_ENDPOINT: Remote OTLP endpoint URL (required)
+#   - OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf (default)
+#   - OTEL_EXPORTER_OTLP_AUTH_HEADER: Auth header for remote endpoint (if required)
+#   - OTEL_RESOURCE_ENVIRONMENT: Environment tag (e.g., production, staging)
+#   - OTEL_RESOURCE_DEPLOYMENT: Deployment identifier (e.g., us-east-1, eu-west-1)
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 2s
+    limit_mib: ${env:OTEL_MEMORY_LIMIT_MIB:-256}
+
+  probabilistic_sampler:
+    sampling_percentage: ${env:OTEL_TRACES_SAMPLING_PERCENT:-10}
+
+  batch:
+    timeout: 2s
+    send_batch_size: ${env:OTEL_BATCH_SIZE:-512}
+
+  resource/add_environment:
+    attributes:
+      - key: environment
+        value: ${env:OTEL_RESOURCE_ENVIRONMENT}
+        action: upsert
+      - key: deployment
+        value: ${env:OTEL_RESOURCE_DEPLOYMENT}
+        action: upsert
+      - key: service.namespace
+        value: ai-control-plane
+        action: upsert
+
+  attributes/sanitize:
+    actions:
+      - key: http.request.header.authorization
+        action: delete
+      - key: enduser.id
+        action: hash
+
+exporters:
+  otlphttp/primary:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      Authorization: ${env:OTEL_EXPORTER_OTLP_AUTH_HEADER}
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 1000
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, probabilistic_sampler, batch, resource/add_environment, attributes/sanitize]
+      exporters: [otlphttp/primary]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource/add_environment]
+      exporters: [otlphttp/primary]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource/add_environment, attributes/sanitize]
+      exporters: [otlphttp/primary]

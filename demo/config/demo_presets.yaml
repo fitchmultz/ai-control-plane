@@ -1,0 +1,60 @@
+---
+# AI Control Plane - Demo Preset Configurations
+#
+# This file defines curated scenario playlists for different audiences.
+# Each preset specifies which scenarios to run, timeout, and description.
+#
+# Usage:
+#   make demo-preset PRESET=executive-demo
+#   ./local/scripts/demo_scenarios/run_preset.sh executive-demo
+
+presets:
+  executive-demo:
+    name: "Executive Demo"
+    description: "High-level overview for C-suite and decision makers (5 min)"
+    timeout_minutes: 5
+    scenarios:
+      - 1  # API Path Through Gateway (happy path)
+      - 9  # Cursor through governed gateway path
+      - 11 # Chargeback/showback by user + department
+    stop_on_fail: true
+    intro_message: |
+      This preset demonstrates the AI Control Plane's core value proposition
+      for executive stakeholders: governed AI usage, user/department attribution,
+      and financial accountability.
+
+  security-audit:
+    name: "Security Audit"
+    description: "Comprehensive governance and security demo (10 min)"
+    timeout_minutes: 10
+    scenarios:
+      - 6  # DLP and Guardrails (sensitive pattern detection)
+      - 7  # Network and Endpoint Enforcement (egress controls)
+      - 8  # Rapid Response Key Compromise (incident response)
+      - 10 # Confidential file detection walkthrough
+    stop_on_fail: false
+    intro_message: |
+      This preset showcases security and governance capabilities including
+      DLP detection, network controls, rapid response, and confidential
+      data handling validation.
+
+  developer-onboarding:
+    name: "Developer Onboarding"
+    description: "Tool setup and integration guide for developers (8 min)"
+    timeout_minutes: 8
+    scenarios:
+      - 1  # API Path Through Gateway (happy path, API-key mode)
+      - 2  # Claude Code Subscription (OAuth subscription mode)
+      - 3  # Codex Subscription (gateway-routed + direct comparison)
+      - 9  # Cursor governed path configuration + verification
+    stop_on_fail: true
+    intro_message: |
+      This preset guides developers through common integration patterns:
+      API-key mode for full governance, subscription-backed gateway routing,
+      and IDE onboarding through governed paths.
+
+# Global preset settings
+settings:
+  default_timeout_minutes: 10
+  scenario_delay_seconds: 2
+  colors_enabled: true

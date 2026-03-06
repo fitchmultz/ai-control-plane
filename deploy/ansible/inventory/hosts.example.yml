@@ -1,0 +1,67 @@
+# AI Control Plane - Example Inventory
+#
+# Purpose: Example inventory for declarative gateway host deployment.
+#          Copy this file to hosts.yml and customize for your environment.
+#
+# Security Notes:
+#   - Do NOT commit real hostnames, IPs, or secrets to version control
+#   - Keep secrets in external files referenced by path (password_file)
+#   - Use ansible-vault for sensitive variables if needed
+#
+# Usage:
+#   cp hosts.example.yml hosts.yml
+#   # Edit hosts.yml with your actual values
+#   ansible-playbook -i hosts.yml playbooks/gateway_host.yml
+
+---
+all:
+  vars:
+    # Default connection settings
+    ansible_python_interpreter: /usr/bin/python3
+
+    # SSH settings
+    ansible_ssh_private_key_file: ~/.ssh/acp_gateway_key
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  children:
+    gateway:
+      hosts:
+        # Example: Single gateway host
+        # Rename 'acp-gateway-1' to your actual hostname or IP
+        acp-gateway-1:
+          # Connection settings
+          ansible_host: 192.168.1.122
+          ansible_user: ubuntu
+          ansible_port: 22
+
+          # ACP-specific variables
+          # Path where the repository is cloned on the host
+          acp_repo_path: /opt/ai-control-plane
+
+          # Path to the environment file (must exist on host)
+          acp_env_file: /opt/ai-control-plane/demo/.env
+
+          # TLS mode: 'plain' or 'tls'
+          # - plain: HTTP only (localhost or trusted network)
+          # - tls: HTTPS via Caddy (production)
+          acp_tls_mode: plain
+
+          # Public URL for smoke checks and client access
+          # Should match LITELLM_PUBLIC_URL in .env when TLS is enabled
+          acp_public_url: http://192.168.1.122:4000
+
+          # External database configuration (optional)
+          # When enabled, assumes external PostgreSQL instead of embedded
+          acp_external_db:
+            enabled: false
+            host: db.internal.example
+            port: 5432
+            database: litellm
+            user: litellm
+            sslmode: require
+            # Path to password file on gateway host (NOT the password itself)
+            password_file: /etc/acp/secrets/postgres_password
+
+          # Additional environment overrides (optional)
+          # These are passed to make commands as extra environment variables
+          acp_extra_env:
+            LITELLM_LOG_LEVEL: INFO

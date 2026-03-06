@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Control Plane Strategy - Executive Summary</title>
+    <style>
+        :root {
+            --acp-orange: #f26522;
+            --acp-black: #000000;
+            --acp-white: #ffffff;
+            --acp-gray-900: #111111;
+            --acp-gray-800: #1a1a1a;
+            --acp-gray-700: #444444;
+            --acp-gray-600: #666666;
+            --acp-gray-400: #aaaaaa;
+            --acp-blue: #0089cf;
+            --acp-green: #22c55e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--acp-gray-900);
+            color: var(--acp-white);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 40px;
+        }
+        
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, var(--acp-gray-800) 0%, var(--acp-gray-900) 100%);
+            border-radius: 16px;
+            padding: 50px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        header {
+            text-align: center;
+            padding-bottom: 30px;
+            border-bottom: 2px solid var(--acp-orange);
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: var(--acp-orange);
+            margin-bottom: 10px;
+            letter-spacing: -0.02em;
+        }
+        
+        h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--acp-white);
+        }
+        
+        .subtitle {
+            font-size: 1.3em;
+            color: var(--acp-orange);
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        
+        .meta {
+            margin-top: 15px;
+            color: var(--acp-gray-400);
+            font-size: 0.95em;
+        }
+        
+        .section {
+            margin: 30px 0;
+        }
+        
+        h2 {
+            color: var(--acp-orange);
+            font-size: 1.4em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--acp-gray-700);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--acp-orange);
+            border-radius: 2px;
+        }
+        
+        h3 {
+            color: var(--acp-white);
+            font-size: 1.1em;
+            font-weight: 600;
+            margin: 20px 0 10px 0;
+        }
+        
+        p {
+            margin-bottom: 12px;
+            color: #e0e0e0;
+        }
+        
+        .highlight-box {
+            background: rgba(242, 101, 34, 0.1);
+            border-left: 4px solid var(--acp-orange);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .highlight-box p {
+            margin: 0;
+            font-style: italic;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+        
+        th {
+            background: var(--acp-orange);
+            color: var(--acp-white);
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.05em;
+        }
+        
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--acp-gray-700);
+            color: #e8e8e8;
+        }
+        
+        tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        
+        tr:hover {
+            background: rgba(242, 101, 34, 0.05);
+        }
+        
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .three-col {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        
+        .metric-card {
+            background: var(--acp-gray-800);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid var(--acp-gray-700);
+        }
+        
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: var(--acp-orange);
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            color: var(--acp-gray-400);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-pass {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--acp-green);
+            border: 1px solid var(--acp-green);
+        }
+        
+        .status-go {
+            background: var(--acp-orange);
+            color: var(--acp-white);
+        }
+        
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .checklist li {
+            padding: 8px 0;
+            padding-left: 28px;
+            position: relative;
+        }
+        
+        .checklist li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--acp-green);
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .component-box {
+            background: var(--acp-gray-800);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid var(--acp-gray-700);
+        }
+        
+        .component-box h3 {
+            color: var(--acp-orange);
+            margin-top: 0;
+            font-size: 1em;
+        }
+        
+        .component-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .component-box li {
+            padding: 5px 0;
+            color: #d0d0d0;
+            font-size: 0.9em;
+        }
+        
+        .component-box li::before {
+            content: '▸';
+            color: var(--acp-orange);
+            margin-right: 8px;
+        }
+        
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--acp-gray-700);
+            text-align: center;
+            color: var(--acp-gray-400);
+            font-size: 0.9em;
+        }
+        
+        .decision-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .decision-item {
+            background: var(--acp-gray-800);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--acp-orange);
+        }
+        
+        .decision-item strong {
+            color: var(--acp-orange);
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .decision-item {
+            font-size: 0.9em;
+            color: #d0d0d0;
+        }
+        
+        code {
+            background: var(--acp-gray-800);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9em;
+            color: var(--acp-orange);
+        }
+        
+        .code-block {
+            background: var(--acp-black);
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+            color: #e0e0e0;
+            border: 1px solid var(--acp-gray-700);
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        
+        .tag-preventive {
+            background: rgba(242, 101, 34, 0.2);
+            color: var(--acp-orange);
+        }
+        
+        .tag-detective {
+            background: rgba(0, 137, 207, 0.2);
+            color: var(--acp-blue);
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .page {
+                box-shadow: none;
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="logo">AI Control Plane</div>
+            <h1>AI Control Plane Strategy</h1>
+            <div class="subtitle">Executive Summary</div>
+            <div class="meta">AI Control Plane · February 2026</div>
+        </header>
+
+        <div class="section">
+            <h2>The Problem</h2>
+            <p>Organizations adopt AI through <strong>two channels</strong> requiring different controls:</p>
+            <table>
+                <tr>
+                    <th>Channel</th>
+                    <th>Risk Surface</th>
+                    <th>Current Gap</th>
+                </tr>
+                <tr>
+                    <td><strong>API Usage</strong></td>
+                    <td>Apps/agents with API keys</td>
+                    <td>Shadow keys, uncontrolled spend, no attribution</td>
+                </tr>
+                <tr>
+                    <td><strong>Subscription/SaaS</strong></td>
+                    <td>Developer tools via OAuth</td>
+                    <td>Unmanaged seats, data exfiltration, compliance gaps</td>
+                </tr>
+            </table>
+            <div class="highlight-box">
+                <p><strong>Critical Insight:</strong> A strategy covering only API keys is incomplete. A strategy covering only SaaS is incomplete. Real-world programs must address <strong>both channels simultaneously</strong>.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Our Solution: Unified AI Control Plane</h2>
+            <div class="three-col">
+                <div class="component-box">
+                    <h3>1. Gateway-Routed Control Plane</h3>
+                    <span class="tag tag-preventive">PREVENTIVE</span>
+                    <ul>
+                        <li>AI Gateway chokepoint</li>
+                        <li>Model allowlists</li>
+                        <li>Content guardrails (PII, secrets, policy)</li>
+                        <li>Budget enforcement</li>
+                        <li>Real-time blocking</li>
+                        <li>Full audit trail</li>
+                    </ul>
+                </div>
+                <div class="component-box">
+                    <h3>2. Direct/Bypass Governance</h3>
+                    <span class="tag tag-detective">DETECTIVE</span>
+                    <ul>
+                        <li>OTEL telemetry</li>
+                        <li>Compliance exports</li>
+                        <li>Identity/workspace controls</li>
+                        <li>Device posture</li>
+                        <li>Investigation workflows</li>
+                    </ul>
+                </div>
+                <div class="component-box">
+                    <h3>3. Evidence Pipeline</h3>
+                    <span class="tag tag-detective">UNIFIED</span>
+                    <ul>
+                        <li>Normalized SIEM feed</li>
+                        <li>Unified schema</li>
+                        <li>Detection rules</li>
+                        <li>Response runbooks</li>
+                        <li>Executive reporting</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Capabilities: Enforce vs. Detect</h2>
+            <table>
+                <tr>
+                    <th>Capability</th>
+                    <th>Gateway-Routed Mode</th>
+                    <th>Direct Subscription / Bypass</th>
+                </tr>
+                <tr>
+                    <td>Content guardrails (PII, secrets)</td>
+                    <td><span class="status-badge status-pass">✓ Real-time</span></td>
+                    <td><span class="tag tag-detective">Detect + respond</span></td>
+                </tr>
+                <tr>
+                    <td>Real-time blocking</td>
+                    <td><span class="status-badge status-pass">✓ Full</span></td>
+                    <td><span class="tag tag-detective">Detect + respond</span></td>
+                </tr>
+                <tr>
+                    <td>Budget enforcement</td>
+                    <td><span class="status-badge status-pass">✓ Yes</span></td>
+                    <td>Vendor-dependent</td>
+                </tr>
+                <tr>
+                    <td>Usage attribution</td>
+                    <td><span class="status-badge status-pass">✓ Yes</span></td>
+                    <td><span class="status-badge status-pass">✓ Yes</span></td>
+                </tr>
+                <tr>
+                    <td>Audit logging</td>
+                    <td>Gateway logs</td>
+                    <td>OTEL + compliance API</td>
+                </tr>
+            </table>
+            <div class="highlight-box">
+                <p><strong>Honest Positioning:</strong> We enforce controls on gateway-routed traffic, apply detection and response on bypass paths, and maintain clear evidence trails for leadership and audit.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Productized Service Offerings</h2>
+            <table>
+                <tr>
+                    <th>Offering</th>
+                    <th>Duration</th>
+                    <th>Primary Outcome</th>
+                    <th>Model</th>
+                </tr>
+                <tr>
+                    <td><strong>AI Usage & Exposure Assessment</strong></td>
+                    <td>2–4 weeks</td>
+                    <td>Inventory, gap analysis, roadmap</td>
+                    <td>Fixed scope</td>
+                </tr>
+                <tr>
+                    <td><strong>AI Control Plane Implementation</strong></td>
+                    <td>4–10 weeks</td>
+                    <td>Operational gateway, SIEM, pilot</td>
+                    <td>Fixed scope</td>
+                </tr>
+                <tr>
+                    <td><strong>Managed AI Security Operations</strong></td>
+                    <td>Ongoing</td>
+                    <td>24x7 monitoring, IR, reporting</td>
+                    <td>Retainer/T&M</td>
+                </tr>
+                <tr>
+                    <td><strong>Vendor Workspace Governance</strong></td>
+                    <td>2–6 weeks</td>
+                    <td>Workspace config, RBAC, exports</td>
+                    <td>Fixed scope</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Readiness Status</h2>
+            <div class="three-col" style="margin-bottom: 20px;">
+                <div class="metric-card">
+                    <div class="metric-value">8/8</div>
+                    <div class="metric-label">Gates Passing</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">0</div>
+                    <div class="metric-label">Open Blockers</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" style="color: var(--acp-green);">GO</div>
+                    <div class="metric-label">Decision Status</div>
+                </div>
+            </div>
+            <p style="margin-bottom: 12px; color: var(--acp-gray-400);">Latest published full certification snapshot: readiness run <code>readiness-20260219T155143Z</code> (2026-02-19 UTC). Refresh before customer reuse.</p>
+            <ul class="checklist">
+                <li>Local & Production CI gates passing</li>
+                <li>Security validation (0 critical, 0 high vulnerabilities)</li>
+                <li>Release bundle built and verified</li>
+                <li>Clean-host deployability proven</li>
+                <li>Evidence completeness validated</li>
+                <li>Independent review completed</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Demonstrable Evidence</h2>
+            <div class="code-block">
+make onboard TOOL=claude MODE=api-key VERIFY=1
+make demo-scenario SCENARIO=1
+make validate-detections && make release-bundle && make release-bundle-verify
+            </div>
+            <p><strong>Artifacts:</strong> Gateway audit logs · OTEL telemetry · Vendor compliance exports · Unified SIEM feed</p>
+        </div>
+
+        <div class="section">
+            <h2>Decisions Required from Leadership</h2>
+            <div class="decision-grid">
+                <div class="decision-item">
+                    <strong>1. Approve Route-Based Governance</strong>
+                    Enforce routed traffic and detect/respond on bypass channels
+                </div>
+                <div class="decision-item">
+                    <strong>2. Approve Lab Foundation</strong>
+                    LiteLLM as initial foundation (vendor-neutral design)
+                </div>
+                <div class="decision-item">
+                    <strong>3. Approve Service Line</strong>
+                    Build "AI Security Control Plane" practice
+                </div>
+                <div class="decision-item">
+                    <strong>4. Approve Internal Rollout</strong>
+                    "Validate internally before customer delivery"
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Key Differentiators</h2>
+            <table>
+                <tr>
+                    <th>Traditional Approach</th>
+                    <th>AI Control Plane</th>
+                </tr>
+                <tr>
+                    <td>"Block all AI" (unrealistic)</td>
+                    <td>Approved paths: easy to adopt, hard to bypass</td>
+                </tr>
+                <tr>
+                    <td>API-key only</td>
+                    <td>Unified API + SaaS governance</td>
+                </tr>
+                <tr>
+                    <td>Generic logging</td>
+                    <td>Evidence-oriented operations (SIEM-ready, runbook-backed)</td>
+                </tr>
+                <tr>
+                    <td>One-size-fits-all</td>
+                    <td>Productized tracks: assessment → implementation → managed ops</td>
+                </tr>
+                <tr>
+                    <td>Performative security controls</td>
+                    <td>Standard security engineering applied to AI surfaces</td>
+                </tr>
+            </table>
+        </div>
+
+        <footer>
+            <p><strong>AI Control Plane Project</strong></p>
+            <p style="margin-top: 10px;">Standard security engineering applied to AI surfaces</p>
+            <p style="margin-top: 15px; font-size: 0.85em; color: var(--acp-gray-600);">
+                Documentation: Strategy · Service Catalog · Readiness Tracker
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

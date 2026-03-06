@@ -1,0 +1,942 @@
+# AI Control Plane - SIEM Query Mappings
+#
+# This file maps the detection rules from detection_rules.yaml to various
+# SIEM query formats (Splunk SPL, ELK KQL, Microsoft Sentinel KQL, Sigma).
+#
+# Purpose:
+#   - Enable SOC teams to implement AI governance monitoring in their existing SIEM
+#   - Provide ready-to-use queries for common SIEM platforms
+#   - Map normalized schema fields to platform-specific field names
+#
+# Schema Reference: See demo/config/normalized_schema.yaml
+#
+# IMPORTANT: This file uses placeholders for approved model allowlists in DR-001.
+#   - {{APPROVED_MODELS_SPLUNK}} - space-separated list for Splunk eval
+#   - {{APPROVED_MODELS_ELK_OR}} - "model1 OR model2" format for KQL parentheses
+#   - {{APPROVED_MODELS_JSON}} - JSON array for Sentinel dynamic()
+#   - {{APPROVED_MODELS_SIGMA}} - YAML list format for Sigma detection rules
+#
+# To obtain fully rendered queries with current approved models:
+#   make render-siem-queries
+#   OR
+#   demo/scripts/render_siem_queries.sh
+#
+# See docs/policy/APPROVED_MODELS.md for details.
+
+---
+siem_queries:
+  # ============================================================================
+  # DR-001: Non-Approved Model Access
+  # ============================================================================
+  - rule_id: DR-001
+    name: "Non-Approved Model Access"
+    description: "Detects requests to models not in the approved list"
+    severity: high
+    category: policy_violation
+    enabled: true
+    
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype=otel_logs)
+        | eval approved_models="{{APPROVED_MODELS_SPLUNK}}"
+        | where NOT match(model_id, approved_models) AND NOT match(ai.model.id, approved_models)
+        | where _time > relative_time(now(), "-24h")
+        | eval siem_user_id=coalesce(user_id, principal.id, 'unknown')
+        | eval siem_model_id=coalesce(model_id, 'ai.model.id', 'unknown')
+        | table request_id, siem_model_id, key_alias, siem_user_id, _time, status, ai.policy.action
+        | rename _time as timestamp
+        | sort - timestamp
+      severity: high
+      notes: "Maps to normalized schema: principal.id, ai.model.id, policy.action"
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND 
+        NOT (model_id:({{APPROVED_MODELS_ELK_OR}}) OR 
+             ai.model.id:({{APPROVED_MODELS_ELK_OR}})) AND
+        @timestamp >= now-24h
+      severity: high
+      notes: "Uses KQL for index patterns. Maps normalized schema to Elastic Common Schema (ECS)"
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let approved_models = dynamic({{APPROVED_MODELS_JSON}});
+        let TimeWindow = 24h;
+        union 
+          (AIGatewayLogs 
+          | where TimeGenerated > ago(TimeWindow)
+          | where ModelId !in (approved_models)),
+          (OTELLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend ModelId = tostring(parse_json(Attributes)["ai.model"])
+          | where ModelId !in (approved_models))
+        | project 
+            TimeGenerated,
+            RequestId = coalesce(RequestId, TraceId),
+            ModelId,
+            UserId = coalesce(UserId, tostring(parse_json(Attributes)["principal.id"])),
+            KeyAlias,
+            Status,
+            PolicyAction = tostring(parse_json(Attributes)["policy.action"])
+        | order by TimeGenerated desc
+      severity: high
+      notes: "Uses KQL union for multiple data sources. Maps to normalized schema fields."
+
+    sigma:
+      title: "AI Gateway Non-Approved Model Access"
+      status: stable
+      description: "Detects AI model access attempts to non-approved models"
+      logsource:
+        product: ai_gateway
+        service: litellm
+        definition: "AI Gateway audit logs or OTEL telemetry"
+      detection:
+        selection:
+          model_id|contains: |
+            {{APPROVED_MODELS_SIGMA}}
+          ai.model.id|contains: |
+            {{APPROVED_MODELS_SIGMA}}
+        condition: selection
+      falsepositives:
+        - "Legitimate testing of new models before approval"
+        - "Emergency access during provider outages"
+      level: high
+      tags:
+        - attack.initial_access
+        - attack.t1078
+
+  # ============================================================================
+  # DR-002: Token Usage Spike
+  # ============================================================================
+  - rule_id: DR-002
+    name: "Token Usage Spike"
+    description: "Detects unusual token consumption patterns per principal"
+    severity: medium
+    category: anomaly
+    enabled: true
+    parameters:
+      threshold_tokens: 100000
+      window_hours: 24
+    
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype=otel_logs)
+        | where _time > relative_time(now(), "-24h")
+        | eval prompt_tokens=coalesce(prompt_tokens, ai.tokens.prompt, 0)
+        | eval completion_tokens=coalesce(completion_tokens, ai.tokens.completion, 0)
+        | eval total_tokens=prompt_tokens + completion_tokens
+        | eval principal_id=coalesce(key_alias, principal.id, user_id)
+        | stats sum(total_tokens) as total_tokens, count as request_count by principal_id
+        | where total_tokens > 100000
+        | sort - total_tokens
+        | eval severity="medium"
+      severity: medium
+      notes: "Aggregates tokens per principal. Maps to normalized schema: principal.id, ai.tokens.*"
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND
+        @timestamp >= now-24h
+      aggregation: |
+        {
+          "aggs": {
+            "by_principal": {
+              "terms": {
+                "script": "doc.containsKey('key_alias') ? doc['key_alias'].value : doc['principal.id'].value"
+              },
+              "aggs": {
+                "total_tokens": {
+                  "sum": {
+                    "script": "(doc.containsKey('prompt_tokens') ? doc['prompt_tokens'].value : doc['ai.tokens.prompt'].value) + (doc.containsKey('completion_tokens') ? doc['completion_tokens'].value : doc['ai.tokens.completion'].value)"
+                  }
+                },
+                "token_bucket_filter": {
+                  "bucket_selector": {
+                    "buckets_path": {"total_tokens": "total_tokens"},
+                    "script": "params.total_tokens > 100000"
+                  }
+                }
+              }
+            }
+          }
+        }
+      severity: medium
+      notes: "Uses Elasticsearch aggregation query. Requires Dev Tools Console."
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let TokenThreshold = 100000;
+        let TimeWindow = 24h;
+        union
+          (AIGatewayLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend PromptTokens = coalesce(PromptTokens, 0)
+          | extend CompletionTokens = coalesce(CompletionTokens, 0)
+          | extend TotalTokens = PromptTokens + CompletionTokens
+          | extend PrincipalId = coalesce(KeyAlias, UserId)),
+          (OTELLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend AttributesJson = parse_json(Attributes)
+          | extend PromptTokens = toint(AttributesJson["ai.tokens.prompt"])
+          | extend CompletionTokens = toint(AttributesJson["ai.tokens.completion"])
+          | extend TotalTokens = PromptTokens + CompletionTokens
+          | extend PrincipalId = tostring(AttributesJson["principal.id"]))
+        | summarize 
+            TotalTokens = sum(TotalTokens),
+            RequestCount = count()
+            by PrincipalId
+        | where TotalTokens > TokenThreshold
+        | order by TotalTokens desc
+        | extend Severity = "medium"
+      severity: medium
+      notes: "Aggregates tokens per principal across gateway and OTEL sources."
+
+    sigma:
+      title: "AI Token Usage Spike"
+      status: stable
+      description: "Detects unusually high token consumption per principal"
+      logsource:
+        product: ai_gateway
+        service: litellm
+      detection:
+        selection:
+          - event.category: ai_usage
+        timeframe: 24h
+        condition: selection
+        aggregation: "sum(ai.tokens.total) per principal.id > 100000"
+      falsepositives:
+        - "Legitimate batch processing workloads"
+        - "Large document summarization tasks"
+      level: medium
+      tags:
+        - attack.impact
+        - attack.t1496
+
+  # ============================================================================
+  # DR-003: High Block/Error Rate
+  # ============================================================================
+  - rule_id: DR-003
+    name: "High Block/Error Rate"
+    description: "Detects principals with elevated failure rates"
+    severity: medium
+    category: availability
+    enabled: true
+    parameters:
+      error_threshold_percent: 10
+      min_requests: 10
+    
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype:otel_logs)
+        | where _time > relative_time(now(), "-24h")
+        | eval principal_id=coalesce(key_alias, principal.id, user_id)
+        | eval status_norm=coalesce(status, ai.policy.action)
+        | eval is_error=if(match(status_norm, "(failure|error|blocked)"), 1, 0)
+        | stats count as total_requests, sum(is_error) as error_count by principal_id
+        | eval error_rate=round((error_count/total_requests)*100, 2)
+        | where total_requests >= 10 AND error_rate > 10
+        | sort - error_rate
+        | table principal_id, error_count, total_requests, error_rate
+      severity: medium
+      notes: "Calculates error rate per principal. Maps status/policy.action to normalized values."
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND
+        @timestamp >= now-24h
+      aggregation: |
+        Use Lens or TSVB to create visualization:
+        - Split by: Terms of key_alias or principal.id
+        - Metrics: Count of records, Count of status:failure
+        - Filter: total_requests >= 10
+        - Alert when: error_rate > 10%
+      severity: medium
+      notes: "Use Kibana Alerting with custom threshold for complex aggregations."
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let ErrorThreshold = 10;
+        let MinRequests = 10;
+        let TimeWindow = 24h;
+        union
+          (AIGatewayLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend PrincipalId = coalesce(KeyAlias, UserId)
+          | extend IsError = iff(Status in ("failure", "error"), 1, 0)),
+          (OTELLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend AttributesJson = parse_json(Attributes)
+          | extend PrincipalId = tostring(AttributesJson["principal.id"])
+          | extend PolicyAction = tostring(AttributesJson["policy.action"])
+          | extend IsError = iff(PolicyAction in ("error", "blocked"), 1, 0))
+        | summarize 
+            TotalRequests = count(),
+            ErrorCount = sum(IsError)
+            by PrincipalId
+        | extend ErrorRate = round(100.0 * ErrorCount / TotalRequests, 2)
+        | where TotalRequests >= MinRequests and ErrorRate > ErrorThreshold
+        | order by ErrorRate desc
+      severity: medium
+      notes: "Cross-platform error rate calculation using normalized policy.action."
+
+    sigma:
+      title: "AI Gateway High Error Rate"
+      status: stable
+      description: "Detects principals with elevated AI request failure rates"
+      logsource:
+        product: ai_gateway
+        service: litellm
+      detection:
+        selection:
+          - status: failure
+          - ai.policy.action: error
+        timeframe: 24h
+        condition: selection
+        aggregation: "count per principal.id where error_rate > 10%"
+      falsepositives:
+        - "Provider API outages"
+        - "Network connectivity issues"
+      level: medium
+      tags:
+        - attack.impact
+        - attack.t1529
+
+  # ============================================================================
+  # DR-004: Budget Exhaustion Warning
+  # ============================================================================
+  - rule_id: DR-004
+    name: "Budget Exhaustion Warning"
+    description: "Alerts when principals approach budget limits"
+    severity: low
+    category: cost_management
+    enabled: true
+    parameters:
+      warning_threshold_percent: 80
+    
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        | inputlookup key_budgets.csv
+        | where max_budget > 0
+        | eval percent_remaining=round((budget/max_budget)*100, 2)
+        | where percent_remaining < 20
+        | eval severity="low"
+        | eval alert_message="Budget for " . key_alias . " at " . percent_remaining . "% remaining"
+        | table key_alias, budget, max_budget, percent_remaining, alert_message
+        | sort percent_remaining
+      severity: low
+      notes: "Requires lookup table or direct DB connection for budget data."
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        index:ai_key_budgets AND budget:>0 AND max_budget:>0
+      aggregation: |
+        Create runtime field: percent_remaining = (doc['budget'].value / doc['max_budget'].value) * 100
+        Filter: percent_remaining < 20
+      severity: low
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        KeyBudgetTable
+        | where MaxBudget > 0 and Budget > 0
+        | extend PercentRemaining = round(100.0 * Budget / MaxBudget, 2)
+        | where PercentRemaining < 20
+        | project 
+            KeyAlias,
+            RemainingBudget = Budget,
+            MaxBudget,
+            PercentRemaining,
+            TimeGenerated
+        | order by PercentRemaining asc
+        | extend Severity = "low"
+      severity: low
+      notes: "Direct query against budget table. Maps to normalized schema cost fields."
+
+    sigma:
+      title: "AI Budget Exhaustion Warning"
+      status: stable
+      description: "Detects API keys approaching budget limits"
+      logsource:
+        product: ai_gateway
+        service: litellm
+        category: budget
+      detection:
+        selection:
+          budget|lt: 20% of max_budget
+        condition: selection
+      falsepositives:
+        - "Keys intentionally configured with low budgets"
+        - "Testing environments"
+      level: low
+      tags:
+        - attack.impact
+        - attack.t1496
+
+  # ============================================================================
+  # DR-005: Rapid Request Rate
+  # ============================================================================
+  - rule_id: DR-005
+    name: "Rapid Request Rate"
+    description: "Detects suspiciously high request frequency per principal"
+    severity: medium
+    category: anomaly
+    enabled: true
+    parameters:
+      max_requests_per_minute: 60
+    
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype:otel_logs)
+        | where _time > relative_time(now(), "-1h")
+        | eval principal_id=coalesce(key_alias, principal.id, user_id)
+        | bucket _time span=1m
+        | stats count as requests_per_minute by _time, principal_id
+        | where requests_per_minute > 60
+        | sort - requests_per_minute
+        | eval severity="medium"
+      severity: medium
+      notes: "Uses bucket command for time aggregation. Maps timestamp to normalized schema."
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND
+        @timestamp >= now-1h
+      aggregation: |
+        Use Date Histogram with 1m interval
+        Split by: Terms of key_alias or principal.id
+        Alert when: count > 60 per bucket
+      severity: medium
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let RateThreshold = 60;
+        let TimeWindow = 1h;
+        let BucketSize = 1m;
+        union
+          (AIGatewayLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend PrincipalId = coalesce(KeyAlias, UserId)
+          | extend TimeBucket = bin(TimeGenerated, BucketSize)),
+          (OTELLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend AttributesJson = parse_json(Attributes)
+          | extend PrincipalId = tostring(AttributesJson["principal.id"])
+          | extend TimeBucket = bin(TimeGenerated, BucketSize))
+        | summarize RequestCount = count() by TimeBucket, PrincipalId
+        | where RequestCount > RateThreshold
+        | order by RequestCount desc
+        | extend Severity = "medium"
+      severity: medium
+      notes: "Time-bucketed aggregation for rate detection."
+
+    sigma:
+      title: "AI Gateway Rapid Request Rate"
+      status: stable
+      description: "Detects abnormally high request rates per principal"
+      logsource:
+        product: ai_gateway
+        service: litellm
+      detection:
+        selection:
+          - event.category: ai_request
+        timeframe: 1m
+        condition: selection
+        aggregation: "count per principal.id > 60"
+      falsepositives:
+        - "Legitimate automation scripts"
+        - "Batch processing workloads"
+      level: medium
+      tags:
+        - attack.impact
+        - attack.t1496
+
+  # ============================================================================
+  # DR-006: Failed Authentication Attempts
+  # ============================================================================
+  - rule_id: DR-006
+    name: "Failed Authentication Attempts"
+    description: "Detects repeated authentication failures"
+    severity: high
+    category: security
+    enabled: true
+    parameters:
+      max_failures: 5
+    
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype:otel_logs)
+        | where _time > relative_time(now(), "-24h")
+        | eval principal_id=coalesce(key_alias, principal.id, user_id)
+        | eval status_norm=coalesce(status, ai.policy.action)
+        | eval reason_norm=coalesce(ai.policy.reason, "")
+        | where match(status_norm, "(failure|error)") AND match(reason_norm, "(?i)(auth|invalid|expired|revoked)")
+        | stats count as failed_attempts by principal_id
+        | where failed_attempts >= 5
+        | eval severity="high"
+        | sort - failed_attempts
+      severity: high
+      notes: "Searches for auth-related failures. Maps to normalized schema policy fields."
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND
+        (status:failure OR ai.policy.action:error) AND
+        (ai.policy.reason:*auth* OR ai.policy.reason:*invalid* OR ai.policy.reason:*expired*) AND
+        @timestamp >= now-24h
+      aggregation: |
+        Group by: key_alias or principal.id
+        Alert when: count >= 5
+      severity: high
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let FailureThreshold = 5;
+        let TimeWindow = 24h;
+        union
+          (AIGatewayLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | where Status == "failure"
+          | extend PrincipalId = coalesce(KeyAlias, UserId)),
+          (OTELLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend AttributesJson = parse_json(Attributes)
+          | extend PolicyAction = tostring(AttributesJson["policy.action"])
+          | extend PolicyReason = tostring(AttributesJson["policy.reason"])
+          | where PolicyAction == "error"
+          | where PolicyReason contains "auth" or PolicyReason contains "invalid" or PolicyReason contains "expired"
+          | extend PrincipalId = tostring(AttributesJson["principal.id"]))
+        | summarize FailedAttempts = count() by PrincipalId
+        | where FailedAttempts >= FailureThreshold
+        | order by FailedAttempts desc
+        | extend Severity = "high"
+      severity: high
+      notes: "Cross-platform auth failure detection."
+
+    sigma:
+      title: "AI Gateway Authentication Failures"
+      status: stable
+      description: "Detects repeated failed authentication attempts"
+      logsource:
+        product: ai_gateway
+        service: litellm
+      detection:
+        selection:
+          - status: failure
+            ai.policy.reason|contains:
+              - "auth"
+              - "invalid"
+              - "expired"
+              - "revoked"
+          - ai.policy.action: error
+        timeframe: 24h
+        condition: selection
+        aggregation: "count per principal.id >= 5"
+      falsepositives:
+        - "Expired keys being cleaned up"
+        - "Configuration errors in client apps"
+      level: high
+      tags:
+        - attack.credential_access
+        - attack.t1110
+
+  # ============================================================================
+  # DR-007: Budget Threshold Alert
+  # ============================================================================
+  - rule_id: DR-007
+    name: "Budget Threshold Alert"
+    description: "Alerts when principals exceed configurable budget usage threshold"
+    severity: medium
+    category: cost_management
+    enabled: true
+    parameters:
+      threshold_percent: 80
+    
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        | inputlookup key_budgets.csv
+        | where max_budget > 0
+        | eval percent_used=round(((max_budget - budget)/max_budget)*100, 2)
+        | where percent_used >= 80
+        | eval severity="medium"
+        | eval alert_message="Budget for " . key_alias . " at " . percent_used . "% of limit"
+        | table key_alias, spend, max_budget, percent_used, alert_message
+        | sort - percent_used
+      severity: medium
+      notes: "Requires lookup table or direct DB connection. Calculates spend-based threshold."
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        index:ai_key_budgets AND max_budget:>0
+      aggregation: |
+        Create runtime field: percent_used = ((doc['max_budget'].value - doc['budget'].value) / doc['max_budget'].value) * 100
+        Filter: percent_used >= 80
+      severity: medium
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let ThresholdPercent = 80;
+        KeyBudgetTable
+        | where MaxBudget > 0
+        | extend Spend = MaxBudget - Budget
+        | extend PercentUsed = round(100.0 * Spend / MaxBudget, 2)
+        | where PercentUsed >= ThresholdPercent
+        | project 
+            KeyAlias,
+            Spend,
+            MaxBudget,
+            PercentUsed,
+            TimeGenerated
+        | order by PercentUsed desc
+        | extend Severity = "medium"
+      severity: medium
+      notes: "Spend-based threshold alert using normalized cost schema."
+
+    sigma:
+      title: "AI Budget Threshold Alert"
+      status: stable
+      description: "Detects API keys exceeding budget usage threshold"
+      logsource:
+        product: ai_gateway
+        service: litellm
+        category: budget
+      detection:
+        selection:
+          spend|gt: 80% of max_budget
+        condition: selection
+      falsepositives:
+        - "Keys with low budget limits for testing"
+        - "Expected high usage periods"
+      level: medium
+      tags:
+        - attack.impact
+        - attack.t1496
+
+  # ============================================================================
+  # DR-008: DLP Block Event Detected
+  # ============================================================================
+  - rule_id: DR-008
+    name: "DLP Block Event Detected"
+    description: "Detects requests blocked by Presidio DLP guardrails due to PII or sensitive data"
+    severity: high
+    category: security
+    enabled: true
+
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype=otel_logs)
+        | where _time > relative_time(now(), "-24h")
+        | eval principal_id=coalesce(key_alias, principal.id, user_id)
+        | eval action_norm=coalesce(status, ai.policy.action, content_analysis.action_taken)
+        | where match(action_norm, "(blocked|failure)")
+          AND (match(ai.policy.reason, "(?i)(pii|presidio|dlp|guardrail)")
+               OR isnotnull(content_analysis.pii_detected))
+        | eval siem_severity="high"
+        | table request_id, principal_id, model_id, timestamp, content_analysis.pii_entities, ai.policy.reason
+        | sort - timestamp
+      severity: high
+      notes: "Detects DLP blocks from Presidio guardrails. Maps to normalized content analysis fields."
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND
+        (status:blocked OR ai.policy.action:blocked OR content_analysis.action_taken:blocked) AND
+        (ai.policy.reason:*pii* OR ai.policy.reason:*presidio* OR content_analysis.pii_detected:true) AND
+        @timestamp >= now-24h
+      severity: high
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let TimeWindow = 24h;
+        union
+          (AIGatewayLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | where Status in ("blocked", "failure")
+          | extend PrincipalId = coalesce(KeyAlias, UserId)
+          | where PolicyReason contains "pii" or PolicyReason contains "presidio"),
+          (OTELLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend AttributesJson = parse_json(Attributes)
+          | extend ActionTaken = tostring(AttributesJson["content.analysis.action"])
+          | extend PiiDetected = tobool(AttributesJson["content.pii.detected"])
+          | where ActionTaken == "blocked" or PiiDetected == true
+          | extend PrincipalId = tostring(AttributesJson["principal.id"]))
+        | project
+            TimeGenerated,
+            RequestId,
+            PrincipalId,
+            ModelId,
+            PiiEntities = ContentPiiEntities,
+            BlockReason = PolicyReason
+        | order by TimeGenerated desc
+      severity: high
+
+    sigma:
+      title: "AI Gateway DLP Block Event"
+      status: stable
+      description: "Detects requests blocked by DLP guardrails due to PII or sensitive data"
+      logsource:
+        product: ai_gateway
+        service: litellm
+      detection:
+        selection:
+          - content.analysis.action: blocked
+          - content.pii.detected: true
+          - ai.policy.reason|contains:
+            - "pii"
+            - "presidio"
+            - "dlp"
+        timeframe: 24h
+        condition: selection
+      falsepositives:
+        - "Legitimate use of test data in development"
+        - "Synthetic data that resembles PII patterns"
+      level: high
+      tags:
+        - attack.exfiltration
+        - attack.t1048
+
+  # ============================================================================
+  # DR-009: Repeated PII Submission Attempts
+  # ============================================================================
+  - rule_id: DR-009
+    name: "Repeated PII Submission Attempts"
+    description: "Detects keys with multiple DLP blocks indicating persistent PII exposure attempts"
+    severity: high
+    category: security
+    enabled: true
+    parameters:
+      block_threshold: 3
+      window_hours: 1
+
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype=otel_logs)
+        | where _time > relative_time(now(), "-1h")
+        | eval principal_id=coalesce(key_alias, principal.id, user_id)
+        | eval action_norm=coalesce(status, ai.policy.action, content_analysis.action_taken)
+        | where match(action_norm, "(blocked|failure)")
+          AND (match(ai.policy.reason, "(?i)(pii|presidio|dlp|guardrail)")
+               OR isnotnull(content_analysis.pii_detected))
+        | stats count as block_count, values(model_id) as models,
+                min(_time) as first_block, max(_time) as last_block by principal_id
+        | where block_count >= 3
+        | eval severity="high"
+        | sort - block_count
+      severity: high
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND
+        (status:blocked OR ai.policy.action:blocked) AND
+        @timestamp >= now-1h
+      aggregation: |
+        Use Lens to aggregate:
+        - Split by: principal.id
+        - Filter: policy.reason contains "pii" OR content.pii.detected exists
+        - Alert when: count >= 3 per principal
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let BlockThreshold = 3;
+        let TimeWindow = 1h;
+        union
+          (AIGatewayLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | where Status in ("blocked", "failure")
+          | extend PrincipalId = coalesce(KeyAlias, UserId)
+          | where PolicyReason contains "pii" or PolicyReason contains "presidio"),
+          (OTELLogs
+          | where TimeGenerated > ago(TimeWindow)
+          | extend AttributesJson = parse_json(Attributes)
+          | extend ActionTaken = tostring(AttributesJson["content.analysis.action"])
+          | where ActionTaken == "blocked"
+          | extend PrincipalId = tostring(AttributesJson["principal.id"]))
+        | summarize BlockCount = count(),
+                    FirstBlock = min(TimeGenerated),
+                    LastBlock = max(TimeGenerated),
+                    Models = make_set(ModelId)
+                    by PrincipalId
+        | where BlockCount >= BlockThreshold
+        | extend Severity = "high"
+        | order by BlockCount desc
+      severity: high
+
+    sigma:
+      title: "AI Gateway Repeated PII Submission"
+      status: stable
+      description: "Detects multiple DLP blocks from same principal indicating persistent PII exposure"
+      logsource:
+        product: ai_gateway
+        service: litellm
+      detection:
+        selection:
+          - content.analysis.action: blocked
+        timeframe: 1h
+        condition: selection
+        aggregation: "count per principal.id >= 3"
+      falsepositives:
+        - "Developer testing DLP functionality"
+        - "Batch processing with mixed safe/unsafe content"
+      level: high
+      tags:
+        - attack.exfiltration
+        - attack.t1048
+
+  # ============================================================================
+  # DR-010: Potential Prompt Injection Attempt
+  # ============================================================================
+  - rule_id: DR-010
+    name: "Potential Prompt Injection Attempt"
+    description: "Detects requests with patterns associated with prompt injection or jailbreak attempts"
+    severity: medium
+    category: policy_violation
+    enabled: true
+    parameters:
+      window_hours: 24
+
+    splunk:
+      platform: "Splunk Enterprise/Cloud"
+      query: |
+        index=ai_gateway (sourcetype=litellm_audit OR sourcetype=otel_logs)
+        | where _time > relative_time(now(), "-24h")
+        | eval principal_id=coalesce(key_alias, principal.id, user_id)
+        | eval reason_norm=lower(coalesce(ai.policy.reason, ""))
+        | where match(reason_norm, "(?i)(ignore previous|jailbreak|prompt injection|developer mode|dAN)")
+        | eval siem_severity="medium"
+        | table request_id, principal_id, model_id, timestamp, ai.policy.reason
+        | sort - timestamp
+      severity: medium
+      notes: "Detects potential prompt injection patterns in blocked requests."
+
+    elk_kql:
+      platform: "Elasticsearch/Kibana (KQL)"
+      query: |
+        (sourcetype:litellm_audit OR sourcetype:otel_logs) AND
+        (ai.policy.reason:*ignore*previous* OR ai.policy.reason:*jailbreak* OR ai.policy.reason:*prompt*injection*) AND
+        @timestamp >= now-24h
+      severity: medium
+
+    sentinel_kql:
+      platform: "Microsoft Sentinel"
+      query: |
+        let TimeWindow = 24h;
+        let InjectionPatterns = dynamic(["ignore previous", "jailbreak", "prompt injection", "developer mode", "dAN"]);
+        AIGatewayLogs
+        | where TimeGenerated > ago(TimeWindow)
+        | where PolicyReason has_any (InjectionPatterns)
+        | extend PrincipalId = coalesce(KeyAlias, UserId)
+        | project
+            TimeGenerated,
+            RequestId,
+            PrincipalId,
+            ModelId,
+            PolicyReason,
+            Status
+        | order by TimeGenerated desc
+      severity: medium
+
+    sigma:
+      title: "AI Gateway Prompt Injection Attempt"
+      status: experimental
+      description: "Detects potential prompt injection or jailbreak attempts"
+      logsource:
+        product: ai_gateway
+        service: litellm
+      detection:
+        selection:
+          - ai.policy.reason|contains:
+            - "ignore previous"
+            - "jailbreak"
+            - "prompt injection"
+            - "developer mode"
+        timeframe: 24h
+        condition: selection
+      falsepositives:
+        - "Security research or red team exercises"
+        - "Legitimate discussions about prompt injection"
+      level: medium
+      tags:
+        - attack.initial_access
+        - attack.t1566
+
+# ============================================================================
+siem_config:
+  # Field name mappings for normalized schema to SIEM platforms
+  field_mappings:
+    - normalized: principal.id
+      splunk: user_id
+      elk: user.id
+      sentinel: UserId
+      
+    - normalized: ai.model.id
+      splunk: model_id
+      elk: ai.model.id
+      sentinel: ModelId
+      
+    - normalized: ai.request.timestamp
+      splunk: _time
+      elk: "@timestamp"
+      sentinel: TimeGenerated
+      
+    - normalized: ai.cost.amount
+      splunk: spend
+      elk: ai.cost.amount
+      sentinel: Spend
+      
+    - normalized: ai.tokens.total
+      splunk: total_tokens
+      elk: ai.tokens.total
+      sentinel: TotalTokens
+      
+    - normalized: policy.action
+      splunk: action
+      elk: event.action
+      sentinel: Action
+
+  # Recommended alert thresholds
+  recommended_thresholds:
+    token_spike: 100000
+    error_rate_percent: 10
+    budget_warning_percent: 80
+    request_rate_per_minute: 60
+    dlp_patterns:
+      - ssn_pattern: '\d{3}-\d{2}-\d{4}'
+      - aws_key_pattern: 'AKIA[0-9A-Z]{16}'
+      - credit_card_pattern: '\d{4}-\d{4}-\d{4}-\d{4}'
+
+  # Alert routing recommendations
+  alert_routing:
+    high:
+      - security_team@example.com
+      - pagerduty:ai-security
+    medium:
+      - platform_team@example.com
+      - slack:#ai-alerts
+    low:
+      - cost_management@example.com

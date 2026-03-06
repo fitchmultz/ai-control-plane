@@ -1,0 +1,100 @@
+{{/*
+Post-installation notes displayed after helm install/upgrade
+*/}}
+Thank you for installing {{ .Chart.Name }}.
+
+Your AI Control Plane release "{{ .Release.Name }}" has been deployed to namespace "{{ .Release.Namespace }}".
+
+{{- if eq .Values.profile "demo" }}
+
+⚠️  DEMO PROFILE: This deployment uses placeholder secrets and embedded PostgreSQL.
+   Do NOT use for production. Run with --set profile=production for production validation.
+{{- end }}
+
+{{ if .Values.ingress.enabled }}
+✅ External access is configured via Ingress:
+{{- range .Values.ingress.hosts }}
+   - Host: {{ .host }}
+{{- end }}
+{{- if .Values.ingress.tls }}
+   - TLS is enabled (secret: {{ (index .Values.ingress.tls 0).secretName }})
+{{- end }}
+{{ else }}
+ℹ️  External access is NOT configured. To expose the gateway:
+   
+   Option 1: Enable Ingress (recommended for production)
+   helm upgrade {{ .Release.Name }} {{ .Chart.Name }} -n {{ .Release.Namespace }} \
+     --set ingress.enabled=true \
+     --set ingress.className=nginx \
+     --set 'ingress.hosts[0].host=ai-control-plane.example.com' \
+     --set 'ingress.hosts[0].paths[0].path=/' \
+     --set 'ingress.hosts[0].paths[0].pathType=Prefix'
+   
+   Option 2: Use LoadBalancer service type
+   helm upgrade {{ .Release.Name }} {{ .Chart.Name }} -n {{ .Release.Namespace }} \
+     --set litellm.service.type=LoadBalancer
+{{ end }}
+
+📋 Next steps:
+
+1. Verify the deployment:
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Check LiteLLM logs:
+   kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=litellm
+
+3. Access the LiteLLM Web UI:
+{{- if .Values.ingress.enabled }}
+   URL: https://{{ (index .Values.ingress.hosts 0).host }}/ui
+{{- else }}
+   # Port-forward to access locally
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "acp.fullname" . }}-litellm 4000:4000
+   URL: http://localhost:4000/ui
+{{- end }}
+   Username: admin
+   Password: (value of LITELLM_MASTER_KEY from your secrets)
+
+4. Configure your AI tools to use the gateway:
+   
+   Claude Code:
+     export ANTHROPIC_BASE_URL="{{ if .Values.ingress.enabled }}https://{{ (index .Values.ingress.hosts 0).host }}{{ else }}http://localhost:4000{{ end }}"
+     export ANTHROPIC_API_KEY="<your-virtual-key>"
+   
+   Codex CLI:
+     export OPENAI_BASE_URL="{{ if .Values.ingress.enabled }}https://{{ (index .Values.ingress.hosts 0).host }}{{ else }}http://localhost:4000{{ end }}"
+     export OPENAI_API_KEY="<your-virtual-key>"
+
+{{- if .Values.postgres.enabled }}
+
+💾 Database: Using embedded PostgreSQL (StatefulSet)
+   Service: {{ include "acp.postgresService" . }}.{{ .Release.Namespace }}.svc.cluster.local
+   
+   To backup the database:
+   kubectl exec -n {{ .Release.Namespace }} {{ include "acp.fullname" . }}-postgres-0 -- \
+     pg_dump -U {{ .Values.postgres.auth.username }} {{ .Values.postgres.auth.database }} | gzip > backup.sql.gz
+{{- else }}
+
+💾 Database: Using external PostgreSQL
+   Ensure your external database is accessible and the DATABASE_URL secret is correct.
+{{- end }}
+
+{{- if eq .Values.litellm.mode "offline" }}
+
+🧪 OFFLINE MODE: Using mock upstream service (no real AI providers)
+   This mode is for demos/testing only. Do NOT use in production.
+{{- end }}
+
+{{- if eq .Values.secrets.create true }}
+
+⚠️  SECURITY WARNING: Secrets are created by Helm (secrets.create=true).
+   For production, use external secrets management:
+   
+   helm upgrade {{ .Release.Name }} {{ .Chart.Name }} -n {{ .Release.Namespace }} \
+     --set secrets.create=false \
+     --set secrets.existingSecret.name=ai-control-plane-secrets
+{{- end }}
+
+📖 Documentation:
+   - Deployment Guide: docs/DEPLOYMENT.md
+   - Kubernetes/Helm Guide: docs/deployment/KUBERNETES_HELM.md
+   - Production Contract: docs/deployment/SINGLE_TENANT_PRODUCTION_CONTRACT.md

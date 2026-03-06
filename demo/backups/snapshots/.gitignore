@@ -1,0 +1,6 @@
+# Ignore all snapshot data
+# Snapshots contain database dumps and potentially log artifacts
+# which may include sensitive information
+
+*/
+!.gitignore

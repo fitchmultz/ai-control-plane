@@ -1,0 +1,29 @@
+{{/*
+Backup Storage PVC
+
+Responsibilities:
+  - Persistent storage for database backups
+  - Used when backup.persistence.enabled is true
+
+Non-scope:
+  - Does NOT provide cross-node HA (use object storage for DR)
+  - Does NOT include backup replication (configure separately)
+*/}}
+{{- if and .Values.backup.enabled .Values.backup.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "acp.fullname" . }}-backups
+  labels:
+    {{- include "acp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  accessModes:
+    - {{ .Values.backup.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.persistence.size }}
+  {{- with .Values.backup.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

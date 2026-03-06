@@ -1,0 +1,198 @@
+# Azure Complete Example - Example Variable Values
+# Copy this file to terraform.tfvars and customize for your deployment
+
+#------------------------------------------------------------------------------
+# General Configuration
+#------------------------------------------------------------------------------
+
+# Name of the resource group to create
+resource_group_name = "rg-ai-control-plane-dev"
+
+# Azure region for deployment
+location = "East US"
+
+# Environment tag (dev, staging, production)
+environment = "dev"
+
+# Prefix for resource naming
+name_prefix = "aicp"
+
+# Additional tags
+# tags = {
+#   Department = "Engineering"
+#   CostCenter = "12345"
+# }
+
+#------------------------------------------------------------------------------
+# Network Configuration
+#------------------------------------------------------------------------------
+
+# CIDR block for the Virtual Network
+# vnet_cidr = "10.0.0.0/16"
+
+# Subnet CIDRs
+# subnet_cidrs = {
+#   aks      = "10.0.1.0/24"
+#   database = "10.0.2.0/24"
+# }
+
+#------------------------------------------------------------------------------
+# AKS Configuration
+#------------------------------------------------------------------------------
+
+# Name of the AKS cluster
+cluster_name = "ai-control-plane"
+
+# Kubernetes version
+# kubernetes_version = "1.29"
+
+# AKS SKU tier (Free, Standard, Premium)
+# sku_tier = "Standard"
+
+# System node pool configuration (for critical addons)
+# system_node_pool = {
+#   name                 = "system"
+#   vm_size              = "Standard_B2s"
+#   node_count           = 1
+#   min_count            = 1
+#   max_count            = 3
+#   os_disk_size_gb      = 128
+#   enable_auto_scaling  = true
+#   only_critical_addons = true
+#   labels               = {}
+#   taints               = ["CriticalAddonsOnly=true:NoSchedule"]
+# }
+
+# User node pools for workloads
+# node_pools = {
+#   general = {
+#     vm_size             = "Standard_B2s"
+#     node_count          = 2
+#     min_count           = 1
+#     max_count           = 5
+#     os_disk_size_gb     = 128
+#     enable_auto_scaling = true
+#     labels = {
+#       workload-type = "general"
+#     }
+#     taints = []
+#   }
+# }
+
+# Availability zones (empty list for regions without zones)
+# availability_zones = ["1", "2", "3"]
+
+#------------------------------------------------------------------------------
+# PostgreSQL Configuration
+#------------------------------------------------------------------------------
+
+# Server name (prefix will be added automatically)
+# postgresql_server_name = "litellm-db"
+
+# PostgreSQL administrator username
+# postgresql_admin_username = "litellm"
+
+# PostgreSQL version
+# postgresql_version = "16"
+
+# SKU name (B_Standard_B2s for dev, GP_Standard_D2s_v3+ for production)
+# postgresql_sku_name = "B_Standard_B2s"
+
+# Storage size in MB (minimum 32768)
+# postgresql_storage_mb = 32768
+
+# Database name
+# postgresql_database_name = "litellm"
+
+# Backup retention days
+# postgresql_backup_retention_days = 7
+
+# Geo-redundant backup (recommended for production)
+# postgresql_geo_redundant_backup_enabled = false
+
+# High availability (recommended for production)
+# postgresql_high_availability_enabled = false
+
+#------------------------------------------------------------------------------
+# Helm Chart Configuration
+#------------------------------------------------------------------------------
+
+# Helm release name
+# helm_release_name = "acp"
+
+# Kubernetes namespace
+# helm_namespace = "acp"
+
+# Path to Helm chart (relative to this directory)
+# helm_chart_path = "../../../helm/ai-control-plane"
+
+# LiteLLM master key (leave empty to auto-generate)
+# litellm_master_key = ""
+
+# LiteLLM salt key (leave empty to auto-generate)
+# litellm_salt_key = ""
+
+# Number of LiteLLM replicas
+litellm_replica_count = 1
+
+# Enable ingress for external access
+# ingress_enabled = false
+
+# Ingress hostname (leave empty for auto-generated)
+# ingress_host = "ai-control-plane.example.com"
+
+# Ingress class name
+# ingress_class_name = "nginx"
+
+# Enable autoscaling (recommended for production)
+# enable_autoscaling = false
+
+#------------------------------------------------------------------------------
+# Production Configuration Example
+#------------------------------------------------------------------------------
+
+# Uncomment and adjust the following for a production deployment:
+
+# environment = "production"
+# location = "East US"
+# resource_group_name = "rg-ai-control-plane-prod"
+# name_prefix = "aicp-prod"
+
+# system_node_pool = {
+#   name                 = "system"
+#   vm_size              = "Standard_D2s_v3"
+#   node_count           = 2
+#   min_count            = 2
+#   max_count            = 5
+#   os_disk_size_gb      = 128
+#   enable_auto_scaling  = true
+#   only_critical_addons = true
+#   labels               = {}
+#   taints               = ["CriticalAddonsOnly=true:NoSchedule"]
+# }
+
+# node_pools = {
+#   general = {
+#     vm_size             = "Standard_D4s_v3"
+#     node_count          = 3
+#     min_count           = 2
+#     max_count           = 10
+#     os_disk_size_gb     = 128
+#     enable_auto_scaling = true
+#     labels = {
+#       workload-type = "general"
+#     }
+#     taints = []
+#   }
+# }
+
+# postgresql_sku_name = "GP_Standard_D4s_v3"
+# postgresql_storage_mb = 65536
+# postgresql_geo_redundant_backup_enabled = true
+# postgresql_high_availability_enabled = true
+# postgresql_backup_retention_days = 35
+
+# litellm_replica_count = 2
+# enable_autoscaling = true
+# ingress_enabled = true
+# ingress_host = "ai-control-plane.yourcompany.com"

@@ -1,0 +1,169 @@
+{{/*
+Chargeback Report Generation CronJob
+
+Responsibilities:
+  - Monthly automated chargeback report generation
+  - Generate JSON, CSV, and Markdown reports
+  - Archive reports to persistent storage
+  - Send notifications to cost center owners
+  - Detect variances and anomalies
+
+Non-scope:
+  - Does NOT generate real-time reports
+  - Does NOT modify database state
+  - Does NOT send email directly (uses webhook notifications)
+*/}}
+{{- if .Values.chargeback.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "acp.fullname" . }}-chargeback
+  labels:
+    {{- include "acp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chargeback
+spec:
+  # Run at 9 AM on the 1st of each month
+  schedule: {{ .Values.chargeback.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.chargeback.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.chargeback.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "acp.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: chargeback
+        spec:
+          serviceAccountName: {{ include "acp.serviceAccountName" . }}
+          restartPolicy: OnFailure
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.chargeback.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.chargeback.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.chargeback.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: chargeback
+              image: "{{ .Values.chargeback.image.repository }}:{{ .Values.chargeback.image.tag }}"
+              imagePullPolicy: {{ .Values.chargeback.image.pullPolicy }}
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  
+                  echo "=== Starting Chargeback Report Generation ==="
+                  echo "Report Month: $(date -d 'last month' +%Y-%m 2>/dev/null || date -v-1m +%Y-%m)"
+                  echo "Generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                  echo ""
+                  
+                  # Generate reports in all formats
+                  /scripts/chargeback_report.sh \
+                    --format all \
+                    --archive-dir /reports \
+                    --variance-threshold {{ .Values.chargeback.varianceThreshold }} \
+                    {{- if .Values.chargeback.notifications.enabled }}
+                    --notify \
+                    {{- end }}
+                    --verbose
+                  
+                  echo ""
+                  echo "=== Chargeback Report Generation Complete ==="
+                  echo "Reports archived to: /reports/"
+                  ls -la /reports/*/
+              env:
+                - name: DB_HOST
+                  {{- if .Values.postgres.enabled }}
+                  value: {{ include "acp.postgresServiceFQDN" . }}
+                  {{- else if .Values.chargeback.externalDatabase.host }}
+                  value: {{ .Values.chargeback.externalDatabase.host | quote }}
+                  {{- else }}
+                  value: {{ required "Database host is required for chargeback. Set chargeback.externalDatabase.host or enable postgres." .Values.chargeback.externalDatabase.host }}
+                  {{- end }}
+                - name: DB_USER
+                  {{- if .Values.postgres.enabled }}
+                  value: {{ .Values.postgres.auth.username | default "litellm" }}
+                  {{- else }}
+                  value: {{ .Values.chargeback.externalDatabase.username | default "litellm" | quote }}
+                  {{- end }}
+                - name: DB_NAME
+                  {{- if .Values.postgres.enabled }}
+                  value: {{ .Values.postgres.auth.database | default "litellm" }}
+                  {{- else }}
+                  value: {{ .Values.chargeback.externalDatabase.database | default "litellm" | quote }}
+                  {{- end }}
+                - name: PGPASSWORD
+                  {{- if .Values.postgres.enabled }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "acp.fullname" . }}-postgres
+                      key: POSTGRES_PASSWORD
+                  {{- else }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "acp.dbSecretName" . }}
+                      key: {{ include "acp.dbSecretKey" . }}
+                  {{- end }}
+                - name: VARIANCE_THRESHOLD
+                  value: {{ .Values.chargeback.varianceThreshold | quote }}
+                - name: ANOMALY_THRESHOLD
+                  value: {{ .Values.chargeback.anomalyThreshold | quote }}
+                - name: NOTIFICATIONS_ENABLED
+                  value: {{ .Values.chargeback.notifications.enabled | quote }}
+                {{- if .Values.chargeback.notifications.slackWebhookUrl }}
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "acp.fullname" . }}-chargeback-secrets
+                      key: slack-webhook-url
+                      optional: true
+                {{- end }}
+                {{- if .Values.chargeback.notifications.genericWebhookUrl }}
+                - name: GENERIC_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "acp.fullname" . }}-chargeback-secrets
+                      key: generic-webhook-url
+                      optional: true
+                {{- end }}
+              volumeMounts:
+                - name: reports
+                  mountPath: /reports
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                {{- toYaml .Values.chargeback.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 999
+                seccompProfile:
+                  type: RuntimeDefault
+          volumes:
+            - name: reports
+              {{- if .Values.chargeback.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ include "acp.fullname" . }}-chargeback-reports
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+            - name: scripts
+              configMap:
+                name: {{ include "acp.fullname" . }}-chargeback-scripts
+                defaultMode: 0755
+{{- end }}

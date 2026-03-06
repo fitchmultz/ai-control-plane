@@ -1,0 +1,10 @@
+# Ignore all backup files in this directory
+# Backups contain sensitive data (encrypted keys, user information)
+# and should never be committed to version control
+
+*.sql
+*.sql.gz
+*.sql.bz2
+
+# Allow the .gitkeep file
+!.gitkeep

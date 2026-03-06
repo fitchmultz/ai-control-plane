@@ -1,0 +1,571 @@
+# AI Control Plane - Normalized Evidence Schema
+#
+# This schema defines the unified evidence format for SIEM integration.
+# Per ENTERPRISE_STRATEGY.md (Section 4.2), all AI activity
+# is normalized into a single schema regardless of source (API gateway or OTEL telemetry).
+#
+# Purpose:
+#   - Enable unified governance across API key mode and subscription mode
+#   - Provide consistent field naming for SIEM integration
+#   - Support correlation between gateway logs and OTEL telemetry
+#
+# Schema Version: 1.0.0
+
+normalized_evidence_schema:
+  version: "1.0.0"
+  description: "Unified AI Control Plane evidence schema for SIEM integration"
+  last_updated: "2026-02-10"
+
+  # Schema Principles (from Strategy Section 4.2)
+  principles:
+    - "Single unified schema for all AI activity"
+    - "Principal identity for attribution"
+    - "Model and provider identification"
+    - "Request/response metadata (tokens, cost, latency)"
+    - "Policy actions and enforcement status"
+    - "Correlation IDs for investigations"
+
+  # Core Entity Groups
+  entity_groups:
+    - name: principal
+      description: "Who initiated the AI request"
+      fields:
+        - name: principal.id
+          type: string
+          required: true
+          description: "Unique identifier for the user, service, or API key"
+          examples: ["user-alice", "svc-codex-cli", "key-dev-001"]
+          sources:
+            gateway: "Resolved precedence: valid LiteLLM_SpendLogs.user -> valid LiteLLM_VerificationToken.user_id -> valid LiteLLM_VerificationToken.key_alias (join via LiteLLM_SpendLogs.api_key = LiteLLM_VerificationToken.token) -> unknown"
+            otel: "attributes.principal.id or resource.attributes.user_id"
+
+        - name: principal.type
+          type: enum[user, service, api_key, unknown]
+          required: true
+          description: "Type of principal making the request"
+          examples: ["user", "service", "api_key"]
+          sources:
+            gateway: "derived from resolved principal.id + principal.identity_source"
+            otel: "attributes.principal.type"
+
+        - name: principal.email
+          type: string
+          required: false
+          description: "Email address for user principals (if available)"
+          examples: ["alice@example.com"]
+          sources:
+            gateway: "LiteLLM_UserTable.user_email via user join (if populated)"
+            otel: "attributes.principal.email"
+
+        - name: principal.identity_source
+          type: enum[spendlogs_user, token_user_id, key_alias, unknown]
+          required: false
+          description: "Identity source used to resolve principal.id in gateway exports"
+          examples: ["spendlogs_user", "token_user_id", "key_alias", "unknown"]
+          sources:
+            gateway: "export_gateway.sh resolver metadata"
+            otel: "n/a"
+
+        - name: principal.identity_reason
+          type: string
+          required: false
+          description: "Fallback reason when principal.id does not come from SpendLogs.user"
+          examples: ["identity_fallback_token_user_id", "identity_fallback_key_alias", "identity_missing_or_invalid"]
+          sources:
+            gateway: "export_gateway.sh resolver metadata"
+            otel: "n/a"
+
+        - name: principal.role
+          type: string
+          required: false
+          description: "Resolved RBAC role for principal attribution"
+          examples: ["admin", "team-lead", "developer", "auditor"]
+          sources:
+            gateway: "Resolved from roles.yaml via export_gateway.sh"
+            otel: "attributes.principal.role"
+
+        - name: principal.role_source
+          type: enum[user_role_assignment, default_role, unknown]
+          required: false
+          description: "How principal.role was resolved"
+          examples: ["user_role_assignment", "default_role", "unknown"]
+          sources:
+            gateway: "export_gateway.sh role resolver metadata"
+            otel: "n/a"
+
+    - name: ai_request
+      description: "AI model invocation details"
+      fields:
+        - name: ai.model.id
+          type: string
+          required: true
+          description: "Canonical model identifier"
+          examples: ["claude-haiku-4-5", "openai-gpt5.2", "claude-sonnet-4-5"]
+          sources:
+            gateway: "LiteLLM_SpendLogs.model"
+            otel: "attributes.ai.model or attributes.gen_ai.model"
+
+        - name: ai.provider
+          type: string
+          required: true
+          description: "Upstream AI provider"
+          examples: ["anthropic", "openai", "google"]
+          sources:
+            gateway: "derived from model_id prefix"
+            otel: "attributes.ai.provider"
+
+        - name: ai.request.id
+          type: string
+          required: true
+          description: "Unique request identifier"
+          examples: ["req-abc123", "msg_01XkZhZ8vP2N6dJQ9L4Y5E6R"]
+          sources:
+            gateway: "LiteLLM_SpendLogs.request_id"
+            otel: "span_id or attributes.ai.request.id"
+
+        - name: ai.request.timestamp
+          type: timestamp
+          required: true
+          description: "When the request was initiated (ISO 8601)"
+          examples: ["2026-02-02T10:30:00Z"]
+          sources:
+            gateway: "LiteLLM_SpendLogs.startTime"
+            otel: "timestamp or start_time_unix_nano"
+
+        - name: ai.request.duration_ms
+          type: integer
+          required: false
+          description: "Request latency in milliseconds"
+          examples: [1250, 3400]
+          sources:
+            gateway: "calculated from endTime - startTime (if endTime present)"
+            otel: "duration or attributes.ai.latency_ms"
+
+    - name: ai_usage
+      description: "Token and cost metrics"
+      fields:
+        - name: ai.tokens.prompt
+          type: integer
+          required: false
+          description: "Input/prompt tokens consumed"
+          examples: [150, 2000, 50000]
+          sources:
+            gateway: "LiteLLM_SpendLogs.prompt_tokens"
+            otel: "attributes.ai.tokens.prompt or attributes.gen_ai.usage.input_tokens"
+
+        - name: ai.tokens.completion
+          type: integer
+          required: false
+          description: "Output/completion tokens generated"
+          examples: [200, 1500, 25000]
+          sources:
+            gateway: "LiteLLM_SpendLogs.completion_tokens"
+            otel: "attributes.ai.tokens.completion or attributes.gen_ai.usage.output_tokens"
+
+        - name: ai.tokens.total
+          type: integer
+          required: false
+          description: "Total tokens (prompt + completion)"
+          examples: [350, 3500, 75000]
+          calculation: "ai.tokens.prompt + ai.tokens.completion"
+
+        - name: ai.cost.currency
+          type: string
+          required: false
+          description: "Currency for cost calculation"
+          default: "USD"
+          examples: ["USD"]
+
+        - name: ai.cost.amount
+          type: number
+          required: false
+          description: "Cost of the request"
+          examples: [0.0025, 0.15, 2.50]
+          sources:
+            gateway: "LiteLLM_SpendLogs.spend"
+            otel: "attributes.ai.cost or calculated from tokens"
+
+    - name: policy_enforcement
+      description: "Policy decisions and actions"
+      fields:
+        - name: policy.action
+          type: enum[allowed, blocked, redacted, rate_limited, error]
+          required: true
+          description: "Policy enforcement outcome"
+          examples: ["allowed", "blocked", "redacted"]
+          sources:
+            gateway: "derived from LiteLLM_SpendLogs.status and policy rules"
+            otel: "attributes.ai.policy.action"
+
+        - name: policy.rule
+          type: string
+          required: false
+          description: "Name of policy rule that triggered the action"
+          examples: ["approved-model-list", "budget-exceeded", "rate-limit-exceeded"]
+          sources:
+            gateway: "derived from policy evaluation"
+            otel: "attributes.ai.policy.rule"
+
+        - name: policy.reason
+          type: string
+          required: false
+          description: "Human-readable reason for policy action"
+          examples: ["Model not in approved list", "Budget limit exceeded"]
+          sources:
+            gateway: "derived from policy evaluation"
+            otel: "attributes.ai.policy.reason"
+
+    - name: correlation
+      description: "IDs for tracing and investigation"
+      fields:
+        - name: correlation.trace.id
+          type: string
+          required: false
+          description: "Distributed trace identifier (OTEL trace_id)"
+          examples: ["trace-abc123def456"]
+          sources:
+            gateway: "LiteLLM_SpendLogs.request_id (mapped to trace)"
+            otel: "trace_id"
+
+        - name: correlation.span.id
+          type: string
+          required: false
+          description: "Span identifier within the trace"
+          examples: ["span-xyz789"]
+          sources:
+            gateway: "derived from request_id"
+            otel: "span_id"
+
+        - name: correlation.session.id
+          type: string
+          required: false
+          description: "User session identifier (if available)"
+          examples: ["sess-20250202-abc123"]
+          sources:
+            gateway: "derived from context"
+            otel: "attributes.session.id"
+
+    - name: source
+      description: "Telemetry source metadata"
+      fields:
+        - name: source.type
+          type: enum[gateway, otel, compliance_api]
+          required: true
+          description: "Source of the telemetry data"
+          examples: ["gateway", "otel"]
+
+        - name: source.service.name
+          type: string
+          required: false
+          description: "Service that generated the telemetry"
+          examples: ["litellm-proxy", "codex-cli", "claude-code"]
+          sources:
+            gateway: "litellm-proxy"
+            otel: "resource.attributes.service.name"
+
+        - name: source.service.version
+          type: string
+          required: false
+          description: "Version of the source service"
+          examples: ["1.0.0"]
+          sources:
+            otel: "resource.attributes.service.version"
+
+        - name: source.deployment.environment
+          type: string
+          required: false
+          description: "Deployment environment"
+          examples: ["demo", "staging", "production"]
+          sources:
+            otel: "resource.attributes.deployment.environment"
+
+    - name: content_analysis
+      description: "Content-based DLP and security analysis results"
+      fields:
+        - name: content_analysis.scan_performed
+          type: boolean
+          required: false
+          description: "Whether content scanning was performed on this request"
+          examples: [true, false]
+          sources:
+            gateway: "derived from guardrail configuration"
+            otel: "attributes.content.analysis.performed"
+
+        - name: content_analysis.pii_detected
+          type: boolean
+          required: false
+          description: "Whether PII entities were detected in the content"
+          examples: [true, false]
+          sources:
+            gateway: "derived from Presidio analysis results"
+            otel: "attributes.content.pii.detected"
+
+        - name: content_analysis.pii_entities
+          type: array[string]
+          required: false
+          description: "List of PII entity types detected (e.g., US_SSN, EMAIL_ADDRESS)"
+          examples: [["US_SSN", "EMAIL_ADDRESS"], ["CREDIT_CARD"]]
+          sources:
+            gateway: "Presidio analyzer entity types"
+            otel: "attributes.content.pii.entities"
+
+        - name: content_analysis.action_taken
+          type: enum[blocked, masked, allowed, scanned]
+          required: false
+          description: "Action taken based on content analysis"
+          examples: ["blocked", "masked", "allowed"]
+          sources:
+            gateway: "guardrail action result"
+            otel: "attributes.content.analysis.action"
+
+        - name: content_analysis.block_reason
+          type: string
+          required: false
+          description: "Human-readable reason for content blocking"
+          examples: ["US_SSN detected", "AWS_ACCESS_KEY detected"]
+          sources:
+            gateway: "Presidio block reason"
+            otel: "attributes.content.block.reason"
+
+  # Field Mapping Reference
+  mapping_reference:
+    gateway_to_schema:
+      - field: "LiteLLM_SpendLogs.request_id"
+        maps_to: "ai.request.id"
+      - field: "LiteLLM_SpendLogs.model"
+        maps_to: "ai.model.id"
+      - field: "LiteLLM_SpendLogs.user"
+        maps_to: "principal.id (highest precedence when valid)"
+      - field: "LiteLLM_VerificationToken.user_id (join via LiteLLM_SpendLogs.api_key = LiteLLM_VerificationToken.token)"
+        maps_to: "principal.id (fallback when SpendLogs.user is missing/invalid)"
+      - field: "LiteLLM_VerificationToken.key_alias (join via LiteLLM_SpendLogs.api_key = LiteLLM_VerificationToken.token)"
+        maps_to: "principal.id (fallback when user identities are missing/invalid)"
+      - field: "export_gateway.sh resolver source"
+        maps_to: "principal.identity_source"
+      - field: "export_gateway.sh resolver reason"
+        maps_to: "principal.identity_reason"
+      - field: "LiteLLM_SpendLogs.spend"
+        maps_to: "ai.cost.amount"
+      - field: "LiteLLM_SpendLogs.status"
+        maps_to: "policy.action (mapped: success->allowed, failure->error)"
+      - field: "LiteLLM_SpendLogs.startTime"
+        maps_to: "ai.request.timestamp"
+      - field: "LiteLLM_SpendLogs.prompt_tokens"
+        maps_to: "ai.tokens.prompt"
+      - field: "LiteLLM_SpendLogs.completion_tokens"
+        maps_to: "ai.tokens.completion"
+
+    otel_to_schema:
+      - field: "trace_id"
+        maps_to: "correlation.trace.id"
+      - field: "span_id"
+        maps_to: "correlation.span.id"
+      - field: "timestamp"
+        maps_to: "ai.request.timestamp"
+      - field: "resource.attributes.service.name"
+        maps_to: "source.service.name"
+      - field: "attributes.ai.model"
+        maps_to: "ai.model.id"
+      - field: "attributes.ai.provider"
+        maps_to: "ai.provider"
+      - field: "attributes.principal.id"
+        maps_to: "principal.id"
+      - field: "attributes.ai.tokens.prompt"
+        maps_to: "ai.tokens.prompt"
+      - field: "attributes.ai.tokens.completion"
+        maps_to: "ai.tokens.completion"
+      - field: "attributes.ai.policy.action"
+        maps_to: "policy.action"
+
+    compliance_api_to_schema:
+      - field: "compliance_export.request_id"
+        maps_to: "ai.request.id"
+      - field: "compliance_export.user.email"
+        maps_to: "principal.id"
+      - field: "compliance_export.user.email"
+        maps_to: "principal.email"
+      - field: "compliance_export.model"
+        maps_to: "ai.model.id"
+      - field: "compliance_export.provider"
+        maps_to: "ai.provider"
+      - field: "compliance_export.created_at"
+        maps_to: "ai.request.timestamp"
+      - field: "compliance_export.usage.prompt_tokens"
+        maps_to: "ai.tokens.prompt"
+      - field: "compliance_export.usage.completion_tokens"
+        maps_to: "ai.tokens.completion"
+      - field: "compliance_export.usage.total_cost"
+        maps_to: "ai.cost.amount"
+      - field: "compliance_export.policy_action"
+        maps_to: "policy.action"
+      - field: "compliance_export.session_id"
+        maps_to: "correlation.session.id"
+
+  # Detection Rule Mappings
+  detection_rule_mappings:
+    - rule_id: DR-001
+      name: "Non-Approved Model Access"
+      schema_fields:
+        - "ai.model.id"
+        - "ai.provider"
+        - "policy.action"
+        - "principal.id"
+      detection_logic: "ai.model.id NOT IN approved_models AND policy.action = 'blocked'"
+
+    - rule_id: DR-002
+      name: "Token Usage Spike"
+      schema_fields:
+        - "principal.id"
+        - "ai.tokens.total"
+        - "ai.request.timestamp"
+      detection_logic: "SUM(ai.tokens.total) per principal.id over 24h > threshold"
+
+    - rule_id: DR-003
+      name: "High Block/Error Rate"
+      schema_fields:
+        - "principal.id"
+        - "policy.action"
+      detection_logic: "COUNT(policy.action = 'blocked' OR 'error') / COUNT(*) > threshold"
+
+    - rule_id: DR-004
+      name: "Budget Exhaustion Warning"
+      schema_fields:
+        - "principal.id"
+        - "ai.cost.amount"
+      detection_logic: "remaining_budget / max_budget < 0.2"
+
+    - rule_id: DR-005
+      name: "Rapid Request Rate"
+      schema_fields:
+        - "principal.id"
+        - "ai.request.timestamp"
+      detection_logic: "COUNT(*) per principal.id per minute > threshold"
+
+    - rule_id: DR-006
+      name: "Failed Authentication Attempts"
+      schema_fields:
+        - "principal.id"
+        - "policy.action"
+        - "policy.reason"
+      detection_logic: "COUNT(policy.action = 'error' AND policy.reason LIKE '%auth%') > threshold"
+
+    - rule_id: DR-007
+      name: "Budget Threshold Alert"
+      schema_fields:
+        - "principal.id"
+        - "ai.cost.amount"
+      detection_logic: "SUM(ai.cost.amount) / max_budget >= 0.8"
+
+    - rule_id: DR-008
+      name: "DLP Block Event Detected"
+      schema_fields:
+        - "content_analysis.scan_performed"
+        - "content_analysis.pii_detected"
+        - "content_analysis.action_taken"
+        - "content_analysis.block_reason"
+        - "principal.id"
+        - "ai.model.id"
+      detection_logic: "content_analysis.action_taken = 'blocked' AND content_analysis.pii_detected = true"
+
+    - rule_id: DR-009
+      name: "Repeated PII Submission Attempts"
+      schema_fields:
+        - "principal.id"
+        - "content_analysis.action_taken"
+        - "ai.request.timestamp"
+      detection_logic: "COUNT(content_analysis.action_taken = 'blocked') per principal.id over 1h >= 3"
+
+    - rule_id: DR-010
+      name: "Potential Prompt Injection Attempt"
+      schema_fields:
+        - "principal.id"
+        - "policy.action"
+        - "policy.reason"
+      detection_logic: "policy.action = 'blocked' AND policy.reason contains injection patterns"
+
+  # SIEM Field Name Recommendations
+  siem_field_mappings:
+    splunk:
+      - schema: "principal.id"
+        splunk: "user_id"
+      - schema: "ai.model.id"
+        splunk: "model_id"
+      - schema: "ai.request.timestamp"
+        splunk: "_time"
+      - schema: "ai.tokens.total"
+        splunk: "total_tokens"
+      - schema: "ai.cost.amount"
+        splunk: "spend"
+      - schema: "policy.action"
+        splunk: "action"
+
+    elk:
+      - schema: "principal.id"
+        elk: "user.id"
+      - schema: "ai.model.id"
+        elk: "ai.model.id"
+      - schema: "ai.request.timestamp"
+        elk: "@timestamp"
+      - schema: "ai.tokens.total"
+        elk: "ai.tokens.total"
+      - schema: "ai.cost.amount"
+        elk: "ai.cost.amount"
+      - schema: "policy.action"
+        elk: "event.action"
+
+    sentinel:
+      - schema: "principal.id"
+        sentinel: "UserId"
+      - schema: "ai.model.id"
+        sentinel: "ModelId"
+      - schema: "ai.request.timestamp"
+        sentinel: "TimeGenerated"
+      - schema: "ai.tokens.total"
+        sentinel: "TotalTokens"
+      - schema: "ai.cost.amount"
+        sentinel: "Spend"
+      - schema: "policy.action"
+        sentinel: "Action"
+
+  # Example Normalized Record
+  example_record:
+    principal:
+      id: "user-alice"
+      type: "user"
+      email: "alice@example.com"
+      role: "developer"
+      role_source: "default_role"
+      identity_source: "spendlogs_user"
+      identity_reason: null
+    ai:
+      provider: "anthropic"
+      model:
+        id: "claude-haiku-4-5"
+      request:
+        id: "req-abc123def456"
+        timestamp: "2026-02-02T10:30:00Z"
+        duration_ms: 1250
+      tokens:
+        prompt: 150
+        completion: 200
+        total: 350
+      cost:
+        currency: "USD"
+        amount: 0.0025
+    policy:
+      action: "allowed"
+      rule: "approved-model-list"
+      reason: null
+    correlation:
+      trace:
+        id: "trace-xyz789"
+      span:
+        id: "span-abc123"
+      session:
+        id: "sess-20250202-001"
+    source:
+      type: "gateway"
+      service:
+        name: "litellm-proxy"
+      deployment:
+        environment: "demo"

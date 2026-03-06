@@ -1,0 +1,19 @@
+# demo/mock_upstream/requirements.in
+#
+# Direct dependencies for the mock upstream server.
+#
+# NOTE: `requirements.txt` is the *locked* output used by Docker builds.
+# To regenerate requirements.txt after changing this file, run:
+#
+#   docker run --rm \
+#     -v "$PWD/demo/mock_upstream:/work" \
+#     -w /work \
+#     python:3.12-slim \
+#     sh -lc '
+#       pip install --quiet pip-tools
+#       pip-compile --no-emit-index-url --no-emit-trusted-host \
+#         --output-file requirements.txt requirements.in
+#     '
+
+Flask
+gunicorn

@@ -1,0 +1,82 @@
+---
+# AI Control Plane - Webhook Event Configuration
+#
+# Purpose: Define webhook endpoints and their event subscriptions
+#          for real-time push notifications.
+#
+# Environment variables for secrets:
+#   WEBHOOK_SECRET_<NAME>  - HMAC signing secret for endpoint
+#   WEBHOOK_URL_<NAME>     - Override URL (for per-environment config)
+#   WEBHOOKS_ENABLED       - Master switch (true/false)
+
+webhooks:
+  enabled: false  # Master switch - set via WEBHOOKS_ENABLED env var
+
+  # Global settings
+  settings:
+    retry_count: 3
+    retry_delay_seconds: 1
+    retry_backoff_factor: 2
+    timeout_seconds: 10
+    signature_algorithm: "sha256"
+
+  endpoints:
+    # Example: Internal audit system
+    - name: "audit-system"
+      enabled: true
+      url: "${WEBHOOK_URL_AUDIT:-http://audit.internal:8080/webhook}"
+      secret_env: "WEBHOOK_SECRET_AUDIT"
+      events:
+        - "key.created"
+        - "key.revoked"
+        - "approval.*"
+        - "policy.violation"
+      headers:
+        Content-Type: "application/json"
+        X-Source: "ai-control-plane"
+
+    # Example: Slack integration
+    - name: "slack-alerts"
+      enabled: true
+      url: "${SLACK_WEBHOOK_URL:-}"
+      secret_env: "SLACK_WEBHOOK_SECRET"
+      events:
+        - "approval.escalated"
+        - "key.revoked"
+        - "detection.triggered"
+      format: "slack"
+      slack_channel: "#ai-alerts"
+
+    # Example: PagerDuty
+    - name: "pagerduty"
+      enabled: true
+      url: "${PAGERDUTY_EVENTS_URL:-https://events.pagerduty.com/v2/enqueue}"
+      secret_env: "PAGERDUTY_ROUTING_KEY"
+      events:
+        - "approval.escalated"
+        - "key.revoked"
+      format: "pagerduty"
+
+    # Example: SIEM integration
+    - name: "siem"
+      enabled: false
+      url: "${SIEM_WEBHOOK_URL:-}"
+      secret_env: "SIEM_WEBHOOK_SECRET"
+      events:
+        - "key.*"
+        - "policy.*"
+        - "detection.triggered"
+      headers:
+        Authorization: "Bearer ${SIEM_API_TOKEN}"
+
+# Event Types Reference:
+#   key.created          - New API key generated
+#   key.revoked          - API key revoked
+#   key.expired          - Key budget exhausted
+#   approval.requested   - New approval request
+#   approval.approved    - Request approved
+#   approval.rejected    - Request rejected
+#   approval.escalated   - Request SLA breached
+#   budget.threshold     - Budget threshold crossed
+#   policy.violation     - Policy violation detected
+#   detection.triggered  - Detection rule triggered

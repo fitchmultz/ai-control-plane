@@ -1,0 +1,35 @@
+{{/*
+LiteLLM Gateway Service
+
+Responsibilities:
+  - Exposes the LiteLLM gateway within the cluster
+  - Supports ClusterIP (default), NodePort, and LoadBalancer types
+
+Non-scope:
+  - Does NOT handle external TLS (see ingress.yaml for Ingress-based exposure)
+  - LoadBalancer service type uses cloud provider's LB without TLS termination
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "acp.fullname" . }}-litellm
+  labels:
+    {{- include "acp.litellmLabels" . | nindent 4 }}
+  {{- with .Values.serviceAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.litellm.service.type }}
+  ports:
+    - port: {{ .Values.litellm.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if eq .Values.litellm.service.type "NodePort" }}
+      {{- with .Values.litellm.service.nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
+      {{- end }}
+  selector:
+    {{- include "acp.litellmSelectorLabels" . | nindent 4 }}

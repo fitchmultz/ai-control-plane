@@ -1,0 +1,136 @@
+{{/*
+Prometheus Rules for AI Control Plane Baseline Alerts
+
+Responsibilities:
+  - Alert on gateway availability issues
+  - Alert on authentication failure spikes
+  - Alert on detection/guardrail errors
+  - Alert on high error rates
+
+Non-scope:
+  - Does NOT create ServiceMonitor (separate template)
+  - Does NOT configure alertmanager routing
+  - Does NOT include backup alerts (see prometheusrule-backup.yaml)
+*/}}
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "acp.fullname" . }}-baseline-alerts
+  labels:
+    {{- include "acp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-monitoring
+    {{- with .Values.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- $runbookBase := trimSuffix "/" (dig "monitoring" "alerts" "runbookBaseUrl" "" .Values) }}
+  groups:
+    - name: ai-control-plane-gateway
+      rules:
+        - alert: ACPGatewayUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{namespace="{{ .Release.Namespace }}",deployment="{{ include "acp.fullname" . }}-litellm"} < 1
+          for: 2m
+          labels:
+            severity: critical
+            component: gateway
+          annotations:
+            summary: "AI Control Plane gateway is unavailable"
+            description: "LiteLLM gateway has no available replicas in namespace {{ .Release.Namespace }}. Check pod status and logs."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md#incident-response"
+            {{- end }}
+
+        - alert: ACPGatewayHighErrorRate
+          expr: |
+            sum(rate(litellm_proxy_failed_requests_metric_total{namespace="{{ .Release.Namespace }}"}[5m]))
+            /
+            clamp_min(sum(rate(litellm_proxy_total_requests_metric_total{namespace="{{ .Release.Namespace }}"}[5m])), 1) > {{ .Values.monitoring.alerts.gatewayErrorRateThreshold | default 0.1 }}
+          for: 5m
+          labels:
+            severity: warning
+            component: gateway
+          annotations:
+            summary: "AI Control Plane gateway high error rate"
+            description: "Gateway error rate is above {{ .Values.monitoring.alerts.gatewayErrorRateThreshold | default 0.1 }} for 5 minutes. Current value: {{ `{{` }} $value | humanizePercentage {{ `}}` }}"
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md#incident-response"
+            {{- end }}
+
+        - alert: ACPGatewayLatencyHigh
+          expr: |
+            histogram_quantile(0.95, sum(rate(litellm_request_total_latency_metric_bucket{namespace="{{ .Release.Namespace }}"}[5m])) by (le)) > {{ .Values.monitoring.alerts.gatewayLatencyThreshold | default 5 }}
+          for: 5m
+          labels:
+            severity: warning
+            component: gateway
+          annotations:
+            summary: "AI Control Plane gateway high latency"
+            description: "Gateway P95 latency is above {{ .Values.monitoring.alerts.gatewayLatencyThreshold | default 5 }}s. Current value: {{ `{{` }} $value | humanizeDuration {{ `}}` }}"
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md#incident-response"
+            {{- end }}
+
+    - name: ai-control-plane-auth
+      rules:
+        - alert: ACPAuthFailuresHigh
+          expr: |
+            sum(rate(litellm_proxy_total_requests_metric_total{namespace="{{ .Release.Namespace }}",status_code=~"401|403"}[{{ .Values.monitoring.alerts.authFailureWindow | default "5m" }}])) > {{ .Values.monitoring.alerts.authFailureRateThreshold | default 1 }}
+          for: {{ .Values.monitoring.alerts.authFailureDuration | default "5m" }}
+          labels:
+            severity: warning
+            component: auth
+          annotations:
+            summary: "AI Control Plane authentication failures high"
+            description: "Auth failure rate is above {{ .Values.monitoring.alerts.authFailureRateThreshold | default 1 }}/sec over {{ .Values.monitoring.alerts.authFailureWindow | default "5m" }}. Possible credential issues or attacks."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md#compromised-virtual-key"
+            {{- end }}
+
+    - name: ai-control-plane-detection
+      rules:
+        - alert: ACPDetectionErrorsHigh
+          expr: |
+            sum(rate(litellm_guardrail_errors_total{namespace="{{ .Release.Namespace }}"}[{{ .Values.monitoring.alerts.detectionErrorWindow | default "10m" }}])) > {{ .Values.monitoring.alerts.detectionErrorThreshold | default 0.1 }}
+          for: {{ .Values.monitoring.alerts.detectionErrorDuration | default "10m" }}
+          labels:
+            severity: warning
+            component: detection
+          annotations:
+            summary: "AI Control Plane detection/guardrail errors high"
+            description: "High rate of guardrail execution errors detected. Current value: {{ `{{` }} $value | humanize {{ `}}` }}/sec. Check Presidio and detection services."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/security/DETECTION.md"
+            {{- end }}
+
+    - name: ai-control-plane-resources
+      rules:
+        - alert: ACPPodCPUHigh
+          expr: |
+            avg(rate(container_cpu_usage_seconds_total{namespace="{{ .Release.Namespace }}",pod=~"{{ include "acp.fullname" . }}-.*"}[5m])) by (pod) > {{ .Values.monitoring.alerts.cpuThreshold | default 0.8 }}
+          for: 10m
+          labels:
+            severity: warning
+            component: resources
+          annotations:
+            summary: "AI Control Plane pod CPU usage high"
+            description: "Pod {{ `{{` }} $labels.pod {{ `}}` }} CPU usage ratio is above {{ .Values.monitoring.alerts.cpuThreshold | default 0.8 }} for 10 minutes."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/KUBERNETES_HELM.md"
+            {{- end }}
+
+        - alert: ACPPodMemoryHigh
+          expr: |
+            avg(container_memory_working_set_bytes{namespace="{{ .Release.Namespace }}",pod=~"{{ include "acp.fullname" . }}-.*"}) by (pod) / avg(kube_pod_container_resource_limits{namespace="{{ .Release.Namespace }}",pod=~"{{ include "acp.fullname" . }}-.*",resource="memory"}) by (pod) > {{ .Values.monitoring.alerts.memoryThreshold | default 0.85 }}
+          for: 10m
+          labels:
+            severity: warning
+            component: resources
+          annotations:
+            summary: "AI Control Plane pod memory usage high"
+            description: "Pod {{ `{{` }} $labels.pod {{ `}}` }} memory usage ratio is above {{ .Values.monitoring.alerts.memoryThreshold | default 0.85 }} for 10 minutes."
+            {{- if $runbookBase }}
+            runbook_url: "{{ $runbookBase }}/docs/deployment/KUBERNETES_HELM.md"
+            {{- end }}
+{{- end }}

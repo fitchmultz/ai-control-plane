@@ -1,0 +1,163 @@
+---
+# Custom PII Recognizers for AI Control Plane
+# This is a FULL recognizer registry with predefined (built-in) and custom
+# recognizers. When using RECOGNIZER_REGISTRY_CONF_FILE, you must include
+# all recognizers you want - custom-only configs will drop built-ins.
+#
+# Documentation: docs/demos/CUSTOM_PII_RECOGNIZERS.md
+# Reference: https://microsoft.github.io/presidio/analyzer/adding_recognizers/
+
+# Required top-level configuration
+supported_languages:
+  - en
+
+# Global regex flags (26 = case insensitive + multiline)
+# See: https://docs.python.org/3/library/re.html#re.A
+# 2=IGNORECASE, 8=MULTILINE, 16=DOTALL, 26=all three
+global_regex_flags: 26
+
+recognizers:
+  # ===========================================================================
+  # PREDEFINED RECOGNIZERS (Built-in Presidio entities)
+  # These MUST be listed when using RECOGNIZER_REGISTRY_CONF_FILE
+  # ===========================================================================
+  - name: "UsSsnRecognizer"
+    type: predefined
+
+  - name: "UsPassportRecognizer"
+    type: predefined
+
+  - name: "UsLicenseRecognizer"
+    type: predefined
+
+  - name: "UsBankRecognizer"
+    type: predefined
+
+  - name: "UsItinRecognizer"
+    type: predefined
+
+  - name: "CreditCardRecognizer"
+    type: predefined
+
+  - name: "CryptoRecognizer"
+    type: predefined
+
+  - name: "IbanRecognizer"
+    type: predefined
+
+  - name: "EmailRecognizer"
+    type: predefined
+
+  - name: "PhoneRecognizer"
+    type: predefined
+
+  # Keep NLP recognizer available for PERSON/LOCATION signals
+  - name: "SpacyRecognizer"
+    type: predefined
+
+  # ===========================================================================
+  # OPTIONAL: Cloud Credential Recognizers
+  # ===========================================================================
+  # AWS Access Key pattern (tested in Scenario 6)
+  - name: "AWS Access Key Recognizer"
+    type: custom
+    supported_entity: "AWS_ACCESS_KEY"
+    supported_language: en
+    patterns:
+      - name: "aws_access_key_v4"
+        regex: "\\bAKIA[0-9A-Z]{16}\\b"
+        score: 0.95
+    context:
+      - aws
+      - access
+      - key
+      - secret
+      - credential
+
+  # ===========================================================================
+  # CUSTOM ORGANIZATION-SPECIFIC RECOGNIZERS
+  # These detect internal data formats critical for enterprise protection
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Internal Employee ID Pattern
+  # Format: EMP-XXXXXX (6 digits) or ACPEMP-XXXXXXXX (8 alphanumeric)
+  # ---------------------------------------------------------------------------
+  - name: "Acme Employee ID Recognizer"
+    type: custom
+    supported_entity: "ACP_EMPLOYEE_ID"
+    supported_language: en
+    patterns:
+      - name: "employee_id_format_1"
+        regex: "\\bEMP-[0-9]{6}\\b"
+        score: 0.85
+      - name: "employee_id_format_2"
+        regex: "\\bACPEMP-[A-Z0-9]{8}\\b"
+        score: 0.9
+    context:
+      - employee
+      - emp
+      - staff
+      - worker
+      - personnel
+      - id
+
+  # ---------------------------------------------------------------------------
+  # Customer Account Number Pattern
+  # Format: CUST-XXXXXXXX (8 alphanumeric) or AC-XXXXXXXXXX (10 digits)
+  # ---------------------------------------------------------------------------
+  - name: "Acme Customer Account Recognizer"
+    type: custom
+    supported_entity: "ACP_CUSTOMER_ACCOUNT"
+    supported_language: en
+    patterns:
+      - name: "customer_account_format_1"
+        regex: "\\bCUST-[A-Z0-9]{8}\\b"
+        score: 0.85
+      - name: "customer_account_format_2"
+        regex: "\\bAC-[0-9]{10}\\b"
+        score: 0.8
+    context:
+      - customer
+      - account
+      - cust
+      - client
+      - member
+
+  # ---------------------------------------------------------------------------
+  # Internal System Access Key Pattern
+  # Format: ACPKEY-XXXX-XXXX-XXXX (hex segments)
+  # ---------------------------------------------------------------------------
+  - name: "Acme System Access Key Recognizer"
+    type: custom
+    supported_entity: "ACP_SYSTEM_KEY"
+    supported_language: en
+    patterns:
+      - name: "system_key_format"
+        regex: "\\bACPKEY-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}\\b"
+        score: 0.95
+    context:
+      - key
+      - api
+      - access
+      - token
+      - secret
+      - credential
+
+  # ---------------------------------------------------------------------------
+  # Project Code Pattern (Internal Reference)
+  # Format: PROJ-XXXX-YYYY (4 letters, 4 digits)
+  # ---------------------------------------------------------------------------
+  - name: "Acme Project Code Recognizer"
+    type: custom
+    supported_entity: "ACP_PROJECT_CODE"
+    supported_language: en
+    patterns:
+      - name: "project_code_format"
+        regex: "\\bPROJ-[A-Z]{4}-[0-9]{4}\\b"
+        score: 0.75
+    context:
+      - project
+      - proj
+      - initiative
+      - code

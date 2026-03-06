@@ -1,0 +1,171 @@
+{{/*
+PostgreSQL Backup CronJob
+
+Responsibilities:
+  - Scheduled pg_dump backups of PostgreSQL database
+  - Compress and store backups with checksums
+  - Support both embedded and external PostgreSQL
+  - Cleanup old backups based on retention policy
+
+Non-scope:
+  - Does NOT perform point-in-time recovery (PITR)
+  - Does NOT manage WAL archiving
+  - Does NOT upload to object storage (use PVC + external sync)
+*/}}
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "acp.fullname" . }}-backup
+  labels:
+    {{- include "acp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "acp.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          serviceAccountName: {{ include "acp.serviceAccountName" . }}
+          restartPolicy: OnFailure
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: backup
+              image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
+              imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  
+                  # Configuration
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  BACKUP_FILE="/backups/litellm-backup-${TIMESTAMP}.sql.gz"
+                  RETENTION_DAYS={{ .Values.backup.retention.days }}
+                  MAX_BACKUPS={{ .Values.backup.retention.maxCount }}
+                  
+                  echo "=== Starting PostgreSQL Backup ==="
+                  echo "Timestamp: $TIMESTAMP"
+                  echo "Backup file: $BACKUP_FILE"
+                  
+                  # Perform backup
+                  pg_dump \
+                    -h "${DB_HOST}" \
+                    -U "${DB_USER}" \
+                    -d "${DB_NAME}" \
+                    -c -C -E UTF8 \
+                    --no-owner --no-acl \
+                    2>/dev/null | gzip > "$BACKUP_FILE"
+                  
+                  # Verify backup integrity
+                  if gunzip -t "$BACKUP_FILE" 2>/dev/null; then
+                    echo "✓ Backup integrity verified"
+                  else
+                    echo "✗ Backup integrity check failed"
+                    exit 1
+                  fi
+                  
+                  # Calculate and store checksum
+                  CHECKSUM=$(md5sum "$BACKUP_FILE" | cut -d' ' -f1)
+                  echo "$CHECKSUM  $(basename "$BACKUP_FILE")" > "${BACKUP_FILE}.md5"
+                  echo "Checksum: $CHECKSUM"
+                  
+                  # Cleanup old backups by age
+                  if [ "$RETENTION_DAYS" -gt 0 ]; then
+                    echo "Cleaning up backups older than $RETENTION_DAYS days..."
+                    find /backups -name "litellm-backup-*.sql.gz" -mtime +$RETENTION_DAYS -delete || true
+                    find /backups -name "litellm-backup-*.sql.gz.md5" -mtime +$RETENTION_DAYS -delete || true
+                  fi
+                  
+                  # Cleanup old backups by count (keep most recent N)
+                  if [ "$MAX_BACKUPS" -gt 0 ]; then
+                    echo "Keeping only $MAX_BACKUPS most recent backups..."
+                    ls -t /backups/litellm-backup-*.sql.gz 2>/dev/null | tail -n +$((MAX_BACKUPS + 1)) | xargs -r rm -f || true
+                    ls -t /backups/litellm-backup-*.sql.gz.md5 2>/dev/null | tail -n +$((MAX_BACKUPS + 1)) | xargs -r rm -f || true
+                  fi
+                  
+                  echo "=== Backup Complete ==="
+                  ls -lh "$BACKUP_FILE"
+              env:
+                - name: DB_HOST
+                  {{- if .Values.postgres.enabled }}
+                  value: {{ include "acp.postgresServiceFQDN" . }}
+                  {{- else if .Values.backup.externalDatabase.host }}
+                  value: {{ .Values.backup.externalDatabase.host | quote }}
+                  {{- else }}
+                  # For external database, you must provide either:
+                  # - backup.externalDatabase.host (recommended)
+                  # - Or parse host from DATABASE_URL in the secret
+                  {{- fail "When using external PostgreSQL, you must set backup.externalDatabase.host" }}
+                  {{- end }}
+                - name: DB_USER
+                  {{- if .Values.postgres.enabled }}
+                  value: {{ .Values.postgres.auth.username | default "litellm" }}
+                  {{- else }}
+                  value: {{ .Values.backup.externalDatabase.username | default "litellm" | quote }}
+                  {{- end }}
+                - name: DB_NAME
+                  {{- if .Values.postgres.enabled }}
+                  value: {{ .Values.postgres.auth.database | default "litellm" }}
+                  {{- else }}
+                  value: {{ .Values.backup.externalDatabase.database | default "litellm" | quote }}
+                  {{- end }}
+                - name: PGPASSWORD
+                  {{- if .Values.postgres.enabled }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "acp.fullname" . }}-postgres
+                      key: POSTGRES_PASSWORD
+                  {{- else }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "acp.dbSecretName" . }}
+                      key: {{ include "acp.dbSecretKey" . }}
+                  {{- end }}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 999
+                seccompProfile:
+                  type: RuntimeDefault
+          volumes:
+            - name: backups
+              {{- if .Values.backup.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ include "acp.fullname" . }}-backups
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+{{- end }}
