@@ -56,8 +56,8 @@ services:
     security_opt:
       - no-new-privileges:true
     init: true
-    # Pinned to prevent drift (Chainguard PostgreSQL 18)
-    image: cgr.dev/chainguard/postgres@sha256:cf06f490d5b25b321cf614d430c6fa428409f5ca4144bb59f9f0b0b9a7c86e1c
+    # Pinned to prevent drift (Chainguard PostgreSQL 18 latest stable digest)
+    image: cgr.dev/chainguard/postgres@sha256:84fb13a5e182f249a2d739fbb4f44f78a2efa4b873c0407e3211b464f35af382
     env_file: .env
     environment:
       # These must be set in .env (no defaults to prevent misconfiguration)
@@ -80,6 +80,7 @@ services:
     # Default to first-party hardened image pinned by digest.
     # Override via LITELLM_IMAGE for private mirror/airgap registries.
     image: ${LITELLM_IMAGE:-ghcr.io/fitchmultz/acp/litellm-hardened:20260212@sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801}
+    pull_policy: ${ACP_PULL_POLICY:-missing}
     env_file: .env
     ports:
       # Bind to LITELLM_PUBLISH_HOST (default: 127.0.0.1 for security)
@@ -118,8 +119,8 @@ services:
     profiles: ["otel", "production"]
     # Used for direct/bypass client telemetry and optional correlation telemetry.
     # Gateway-routed traffic is primarily audited via LiteLLM/PostgreSQL.
-    # Pinned to prevent drift (v0.145.0)
-    image: otel/opentelemetry-collector-contrib:0.145.0@sha256:a7343f01869071ea3f4c5e1e97df1bb1b3c4d5c77247db80e053a80b9df530c4
+    # Pinned to prevent drift (v0.147.0)
+    image: otel/opentelemetry-collector-contrib:0.147.0@sha256:e7c92c715f28ff142f3bcaccd4fc5603cf4c71276ef09954a38eb4038500a5a5
     command: ["--config=/etc/otel-collector/${OTEL_COLLECTOR_CONFIG_FILE:-config.yaml}"]
     volumes:
       - ./config/otel-collector/config.yaml:/etc/otel-collector/config.yaml:ro
@@ -208,7 +209,7 @@ services:
 
   librechat-mongodb:
     # MongoDB (Chainguard) for LibreChat - Pinned to prevent drift
-    image: cgr.dev/chainguard/mongodb@sha256:3ff3a7eb961bb32fb836b3ed0dcdc05b822eaf7a6e3d24cc4b14d402f374e566
+    image: cgr.dev/chainguard/mongodb@sha256:4e0c260ea3fc0c3dde5d85152e955029988c7b4603c7b5fa7d2be475d52413f5
     # MongoDB 8 binds localhost by default; enable cross-container access.
     command: ["--bind_ip_all"]
     restart: unless-stopped
@@ -226,8 +227,8 @@ services:
       start_period: 20s
 
   librechat-meilisearch:
-    # Meilisearch v1.35.0 for LibreChat search - Pinned to prevent drift
-    image: getmeili/meilisearch:v1.35.0@sha256:348ba1c1f61101130304370a9522cc5405e6906b64a426dc2fcd5c428a516a98
+    # Meilisearch v1.37.0 for LibreChat search - Pinned to prevent drift
+    image: getmeili/meilisearch:v1.37.0@sha256:9cde2774864e6c19cdd09fcd2950bc01ac9a0454b6f343fffafa14faae6eb7ea
     restart: unless-stopped
     logging: *acp-logging
     labels: *acp-labels
@@ -248,6 +249,7 @@ services:
     # Default to first-party hardened image pinned by digest.
     # Override via LIBRECHAT_IMAGE for private mirror/airgap registries.
     image: ${LIBRECHAT_IMAGE:-ghcr.io/fitchmultz/acp/librechat-hardened:20260212@sha256:3243673fecc5f52b12b1537048c6aa698f0bf618173cf1bb58d6438b7ca489ae}
+    pull_policy: ${ACP_PULL_POLICY:-missing}
     # Match image file ownership for mounted volumes under capability drop.
     user: "1000:1000"
     env_file: .env

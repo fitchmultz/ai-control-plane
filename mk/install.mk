@@ -33,7 +33,7 @@ install: ## Set up dependencies (Docker, docker-compose, demo/.env) and pull lat
 			echo '$(COLOR_YELLOW)⚠ Docker Compose not found - skipping Docker image pull$(COLOR_RESET)'; \
 		fi; \
 		echo 'Pulling latest Docker images...'; \
-		cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) pull || echo '$(COLOR_YELLOW)⚠ Docker image pull skipped (Docker may not be available)$(COLOR_RESET)'; \
+		cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) pull || echo '$(COLOR_YELLOW)⚠ Docker image pull skipped (Docker may not be available)$(COLOR_RESET)'; \
 	fi
 	@echo '$(COLOR_GREEN)✓ Installation complete$(COLOR_RESET)'
 

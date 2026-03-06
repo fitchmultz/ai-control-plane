@@ -86,7 +86,7 @@ help-install:
 	@echo '  $(COLOR_GREEN)install-binary$(COLOR_RESET)     Build acpctl binary'
 	@echo '  $(COLOR_GREEN)install-ci$(COLOR_RESET)         CI-only setup (no image pull)'
 	@echo '  $(COLOR_GREEN)completions$(COLOR_RESET)        Generate shell completions'
-	@echo '  $(COLOR_GREEN)update$(COLOR_RESET)             Pull latest Docker images'
+	@echo '  $(COLOR_GREEN)update$(COLOR_RESET)             Refresh generated files, pull base images, rebuild local hardened images'
 
 .PHONY: help-deploy
 help-deploy:

@@ -13,7 +13,7 @@
 # - Does not re-resolve entire dependency graph from scratch.
 #
 # Invariants/Assumptions:
-# - Base image remains ghcr.io/danny-avila/librechat:v0.8.2.
+# - Base image remains ghcr.io/danny-avila/librechat:v0.8.2 (latest stable as of 2026-03-06).
 # - Runtime entry command is `node api/server/index.js`.
 # - Mongo/Meili env wiring remains external to image.
 FROM ghcr.io/danny-avila/librechat:v0.8.2@sha256:1e9ffe435b56412f7bf41148673e5594ecb067a3cc3991925d1cc2222db7e2a7
@@ -23,11 +23,12 @@ WORKDIR /app
 
 # Update vulnerable runtime dependencies while preserving startup behavior.
 # LibreChat pins several packages via overrides; bump overrides first, then update.
-RUN npm pkg set "overrides.axios=1.13.5" \
-    && npm pkg set "overrides.fast-xml-parser=5.3.6" \
-    && npm pkg set "overrides.minimatch=10.2.3" \
-    && npm pkg set "overrides.hono=4.12.4" \
-    && npm pkg set "overrides.@hono/node-server=1.19.10" \
+RUN npm pkg set "overrides.axios=1.13.6" \
+    && npm pkg set "overrides.fast-xml-parser=5.4.2" \
+    && npm pkg set "overrides.minimatch=10.2.4" \
+    && npm pkg set "overrides.hono=4.12.5" \
+    && npm pkg set "overrides.@hono/node-server=1.19.11" \
+    && npm pkg set "overrides.@modelcontextprotocol/sdk=1.27.1" \
     && npm pkg set "overrides.multer=2.1.1" \
     && npm update --omit=dev --no-audit --no-fund axios @modelcontextprotocol/sdk fast-xml-parser minimatch hono @hono/node-server
 

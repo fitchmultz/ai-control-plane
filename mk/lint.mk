@@ -57,13 +57,13 @@ lint-yaml: ## Run yamllint on configuration files
 .PHONY: lint-compose
 lint-compose: ## Validate Docker Compose configurations
 	@if docker compose version >/dev/null 2>&1 || command -v docker-compose >/dev/null 2>&1; then \
-		$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/docker-compose.yml config >/dev/null \
+		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.yml config >/dev/null \
 			&& echo '$(COLOR_GREEN)✓ Docker Compose config is valid$(COLOR_RESET)' \
 			|| { echo '$(COLOR_RED)✗ Docker Compose config is invalid$(COLOR_RESET)'; exit 1; }; \
-		$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/docker-compose.offline.yml config >/dev/null \
+		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.offline.yml config >/dev/null \
 			&& echo '$(COLOR_GREEN)✓ Docker Compose offline config is valid$(COLOR_RESET)' \
 			|| { echo '$(COLOR_RED)✗ Docker Compose offline config is invalid$(COLOR_RESET)'; exit 1; }; \
-		$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/docker-compose.yml \
+		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.yml \
 			-f $(COMPOSE_DIR)/docker-compose.tls.yml config >/dev/null \
 			&& echo '$(COLOR_GREEN)✓ Docker Compose TLS overlay config is valid$(COLOR_RESET)' \
 			|| { echo '$(COLOR_RED)✗ Docker Compose TLS overlay config is invalid$(COLOR_RESET)'; exit 1; }; \

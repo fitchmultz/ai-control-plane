@@ -8,14 +8,17 @@
 #   docker build -t mock-upstream .
 #   docker run -p 8080:8080 -e MOCK_LATENCY_MS=100 mock-upstream
 
-FROM python:3.12-alpine
+FROM python:3.14-alpine@sha256:faee120f7885a06fcc9677922331391fa690d911c020abb9e8025ff3d908e510
 
 # Set working directory
 WORKDIR /app
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ROOT_USER_ACTION=ignore
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip==26.0.1 \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY mock_server.py .

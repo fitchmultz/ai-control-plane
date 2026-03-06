@@ -158,8 +158,8 @@ postgres:
 
   image:
     repository: cgr.dev/chainguard/postgres
-    # Pinned digest for reproducibility (Chainguard PostgreSQL 18)
-    digest: "sha256:cf06f490d5b25b321cf614d430c6fa428409f5ca4144bb59f9f0b0b9a7c86e1c"
+    # Pinned digest for reproducibility (Chainguard PostgreSQL 18 latest stable digest)
+    digest: "sha256:84fb13a5e182f249a2d739fbb4f44f78a2efa4b873c0407e3211b464f35af382"
     pullPolicy: IfNotPresent
 
   # Database authentication (used when postgres.enabled: true)

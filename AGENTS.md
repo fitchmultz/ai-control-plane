@@ -94,7 +94,9 @@ make health      # Verify services
 
 - `make ci` MUST pass before claiming completion
 - `ci-runtime-checks` must remain stateless in CI slot (`ACP_SLOT=ci-runtime`): always teardown CI runtime volumes to avoid stale PostgreSQL major-version data drift
+- Make-driven Docker Compose flows must use slot-scoped Compose project names (`ai-control-plane-<slot>`) so CI/runtime stacks do not collide with other local environments
 - Caddy TLS configs must stay compatible with pinned Caddy image behavior: use `lb_retries` (not `lb_retry_count`) and scope JSON `Content-Type` enforcement to body methods (`POST|PUT|PATCH`) so GET endpoints like `/v1/models` are not blocked.
+- `make`-driven runtime flows now default `LITELLM_IMAGE`/`LIBRECHAT_IMAGE` to locally built hardened images (`ai-control-plane/*:local`); direct `docker compose` still falls back to the pinned registry images declared in compose files.
 - Never commit secrets (API keys, tokens, OAuth tokens)
 - Runtime artifacts and internal workflow state are local-only; do not track `demo/logs/`, `handoff-packet/`, `.ralph/`, or `docs/presentation/slides-internal/` (see `docs/ARTIFACTS.md`)
 - All executable scripts: `set -euo pipefail`, terminal-aware colors, `--help` menu

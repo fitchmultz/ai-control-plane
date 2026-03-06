@@ -120,7 +120,7 @@ clean: ## Remove artifacts + logs. DESTRUCTIVE: deletes Docker volumes
 	@read -p "Continue? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) down -v 2>/dev/null || true; \
+		cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) down -v 2>/dev/null || true; \
 		rm -rf $(COMPOSE_DIR)/logs/* 2>/dev/null || true; \
 		rm -rf $(RELEASE_BUNDLE_OUT_DIR)/* 2>/dev/null || true; \
 		$(GO) clean -cache 2>/dev/null || true; \
@@ -132,7 +132,7 @@ clean: ## Remove artifacts + logs. DESTRUCTIVE: deletes Docker volumes
 .PHONY: clean-force
 clean-force: ## Force cleanup without prompt (use with caution)
 	@echo '$(COLOR_BOLD)Force cleaning up...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE) down -v 2>/dev/null || true
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) down -v 2>/dev/null || true
 	@rm -rf $(COMPOSE_DIR)/logs/* 2>/dev/null || true
 	@rm -rf $(RELEASE_BUNDLE_OUT_DIR)/* 2>/dev/null || true
 	@$(GO) clean -cache 2>/dev/null || true
@@ -145,6 +145,8 @@ build: ## Build artifacts (recreate Docker containers)
 	@echo '$(COLOR_GREEN)✓ Build complete$(COLOR_RESET)'
 
 .PHONY: generate
-generate: ## Generate derived files (no-op - no code generation configured)
+generate: install-binary ## Generate derived files (Helm file sync + shell completions)
 	@echo '$(COLOR_BOLD)Generating derived files...$(COLOR_RESET)'
-	@echo '$(COLOR_YELLOW)No code generation configured for this project$(COLOR_RESET)'
+	@$(ACPCTL_BIN) files sync-helm
+	@$(MAKE) --silent completions
+	@echo '$(COLOR_GREEN)✓ Derived files generated$(COLOR_RESET)'

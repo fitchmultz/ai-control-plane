@@ -90,7 +90,10 @@ Expected output:
 ```
 
 **Important:** The exact schema is an implementation detail of the LiteLLM container image
-used by this repo (currently pinned to `ghcr.io/fitchmultz/acp/litellm-hardened:20260212@sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801`).
+used by this repo. Make-driven workflows default to the locally built
+`ai-control-plane/litellm-hardened:local` image from
+`demo/images/litellm-hardened/Dockerfile`, while direct compose usage can still
+override to a pinned registry image via `LITELLM_IMAGE`.
 If you change the pinned image, treat it as a schema upgrade: take a backup (`make db-backup`),
 restart services, and re-verify tables via `make db-status`.
 

@@ -146,7 +146,7 @@ make release-bundle-verify
 
 - Docker and Docker Compose (V2 preferred, V1 supported)
 - curl (for health checks)
-- Go 1.25+ (for typed CLI core, currently `acpctl`)
+- Go 1.26+ (for typed CLI core, currently `acpctl`)
 
 **For contributors running `make lint` or `make ci`:**
 - shellcheck (for shell script linting)

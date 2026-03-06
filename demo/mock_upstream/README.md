@@ -166,10 +166,10 @@ To add or update a dependency:
 docker run --rm \
   -v "$PWD/demo/mock_upstream:/work" \
   -w /work \
-  python:3.12-slim \
+  python:3.14-slim \
   sh -lc '
     pip install --quiet pip-tools
-    pip-compile --no-emit-index-url --no-emit-trusted-host \
+    pip-compile --strip-extras --no-emit-index-url --no-emit-trusted-host \
       --output-file requirements.txt requirements.in
   '
 ```

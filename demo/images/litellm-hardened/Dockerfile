@@ -13,19 +13,25 @@
 # - Does not pin upstream runtime digest updates automatically.
 #
 # Invariants/Assumptions:
-# - Base image remains docker.litellm.ai/berriai/litellm:v1.81.3-stable.
+# - Base image follows docker.litellm.ai/berriai/litellm:main-stable pinned to the
+#   latest stable manifest available on 2026-03-06.
 # - `litellm --config ...` entrypoint behavior is preserved.
 # - npm is not required for runtime proxy execution.
-FROM docker.litellm.ai/berriai/litellm:v1.81.3-stable@sha256:3d80908e35230a0dfb58051ae4e2847371b2a327b44e105e79b8c4f67a65596c
+FROM docker.litellm.ai/berriai/litellm:main-stable@sha256:cb7dc175c6e239557c36b5ccc262ac31359fdabbdee61a4afdd9c83525809802
 
 USER root
 WORKDIR /app
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ROOT_USER_ACTION=ignore
 
 # Apply Wolfi OS security updates for packages reported by Trivy.
 RUN apk upgrade --no-cache \
     npm \
     python-3.13 \
     python-3.13-base
+
+# Keep pip aligned with the latest stable release used for image builds.
+RUN pip install --no-cache-dir --upgrade pip==26.0.1
 
 # Address Python package CVEs identified by supply-chain gate scans.
 RUN pip install --no-cache-dir --upgrade \
