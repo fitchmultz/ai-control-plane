@@ -71,45 +71,166 @@ cat >"${TEST_BIN_DIR}/acpctl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${1:-}" == "env" && "${2:-}" == "get" && "${3:-}" == "--file" ]]; then
-    file="${4:?missing file}"
-    key="${5:?missing key}"
-    awk -F= -v want="${key}" '
-        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
-        {
-            env_key=$1
-            sub(/^[[:space:]]+/, "", env_key)
-            sub(/[[:space:]]+$/, "", env_key)
-            if (env_key == want) {
-                sub(/^[^=]*=/, "", $0)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
-                print $0
-                found=1
-                exit 0
-            }
-        }
-        END {
-            if (!found) {
-                exit 1
-            }
-        }
-    ' "${file}"
-    exit $?
-fi
+redact_key() {
+    local key="$1"
+    printf '%s...%s\n' "${key:0:8}" "${key: -4}"
+}
 
-if [[ "${1:-}" == "key" && "${2:-}" == "gen" ]]; then
-    alias_name="${3:-}"
-    if [[ "${alias_name}" == "existing-alias" ]]; then
-        echo "key alias already exists: ${alias_name}" >&2
-        exit 1
-    fi
-    echo "created key for alias ${alias_name}"
-    echo "sk-test-full-key-1234567890-abcdef"
+if [[ "${1:-}" != "onboard" ]]; then
+    echo "unsupported acpctl stub command: $*" >&2
+    exit 1
+fi
+shift
+
+tool="${1:-}"
+if [[ -z "${tool}" || "${tool}" == "--help" || "${tool}" == "-h" ]]; then
+    cat <<'OUT'
+Usage: onboard_impl.sh <tool> [options]
+
+Tools:
+  codex
+  claude
+  opencode
+  cursor
+  copilot
+
+Options:
+  --mode <mode>          auth mode (tool-dependent)
+  --alias <alias>        virtual key alias (default: <tool>-cli)
+  --budget <usd>         key budget in USD (default: 10.00)
+  --model <model>        model alias override
+  --host <host>          gateway host (default: 127.0.0.1)
+  --port <port>          gateway port (default: 4000)
+  --tls                  use https for base URL
+  --verify               run authorized gateway checks
+  --write-config         write ~/.codex/config.toml (Codex only)
+  --show-key             print full key value
+  --help, -h             show help
+
+Codex modes:
+  subscription           routed through gateway; upstream via ChatGPT provider (default)
+  api-key                routed through gateway; upstream via API-key providers
+  direct                 no gateway routing; OTEL visibility only
+
+Examples:
+  onboard_impl.sh codex --mode subscription --verify
+  onboard_impl.sh codex --mode api-key --write-config
+  onboard_impl.sh claude --mode api-key --verify
+OUT
     exit 0
 fi
+shift || true
 
-echo "unsupported acpctl stub command: $*" >&2
-exit 1
+mode=""
+alias_name="${tool}-cli"
+model=""
+host="127.0.0.1"
+port="4000"
+show_key="false"
+verify="false"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --mode)
+            mode="${2:-}"
+            shift 2
+            ;;
+        --alias)
+            alias_name="${2:-}"
+            shift 2
+            ;;
+        --model)
+            model="${2:-}"
+            shift 2
+            ;;
+        --host)
+            host="${2:-}"
+            shift 2
+            ;;
+        --port)
+            port="${2:-}"
+            shift 2
+            ;;
+        --show-key)
+            show_key="true"
+            shift
+            ;;
+        --verify)
+            verify="true"
+            shift
+            ;;
+        --help|-h)
+            if [[ "${tool}" == "codex" ]]; then
+                cat <<'OUT'
+Codex notes:
+  - For subscription mode, run `make chatgpt-login` on the gateway host first.
+  - Codex uses OPENAI_BASE_URL without /v1.
+  - --write-config writes ~/.codex/config.toml for a LiteLLM provider profile.
+OUT
+            fi
+            exit 0
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+case "${tool}" in
+    codex)
+        mode="${mode:-subscription}"
+        model="${model:-$([[ "${mode}" == "subscription" ]] && printf 'chatgpt-gpt5.3-codex' || printf 'openai-gpt5.2')}"
+        ;;
+    claude)
+        mode="${mode:-api-key}"
+        model="${model:-claude-haiku-4-5}"
+        ;;
+    opencode|cursor|copilot)
+        mode="${mode:-api-key}"
+        model="${model:-openai-gpt5.2}"
+        ;;
+    *)
+        echo "ERROR: unsupported tool: ${tool}" >&2
+        exit 64
+        ;;
+esac
+
+if [[ "${mode}" == "direct" && "${tool}" != "codex" ]]; then
+    echo "ERROR: mode 'direct' is only supported for codex" >&2
+    exit 64
+fi
+
+key_value="sk-test-full-key-1234567890-abcdef"
+printed_key="$(redact_key "${key_value}")"
+if [[ "${show_key}" == "true" ]]; then
+    printed_key="${key_value}"
+fi
+
+base_url="http://${host}:${port}"
+printf '\nTool: %s\n' "${tool}"
+printf 'Mode: %s\n' "${mode}"
+printf 'Gateway: %s\n' "${base_url}"
+printf 'Model: %s\n' "${model}"
+printf 'Key alias: %s\n\n' "${alias_name}"
+
+if [[ "${tool}" == "claude" ]]; then
+    printf 'export ANTHROPIC_BASE_URL="%s"\n' "${base_url}"
+    printf 'export ANTHROPIC_API_KEY="%s"\n' "${printed_key}"
+    printf 'export ANTHROPIC_MODEL="%s"\n\n' "${model}"
+else
+    printf 'export OPENAI_BASE_URL="%s"\n' "${base_url}"
+    printf 'export OPENAI_API_KEY="%s"\n' "${printed_key}"
+    printf 'export OPENAI_MODEL="%s"\n\n' "${model}"
+fi
+
+if [[ "${verify}" == "true" ]]; then
+    curl -sS -o /dev/null -w '%{http_code}' "${base_url}/health" >/dev/null
+    curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${key_value}" "${base_url}/v1/models" >/dev/null
+    printf 'INFO: Gateway health and authorized model checks passed\n'
+fi
+
+printf 'Onboarding complete.\n'
+exit 0
 EOF
 chmod +x "${TEST_BIN_DIR}/acpctl"
 
@@ -206,7 +327,7 @@ test_invalid_tool_error() {
     else
         fail "invalid tool should exit 64 (got ${rc})"
     fi
-    assert_contains "${output}" "Unsupported tool: invalid-tool" "invalid tool prints explicit error"
+    assert_contains "${output}" "unsupported tool: invalid-tool" "invalid tool prints explicit error"
 }
 
 test_redaction_default_and_show_key() {

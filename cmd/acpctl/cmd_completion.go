@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mitchfultz/ai-control-plane/internal/catalog"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
@@ -252,11 +253,11 @@ func buildCompletionCatalog(repoRoot string) completionCatalog {
 	catalog := completionCatalog{
 		rootCommands:     make([]string, 0, len(registry.RootCommands)),
 		groupSubcommands: make(map[string][]string, len(registry.GroupSubcommands)),
-		bridgeNames:      make([]string, 0, len(registry.BridgeCommands)),
+		bridgeNames:      make([]string, 0, len(registry.GroupSubcommands["bridge"])),
 		modelNames:       extractModelNames(repoRoot),
 		presetNames:      extractPresetNames(repoRoot),
 		scenarioIDs:      extractScenarioIDs(repoRoot),
-		keyAliases:       extractKeyAliases(repoRoot),
+		keyAliases:       []string{},
 	}
 
 	for _, command := range registry.RootCommands {
@@ -269,7 +270,7 @@ func buildCompletionCatalog(repoRoot string) completionCatalog {
 		}
 		catalog.groupSubcommands[groupName] = names
 	}
-	for _, bridge := range registry.BridgeCommands {
+	for _, bridge := range registry.GroupSubcommands["bridge"] {
 		catalog.bridgeNames = append(catalog.bridgeNames, bridge.Name)
 	}
 
@@ -348,147 +349,35 @@ func shellSingleQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\"'\"'`) + "'"
 }
 
-// extractModelNames extracts model names from litellm.yaml
 func extractModelNames(repoRoot string) []string {
-	var models []string
-	seen := make(map[string]bool)
-
 	litellmPath := filepath.Join(repoRoot, "demo", "config", "litellm.yaml")
-	data, err := os.ReadFile(litellmPath)
+	config, err := catalog.LoadLiteLLMConfig(litellmPath)
 	if err != nil {
-		return models
+		return nil
 	}
-
-	// Simple line-based parsing to extract model_name values
-	// Handles both: "model_name: value" and "  - model_name: value" formats
-	for line := range strings.SplitSeq(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		// Check if line contains model_name (could be "- model_name:" or just "model_name:")
-		if strings.Contains(trimmed, "model_name:") {
-			parts := strings.SplitN(trimmed, ":", 2)
-			if len(parts) == 2 {
-				model := strings.TrimSpace(parts[1])
-				// Remove quotes if present
-				model = strings.Trim(model, `"'`)
-				if model != "" && !seen[model] {
-					seen[model] = true
-					models = append(models, model)
-				}
-			}
-		}
-	}
-
-	return dedupeAndSort(models)
+	return catalog.ApprovedModelNames(config)
 }
 
-// extractPresetNames extracts preset names from demo_presets.yaml
 func extractPresetNames(repoRoot string) []string {
-	var presets []string
-
 	presetsPath := filepath.Join(repoRoot, "demo", "config", "demo_presets.yaml")
-	data, err := os.ReadFile(presetsPath)
+	config, err := catalog.LoadDemoPresets(presetsPath)
 	if err != nil {
-		return presets
+		return nil
 	}
-
-	inPresets := false
-	for line := range strings.SplitSeq(string(data), "\n") {
-		if strings.Contains(line, "presets:") && !strings.HasPrefix(strings.TrimSpace(line), "-") {
-			inPresets = true
-			continue
-		}
-		// Check for preset names (2-space indent followed by name:)
-		if inPresets && len(line) >= 2 && strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "    ") {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasSuffix(trimmed, ":") && !strings.HasPrefix(trimmed, "-") {
-				preset := strings.TrimSuffix(trimmed, ":")
-				if preset != "" && preset != "presets" {
-					presets = append(presets, preset)
-				}
-			}
-		}
-		// Exit presets section when we hit a non-indented line (except blank)
-		if inPresets && line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "#") {
-			if !strings.HasPrefix(line, "presets:") {
-				break
-			}
-		}
-	}
-
-	return dedupeAndSort(presets)
+	return catalog.PresetNames(config)
 }
 
-// extractScenarioIDs extracts scenario IDs from scenario files
 func extractScenarioIDs(repoRoot string) []string {
-	var ids []string
-	seen := make(map[string]bool)
-
-	scenarioDir := filepath.Join(repoRoot, "local", "scripts", "demo_scenarios")
-	entries, err := os.ReadDir(scenarioDir)
+	presetsPath := filepath.Join(repoRoot, "demo", "config", "demo_presets.yaml")
+	config, err := catalog.LoadDemoPresets(presetsPath)
 	if err != nil {
-		return ids
+		return nil
 	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		// Match scenario_N_*.sh pattern
-		if strings.HasPrefix(name, "scenario_") && strings.HasSuffix(name, ".sh") {
-			parts := strings.Split(name, "_")
-			if len(parts) >= 2 {
-				id := parts[1]
-				if _, err := filepath.Match("[0-9]*", id); err == nil && !seen[id] {
-					seen[id] = true
-					ids = append(ids, id)
-				}
-			}
-		}
-	}
-
-	return dedupeAndSort(ids)
+	return catalog.ScenarioIDs(config)
 }
 
-// extractKeyAliases extracts key aliases from scenario scripts
-func extractKeyAliases(repoRoot string) []string {
-	var aliases []string
-	seen := make(map[string]bool)
-
-	scenarioDir := filepath.Join(repoRoot, "local", "scripts", "demo_scenarios")
-	entries, err := os.ReadDir(scenarioDir)
-	if err != nil {
-		return aliases
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		path := filepath.Join(scenarioDir, entry.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-
-		// Look for KEY_ALIAS patterns
-		for line := range strings.SplitSeq(string(data), "\n") {
-			if strings.Contains(line, "KEY_ALIAS=") || strings.Contains(line, "SCENARIO_KEY_ALIAS=") {
-				parts := strings.SplitN(line, "=", 2)
-				if len(parts) == 2 {
-					alias := strings.TrimSpace(parts[1])
-					// Remove quotes
-					alias = strings.Trim(alias, `"'`)
-					if alias != "" && !seen[alias] {
-						seen[alias] = true
-						aliases = append(aliases, alias)
-					}
-				}
-			}
-		}
-	}
-
-	return dedupeAndSort(aliases)
+func extractKeyAliases(string) []string {
+	return nil
 }
 
 // extractConfigKeys extracts top-level keys from config files

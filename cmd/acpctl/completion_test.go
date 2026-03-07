@@ -328,31 +328,30 @@ model_list:
 }
 
 func TestExtractScenarioIDs(t *testing.T) {
-	// Create a temporary directory with test scenario files
+	// Create a temporary directory with tracked demo preset config
 	tmpDir, err := os.MkdirTemp("", "acpctl_test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	scenarioDir := filepath.Join(tmpDir, "local", "scripts", "demo_scenarios")
-	if err := os.MkdirAll(scenarioDir, 0755); err != nil {
-		t.Fatalf("failed to create scenario dir: %v", err)
+	configDir := filepath.Join(tmpDir, "demo", "config")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
 	}
 
-	// Create test scenario files
-	scenarios := []string{
-		"scenario_1_test.sh",
-		"scenario_5_another.sh",
-		"scenario_12_multiple_digits.sh",
-		"not_a_scenario.sh",
-	}
-
-	for _, name := range scenarios {
-		path := filepath.Join(scenarioDir, name)
-		if err := os.WriteFile(path, []byte("#!/bin/bash"), 0755); err != nil {
-			t.Fatalf("failed to write %s: %v", name, err)
-		}
+	content := `presets:
+  executive-demo:
+    scenarios:
+      - 1
+      - 5
+  audit-demo:
+    scenarios:
+      - 12
+      - 5
+`
+	if err := os.WriteFile(filepath.Join(configDir, "demo_presets.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write demo_presets.yaml: %v", err)
 	}
 
 	ids := extractScenarioIDs(tmpDir)
@@ -456,41 +455,9 @@ another_key:
 	}
 }
 
-func TestExtractKeyAliases(t *testing.T) {
-	// Create a temporary directory with test scenario scripts
-	tmpDir, err := os.MkdirTemp("", "acpctl_test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	scenarioDir := filepath.Join(tmpDir, "local", "scripts", "demo_scenarios")
-	if err := os.MkdirAll(scenarioDir, 0755); err != nil {
-		t.Fatalf("failed to create scenario dir: %v", err)
-	}
-
-	content := `#!/bin/bash
-SCENARIO_KEY_ALIAS="test-alias-1"
-KEY_ALIAS="another-alias"
-SCENARIO_KEY_ALIAS="duplicate-alias"
-SCENARIO_KEY_ALIAS="duplicate-alias"
-`
-	scenarioPath := filepath.Join(scenarioDir, "scenario_1_test.sh")
-	if err := os.WriteFile(scenarioPath, []byte(content), 0755); err != nil {
-		t.Fatalf("failed to write scenario file: %v", err)
-	}
-
-	aliases := extractKeyAliases(tmpDir)
-
-	if len(aliases) != 3 {
-		t.Errorf("expected 3 unique aliases, got %d: %v", len(aliases), aliases)
-	}
-
-	expected := []string{"another-alias", "duplicate-alias", "test-alias-1"}
-	for i, v := range expected {
-		if aliases[i] != v {
-			t.Errorf("expected %s at index %d, got %s", v, i, aliases[i])
-		}
+func TestExtractKeyAliases_ReturnsEmptyWithoutTrackedCatalog(t *testing.T) {
+	if aliases := extractKeyAliases(t.TempDir()); len(aliases) != 0 {
+		t.Fatalf("expected no tracked key aliases, got %v", aliases)
 	}
 }
 
@@ -503,12 +470,8 @@ func TestBuildCompletionCatalog(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	configDir := filepath.Join(tmpDir, "demo", "config")
-	scenarioDir := filepath.Join(tmpDir, "local", "scripts", "demo_scenarios")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatalf("failed to create config dir: %v", err)
-	}
-	if err := os.MkdirAll(scenarioDir, 0755); err != nil {
-		t.Fatalf("failed to create scenario dir: %v", err)
 	}
 
 	// Create litellm.yaml
@@ -526,17 +489,11 @@ model_list:
 	presetsContent := `presets:
   test-preset:
     name: "Test"
+    scenarios:
+      - 1
 `
 	if err := os.WriteFile(filepath.Join(configDir, "demo_presets.yaml"), []byte(presetsContent), 0644); err != nil {
 		t.Fatalf("failed to write demo_presets.yaml: %v", err)
-	}
-
-	// Create scenario file
-	scenarioContent := `#!/bin/bash
-SCENARIO_KEY_ALIAS=test-key
-`
-	if err := os.WriteFile(filepath.Join(scenarioDir, "scenario_1_test.sh"), []byte(scenarioContent), 0755); err != nil {
-		t.Fatalf("failed to write scenario file: %v", err)
 	}
 
 	catalog := buildCompletionCatalog(tmpDir)
@@ -589,8 +546,8 @@ SCENARIO_KEY_ALIAS=test-key
 		t.Errorf("expected ['test-preset'], got: %v", catalog.presetNames)
 	}
 
-	if len(catalog.keyAliases) != 1 || catalog.keyAliases[0] != "test-key" {
-		t.Errorf("expected ['test-key'], got: %v", catalog.keyAliases)
+	if len(catalog.keyAliases) != 0 {
+		t.Errorf("expected no tracked key aliases, got: %v", catalog.keyAliases)
 	}
 
 	if len(catalog.scenarioIDs) != 1 || catalog.scenarioIDs[0] != "1" {

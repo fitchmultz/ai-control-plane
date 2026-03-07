@@ -25,6 +25,9 @@
       "**/vendor/**",
       "*.min.js",
       "*.min.css",
+      ".bin/**",
+      "cmd/acpctl/cmd_security.go",
+      "cmd/acpctl/cmd_security_test.go",
       "docs/policy/THIRD_PARTY_LICENSE_MATRIX.json",
       "docs/policy/THIRD_PARTY_LICENSE_MATRIX.md",
       "docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md"

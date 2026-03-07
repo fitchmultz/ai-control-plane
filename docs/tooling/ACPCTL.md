@@ -104,11 +104,11 @@ Examples:
 ./scripts/acpctl.sh bridge --help
 ```
 
-Bridge currently exists only for remaining compatibility workflows (primarily onboarding). Use command help for the authoritative script list:
+Bridge currently exists only for remaining compatibility workflows. Onboarding is now a native root command, with `bridge onboard` retained as a shim for older entrypoints. Use command help for the authoritative surface:
 
 ```bash
 ./scripts/acpctl.sh bridge --help
-./scripts/acpctl.sh bridge onboard --help
+./scripts/acpctl.sh onboard --help
 ```
 
 ### Operator Flows (mixed typed + delegated)
@@ -325,11 +325,10 @@ The completion system provides intelligent suggestions for:
 - **Group subcommands**: Subcommands for delegated groups (e.g., `deploy up`, `deploy health`)
 - **Bridge scripts**: Available bridge script names
 - **Dynamic values**: Based on repository configuration:
-  - Key aliases: `ALIAS=`, `KEY_ALIAS=` (parsed from scenario scripts)
-  - Model names: `MODEL=`, `SCENARIO_MODEL=` (parsed from litellm.yaml)
-  - Scenario IDs: `SCENARIO=` (parsed from scenario filenames)
+  - Model names: `MODEL=`, `SCENARIO_MODEL=` (parsed from `demo/config/litellm.yaml`)
+  - Scenario IDs: `SCENARIO=` (derived from tracked `demo/config/demo_presets.yaml`)
   - Config keys: `CONFIG_KEY=` (parsed from config YAML files)
-  - Preset names: `PRESET=` (parsed from demo_presets.yaml)
+  - Preset names: `PRESET=` (parsed from `demo/config/demo_presets.yaml`)
 
 ### Testing Completions
 

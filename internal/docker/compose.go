@@ -38,9 +38,17 @@ const (
 
 // Compose provides Docker Compose operations
 type Compose struct {
-	cmd        string
-	argsPrefix []string
-	projectDir string
+	cmd         string
+	argsPrefix  []string
+	projectDir  string
+	projectName string
+	files       []string
+}
+
+// ComposeOptions configures project-scoped compose execution details.
+type ComposeOptions struct {
+	ProjectName string
+	Files       []string
 }
 
 // DetectCompose detects the available Docker Compose command
@@ -73,11 +81,18 @@ func DetectCompose() (*Compose, error) {
 
 // NewCompose creates a new Compose instance with the given project directory
 func NewCompose(projectDir string) (*Compose, error) {
+	return NewComposeWithOptions(projectDir, ComposeOptions{})
+}
+
+// NewComposeWithOptions creates a new Compose instance with explicit project/file options.
+func NewComposeWithOptions(projectDir string, opts ComposeOptions) (*Compose, error) {
 	compose, err := DetectCompose()
 	if err != nil {
 		return nil, err
 	}
 	compose.projectDir = projectDir
+	compose.projectName = strings.TrimSpace(opts.ProjectName)
+	compose.files = append([]string(nil), opts.Files...)
 	return compose, nil
 }
 
@@ -234,14 +249,30 @@ func ExecInContainerWithStdin(ctx context.Context, containerID string, stdin io.
 
 // buildArgs builds the full argument list including project directory
 func (c *Compose) buildArgs(args ...string) []string {
-	result := make([]string, 0, len(c.argsPrefix)+2+len(args))
+	result := make([]string, 0, len(c.argsPrefix)+2+(len(c.files)*2)+len(args))
 	result = append(result, c.argsPrefix...)
+	if c.projectName != "" {
+		result = append(result, "--project-name", c.projectName)
+	}
 	if c.projectDir != "" {
-		result = append(result, "-f", filepath.Join(c.projectDir, "docker-compose.yml"))
+		if len(c.files) == 0 {
+			result = append(result, "-f", filepath.Join(c.projectDir, "docker-compose.yml"))
+		} else {
+			for _, file := range c.files {
+				result = append(result, "-f", resolveComposeFile(c.projectDir, file))
+			}
+		}
 		result = append(result, "--project-directory", c.projectDir)
 	}
 	result = append(result, args...)
 	return result
+}
+
+func resolveComposeFile(projectDir string, file string) string {
+	if filepath.IsAbs(file) {
+		return file
+	}
+	return filepath.Join(projectDir, file)
 }
 
 // DefaultProjectDir returns the default compose project directory (demo/)

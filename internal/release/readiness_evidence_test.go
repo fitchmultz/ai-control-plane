@@ -30,6 +30,7 @@ import (
 
 func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) {
 	repoRoot := t.TempDir()
+	writeReadinessPlanFixture(t, repoRoot)
 	outputRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
 	bundleDir := filepath.Join(repoRoot, "demo", "logs", "release-bundles")
 	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
@@ -57,8 +58,8 @@ func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) 
 	if summary.OverallStatus != "PASS" {
 		t.Fatalf("overall status = %s, want PASS", summary.OverallStatus)
 	}
-	if len(summary.GateResults) != 5 {
-		t.Fatalf("gate count = %d, want 5", len(summary.GateResults))
+	if len(summary.GateResults) != 3 {
+		t.Fatalf("gate count = %d, want 3", len(summary.GateResults))
 	}
 	for _, name := range []string{readinessSummaryJSONName, readinessSummaryMarkdown, readinessTrackerMarkdown, readinessDecisionMarkdown, readinessInventoryText} {
 		if _, err := os.Stat(filepath.Join(summary.RunDirectory, name)); err != nil {
@@ -77,6 +78,7 @@ func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) 
 
 func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
 	repoRoot := t.TempDir()
+	writeReadinessPlanFixture(t, repoRoot)
 	outputRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
 	bundleDir := filepath.Join(repoRoot, "demo", "logs", "release-bundles")
 	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
@@ -125,6 +127,7 @@ func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
 
 func TestVerifyReadinessRun_DetectsInventoryMismatch(t *testing.T) {
 	repoRoot := t.TempDir()
+	writeReadinessPlanFixture(t, repoRoot)
 	outputRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
 	bundleDir := filepath.Join(repoRoot, "demo", "logs", "release-bundles")
 	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
@@ -174,7 +177,7 @@ func writeFakeMake(t *testing.T, repoRoot string) string {
 set -eu
 printf 'fake make %s\n' "$*"
 case "$1" in
-  ci|supply-chain-gate|supply-chain-allowlist-expiry-check|release-bundle|release-bundle-verify|ci-nightly)
+  ci|release-bundle|release-bundle-verify|ci-nightly)
     exit 0
     ;;
   *)
@@ -187,4 +190,49 @@ esac
 		t.Fatalf("write fake make: %v", err)
 	}
 	return path
+}
+
+func writeReadinessPlanFixture(t *testing.T, repoRoot string) {
+	t.Helper()
+	path := filepath.Join(repoRoot, readinessPlanRelativePath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create readiness plan dir: %v", err)
+	}
+	const content = `gates:
+  - id: local_ci
+    title: Local CI Gate
+    required: true
+    log_name: make-ci.log
+    command:
+      - ci
+    notes: Validates the host-first baseline command surface.
+  - id: production_ci
+    title: Production CI Gate
+    required: true
+    production_only: true
+    log_name: make-ci-nightly.log
+    command:
+      - ci-nightly
+      - SECRETS_ENV_FILE=${SECRETS_ENV_FILE}
+    notes: Optional customer-like gate; requires a real secrets file.
+  - id: release_bundle
+    title: Release Bundle Gate
+    required: true
+    log_name: make-release-bundle.log
+    command:
+      - release-bundle
+      - RELEASE_BUNDLE_VERSION=${BUNDLE_VERSION}
+    notes: Builds the canonical deployment bundle for the run.
+  - id: release_bundle_verify
+    title: Release Bundle Verify Gate
+    required: true
+    log_name: make-release-bundle-verify.log
+    command:
+      - release-bundle-verify
+      - RELEASE_BUNDLE_VERSION=${BUNDLE_VERSION}
+    notes: Confirms bundle integrity using the current checksum sidecar.
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write readiness plan fixture: %v", err)
+	}
 }

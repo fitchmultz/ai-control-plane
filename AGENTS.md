@@ -88,7 +88,9 @@ make health      # Verify services
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
-- **acpctl command metadata:** `cmd/acpctl/command_registry.go` is the canonical source for visible native root commands plus completion/help ordering; delegated groups and bridge names still derive from `cmd_delegated.go` and `cmd_bridge.go`
+- **acpctl command metadata:** `cmd/acpctl/command_registry.go` is the canonical source for root commands, grouped subcommands, completion ordering, and bridge compatibility entries
+- **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/release/readiness_plan.go` materializes it
+- **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; `scripts/libexec/onboard_impl.sh` is a compatibility shim only
 
 ---
 

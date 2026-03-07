@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mitchfultz/ai-control-plane/internal/catalog"
+	"github.com/mitchfultz/ai-control-plane/internal/contracts"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 )
@@ -46,17 +48,17 @@ func runValidateDetections(_ context.Context, args []string, stdout *os.File, st
 	siemPath := filepath.Join(repoRoot, siemQueriesRelativePath)
 	litellmPath := filepath.Join(repoRoot, litellmConfigRelativePath)
 
-	detections, err := loadDetectionRulesFile(rulesPath)
+	detections, err := contracts.LoadDetectionRulesFile(rulesPath)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to load detection rules: %v\n"), err)
 		return mapValidationLoadExitCode(err)
 	}
-	siemQueries, err := loadSIEMQueriesFile(siemPath)
+	siemQueries, err := contracts.LoadSIEMQueriesFile(siemPath)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to load SIEM query mappings: %v\n"), err)
 		return mapValidationLoadExitCode(err)
 	}
-	litellmConfig, err := loadLiteLLMValidationConfig(litellmPath)
+	litellmConfig, err := catalog.LoadLiteLLMConfig(litellmPath)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to load LiteLLM config: %v\n"), err)
 		return mapValidationLoadExitCode(err)
@@ -68,7 +70,7 @@ func runValidateDetections(_ context.Context, args []string, stdout *os.File, st
 		fmt.Fprintf(stdout, "Approved models source: %s\n", litellmPath)
 	}
 
-	issues := validateDetectionContracts(detections, siemQueries, litellmConfig)
+	issues := contracts.ValidateDetectionContracts(detections, siemQueries, litellmConfig)
 	if len(issues) > 0 {
 		for _, issue := range issues {
 			fmt.Fprintf(stderr, "- %s\n", issue)
@@ -118,17 +120,17 @@ func runValidateSiemQueries(_ context.Context, args []string, stdout *os.File, s
 	siemPath := filepath.Join(repoRoot, siemQueriesRelativePath)
 	litellmPath := filepath.Join(repoRoot, litellmConfigRelativePath)
 
-	detections, err := loadDetectionRulesFile(rulesPath)
+	detections, err := contracts.LoadDetectionRulesFile(rulesPath)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to load detection rules: %v\n"), err)
 		return mapValidationLoadExitCode(err)
 	}
-	siemQueries, err := loadSIEMQueriesFile(siemPath)
+	siemQueries, err := contracts.LoadSIEMQueriesFile(siemPath)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to load SIEM query mappings: %v\n"), err)
 		return mapValidationLoadExitCode(err)
 	}
-	litellmConfig, err := loadLiteLLMValidationConfig(litellmPath)
+	litellmConfig, err := catalog.LoadLiteLLMConfig(litellmPath)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to load LiteLLM config: %v\n"), err)
 		return mapValidationLoadExitCode(err)
@@ -140,7 +142,7 @@ func runValidateSiemQueries(_ context.Context, args []string, stdout *os.File, s
 		fmt.Fprintf(stdout, "Approved models source: %s\n", litellmPath)
 	}
 
-	issues := validateSIEMContracts(detections, siemQueries, litellmConfig, validateSchema)
+	issues := contracts.ValidateSIEMContracts(detections, siemQueries, litellmConfig, validateSchema)
 	if len(issues) > 0 {
 		for _, issue := range issues {
 			fmt.Fprintf(stderr, "- %s\n", issue)
@@ -150,7 +152,7 @@ func runValidateSiemQueries(_ context.Context, args []string, stdout *os.File, s
 	}
 
 	fmt.Fprintf(stdout, "Validated %d SIEM mapping(s) against %d enabled detection rule(s)\n",
-		len(siemQueries.SIEMQueries), countEnabledDetectionRules(detections))
+		len(siemQueries.SIEMQueries), contracts.CountEnabledDetectionRules(detections))
 	if validateSchema {
 		fmt.Fprintln(stdout, "Schema mapping coverage validated")
 	}

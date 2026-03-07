@@ -133,6 +133,119 @@ func TestRunSecretsAudit_AllowsDocumentedExamplePlaceholders(t *testing.T) {
 	}
 }
 
+func TestRunSecretsAudit_IgnoresTrackedDeletedFilesInWorkingTree(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md":          "fixture\n",
+			"internal/legacy.go": "package legacy\n",
+			"demo/.env.example":  "OPENAI_API_KEY=\n",
+		},
+	})
+
+	if err := os.Remove(filepath.Join(repoRoot, "internal", "legacy.go")); err != nil {
+		t.Fatalf("remove tracked file from worktree: %v", err)
+	}
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runSecretsAudit(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected success with deleted tracked file, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+}
+
+func TestRunValidatePublicHygiene_FailsOnTrackedLocalOnlyFile(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md":         "fixture\n",
+			".scratchpad.md":    "notes\n",
+			"demo/.env.example": "OPENAI_API_KEY=\n",
+		},
+	})
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runValidatePublicHygiene(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitDomain {
+		t.Fatalf("expected domain failure, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+	if !strings.Contains(readFile(t, stderr), ".scratchpad.md") {
+		t.Fatalf("expected scratchpad violation, got %s", readFile(t, stderr))
+	}
+}
+
+func TestRunValidateSupplyChain_FailsOnNonDigestPinnedImage(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","allowlist":[],"severity_policy":{"fail_on":["high"]}}`)
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services:\n  app:\n    image: example/app:latest\n")
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runValidateSupplyChain(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitDomain {
+		t.Fatalf("expected domain failure, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+	if !strings.Contains(readFile(t, stderr), "demo/docker-compose.yml") {
+		t.Fatalf("expected compose violation, got %s", readFile(t, stderr))
+	}
+}
+
+func TestRunValidateSupplyChain_IgnoresCommentedImageLines(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","allowlist":[],"severity_policy":{"fail_on":["high"]}}`)
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services:\n  app:\n    # image: example/app:latest\n    image: example/app:1.2.3@sha256:abcdef\n")
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runValidateSupplyChain(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected success when only commented image line is non-digest, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+}
+
+func TestRunValidateLicense_FailsOnRestrictedReferenceOutsideDocs(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "docs", "policy", "THIRD_PARTY_LICENSE_MATRIX.json"), `{"schema_version":1,"policy_id":"policy","scan_scope":{"include":["cmd/**/*.go"],"exclude":["cmd/acpctl/cmd_security.go"]},"restricted_components":[{"name":"litellm-enterprise","match":{"content_regex":["import litellm.enterprise"]}}]}`)
+	writeFile(t, filepath.Join(repoRoot, "cmd", "sample.go"), "package sample\n// import litellm.enterprise\n")
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runValidateLicense(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitDomain {
+		t.Fatalf("expected domain failure, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+	if !strings.Contains(readFile(t, stderr), "cmd/sample.go") {
+		t.Fatalf("expected restricted reference finding, got %s", readFile(t, stderr))
+	}
+}
+
+func TestRunValidateLicense_RespectsExcludePatterns(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "docs", "policy", "THIRD_PARTY_LICENSE_MATRIX.json"), `{"schema_version":1,"policy_id":"policy","scan_scope":{"include":["cmd/**/*.go"],"exclude":["cmd/acpctl/cmd_security.go"]},"restricted_components":[{"name":"litellm-enterprise","match":{"content_regex":["import litellm.enterprise"]}}]}`)
+	writeFile(t, filepath.Join(repoRoot, "cmd", "acpctl", "cmd_security.go"), "package main\n// import litellm.enterprise\n")
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runValidateLicense(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected success for excluded enforcement file, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+}
+
 func TestRunDelegatedGroup_ValidateSecurityDelegatesToSecurityGate(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{

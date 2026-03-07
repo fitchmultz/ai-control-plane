@@ -99,12 +99,13 @@ type ReadinessSummary struct {
 }
 
 type readinessGateSpec struct {
-	id       string
-	title    string
-	required bool
-	logName  string
-	command  []string
-	notes    string
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	Required       bool     `json:"required"`
+	LogName        string   `json:"log_name"`
+	Command        []string `json:"command"`
+	Notes          string   `json:"notes"`
+	ProductionOnly bool     `json:"production_only,omitempty"`
 }
 
 // ReadinessVerifier checks consistency of a generated readiness run.
@@ -145,7 +146,10 @@ func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, std
 	}
 
 	productionEnabled := opts.IncludeProduction && fileExists(opts.SecretsEnvFile)
-	gates := buildReadinessGates(opts, productionEnabled)
+	gates, err := materializeReadinessGates(opts, productionEnabled)
+	if err != nil {
+		return nil, err
+	}
 	summary := &ReadinessSummary{
 		RunID:              runID,
 		GeneratedAtUTC:     nowUTC.Format(time.RFC3339),
@@ -166,14 +170,14 @@ func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, std
 
 	for index, gate := range gates {
 		result := ReadinessGateResult{
-			ID:          gate.id,
-			Title:       gate.title,
-			Command:     strings.Join(gate.command, " "),
-			CommandArgs: append([]string(nil), gate.command...),
-			Required:    gate.required,
+			ID:          gate.ID,
+			Title:       gate.Title,
+			Command:     strings.Join(gate.Command, " "),
+			CommandArgs: append([]string(nil), gate.Command...),
+			Required:    gate.Required,
 			Status:      "PENDING",
-			LogPath:     filepath.Join(runDir, gate.logName),
-			Notes:       gate.notes,
+			LogPath:     filepath.Join(runDir, gate.LogName),
+			Notes:       gate.Notes,
 		}
 
 		if summary.OverallStatus == "FAIL" {
@@ -184,7 +188,7 @@ func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, std
 			continue
 		}
 
-		if !gate.required && !productionEnabled && gate.id == "production_ci" {
+		if !gate.Required && !productionEnabled && gate.ID == "production_ci" {
 			result.Status = "SKIPPED"
 			result.Notes = appendReadinessNote(result.Notes, fmt.Sprintf("Production gate skipped because secrets file is unavailable: %s", opts.SecretsEnvFile))
 			summary.SkippedGateCount++
@@ -195,7 +199,7 @@ func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, std
 		if index > 0 {
 			fmt.Fprintln(stdout, "")
 		}
-		fmt.Fprintf(stdout, "[%s] %s\n", gate.id, gate.title)
+		fmt.Fprintf(stdout, "[%s] %s\n", gate.ID, gate.Title)
 		startedAt := readinessNow()
 		result.StartedAtUTC = startedAt.Format(time.RFC3339)
 		status, finishedAt, runErr := readinessGateExecutor(ctx, opts.RepoRoot, opts.MakeBin, gate, result.LogPath, stdout, stderr)
@@ -242,29 +246,6 @@ func ResolveLatestReadinessRun(outputRoot string) (string, error) {
 	return runDir, nil
 }
 
-func buildReadinessGates(opts ReadinessOptions, productionEnabled bool) []readinessGateSpec {
-	gates := []readinessGateSpec{
-		{id: "local_ci", title: "Local CI Gate", required: true, logName: "make-ci.log", command: []string{"ci"}, notes: "Validates the host-first baseline command surface."},
-	}
-	if opts.IncludeProduction {
-		gates = append(gates, readinessGateSpec{
-			id:       "production_ci",
-			title:    "Production CI Gate",
-			required: productionEnabled,
-			logName:  "make-ci-nightly.log",
-			command:  []string{"ci-nightly", fmt.Sprintf("SECRETS_ENV_FILE=%s", opts.SecretsEnvFile)},
-			notes:    "Optional customer-like gate; requires a real secrets file.",
-		})
-	}
-	gates = append(gates,
-		readinessGateSpec{id: "supply_chain", title: "Supply Chain Gate", required: true, logName: "make-supply-chain-gate.log", command: []string{"supply-chain-gate"}, notes: "Validates the supply-chain policy contract."},
-		readinessGateSpec{id: "supply_chain_allowlist", title: "Allowlist Expiry Gate", required: true, logName: "make-supply-chain-allowlist-expiry-check.log", command: []string{"supply-chain-allowlist-expiry-check"}, notes: "Checks time-bound vulnerability exceptions."},
-		readinessGateSpec{id: "release_bundle", title: "Release Bundle Gate", required: true, logName: "make-release-bundle.log", command: []string{"release-bundle", fmt.Sprintf("RELEASE_BUNDLE_VERSION=%s", opts.BundleVersion)}, notes: "Builds the canonical deployment bundle for the run."},
-		readinessGateSpec{id: "release_bundle_verify", title: "Release Bundle Verify Gate", required: true, logName: "make-release-bundle-verify.log", command: []string{"release-bundle-verify", fmt.Sprintf("RELEASE_BUNDLE_VERSION=%s", opts.BundleVersion)}, notes: "Confirms bundle integrity using the current checksum sidecar."},
-	)
-	return gates
-}
-
 func executeReadinessGateContext(ctx context.Context, repoRoot string, makeBin string, gate readinessGateSpec, logPath string, stdout io.Writer, stderr io.Writer) (string, time.Time, error) {
 	logFile, err := os.Create(logPath)
 	if err != nil {
@@ -276,7 +257,7 @@ func executeReadinessGateContext(ctx context.Context, repoRoot string, makeBin s
 	errWriter := io.MultiWriter(stderr, logFile)
 	res := proc.Run(ctx, proc.Request{
 		Name:    makeBin,
-		Args:    gate.command,
+		Args:    gate.Command,
 		Dir:     repoRoot,
 		Env:     []string{"READINESS_EVIDENCE_ACTIVE=1"},
 		Stdout:  logWriter,

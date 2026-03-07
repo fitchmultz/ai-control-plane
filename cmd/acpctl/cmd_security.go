@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,6 +115,39 @@ var secretContentRules = []secretContentRule{
 	},
 }
 
+type supplyChainPolicyDocument struct {
+	PolicyID       string                 `json:"policy_id"`
+	Allowlist      []map[string]any       `json:"allowlist"`
+	SeverityPolicy supplyChainSeverityDoc `json:"severity_policy"`
+}
+
+type supplyChainSeverityDoc struct {
+	FailOn    []string       `json:"fail_on"`
+	MaxCounts map[string]int `json:"max_counts"`
+}
+
+type licensePolicyDocument struct {
+	SchemaVersion        any                          `json:"schema_version"`
+	PolicyID             any                          `json:"policy_id"`
+	ScanScope            licenseScanScope             `json:"scan_scope"`
+	RestrictedComponents []licenseRestrictedComponent `json:"restricted_components"`
+}
+
+type licenseScanScope struct {
+	Include []string `json:"include"`
+	Exclude []string `json:"exclude"`
+}
+
+type licenseRestrictedComponent struct {
+	Name  string                 `json:"name"`
+	Match licenseRestrictedMatch `json:"match"`
+}
+
+type licenseRestrictedMatch struct {
+	PathRegex    []string `json:"path_regex"`
+	ContentRegex []string `json:"content_regex"`
+}
+
 func runSecretsAudit(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if isHelpToken(arg) {
@@ -160,6 +194,144 @@ func runSecretsAudit(ctx context.Context, args []string, stdout *os.File, stderr
 	return exitcodes.ACPExitSuccess
 }
 
+func runValidatePublicHygiene(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	for _, arg := range args {
+		if isHelpToken(arg) {
+			printPublicHygieneHelp(stdout)
+			return exitcodes.ACPExitSuccess
+		}
+		if arg != "" {
+			fmt.Fprintf(stderr, "Error: unknown option: %s\n", arg)
+			printPublicHygieneHelp(stderr)
+			return exitcodes.ACPExitUsage
+		}
+	}
+
+	repoRoot := detectRepoRootWithContext(ctx)
+	trackedFiles, err := listTrackedFiles(ctx, repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitPrereq
+	}
+
+	var violations []string
+	for _, relPath := range trackedFiles {
+		if !isLocalOnlyTrackedPath(relPath) {
+			continue
+		}
+		if strings.HasSuffix(relPath, "/.gitkeep") || strings.HasSuffix(relPath, "/.gitignore") {
+			continue
+		}
+		violations = append(violations, relPath)
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		fmt.Fprintln(stderr, "Local-only files are tracked and block public release:")
+		for _, violation := range violations {
+			fmt.Fprintln(stderr, violation)
+		}
+		fmt.Fprintln(stderr, "Remove from git index (git rm --cached ...) and keep in .gitignore.")
+		return exitcodes.ACPExitDomain
+	}
+
+	fmt.Fprintln(stdout, "Public-release tracked file hygiene passed")
+	return exitcodes.ACPExitSuccess
+}
+
+func runValidateLicense(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	for _, arg := range args {
+		if isHelpToken(arg) {
+			printLicenseHelp(stdout)
+			return exitcodes.ACPExitSuccess
+		}
+		if arg != "" {
+			fmt.Fprintf(stderr, "Error: unknown option: %s\n", arg)
+			printLicenseHelp(stderr)
+			return exitcodes.ACPExitUsage
+		}
+	}
+
+	repoRoot := detectRepoRootWithContext(ctx)
+	policyPath := filepath.Join(repoRoot, "docs", "policy", "THIRD_PARTY_LICENSE_MATRIX.json")
+	data, err := os.ReadFile(policyPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: missing policy file: %s\n", policyPath)
+		return exitcodes.ACPExitDomain
+	}
+	var policy licensePolicyDocument
+	if err := json.Unmarshal(data, &policy); err != nil {
+		fmt.Fprintf(stderr, "Error: parse %s: %v\n", policyPath, err)
+		return exitcodes.ACPExitRuntime
+	}
+	if policy.SchemaVersion == nil || policy.PolicyID == nil || len(policy.ScanScope.Include) == 0 || policy.RestrictedComponents == nil {
+		fmt.Fprintln(stderr, "Error: license policy JSON missing required fields")
+		return exitcodes.ACPExitDomain
+	}
+
+	findings, err := findRestrictedLicenseReferences(repoRoot, policy)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitRuntime
+	}
+	if len(findings) > 0 {
+		fmt.Fprintln(stderr, "Restricted LiteLLM enterprise references detected outside docs:")
+		for _, finding := range findings {
+			fmt.Fprintln(stderr, finding)
+		}
+		return exitcodes.ACPExitDomain
+	}
+
+	fmt.Fprintln(stdout, "License boundary check passed")
+	return exitcodes.ACPExitSuccess
+}
+
+func runValidateSupplyChain(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	for _, arg := range args {
+		if isHelpToken(arg) {
+			printSupplyChainHelp(stdout)
+			return exitcodes.ACPExitSuccess
+		}
+		if arg != "" {
+			fmt.Fprintf(stderr, "Error: unknown option: %s\n", arg)
+			printSupplyChainHelp(stderr)
+			return exitcodes.ACPExitUsage
+		}
+	}
+
+	repoRoot := detectRepoRootWithContext(ctx)
+	policyPath := filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json")
+	data, err := os.ReadFile(policyPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: missing policy file: %s\n", policyPath)
+		return exitcodes.ACPExitDomain
+	}
+	var policy supplyChainPolicyDocument
+	if err := json.Unmarshal(data, &policy); err != nil {
+		fmt.Fprintf(stderr, "Error: parse %s: %v\n", policyPath, err)
+		return exitcodes.ACPExitRuntime
+	}
+	if policy.PolicyID == "" || policy.Allowlist == nil || policy.SeverityPolicy.FailOn == nil {
+		fmt.Fprintln(stderr, "Error: supply-chain policy JSON missing required fields")
+		return exitcodes.ACPExitDomain
+	}
+
+	violations, err := findNonDigestPinnedImages(repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitRuntime
+	}
+	if len(violations) > 0 {
+		fmt.Fprintln(stderr, "Found non-digest-pinned image reference(s) in demo/docker-compose*.yml:")
+		for _, violation := range violations {
+			fmt.Fprintln(stderr, violation)
+		}
+		return exitcodes.ACPExitDomain
+	}
+
+	fmt.Fprintln(stdout, "Supply-chain policy and digest pinning baseline passed")
+	return exitcodes.ACPExitSuccess
+}
+
 func listTrackedFiles(ctx context.Context, repoRoot string) ([]string, error) {
 	if err := ensureExecutable("git"); err != nil {
 		return nil, err
@@ -187,6 +359,223 @@ func listTrackedFiles(ctx context.Context, repoRoot string) ([]string, error) {
 	return paths, nil
 }
 
+func isLocalOnlyTrackedPath(relPath string) bool {
+	switch {
+	case relPath == ".env":
+		return true
+	case relPath == "demo/.env":
+		return true
+	case strings.HasPrefix(relPath, "demo/") && strings.HasSuffix(relPath, "/.env"):
+		return true
+	case strings.HasPrefix(relPath, "demo/logs/"):
+		return true
+	case strings.HasPrefix(relPath, "demo/backups/"):
+		return true
+	case strings.HasPrefix(relPath, "handoff-packet/"):
+		return true
+	case strings.HasPrefix(relPath, ".ralph/"):
+		return true
+	case strings.HasPrefix(relPath, "docs/presentation/slides-internal/"):
+		return true
+	case strings.HasPrefix(relPath, "docs/presentation/slides-external/") && strings.HasSuffix(relPath, ".png"):
+		return true
+	case relPath == ".scratchpad.md":
+		return true
+	default:
+		return false
+	}
+}
+
+func findRestrictedLicenseReferences(repoRoot string, policy licensePolicyDocument) ([]string, error) {
+	pathMatchers, err := compileRegexps(flattenLicensePathRegexps(policy.RestrictedComponents))
+	if err != nil {
+		return nil, err
+	}
+	contentMatchers, err := compileRegexps(flattenLicenseContentRegexps(policy.RestrictedComponents))
+	if err != nil {
+		return nil, err
+	}
+
+	var findings []string
+	err = filepath.WalkDir(repoRoot, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relPath, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		relPath = filepath.ToSlash(relPath)
+		if relPath == "." {
+			return nil
+		}
+
+		if d.IsDir() {
+			if shouldSkipLicenseDir(relPath, policy.ScanScope.Exclude) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !matchesAnyGlob(relPath, policy.ScanScope.Include) || matchesAnyGlob(relPath, policy.ScanScope.Exclude) {
+			return nil
+		}
+		if matchesAnyRegexp(relPath, pathMatchers) {
+			findings = append(findings, relPath)
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if matchesAnyRegexp(string(data), contentMatchers) {
+			findings = append(findings, relPath)
+		}
+		return nil
+	})
+	sort.Strings(findings)
+	return findings, err
+}
+
+func flattenLicensePathRegexps(components []licenseRestrictedComponent) []string {
+	var patterns []string
+	for _, component := range components {
+		patterns = append(patterns, component.Match.PathRegex...)
+	}
+	return patterns
+}
+
+func flattenLicenseContentRegexps(components []licenseRestrictedComponent) []string {
+	var patterns []string
+	for _, component := range components {
+		patterns = append(patterns, component.Match.ContentRegex...)
+	}
+	return patterns
+}
+
+func compileRegexps(patterns []string) ([]*regexp.Regexp, error) {
+	compiled := make([]*regexp.Regexp, 0, len(patterns))
+	for _, pattern := range patterns {
+		if strings.TrimSpace(pattern) == "" {
+			continue
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("compile restricted-component pattern %q: %w", pattern, err)
+		}
+		compiled = append(compiled, re)
+	}
+	return compiled, nil
+}
+
+func matchesAnyRegexp(value string, patterns []*regexp.Regexp) bool {
+	for _, pattern := range patterns {
+		if pattern.MatchString(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldSkipLicenseDir(relPath string, excludePatterns []string) bool {
+	if relPath == ".git" {
+		return true
+	}
+	return matchesAnyGlob(relPath, excludePatterns)
+}
+
+func matchesAnyGlob(relPath string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if globMatch(relPath, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func globMatch(relPath string, pattern string) bool {
+	const (
+		doubleStarDirToken = "<<double-star-dir>>"
+		doubleStarToken    = "<<double-star>>"
+	)
+
+	normalizedPattern := filepath.ToSlash(pattern)
+	normalizedPattern = strings.ReplaceAll(normalizedPattern, "**/", doubleStarDirToken)
+	normalizedPattern = strings.ReplaceAll(normalizedPattern, "**", doubleStarToken)
+
+	regexPattern := regexp.QuoteMeta(normalizedPattern)
+	regexPattern = strings.ReplaceAll(regexPattern, regexp.QuoteMeta(doubleStarDirToken), `(?:.*/)?`)
+	regexPattern = strings.ReplaceAll(regexPattern, regexp.QuoteMeta(doubleStarToken), `.*`)
+	regexPattern = strings.ReplaceAll(regexPattern, `\*`, `[^/]*`)
+	regexPattern = strings.ReplaceAll(regexPattern, `\?`, `[^/]`)
+	matched, err := regexp.MatchString("^"+regexPattern+"$", relPath)
+	return err == nil && matched
+}
+
+func findNonDigestPinnedImages(repoRoot string) ([]string, error) {
+	matches, err := filepath.Glob(filepath.Join(repoRoot, "demo", "docker-compose*.yml"))
+	if err != nil {
+		return nil, err
+	}
+	var violations []string
+	for _, match := range matches {
+		data, err := os.ReadFile(match)
+		if err != nil {
+			return nil, err
+		}
+		relPath, err := filepath.Rel(repoRoot, match)
+		if err != nil {
+			return nil, err
+		}
+		scanner := bufio.NewScanner(bytes.NewReader(data))
+		lineNumber := 0
+		for scanner.Scan() {
+			lineNumber++
+			line := scanner.Text()
+			trimmedLine := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmedLine, "#") {
+				continue
+			}
+			if !strings.HasPrefix(trimmedLine, "image:") {
+				continue
+			}
+			if strings.Contains(line, "@sha256:") {
+				continue
+			}
+			violations = append(violations, fmt.Sprintf("%s:%d:%s", filepath.ToSlash(relPath), lineNumber, strings.TrimSpace(line)))
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, err
+		}
+	}
+	sort.Strings(violations)
+	return violations, nil
+}
+
+func printPublicHygieneHelp(out *os.File) {
+	fmt.Fprint(out, `Usage: acpctl validate public-hygiene
+
+Fail when local-only files are tracked by git.
+`)
+}
+
+func printLicenseHelp(out *os.File) {
+	fmt.Fprint(out, `Usage: acpctl validate license
+
+Validate the third-party license policy contract and restricted reference boundary.
+`)
+}
+
+func printSupplyChainHelp(out *os.File) {
+	fmt.Fprint(out, `Usage: acpctl validate supply-chain
+
+Validate supply-chain policy structure and digest pinning for compose images.
+`)
+}
+
 func scanTrackedFiles(repoRoot string, trackedFiles []string) ([]secretFinding, error) {
 	findings := make([]secretFinding, 0)
 	for _, relPath := range trackedFiles {
@@ -195,6 +584,9 @@ func scanTrackedFiles(repoRoot string, trackedFiles []string) ([]secretFinding, 
 		absPath := filepath.Join(repoRoot, relPath)
 		data, err := os.ReadFile(absPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return nil, err
 		}
 		if !shouldScanContent(relPath, data) {

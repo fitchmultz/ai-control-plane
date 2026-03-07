@@ -93,6 +93,7 @@ func TestVerifyPilotCloseoutBundleDetectsInventoryMismatch(t *testing.T) {
 
 func writeReadinessRunFixture(t *testing.T, repoRoot string) string {
 	t.Helper()
+	writeReadinessPlanFixture(t, repoRoot)
 	outputRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
 	bundleDir := filepath.Join(repoRoot, "demo", "logs", "release-bundles")
 	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
