@@ -93,6 +93,7 @@ Commands:
 Examples:
   acpctl ci should-run-runtime --quiet
   acpctl ci wait --timeout 120
+  acpctl env get LITELLM_MASTER_KEY
   acpctl files sync-helm
   acpctl doctor
   acpctl benchmark baseline --requests 20 --concurrency 2

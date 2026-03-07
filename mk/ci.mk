@@ -45,8 +45,7 @@ ci-pr: ## PR-required checks (fast/deterministic: lint, static checks, unit + po
 	@$(MAKE) --silent license-check
 	@$(MAKE) --silent supply-chain-gate
 	@$(MAKE) --silent type-check
-	@bash scripts/tests/acpctl_cli_contract_test.sh
-	@bash scripts/tests/supply_chain_allowlist_expiry_check_test.sh
+	@$(MAKE) --silent script-tests
 	@$(MAKE) --silent test-go
 	@echo '$(COLOR_GREEN)✓ PR-required checks passed$(COLOR_RESET)'
 

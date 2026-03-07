@@ -143,6 +143,16 @@ func nativeCommandDefinitions() []nativeCommandDefinition {
 		},
 		{
 			commandDescriptor: commandDescriptor{
+				Name:        "env",
+				Description: "Strict .env access helpers",
+			},
+			Run: runEnvCommand,
+			Subcommands: []commandDescriptor{
+				{Name: "get", Description: "Read a single env key without shell execution"},
+			},
+		},
+		{
+			commandDescriptor: commandDescriptor{
 				Name:        "status",
 				Description: "Aggregated system health overview",
 			},

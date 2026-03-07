@@ -69,13 +69,13 @@ services:
     env_file: .env
     environment:
       # These must be set in .env (no defaults to prevent misconfiguration)
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required in demo/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in demo/.env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required in demo/.env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     restart: unless-stopped
     logging: *acp-logging
     healthcheck:
@@ -91,6 +91,10 @@ services:
     image: ${LITELLM_IMAGE:-ghcr.io/fitchmultz/acp/litellm-hardened:20260212@sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801}
     pull_policy: ${ACP_PULL_POLICY:-missing}
     env_file: .env
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required in demo/.env}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?LITELLM_SALT_KEY is required in demo/.env}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required in demo/.env}
     ports:
       # Bind to LITELLM_PUBLISH_HOST (default: 127.0.0.1 for security)
       - "${LITELLM_PUBLISH_HOST:-127.0.0.1}:4000:4000"

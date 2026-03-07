@@ -171,6 +171,11 @@ if echo "$HELP_OUTPUT" | grep -q "files"; then
 else
     fail "--help missing files command"
 fi
+if echo "$HELP_OUTPUT" | grep -q "env"; then
+    pass "--help lists env command"
+else
+    fail "--help missing env command"
+fi
 if echo "$HELP_OUTPUT" | grep -q "deploy"; then
     pass "--help lists deploy command"
 else
@@ -211,6 +216,16 @@ if echo "$HELP_OUTPUT" | grep -q "doctor"; then
 else
     fail "--help missing doctor command"
 fi
+echo ""
+
+echo "Test: env command is typed and exposes help..."
+ENV_HELP_OUTPUT="$(ACPCTL_BIN="$GO_SHIM" "$SCRIPT_UNDER_TEST" env get --help 2>&1)"
+if echo "$ENV_HELP_OUTPUT" | grep -q "Usage: acpctl env get"; then
+    pass "env get help includes usage"
+else
+    fail "env get help missing usage"
+fi
+assert_typed_no_delegation "env get help stays make-independent" env get --help
 echo ""
 
 echo "Test: unknown command exits 64..."

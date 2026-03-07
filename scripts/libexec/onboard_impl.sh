@@ -34,10 +34,24 @@ DEFAULT_PORT="${LITELLM_PORT:-4000}"
 DEFAULT_BUDGET="10.00"
 GENERATED_ALIAS=""
 GENERATED_KEY=""
+ACPCTL_BIN=""
 
 log_info() { printf 'INFO: %s\n' "$*"; }
 log_warn() { printf 'WARN: %s\n' "$*" >&2; }
 log_error() { printf 'ERROR: %s\n' "$*" >&2; }
+
+resolve_acpctl_bin() {
+    if [ -x "${REPO_ROOT}/.bin/acpctl" ]; then
+        ACPCTL_BIN="${REPO_ROOT}/.bin/acpctl"
+    elif [ -x "${REPO_ROOT}/acpctl" ]; then
+        ACPCTL_BIN="${REPO_ROOT}/acpctl"
+    elif command -v acpctl >/dev/null 2>&1; then
+        ACPCTL_BIN="acpctl"
+    else
+        log_error "acpctl binary not found. Run: make install-binary"
+        exit "${ACP_EXIT_PREREQ}"
+    fi
+}
 
 show_main_help() {
     cat <<'EOF'
@@ -108,16 +122,7 @@ ensure_prereqs() {
         exit "${ACP_EXIT_PREREQ}"
     fi
 
-    if [ -x "${REPO_ROOT}/.bin/acpctl" ]; then
-        ACPCTL_BIN="${REPO_ROOT}/.bin/acpctl"
-    elif [ -x "${REPO_ROOT}/acpctl" ]; then
-        ACPCTL_BIN="${REPO_ROOT}/acpctl"
-    elif command -v acpctl >/dev/null 2>&1; then
-        ACPCTL_BIN="acpctl"
-    else
-        log_error "acpctl binary not found. Run: make install-binary"
-        exit "${ACP_EXIT_PREREQ}"
-    fi
+    resolve_acpctl_bin
 
     if ! command -v curl >/dev/null 2>&1; then
         log_error "curl is required"
@@ -125,11 +130,22 @@ ensure_prereqs() {
     fi
 }
 
-load_env() {
-    set -a
-    # shellcheck source=/dev/null
-    source "${ENV_FILE}"
-    set +a
+safe_env_get() {
+    local key="$1"
+
+    if [ -n "${!key:-}" ]; then
+        printf '%s\n' "${!key}"
+        return 0
+    fi
+
+    "${ACPCTL_BIN}" env get --file "${ENV_FILE}" "${key}"
+}
+
+load_required_env() {
+    if ! LITELLM_MASTER_KEY="$(safe_env_get LITELLM_MASTER_KEY 2>/dev/null)"; then
+        log_error "LITELLM_MASTER_KEY is not set (${ENV_FILE})"
+        exit "${ACP_EXIT_PREREQ}"
+    fi
 }
 
 redact_key() {
@@ -367,7 +383,7 @@ while [ $# -gt 0 ]; do
 done
 
 ensure_prereqs
-load_env
+load_required_env
 
 case "${tool}" in
 codex)

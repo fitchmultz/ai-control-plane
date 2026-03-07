@@ -62,13 +62,40 @@ mkdir -p "${TEST_BIN_DIR}" "${TEST_SCRIPT_DIR}" "${TEST_DEMO_DIR}" "${TEST_STUB_
 cp "${SOURCE_SCRIPT}" "${TEST_SCRIPT_DIR}/onboard_impl.sh"
 chmod +x "${TEST_SCRIPT_DIR}/onboard_impl.sh"
 
-cat >"${TEST_DEMO_DIR}/.env" <<'EOF'
+cat >"${TEST_DEMO_DIR}/.env" <<EOF
+EVIL=\$(touch "${TMP_ROOT}/env-pwned")
 LITELLM_MASTER_KEY=sk-master-test-12345
 EOF
 
 cat >"${TEST_BIN_DIR}/acpctl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [[ "${1:-}" == "env" && "${2:-}" == "get" && "${3:-}" == "--file" ]]; then
+    file="${4:?missing file}"
+    key="${5:?missing key}"
+    awk -F= -v want="${key}" '
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        {
+            env_key=$1
+            sub(/^[[:space:]]+/, "", env_key)
+            sub(/[[:space:]]+$/, "", env_key)
+            if (env_key == want) {
+                sub(/^[^=]*=/, "", $0)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+                print $0
+                found=1
+                exit 0
+            }
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    ' "${file}"
+    exit $?
+fi
 
 if [[ "${1:-}" == "key" && "${2:-}" == "gen" ]]; then
     alias_name="${3:-}"
@@ -241,6 +268,19 @@ test_verify_authorized_checks() {
     fi
 }
 
+test_env_file_is_not_sourced() {
+    echo "Test: env file is parsed as data, not sourced..."
+    rm -f "${TMP_ROOT}/env-pwned"
+
+    run_onboard codex --mode api-key --alias safe-env >/dev/null 2>&1 || true
+
+    if [[ ! -e "${TMP_ROOT}/env-pwned" ]]; then
+        pass ".env payload was not executed"
+    else
+        fail ".env payload must never execute"
+    fi
+}
+
 test_makefile_targets_present() {
     echo "Test: make target wiring..."
     local mk_file="${PROJECT_ROOT}/mk/onboard.mk"
@@ -281,6 +321,7 @@ main() {
     test_redaction_default_and_show_key
     test_mode_defaults_by_tool
     test_verify_authorized_checks
+    test_env_file_is_not_sourced
     test_makefile_targets_present
 
     echo ""

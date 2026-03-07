@@ -32,6 +32,7 @@ HOST="${GATEWAY_HOST:-127.0.0.1}"
 PORT="${LITELLM_PORT:-4000}"
 MODEL="chatgpt-gpt5.3-codex"
 USE_TLS="false"
+ACPCTL_BIN=""
 
 show_help() {
     cat <<'EOF'
@@ -57,6 +58,30 @@ EOF
 
 log_info() { printf 'INFO: %s\n' "$*"; }
 log_error() { printf 'ERROR: %s\n' "$*" >&2; }
+
+resolve_acpctl_bin() {
+    if [ -x "${REPO_ROOT}/.bin/acpctl" ]; then
+        ACPCTL_BIN="${REPO_ROOT}/.bin/acpctl"
+    elif [ -x "${REPO_ROOT}/acpctl" ]; then
+        ACPCTL_BIN="${REPO_ROOT}/acpctl"
+    elif command -v acpctl >/dev/null 2>&1; then
+        ACPCTL_BIN="acpctl"
+    else
+        log_error "acpctl binary not found. Run: make install-binary"
+        exit "${ACP_EXIT_PREREQ}"
+    fi
+}
+
+safe_env_get() {
+    local key="$1"
+
+    if [ -n "${!key:-}" ]; then
+        printf '%s\n' "${!key}"
+        return 0
+    fi
+
+    "${ACPCTL_BIN}" env get --file "${ENV_FILE}" "${key}"
+}
 
 resolve_compose_cmd() {
     if docker compose version >/dev/null 2>&1; then
@@ -170,12 +195,9 @@ if ! command -v curl >/dev/null 2>&1; then
     exit "${ACP_EXIT_PREREQ}"
 fi
 
-set -a
-# shellcheck source=/dev/null
-source "${ENV_FILE}"
-set +a
+resolve_acpctl_bin
 
-if [ -z "${LITELLM_MASTER_KEY:-}" ]; then
+if ! LITELLM_MASTER_KEY="$(safe_env_get LITELLM_MASTER_KEY 2>/dev/null)"; then
     log_error "LITELLM_MASTER_KEY is required in demo/.env"
     exit "${ACP_EXIT_PREREQ}"
 fi

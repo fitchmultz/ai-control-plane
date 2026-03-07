@@ -49,3 +49,11 @@ RUN rm -rf \
     /usr/lib/node_modules/npm \
     /usr/lib/python3.13/site-packages/nodejs_wheel/lib/node_modules/npm \
     /usr/local/lib/node_modules/npm
+
+RUN addgroup -S -g 10001 litellm \
+    && adduser -S -D -u 10001 -G litellm -h /app litellm \
+    && mkdir -p /var/log/litellm \
+    && chown -R 10001:10001 /app /var/log/litellm
+
+ENV HOME=/app
+USER 10001:10001
