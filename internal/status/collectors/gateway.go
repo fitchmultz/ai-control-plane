@@ -1,4 +1,24 @@
-// Package collectors provides domain-specific status collectors.
+// gateway.go implements the LiteLLM gateway status collector.
+//
+// Purpose:
+//
+//	Probe the gateway's health and models endpoints with authenticated HTTP
+//	requests and translate the results into ACP component health states.
+//
+// Responsibilities:
+//   - Resolve the effective master key from struct fields or environment.
+//   - Execute gateway `/health` and `/v1/models` checks with bounded timeouts.
+//   - Convert HTTP and transport failures into operator-facing status messages.
+//
+// Scope:
+//   - Covers gateway reachability and basic API responsiveness only.
+//
+// Usage:
+//   - Construct `GatewayCollector{Host, Port, MasterKey}` and call `Collect(ctx)`.
+//
+// Invariants/Assumptions:
+//   - Authorized gateway checks require a LiteLLM master key.
+//   - The default HTTP client uses `config.DefaultHTTPTimeout` unless tests inject one.
 package collectors
 
 import (
@@ -17,6 +37,7 @@ type GatewayCollector struct {
 	Host      string
 	Port      string
 	MasterKey string
+	client    *http.Client
 }
 
 // Name returns the collector's domain name.
@@ -24,9 +45,16 @@ func (c GatewayCollector) Name() string {
 	return "gateway"
 }
 
+func (c GatewayCollector) httpClient() *http.Client {
+	if c.client != nil {
+		return c.client
+	}
+	return &http.Client{Timeout: config.DefaultHTTPTimeout}
+}
+
 // Collect gathers status information from the LiteLLM gateway.
 func (c GatewayCollector) Collect(ctx context.Context) status.ComponentStatus {
-	client := &http.Client{Timeout: config.DefaultHTTPTimeout}
+	client := c.httpClient()
 	masterKey := strings.TrimSpace(c.MasterKey)
 	if masterKey == "" {
 		masterKey = strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY"))

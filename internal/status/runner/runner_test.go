@@ -58,6 +58,8 @@ func TestRunnerHelperProcess(t *testing.T) {
 		d, _ := time.ParseDuration(os.Args[sep+2])
 		time.Sleep(d)
 		os.Exit(0)
+	case "block":
+		time.Sleep(24 * time.Hour)
 	default:
 		os.Exit(99)
 	}
@@ -180,15 +182,20 @@ func TestDefaultRunner_FailingCommand(t *testing.T) {
 
 func TestDefaultRunner_Timeout(t *testing.T) {
 	runner := NewDefaultRunner("")
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
+	runner.Timeout = 20 * time.Millisecond
 
-	result := runner.Run(ctx, os.Args[0], helperArgs("sleep", "1s")...)
+	result := runner.Run(context.Background(), os.Args[0], helperArgs("block")...)
+	if result.Error == nil {
+		t.Fatalf("expected timeout error, got %+v", result)
+	}
 	if !result.TimedOut {
 		t.Fatalf("expected timeout result, got %+v", result)
 	}
 	if result.Canceled {
 		t.Fatalf("expected timeout, not canceled: %+v", result)
+	}
+	if result.ExitCode != -1 {
+		t.Fatalf("exit code = %d, want -1", result.ExitCode)
 	}
 }
 
@@ -197,9 +204,18 @@ func TestDefaultRunner_Canceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	result := runner.Run(ctx, os.Args[0], helperArgs("sleep", "1s")...)
+	result := runner.Run(ctx, os.Args[0], helperArgs("block")...)
+	if result.Error == nil {
+		t.Fatalf("expected canceled error, got %+v", result)
+	}
 	if !result.Canceled {
 		t.Fatalf("expected canceled result, got %+v", result)
+	}
+	if result.TimedOut {
+		t.Fatalf("expected canceled result, not timeout: %+v", result)
+	}
+	if result.ExitCode != -1 {
+		t.Fatalf("exit code = %d, want -1", result.ExitCode)
 	}
 }
 

@@ -1,3 +1,24 @@
+// keys.go implements the virtual key status collector.
+//
+// Purpose:
+//
+//	Summarize LiteLLM virtual key inventory and expiration state for ACP health
+//	reporting without depending on direct host database tooling.
+//
+// Responsibilities:
+//   - Resolve the PostgreSQL container for key queries.
+//   - Collect total, active, and expired key counts.
+//   - Map query results into operator-facing health states and suggestions.
+//
+// Scope:
+//   - Covers LiteLLM verification token metrics only.
+//
+// Usage:
+//   - Construct `NewKeysCollector(repoRoot)` and call `Collect(ctx)`.
+//
+// Invariants/Assumptions:
+//   - Key queries execute through the shared collector runtime helpers.
+//   - Sanitized stderr is safe to surface in status details.
 package collectors
 
 import (

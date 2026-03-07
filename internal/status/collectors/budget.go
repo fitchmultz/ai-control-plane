@@ -1,15 +1,24 @@
-// Package collectors provides health collectors for various ACP components.
+// budget.go implements the LiteLLM budget status collector.
 //
-// Budget Field Semantics:
+// Purpose:
 //
-//	In LiteLLM's LiteLLM_BudgetTable, the 'budget' field represents the
-//	REMAINING budget, not the amount spent. This means:
-//	- budget / max_budget ≈ 1.0  → New/unused budget (100% remaining)
-//	- budget / max_budget ≈ 0.2  → High utilization (20% remaining, 80% spent)
-//	- budget <= 0                → Exhausted (0% remaining, 100%+ spent)
+//	Inspect configured budgets in LiteLLM and report remaining-capacity health
+//	using the repository's operator-facing status model.
 //
-// This is opposite to the intuitive "spent amount" model, so calculations
-// must use (budget / max_budget) to determine remaining percentage.
+// Responsibilities:
+//   - Resolve the PostgreSQL container for budget queries.
+//   - Count total, high-utilization, and exhausted budgets.
+//   - Surface actionable health messages based on remaining budget semantics.
+//
+// Scope:
+//   - Covers budget inventory and remaining-capacity analysis only.
+//
+// Usage:
+//   - Construct `NewBudgetCollector(repoRoot)` and call `Collect(ctx)`.
+//
+// Invariants/Assumptions:
+//   - LiteLLM stores remaining budget in `LiteLLM_BudgetTable.budget`, not spent amount.
+//   - Remaining budget percentage is calculated from `budget / max_budget`.
 package collectors
 
 import (

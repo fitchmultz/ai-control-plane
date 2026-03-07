@@ -1,22 +1,25 @@
-// Package prereq provides prerequisite checking functionality.
+// checks.go implements prerequisite command discovery helpers.
 //
 // Purpose:
 //
-//	Check for required binaries and tools with consistent error handling
-//	and install hints.
+//	Track required host binaries and return consistent prerequisite errors
+//	with installation guidance for operator workflows.
 //
 // Responsibilities:
-//   - Check if commands exist
-//   - Provide install hints for missing commands
-//   - Return appropriate error types for missing prerequisites
+//   - Check whether required commands are present on PATH.
+//   - Record missing prerequisites for aggregate validation.
+//   - Return install hints and ACP exit code mappings for failures.
 //
-// Non-scope:
-//   - Does not install missing tools
-//   - Does not check version compatibility (see version package)
+// Scope:
+//   - Covers prerequisite presence checks only.
+//
+// Usage:
+//   - Create a checker with `New()`, call `RequireCommand` or `RequireAnyCommand`,
+//     then finish with `CheckAll()`.
 //
 // Invariants/Assumptions:
-//   - Commands are checked using exec.LookPath
-//   - Install hints are provided for common tools
+//   - Commands are checked using `exec.LookPath`.
+//   - Install hints are best-effort guidance, not an installer.
 package prereq
 
 import (
