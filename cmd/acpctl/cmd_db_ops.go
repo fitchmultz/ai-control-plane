@@ -17,7 +17,6 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +30,6 @@ import (
 )
 
 func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
-	// Parse arguments
 	customName := ""
 	backupDir := os.Getenv("BACKUP_DIR")
 
@@ -49,19 +47,22 @@ func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
 
 	out := output.New()
 
-	// Check prerequisites
-	if err := checkDBPrereqs(); err != nil {
-		fmt.Fprintln(stderr, out.Fail(err.Error()))
-		return exitcodes.ACPExitPrereq
-	}
-
-	// Setup paths
 	repoRoot := detectRepoRoot()
 	if backupDir == "" {
 		backupDir = filepath.Join(repoRoot, "demo", "backups")
 	}
 
-	// Create backup directory
+	backupFile, err := resolveBackupOutputPath(backupDir, customName)
+	if err != nil {
+		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitUsage
+	}
+
+	if err := checkDBPrereqs(); err != nil {
+		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitPrereq
+	}
+
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to create backup directory: %v\n"), err)
 		return exitcodes.ACPExitRuntime
@@ -78,15 +79,6 @@ func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
 	if dbClient.IsExternal() {
 		fmt.Fprintln(stderr, out.Fail("Backup not supported for external database mode"))
 		return exitcodes.ACPExitPrereq
-	}
-
-	// Generate backup filename
-	var backupFile string
-	if customName != "" {
-		backupFile = filepath.Join(backupDir, customName+".sql.gz")
-	} else {
-		timestamp := time.Now().Format("20060102-150405")
-		backupFile = filepath.Join(backupDir, fmt.Sprintf("litellm-backup-%s.sql.gz", timestamp))
 	}
 
 	fmt.Fprintln(stdout, out.Bold("=== Database Backup ==="))
@@ -144,7 +136,6 @@ func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
 }
 
 func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
-	// Parse arguments
 	backupFile := ""
 
 	for i := range args {
@@ -161,13 +152,6 @@ func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
 
 	out := output.New()
 
-	// Check prerequisites
-	if err := checkDBPrereqs(); err != nil {
-		fmt.Fprintln(stderr, out.Fail(err.Error()))
-		return exitcodes.ACPExitPrereq
-	}
-
-	// Find latest backup if not specified
 	if backupFile == "" {
 		repoRoot := detectRepoRoot()
 		backupDir := filepath.Join(repoRoot, "demo", "backups")
@@ -179,13 +163,30 @@ func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
 		backupFile = latest
 	}
 
-	// Verify backup file exists
 	if _, err := os.Stat(backupFile); err != nil {
 		fmt.Fprintf(stderr, out.Fail("Backup file not found: %s\n"), backupFile)
 		return exitcodes.ACPExitPrereq
 	}
 
-	// Setup database client
+	file, err := os.Open(backupFile)
+	if err != nil {
+		fmt.Fprintf(stderr, out.Fail("Failed to open backup file: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+	defer file.Close()
+
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		fmt.Fprintf(stderr, out.Fail("Failed to read backup file (not gzip?): %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+	defer gzipReader.Close()
+
+	if err := checkDBPrereqs(); err != nil {
+		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitPrereq
+	}
+
 	repoRoot := detectRepoRoot()
 	compose, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot))
 	if err != nil {
@@ -210,45 +211,13 @@ func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
 		return exitcodes.ACPExitPrereq
 	}
 
-	// Read and decompress backup
-	file, err := os.Open(backupFile)
-	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to open backup file: %v\n"), err)
-		return exitcodes.ACPExitRuntime
-	}
-	defer file.Close()
-
-	gzipReader, err := gzip.NewReader(file)
-	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to read backup file (not gzip?): %v\n"), err)
-		return exitcodes.ACPExitRuntime
-	}
-	defer gzipReader.Close()
-
-	// Read decompressed SQL data
-	buf := make([]byte, 0, 1024*1024) // 1MB initial capacity
-	temp := make([]byte, 4096)
-	for {
-		n, err := gzipReader.Read(temp)
-		if n > 0 {
-			buf = append(buf, temp[:n]...)
-		}
-		if err != nil {
-			if err != io.EOF {
-				fmt.Fprintf(stderr, out.Fail("Failed to decompress backup: %v\n"), err)
-				return exitcodes.ACPExitRuntime
-			}
-			break
-		}
+	if err := dbClient.Restore(ctx, gzipReader); err != nil {
+		fmt.Fprintf(stderr, out.Fail("Restore failed: %v\n"), err)
+		return exitcodes.ACPExitDomain
 	}
 
-	// For now, we need to use docker exec with the file
-	// This is a simplified version - full implementation would stream the data
-	_ = buf // Will be used when full restore is implemented
-	fmt.Fprintln(stdout, out.Yellow("Restore functionality not yet fully implemented"))
-	fmt.Fprintln(stdout, "Please use: gunzip < backup.sql.gz | docker exec -i <container> psql -U litellm")
-
-	return exitcodes.ACPExitDomain
+	fmt.Fprintln(stdout, out.Green("Restore completed successfully!"))
+	return exitcodes.ACPExitSuccess
 }
 
 func checkDBPrereqs() error {
@@ -289,6 +258,41 @@ func findLatestBackup(backupDir string) (string, error) {
 	}
 
 	return filepath.Join(backupDir, latest.Name()), nil
+}
+
+func resolveBackupOutputPath(backupDir string, customName string) (string, error) {
+	if strings.TrimSpace(customName) == "" {
+		timestamp := time.Now().Format("20060102-150405")
+		return filepath.Join(backupDir, fmt.Sprintf("litellm-backup-%s.sql.gz", timestamp)), nil
+	}
+
+	name := strings.TrimSpace(customName)
+	normalized := filepath.Clean(strings.ReplaceAll(name, "\\", "/"))
+	if filepath.IsAbs(name) || filepath.IsAbs(normalized) {
+		return "", fmt.Errorf("backup name must be a simple filename, not a path")
+	}
+	if name == "." || name == ".." || normalized != name || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return "", fmt.Errorf("backup name must be a simple filename without path traversal")
+	}
+
+	target := filepath.Join(backupDir, name+".sql.gz")
+	baseAbs, err := filepath.Abs(backupDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve backup directory: %w", err)
+	}
+	targetAbs, err := filepath.Abs(target)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve backup path: %w", err)
+	}
+	rel, err := filepath.Rel(baseAbs, targetAbs)
+	if err != nil {
+		return "", fmt.Errorf("failed to validate backup path: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("backup name must stay within the backup directory")
+	}
+
+	return target, nil
 }
 
 func printDBBackupHelp(out *os.File) {
@@ -351,6 +355,8 @@ func printDBRestoreHelp(out *os.File) {
 	fmt.Fprint(out, `Usage: acpctl db restore [backup_file]
 
 Restore the PostgreSQL database from a backup file.
+Embedded Docker PostgreSQL only. This operation overwrites the current
+database by streaming the backup's plain SQL into psql.
 
 Arguments:
   backup_file    Path to the backup file (auto-detects latest if not specified)

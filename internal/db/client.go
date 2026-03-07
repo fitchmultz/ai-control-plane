@@ -24,6 +24,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -38,6 +39,8 @@ const (
 	defaultDBUser              = "litellm"
 	defaultEmbeddedDatabaseURL = "postgresql://litellm:litellm@postgres:5432/litellm"
 )
+
+var execInContainerWithStdin = docker.ExecInContainerWithStdin
 
 // Client provides database operations
 type Client struct {
@@ -244,8 +247,8 @@ func (c *Client) Backup(ctx context.Context) (string, error) {
 	return docker.ExecInContainer(ctx, containerID, cmd...)
 }
 
-// Restore restores a database from SQL
-func (c *Client) Restore(ctx context.Context, sql string) error {
+// Restore restores a database from a streamed SQL reader.
+func (c *Client) Restore(ctx context.Context, sql io.Reader) error {
 	if c.configErr != nil {
 		return c.configErr
 	}
@@ -258,16 +261,15 @@ func (c *Client) Restore(ctx context.Context, sql string) error {
 		return err
 	}
 
-	// Use psql to restore
 	cmd := []string{
 		"psql",
+		"-X",
+		"-v", "ON_ERROR_STOP=1",
 		"-U", c.dbUser,
-		"-d", c.dbName,
+		"-d", "postgres",
 	}
 
-	// We need to pipe the SQL to psql
-	// For now, this is a simplified version
-	_, err = docker.ExecInContainer(ctx, containerID, append(cmd, "-c", sql)...)
+	_, err = execInContainerWithStdin(ctx, containerID, sql, cmd...)
 	return err
 }
 

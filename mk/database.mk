@@ -35,7 +35,7 @@ db-backup: ## Create database backup
 		|| { echo '$(COLOR_RED)✗ Database backup failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: db-restore
-db-restore: ## Restore database from backup
+db-restore: ## Restore embedded database from backup
 	@echo '$(COLOR_BOLD)Restoring database from backup...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) db restore \
 		&& echo '$(COLOR_GREEN)✓ Database restore completed$(COLOR_RESET)' \

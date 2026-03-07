@@ -18,10 +18,14 @@ package main
 
 import (
 	"compress/gzip"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
 func TestFindLatestBackup_EmptyDir(t *testing.T) {
@@ -171,11 +175,10 @@ func TestRunDBRestoreCommand_InvalidGzip(t *testing.T) {
 	}
 	defer os.Remove(stderr.Name())
 
-	// This should fail with a runtime error because the file isn't valid gzip
-	// Note: This requires Docker to be available, so it may fail with prereq error
-	// The important thing is that it doesn't panic
-	_ = runDBRestoreCommand([]string{invalidFile}, stdout, stderr)
-	// We don't check the exact exit code because it depends on environment
+	exitCode := runDBRestoreCommand([]string{invalidFile}, stdout, stderr)
+	if exitCode != exitcodes.ACPExitRuntime {
+		t.Fatalf("expected runtime exit code for invalid gzip, got %d", exitCode)
+	}
 }
 
 func TestRunDBRestoreCommand_Help(t *testing.T) {
@@ -266,5 +269,71 @@ func TestDecompressErrorHandling(t *testing.T) {
 	content := string(buf[:n])
 	if content != "SELECT 1;" {
 		t.Errorf("expected 'SELECT 1;', got '%s'", content)
+	}
+}
+
+func TestResolveBackupOutputPath_CustomNameHappyPath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	backupPath, err := resolveBackupOutputPath(tmpDir, "release-20260306")
+	if err != nil {
+		t.Fatalf("expected happy path to succeed, got %v", err)
+	}
+
+	expected := filepath.Join(tmpDir, "release-20260306.sql.gz")
+	if backupPath != expected {
+		t.Fatalf("expected backup path %q, got %q", expected, backupPath)
+	}
+}
+
+func TestResolveBackupOutputPath_InvalidCustomNames(t *testing.T) {
+	tmpDir := t.TempDir()
+	invalidNames := []string{
+		"../../escape",
+		"..\\..\\escape",
+		"/tmp/escape",
+		"nested/name",
+		"nested\\name",
+		"  ../escape  ",
+		".",
+		"..",
+	}
+
+	for _, name := range invalidNames {
+		t.Run(name, func(t *testing.T) {
+			if _, err := resolveBackupOutputPath(tmpDir, name); err == nil {
+				t.Fatalf("expected invalid backup name %q to be rejected", name)
+			}
+		})
+	}
+}
+
+func TestRunDBBackupCommand_RejectsTraversalBeforeDockerChecks(t *testing.T) {
+	stdout, err := os.CreateTemp("", "acpctl_test_stdout")
+	if err != nil {
+		t.Fatalf("failed to create temp stdout: %v", err)
+	}
+	defer os.Remove(stdout.Name())
+
+	stderr, err := os.CreateTemp("", "acpctl_test_stderr")
+	if err != nil {
+		t.Fatalf("failed to create temp stderr: %v", err)
+	}
+	defer os.Remove(stderr.Name())
+
+	exitCode := runDBBackupCommand([]string{"../../escape"}, stdout, stderr)
+	if exitCode != exitcodes.ACPExitUsage {
+		t.Fatalf("expected usage exit code for traversal attempt, got %d", exitCode)
+	}
+
+	if _, err := stderr.Seek(0, 0); err != nil {
+		t.Fatalf("failed to rewind stderr: %v", err)
+	}
+	data, err := io.ReadAll(stderr)
+	if err != nil {
+		t.Fatalf("failed to read stderr: %v", err)
+	}
+	if !strings.Contains(string(data), "backup name") {
+		t.Fatalf("expected stderr to mention backup name validation, got %q", string(data))
 	}
 }

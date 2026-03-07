@@ -105,7 +105,7 @@ var delegatedGroups = []makeDelegatedGroup{
 		Subcommands: []makeDelegatedSubcommand{
 			{Name: "status", MakeTarget: "db-status", Description: "Show database status and statistics"},
 			{Name: "backup", MakeTarget: "db-backup", Description: "Create database backup"},
-			{Name: "restore", MakeTarget: "db-restore", Description: "Restore database from backup"},
+			{Name: "restore", MakeTarget: "db-restore", Description: "Restore embedded database from backup"},
 			{Name: "shell", MakeTarget: "db-shell", Description: "Open database shell"},
 			{Name: "dr-drill", MakeTarget: "dr-drill", Description: "Run database DR restore drill"},
 		},

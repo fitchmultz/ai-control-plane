@@ -22,6 +22,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -173,6 +174,18 @@ func ExecInContainer(ctx context.Context, containerID string, command ...string)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("docker exec failed: %w", err)
+	}
+	return string(output), nil
+}
+
+// ExecInContainerWithStdin executes a command in a specific container by ID with streamed stdin.
+func ExecInContainerWithStdin(ctx context.Context, containerID string, stdin io.Reader, command ...string) (string, error) {
+	args := append([]string{"exec", "-i", containerID}, command...)
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Stdin = stdin
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("docker exec failed: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 	return string(output), nil
 }
