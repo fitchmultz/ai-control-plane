@@ -51,10 +51,10 @@ help: ## Show this help message
 	@echo '  $(COLOR_GREEN)librechat-up$(COLOR_RESET)       Start managed LibreChat services'
 	@echo '  $(COLOR_GREEN)health$(COLOR_RESET)             Check service health'
 	@echo '  $(COLOR_GREEN)down$(COLOR_RESET)               Stop services'
-	@echo '  $(COLOR_GREEN)ci$(COLOR_RESET)                 Run local full CI gate'
+	@echo '  $(COLOR_GREEN)ci$(COLOR_RESET)                 Run local full CI gate (runtime via pinned offline images)'
 	@echo '  $(COLOR_GREEN)ci-pr$(COLOR_RESET)              Run PR-required fast checks'
-	@echo '  $(COLOR_GREEN)ci-nightly$(COLOR_RESET)         Run nightly runtime + release checks'
-	@echo '  $(COLOR_GREEN)ci-manual-heavy$(COLOR_RESET)    Run heavyweight manual checks'
+	@echo '  $(COLOR_GREEN)ci-nightly$(COLOR_RESET)         Run nightly runtime + release checks (pinned offline images)'
+	@echo '  $(COLOR_GREEN)ci-manual-heavy$(COLOR_RESET)    Run heavyweight manual checks (local hardened image build/scan)'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate current readiness evidence'
 	@echo '  $(COLOR_GREEN)pilot-closeout-bundle$(COLOR_RESET) Build a local pilot closeout bundle'
 	@echo '  $(COLOR_GREEN)help$(COLOR_RESET)               Show this help'
@@ -108,7 +108,8 @@ help-deploy:
 	@echo 'Production/Offline:'
 	@echo '  $(COLOR_GREEN)up-production$(COLOR_RESET)      Start production profile'
 	@echo '  $(COLOR_GREEN)up-tls$(COLOR_RESET)             Start TLS mode'
-	@echo '  $(COLOR_GREEN)up-offline$(COLOR_RESET)         Start offline mode'
+	@echo '  $(COLOR_GREEN)up-offline$(COLOR_RESET)         Start offline mode with local hardened images'
+	@echo '  $(COLOR_GREEN)up-offline-ci$(COLOR_RESET)      Start offline mode for CI using pinned fallback images'
 
 .PHONY: help-lint
 help-lint:
@@ -162,8 +163,8 @@ help-test:
 help-ci:
 	@echo '$(COLOR_BOLD)CI Tier Targets:$(COLOR_RESET)'
 	@echo '  $(COLOR_GREEN)ci-pr$(COLOR_RESET)              PR-required fast deterministic checks'
-	@echo '  $(COLOR_GREEN)ci$(COLOR_RESET)                 Local full gate (includes runtime-aware tests)'
-	@echo '  $(COLOR_GREEN)ci-nightly$(COLOR_RESET)         Scheduled runtime + release checks'
+	@echo '  $(COLOR_GREEN)ci$(COLOR_RESET)                 Local full gate (runtime via pinned offline images)'
+	@echo '  $(COLOR_GREEN)ci-nightly$(COLOR_RESET)         Scheduled runtime + release checks (pinned offline images)'
 	@echo '  $(COLOR_GREEN)ci-runtime-checks$(COLOR_RESET)  Runtime checks for running stack'
 	@echo '  $(COLOR_GREEN)ci-manual-heavy$(COLOR_RESET)    On-demand heavyweight security/image checks'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate dated readiness proof package'
@@ -173,8 +174,9 @@ help-ci:
 	@echo ''
 	@echo 'Recommended usage:'
 	@echo '  make ci-pr            # default for pull requests'
-	@echo '  make ci               # local full validation before release'
-	@echo '  make ci-nightly       # scheduled or pre-release runtime sweep'
+	@echo '  make ci               # local full validation via pinned offline images'
+	@echo '  make ci-nightly       # scheduled or pre-release runtime sweep via pinned offline images'
+	@echo '  make ci-manual-heavy  # optional local hardened image build/scan lane'
 	@echo '  make readiness-evidence # regenerate current enterprise proof'
 	@echo '  make pilot-closeout-bundle # assemble the pilot closeout packet'
 

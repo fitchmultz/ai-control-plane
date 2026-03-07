@@ -2,7 +2,13 @@
 
 **AI Control Plane Project**
 
-This directory contains executive-ready presentation materials for the AI Control Plane strategy.
+This directory contains presentation materials for leadership/internal and customer-facing AI Control Plane briefings.
+
+> Canonical source decks in this repository:
+> - `ai-control-plane-leadership-deck.md` for leadership/internal audiences
+> - `ai-control-plane-external-deck.md` for customer-facing audiences
+>
+> Generated PDF and PNG exports are local build artifacts and are **not committed**.
 
 ---
 
@@ -10,8 +16,12 @@ This directory contains executive-ready presentation materials for the AI Contro
 
 | File | Format | Purpose | Audience |
 |------|--------|---------|----------|
-| `ai-control-plane-leadership-deck.md` | Marp (Markdown) | Full 14-slide presentation | Leadership, CTO, Security stakeholders |
-| `ai-control-plane-leadership-deck.pdf` | PDF (generated locally) | Rendered presentation output (not committed) | Distribution, offline viewing |
+| `ai-control-plane-leadership-deck.md` | Marp (Markdown) | Full 14-slide leadership/internal source deck | Leadership, CTO, Security stakeholders |
+| `ai-control-plane-external-deck.md` | Marp (Markdown) | 12-slide customer-facing source deck | Prospective customers, external briefings |
+| `ai-control-plane-leadership-deck.pdf` | PDF (generated locally) | Leadership deck render (not committed) | Distribution, offline viewing |
+| `ai-control-plane-external-deck.pdf` | PDF (generated locally) | Customer-facing deck render (not committed) | Distribution, offline viewing |
+| `slides-external/README.md` | Markdown | External slide export guide and inventory | Presenters, maintainers |
+| `slides-external/*.png` | PNG (generated locally) | Customer-facing slide image exports (not committed) | PowerPoint/Keynote import, static export |
 | `EXECUTIVE_ONE_PAGER.md` | Markdown | Text-only executive summary | Quick reference, version control |
 | `executive-one-pager.html` | HTML | Styled one-page summary | Print to PDF, web viewing |
 | `generate-pdfs.sh` | Shell script | PDF generation automation | Maintainers |
@@ -32,7 +42,7 @@ open docs/presentation/executive-one-pager.html
 - Set margins to "Minimum" or "None"
 - Use A4 or Letter size
 
-### Option 2: Generate PDF from Marp Deck
+### Option 2: Generate PDFs from Marp Decks
 
 ```bash
 # Install Marp CLI (one-time)
@@ -46,12 +56,21 @@ cd docs/presentation
 marp ai-control-plane-leadership-deck.md --pdf --output deck.pdf
 ```
 
-### Option 3: VS Code Extension
+### Option 3: Generate Customer-Facing PNG Slides
 
-Install the **Marp for VS Code** extension for live preview and PDF export:
-- Open `ai-control-plane-leadership-deck.md`
+```bash
+cd docs/presentation
+marp ai-control-plane-external-deck.md --images --output slides-external/
+```
+
+These PNGs are generated delivery assets for external presentations and should not be committed to git.
+
+### Option 4: VS Code Extension
+
+Install the **Marp for VS Code** extension for live preview and export:
+- Open `ai-control-plane-leadership-deck.md` or `ai-control-plane-external-deck.md`
 - Click preview icon in top-right
-- Use "Export slide deck" command for PDF
+- Use "Export slide deck" for PDF or image output
 
 ---
 
@@ -71,6 +90,21 @@ Install the **Marp for VS Code** extension for live preview and PDF export:
 12. **Readiness** — 8/8 gates PASS status
 13. **Decisions** — Four leadership approvals needed
 14. **Closing** — Call to action
+
+## Customer-Facing Deck Structure (12 Slides)
+
+1. **Title** — Enterprise AI Control Plane
+2. **The AI Governance Gap** — Uncontrolled API and SaaS usage
+3. **The Solution** — Unified control plane overview
+4. **How It Works** — Architecture diagram
+5. **Route-Based Governance** — Enforce routed traffic and detect/respond on bypass
+6. **Service Offerings** — Four service tiers
+7. **Financial Governance** — Cost attribution and chargeback
+8. **Why This Project?** — Differentiation and operating model
+9. **Implementation Approach** — Four-phase rollout
+10. **Get Started** — Engagement options
+11. **Closing** — Call to action
+12. **Contact** — Next steps and references
 
 ---
 
@@ -113,7 +147,7 @@ sed -i '' 's/February 2026/[NEW DATE]/g' *.md *.html
 
 ### Modifying Service Offerings
 
-Edit `ai-control-plane-leadership-deck.md`:
+Edit the applicable source deck:
 ```markdown
 | Offering | Duration | Primary Outcome |
 |----------|----------|-----------------|
@@ -143,7 +177,7 @@ Refresh the readiness reference text in `executive-one-pager.html` so it points 
 
 ### For Sales Enablement
 1. One-pager as leave-behind
-2. Deck for discovery calls
+2. Customer-facing deck for discovery calls and static slide exports
 3. Link to demo scripts in `../demo/`
 
 ---
@@ -201,6 +235,7 @@ font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 ### Live Preview
 ```bash
 marp -p ai-control-plane-leadership-deck.md
+marp -p ai-control-plane-external-deck.md
 ```
 
 ### Theme Customization
@@ -217,7 +252,7 @@ marp deck.md --html
 # PPTX (PowerPoint)
 marp deck.md --pptx
 
-# PNG (images)
+# PNG (customer-facing images, generated locally and not committed)
 marp deck.md --images
 ```
 

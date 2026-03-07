@@ -51,12 +51,15 @@ test-detection-rules: ## Run detection rule tests
 performance-baseline: ## Run the local gateway performance baseline against the current stack
 	@echo '$(COLOR_BOLD)Running local performance baseline...$(COLOR_RESET)'
 	@set -euo pipefail; \
-	$(ACPCTL_BIN) ci wait --timeout $(PERFORMANCE_WAIT_TIMEOUT); \
-	args='--gateway-url $(PERFORMANCE_GATEWAY_URL) --model $(PERFORMANCE_MODEL) --max-tokens $(PERFORMANCE_MAX_TOKENS)'; \
+	"$(ACPCTL_BIN)" ci wait --timeout "$(PERFORMANCE_WAIT_TIMEOUT)"; \
+	set -- "$(ACPCTL_BIN)" benchmark baseline \
+		--gateway-url "$(PERFORMANCE_GATEWAY_URL)" \
+		--model "$(PERFORMANCE_MODEL)" \
+		--max-tokens "$(PERFORMANCE_MAX_TOKENS)"; \
 	if [ -n "$(PERFORMANCE_PROFILE)" ]; then \
-		args="$$args --profile $(PERFORMANCE_PROFILE)"; \
+		set -- "$$@" --profile "$(PERFORMANCE_PROFILE)"; \
 	else \
-		args="$$args --requests $(PERFORMANCE_REQUESTS) --concurrency $(PERFORMANCE_CONCURRENCY)"; \
+		set -- "$$@" --requests "$(PERFORMANCE_REQUESTS)" --concurrency "$(PERFORMANCE_CONCURRENCY)"; \
 	fi; \
-	eval '$(ACPCTL_BIN) benchmark baseline '$$args
+	"$$@"
 	@echo '$(COLOR_GREEN)✓ Performance baseline complete$(COLOR_RESET)'

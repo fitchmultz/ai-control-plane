@@ -4,6 +4,25 @@
 **Purpose:** External stakeholder communication of architecture and rollout approach  
 **Tone:** External, benefit-focused, professional
 
+> `docs/presentation/slides-external/*.png` are generated customer-facing exports and are **not committed** to source control.
+> The canonical source for this deck is `../ai-control-plane-external-deck.md`.
+
+---
+
+## Regenerate the PNG Slide Exports
+
+```bash
+cd docs/presentation
+marp ai-control-plane-external-deck.md --images --output slides-external/
+```
+
+## Build a Static PDF from the Generated PNG Slides
+
+```bash
+cd docs/presentation/slides-external
+img2pdf *.png -o ../ai-control-plane-external-deck.pdf
+```
+
 ---
 
 ## Slide Inventory (12 slides)

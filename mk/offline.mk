@@ -10,10 +10,16 @@
 #   - Does not manage online/production services
 
 .PHONY: up-offline
-up-offline: hardened-images-build ## Start offline mode services
+up-offline: hardened-images-build ## Start offline mode services with locally built hardened images
 	@echo '$(COLOR_BOLD)Starting offline mode services...$(COLOR_RESET)'
 	@cd $(COMPOSE_DIR) && ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local $(DOCKER_COMPOSE_PROJECT) -f docker-compose.offline.yml up -d
 	@echo '$(COLOR_GREEN)✓ Offline services started$(COLOR_RESET)'
+
+.PHONY: up-offline-ci
+up-offline-ci: ## Start offline mode services for CI using pinned fallback images
+	@echo '$(COLOR_BOLD)Starting offline mode services for CI...$(COLOR_RESET)'
+	@cd $(COMPOSE_DIR) && LITELLM_IMAGE= ACP_PULL_POLICY=missing $(DOCKER_COMPOSE_PROJECT) -f docker-compose.offline.yml up -d
+	@echo '$(COLOR_GREEN)✓ Offline CI services started$(COLOR_RESET)'
 
 .PHONY: down-offline
 down-offline: ## Stop offline mode services

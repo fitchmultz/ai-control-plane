@@ -45,7 +45,7 @@ go test ./...
 ## 3) Runtime smoke (manual proof)
 
 ```bash
-ACP_SLOT=ci-runtime make up-offline
+ACP_SLOT=ci-runtime make up-offline-ci
 ACP_SLOT=ci-runtime make ci-runtime-checks
 ACP_SLOT=ci-runtime make down-offline-clean
 ```

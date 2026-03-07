@@ -27,7 +27,7 @@ public-hygiene-check: ## Fail if local-only secrets/artifacts are tracked by git
 		echo '$(COLOR_RED)✗ git is required for public-hygiene-check$(COLOR_RESET)'; \
 		exit 2; \
 	fi
-	@violations="$$(git ls-files | grep -E '^(\.env$$|demo/\.env$$|demo/.*/\.env$$|demo/logs/|demo/backups/|handoff-packet/|\.ralph/|docs/presentation/slides-internal/|\.scratchpad\.md$$)' | grep -Ev '/\.gitkeep$$|/\.gitignore$$' || true)"; \
+	@violations="$$(git ls-files | grep -E '^(\.env$$|demo/\.env$$|demo/.*/\.env$$|demo/logs/|demo/backups/|handoff-packet/|\.ralph/|docs/presentation/slides-internal/|docs/presentation/slides-external/.*\.png$$|\.scratchpad\.md$$)' | grep -Ev '/\.gitkeep$$|/\.gitignore$$' || true)"; \
 	if [ -n "$$violations" ]; then \
 		echo '$(COLOR_RED)✗ Local-only files are tracked and block public release:$(COLOR_RESET)'; \
 		printf '%s\n' "$$violations"; \

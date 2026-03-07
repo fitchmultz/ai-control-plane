@@ -52,7 +52,7 @@ This is an infrastructure-first demo reference implementation with a typed opera
 make install     # Initial setup (creates `demo/.env`, pulls images)
 make install-ci  # CI setup (creates `demo/.env` only)
 make ci-pr       # Fast deterministic PR gate
-make ci          # Full CI gate (REQUIRED before claiming completion)
+make ci          # Full CI gate (REQUIRED before claiming completion; runtime uses pinned offline image fallback)
 make up          # Start services
 make performance-baseline # Run local reference-host performance baseline
 make pilot-closeout-bundle # Build the local pilot closeout artifact set
@@ -98,8 +98,9 @@ make health      # Verify services
 - Make-driven Docker Compose flows must use slot-scoped Compose project names (`ai-control-plane-<slot>`) so CI/runtime stacks do not collide with other local environments
 - Caddy TLS configs must stay compatible with pinned Caddy image behavior: use `lb_retries` (not `lb_retry_count`) and scope JSON `Content-Type` enforcement to body methods (`POST|PUT|PATCH`) so GET endpoints like `/v1/models` are not blocked.
 - `make`-driven runtime flows now default `LITELLM_IMAGE`/`LIBRECHAT_IMAGE` to locally built hardened images (`ai-control-plane/*:local`); direct `docker compose` still falls back to the pinned registry images declared in compose files.
+- `make ci` and `make ci-nightly` intentionally start the offline runtime with compose-pinned fallback images; local hardened image build/scan remains scoped to `make ci-manual-heavy` and local dev targets such as `make up-offline`.
 - Never commit secrets (API keys, tokens, OAuth tokens)
-- Runtime artifacts and internal workflow state are local-only; do not track `demo/logs/`, `handoff-packet/`, `.ralph/`, or `docs/presentation/slides-internal/` (see `docs/ARTIFACTS.md`)
+- Runtime artifacts and internal workflow state are local-only; do not track `demo/logs/`, `handoff-packet/`, `.ralph/`, `docs/presentation/slides-internal/`, or generated `docs/presentation/slides-external/*.png` exports (see `docs/ARTIFACTS.md`)
 - All executable scripts: `set -euo pipefail`, terminal-aware colors, `--help` menu
 - API testing: use low-cost models (`claude-haiku`, `gpt-4o-mini`)
 - Update relevant documentation when behavior changes
