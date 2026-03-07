@@ -14,6 +14,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/release"
 )
 
-func runReleaseBundleCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runReleaseBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 {
 		printReleaseBundleHelp(stdout)
 		return exitcodes.ACPExitUsage
@@ -45,7 +46,7 @@ func runReleaseBundleCommand(args []string, stdout *os.File, stderr *os.File) in
 		}
 	}
 
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 
 	// Parse arguments using the parser module
 	config, err := release.ParseArgs(args, repoRoot, release.GetDefaultVersion)
@@ -57,9 +58,9 @@ func runReleaseBundleCommand(args []string, stdout *os.File, stderr *os.File) in
 	// Dispatch to appropriate command handler
 	switch config.Command {
 	case "build":
-		return runReleaseBundleBuild(config, stdout, stderr)
+		return runReleaseBundleBuild(ctx, config, stdout, stderr)
 	case "verify":
-		return runReleaseBundleVerify(config, stdout, stderr)
+		return runReleaseBundleVerify(ctx, config, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Unknown command: %s\n", config.Command)
 		printReleaseBundleHelp(stderr)
@@ -67,9 +68,9 @@ func runReleaseBundleCommand(args []string, stdout *os.File, stderr *os.File) in
 	}
 }
 
-func runReleaseBundleBuild(config *release.Config, stdout *os.File, stderr *os.File) int {
+func runReleaseBundleBuild(ctx context.Context, config *release.Config, stdout *os.File, stderr *os.File) int {
 	out := output.New()
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 
 	// Validate version
 	if err := release.ValidateVersion(config.Version); err != nil {
@@ -129,7 +130,7 @@ func runReleaseBundleBuild(config *release.Config, stdout *os.File, stderr *os.F
 	return exitcodes.ACPExitSuccess
 }
 
-func runReleaseBundleVerify(config *release.Config, stdout *os.File, stderr *os.File) int {
+func runReleaseBundleVerify(_ context.Context, config *release.Config, stdout *os.File, stderr *os.File) int {
 	out := output.New()
 
 	if config.Bundle == "" {

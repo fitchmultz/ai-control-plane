@@ -35,17 +35,22 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func run(args []string, stdout *os.File, stderr *os.File) int {
+func run(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 {
 		printRootHelp(stdout)
 		return exitcodes.ACPExitUsage
@@ -58,7 +63,7 @@ func run(args []string, stdout *os.File, stderr *os.File) int {
 	}
 
 	if command, ok := lookupNativeCommand(args[0]); ok {
-		return command.Run(args[1:], stdout, stderr)
+		return command.Run(ctx, args[1:], stdout, stderr)
 	}
 
 	group, ok := lookupDelegatedGroup(args[0])
@@ -68,7 +73,7 @@ func run(args []string, stdout *os.File, stderr *os.File) int {
 		return exitcodes.ACPExitUsage
 	}
 
-	return runDelegatedGroup(group, args[1:], stdout, stderr)
+	return runDelegatedGroup(ctx, group, args[1:], stdout, stderr)
 }
 
 func printRootHelp(out *os.File) {

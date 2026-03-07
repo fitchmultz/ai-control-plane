@@ -15,9 +15,10 @@ package runner
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
 // Result contains the outcome of a command execution
@@ -26,6 +27,9 @@ type Result struct {
 	Stderr   string
 	ExitCode int
 	Error    error
+	TimedOut bool
+	Canceled bool
+	NotFound bool
 }
 
 // Runner executes commands
@@ -36,46 +40,35 @@ type Runner interface {
 // DefaultRunner is the production command runner
 type DefaultRunner struct {
 	WorkDir string
+	Timeout time.Duration
 }
 
 // NewDefaultRunner creates a new default runner
 func NewDefaultRunner(workDir string) *DefaultRunner {
-	return &DefaultRunner{WorkDir: workDir}
+	return &DefaultRunner{
+		WorkDir: workDir,
+		Timeout: 10 * time.Second,
+	}
 }
 
 // Run executes a command and returns the result
 func (r *DefaultRunner) Run(ctx context.Context, name string, arg ...string) *Result {
-	// Ensure context has timeout
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
+	res := proc.Run(ctx, proc.Request{
+		Name:    name,
+		Args:    arg,
+		Dir:     r.WorkDir,
+		Timeout: r.Timeout,
+	})
+
+	return &Result{
+		Stdout:   res.Stdout,
+		Stderr:   res.Stderr,
+		ExitCode: res.ExitCode,
+		Error:    res.Err,
+		TimedOut: proc.IsTimeout(res.Err),
+		Canceled: proc.IsCanceled(res.Err),
+		NotFound: proc.IsNotFound(res.Err),
 	}
-
-	cmd := exec.CommandContext(ctx, name, arg...)
-	if r.WorkDir != "" {
-		cmd.Dir = r.WorkDir
-	}
-
-	// Use CombinedOutput to capture both stdout and stderr
-	output, err := cmd.CombinedOutput()
-
-	result := &Result{
-		Stdout: string(output),
-	}
-
-	if err != nil {
-		result.Error = err
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-			// CombinedOutput already includes stderr in output
-			result.Stderr = string(exitErr.Stderr)
-		} else {
-			result.ExitCode = -1
-		}
-	}
-
-	return result
 }
 
 // MockRunner is a test double for command execution

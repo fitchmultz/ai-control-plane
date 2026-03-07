@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,7 +26,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 )
 
-func runValidateDetections(args []string, stdout *os.File, stderr *os.File) int {
+func runValidateDetections(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	verbose := false
 	for _, arg := range args {
 		if arg == "--verbose" || arg == "-v" {
@@ -93,7 +94,7 @@ func runValidateDetections(args []string, stdout *os.File, stderr *os.File) int 
 	return exitcodes.ACPExitSuccess
 }
 
-func runValidateSiemQueries(args []string, stdout *os.File, stderr *os.File) int {
+func runValidateSiemQueries(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	validateSchema := false
 	verbose := false
 	for _, arg := range args {
@@ -157,7 +158,7 @@ func runValidateSiemQueries(args []string, stdout *os.File, stderr *os.File) int
 	return exitcodes.ACPExitSuccess
 }
 
-func runValidateConfig(args []string, stdout *os.File, stderr *os.File) int {
+func runValidateConfig(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if isHelpToken(arg) {
 			printValidateConfigHelp(stdout)
@@ -203,7 +204,7 @@ func runValidateConfig(args []string, stdout *os.File, stderr *os.File) int {
 	return exitcodes.ACPExitSuccess
 }
 
-func runValidateComposeHealthchecks(args []string, stdout *os.File, stderr *os.File) int {
+func runValidateComposeHealthchecks(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if isHelpToken(arg) {
 			printValidateComposeHealthchecksHelp(stdout)

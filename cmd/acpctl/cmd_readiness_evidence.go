@@ -22,6 +22,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,7 +33,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/release"
 )
 
-func runReadinessEvidenceCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runReadinessEvidenceCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 || isHelpToken(args[0]) {
 		printReadinessEvidenceHelp(stdout)
 		if len(args) == 0 {
@@ -43,9 +44,9 @@ func runReadinessEvidenceCommand(args []string, stdout *os.File, stderr *os.File
 
 	switch args[0] {
 	case "run":
-		return runReadinessEvidenceRun(args[1:], stdout, stderr)
+		return runReadinessEvidenceRun(ctx, args[1:], stdout, stderr)
 	case "verify":
-		return runReadinessEvidenceVerify(args[1:], stdout, stderr)
+		return runReadinessEvidenceVerify(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Error: unknown readiness-evidence command: %s\n", args[0])
 		printReadinessEvidenceHelp(stderr)
@@ -53,9 +54,9 @@ func runReadinessEvidenceCommand(args []string, stdout *os.File, stderr *os.File
 	}
 }
 
-func runReadinessEvidenceRun(args []string, stdout *os.File, stderr *os.File) int {
+func runReadinessEvidenceRun(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	out := output.New()
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	makeBin := strings.TrimSpace(os.Getenv("ACPCTL_MAKE_BIN"))
 	if makeBin == "" {
 		makeBin = "make"
@@ -104,7 +105,7 @@ func runReadinessEvidenceRun(args []string, stdout *os.File, stderr *os.File) in
 	}
 
 	fmt.Fprint(stdout, out.Bold("Generating readiness evidence")+"\n")
-	summary, err := release.RunReadinessEvidence(options, stdout, stderr)
+	summary, err := release.RunReadinessEvidenceContext(ctx, options, stdout, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
@@ -123,9 +124,9 @@ func runReadinessEvidenceRun(args []string, stdout *os.File, stderr *os.File) in
 	return exitcodes.ACPExitSuccess
 }
 
-func runReadinessEvidenceVerify(args []string, stdout *os.File, stderr *os.File) int {
+func runReadinessEvidenceVerify(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	out := output.New()
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	runDir := ""
 
 	for index := 0; index < len(args); index++ {

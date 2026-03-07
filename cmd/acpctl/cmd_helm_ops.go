@@ -9,15 +9,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
+	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
-func runHelmValidateCommand(args []string, stdout *os.File, stderr *os.File) int {
+const helmLintTimeout = 30 * time.Second
+
+func runHelmValidateCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if arg == "--help" || arg == "-h" {
 			printHelmValidateHelp(stdout)
@@ -28,28 +33,38 @@ func runHelmValidateCommand(args []string, stdout *os.File, stderr *os.File) int
 	out := output.New()
 	fmt.Fprintln(stdout, out.Bold("=== Helm Chart Validation ==="))
 
-	// Check if helm is available
-	if _, err := exec.LookPath("helm"); err != nil {
-		fmt.Fprintln(stderr, out.Fail("helm not found in PATH"))
-		return exitcodes.ACPExitPrereq
-	}
-
-	repoRoot := detectRepoRoot()
-	helmDir := repoRoot + "/deploy/helm/ai-control-plane"
-
-	// Run helm lint
-	cmd := exec.Command("helm", "lint", helmDir)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Helm lint failed: %s\n"), string(output))
-		return exitcodes.ACPExitDomain
+	repoRoot := detectRepoRootWithContext(ctx)
+	helmDir := filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane")
+	res := proc.Run(ctx, proc.Request{
+		Name:    "helm",
+		Args:    []string{"lint", helmDir},
+		Dir:     repoRoot,
+		Stdout:  stdout,
+		Stderr:  stderr,
+		Timeout: helmLintTimeout,
+	})
+	if res.Err != nil {
+		switch {
+		case proc.IsNotFound(res.Err):
+			fmt.Fprintln(stderr, out.Fail("helm not found in PATH"))
+			return exitcodes.ACPExitPrereq
+		case proc.IsTimeout(res.Err):
+			fmt.Fprintln(stderr, out.Fail("helm lint timed out"))
+			return exitcodes.ACPExitRuntime
+		case proc.IsCanceled(res.Err):
+			fmt.Fprintln(stderr, out.Fail("helm lint canceled"))
+			return exitcodes.ACPExitRuntime
+		default:
+			fmt.Fprintln(stderr, out.Fail("Helm lint failed"))
+			return exitcodes.ACPExitDomain
+		}
 	}
 
 	fmt.Fprintln(stdout, out.Green("Helm chart validation passed"))
 	return exitcodes.ACPExitSuccess
 }
 
-func runHelmSmokeCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runHelmSmokeCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if arg == "--help" || arg == "-h" {
 			printHelmSmokeHelp(stdout)

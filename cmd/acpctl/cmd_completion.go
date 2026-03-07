@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
-func runCompletionSubcommand(args []string, stdout *os.File, stderr *os.File) int {
+func runCompletionSubcommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, "Error: Shell type required (bash, zsh, fish)")
 		fmt.Fprintln(stderr, "Usage: acpctl completion <bash|zsh|fish>")
@@ -31,11 +32,11 @@ func runCompletionSubcommand(args []string, stdout *os.File, stderr *os.File) in
 
 	switch shell {
 	case "bash":
-		return generateBashCompletion(stdout, stderr)
+		return generateBashCompletion(ctx, stdout, stderr)
 	case "zsh":
-		return generateZshCompletion(stdout, stderr)
+		return generateZshCompletion(ctx, stdout, stderr)
 	case "fish":
-		return generateFishCompletion(stdout, stderr)
+		return generateFishCompletion(ctx, stdout, stderr)
 	case "help", "--help", "-h":
 		printCompletionHelp(stdout)
 		return exitcodes.ACPExitSuccess
@@ -77,8 +78,8 @@ Exit codes:
 `)
 }
 
-func generateBashCompletion(stdout *os.File, stderr *os.File) int {
-	catalog := buildCompletionCatalog(detectRepoRoot())
+func generateBashCompletion(ctx context.Context, stdout *os.File, stderr *os.File) int {
+	catalog := buildCompletionCatalog(detectRepoRootWithContext(ctx))
 	var script strings.Builder
 
 	fmt.Fprintf(&script, "_acpctl_complete() {\n")
@@ -103,7 +104,7 @@ func generateBashCompletion(stdout *os.File, stderr *os.File) int {
 	return exitcodes.ACPExitSuccess
 }
 
-func generateZshCompletion(stdout *os.File, stderr *os.File) int {
+func generateZshCompletion(_ context.Context, stdout *os.File, stderr *os.File) int {
 	registry := buildCommandRegistry()
 	var script strings.Builder
 
@@ -134,7 +135,7 @@ func generateZshCompletion(stdout *os.File, stderr *os.File) int {
 	return exitcodes.ACPExitSuccess
 }
 
-func generateFishCompletion(stdout *os.File, stderr *os.File) int {
+func generateFishCompletion(_ context.Context, stdout *os.File, stderr *os.File) int {
 	registry := buildCommandRegistry()
 	var script strings.Builder
 
@@ -167,7 +168,7 @@ func generateFishCompletion(stdout *os.File, stderr *os.File) int {
 	return exitcodes.ACPExitSuccess
 }
 
-func runHiddenComplete(args []string, stdout *os.File, stderr *os.File) int {
+func runHiddenComplete(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	// Hidden completion helper for Cobra compatibility if needed in future
 	// Currently not used but reserved for compatibility
 	return exitcodes.ACPExitSuccess

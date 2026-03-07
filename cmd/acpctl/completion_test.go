@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -39,7 +40,7 @@ func TestRunCompletionSubcommand_NoArgs(t *testing.T) {
 	}
 	defer os.Remove(stderr.Name())
 
-	exitCode := runCompletionSubcommand([]string{}, stdout, stderr)
+	exitCode := runCompletionSubcommand(context.Background(), []string{}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Errorf("expected exit code %d for no args, got %d", exitcodes.ACPExitUsage, exitCode)
@@ -61,7 +62,7 @@ func TestRunCompletionSubcommand_UnsupportedShell(t *testing.T) {
 	}
 	defer os.Remove(stderr.Name())
 
-	exitCode := runCompletionSubcommand([]string{"powershell"}, stdout, stderr)
+	exitCode := runCompletionSubcommand(context.Background(), []string{"powershell"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Errorf("expected exit code %d for unsupported shell, got %d", exitcodes.ACPExitUsage, exitCode)
@@ -76,7 +77,7 @@ func TestRunCompletionSubcommand_Bash(t *testing.T) {
 	defer os.Remove(stdout.Name())
 	stderr := os.Stderr
 
-	exitCode := runCompletionSubcommand([]string{"bash"}, stdout, stderr)
+	exitCode := runCompletionSubcommand(context.Background(), []string{"bash"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Errorf("expected exit code %d for bash, got %d", exitcodes.ACPExitSuccess, exitCode)
@@ -103,7 +104,7 @@ func TestRunCompletionSubcommand_Zsh(t *testing.T) {
 	defer os.Remove(stdout.Name())
 	stderr := os.Stderr
 
-	exitCode := runCompletionSubcommand([]string{"zsh"}, stdout, stderr)
+	exitCode := runCompletionSubcommand(context.Background(), []string{"zsh"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Errorf("expected exit code %d for zsh, got %d", exitcodes.ACPExitSuccess, exitCode)
@@ -130,7 +131,7 @@ func TestRunCompletionSubcommand_Fish(t *testing.T) {
 	defer os.Remove(stdout.Name())
 	stderr := os.Stderr
 
-	exitCode := runCompletionSubcommand([]string{"fish"}, stdout, stderr)
+	exitCode := runCompletionSubcommand(context.Background(), []string{"fish"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Errorf("expected exit code %d for fish, got %d", exitcodes.ACPExitSuccess, exitCode)
@@ -686,7 +687,7 @@ func captureCompletionScript(t *testing.T, shell string) string {
 	}
 	defer os.Remove(stderr.Name())
 
-	if exitCode := runCompletionSubcommand([]string{shell}, stdout, stderr); exitCode != exitcodes.ACPExitSuccess {
+	if exitCode := runCompletionSubcommand(context.Background(), []string{shell}, stdout, stderr); exitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected success generating %s completion, got %d", shell, exitCode)
 	}
 

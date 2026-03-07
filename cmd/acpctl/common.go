@@ -13,10 +13,15 @@
 package main
 
 import (
+	"context"
 	"os"
-	"os/exec"
 	"strings"
+	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
+
+const repoRootDetectTimeout = 5 * time.Second
 
 // repeatedStringFlag is a flag that can be specified multiple times
 type repeatedStringFlag []string
@@ -42,19 +47,26 @@ func isHelpToken(arg string) bool {
 
 // detectRepoRoot finds the repository root using git or environment variable
 func detectRepoRoot() string {
+	return detectRepoRootWithContext(context.Background())
+}
+
+func detectRepoRootWithContext(ctx context.Context) string {
 	if explicit := strings.TrimSpace(os.Getenv("ACP_REPO_ROOT")); explicit != "" {
 		return explicit
 	}
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
-	if err != nil {
+	res := proc.Run(ctx, proc.Request{
+		Name:    "git",
+		Args:    []string{"rev-parse", "--show-toplevel"},
+		Timeout: repoRootDetectTimeout,
+	})
+	if res.Err != nil {
 		wd, wdErr := os.Getwd()
 		if wdErr != nil {
 			return ""
 		}
 		return wd
 	}
-	return strings.TrimSpace(string(out))
+	return strings.TrimSpace(res.Stdout)
 }
 
 // isTerminal checks if stdout is a terminal

@@ -154,3 +154,46 @@ func TestNormalizeOptionsValidation(t *testing.T) {
 		t.Fatal("expected invalid warmup requests error")
 	}
 }
+
+func TestRunBaseline_CanceledDuringWarmup(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := RunBaseline(ctx, BaselineOptions{
+		GatewayURL:     "http://example.test",
+		MasterKey:      "secret",
+		Requests:       2,
+		Concurrency:    1,
+		WarmupRequests: 2,
+		RequestFunc: func(ctx context.Context, _ BaselineOptions) (time.Duration, error) {
+			return 10 * time.Millisecond, ctx.Err()
+		},
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestRunBaseline_CancelStopsMeasuredWork(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	requests := 0
+
+	_, err := RunBaseline(ctx, BaselineOptions{
+		GatewayURL:  "http://example.test",
+		MasterKey:   "secret",
+		Requests:    100,
+		Concurrency: 4,
+		RequestFunc: func(ctx context.Context, _ BaselineOptions) (time.Duration, error) {
+			requests++
+			cancel()
+			<-ctx.Done()
+			return 0, ctx.Err()
+		},
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if requests > 8 {
+		t.Fatalf("cancellation was not prompt; request count = %d", requests)
+	}
+}

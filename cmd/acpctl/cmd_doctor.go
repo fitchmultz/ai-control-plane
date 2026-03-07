@@ -61,7 +61,7 @@ Exit codes:
 `)
 }
 
-func runDoctorCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	var jsonOutput, wide, fix bool
 	skipChecks := make(map[string]struct{})
 
@@ -90,7 +90,7 @@ func runDoctorCommand(args []string, stdout *os.File, stderr *os.File) int {
 		}
 	}
 
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	if repoRoot == "" {
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
@@ -115,7 +115,7 @@ func runDoctorCommand(args []string, stdout *os.File, stderr *os.File) int {
 		Wide:          wide,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	report := doctor.Run(ctx, doctor.DefaultChecks(), opts)

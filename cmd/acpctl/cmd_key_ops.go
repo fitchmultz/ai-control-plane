@@ -25,7 +25,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
-func runKeyGenCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runKeyGenCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	// Handle help
 	if len(args) == 0 || (len(args) == 1 && (args[0] == "--help" || args[0] == "-h")) {
 		printKeyGenHelp(stdout)
@@ -97,7 +97,7 @@ func runKeyGenCommand(args []string, stdout *os.File, stderr *os.File) int {
 	}
 
 	// Create gateway client and generate key
-	return generateKey(config, req, stdout, stderr, out)
+	return generateKey(ctx, config, req, stdout, stderr, out)
 }
 
 func runDryRun(config *keygen.Config, role string, models []string, stdout *os.File, out *output.Output) int {
@@ -119,7 +119,7 @@ func runDryRun(config *keygen.Config, role string, models []string, stdout *os.F
 	return exitcodes.ACPExitSuccess
 }
 
-func generateKey(config *keygen.Config, req *gateway.GenerateKeyRequest, stdout *os.File, stderr *os.File, out *output.Output) int {
+func generateKey(ctx context.Context, config *keygen.Config, req *gateway.GenerateKeyRequest, stdout *os.File, stderr *os.File, out *output.Output) int {
 	masterKey := os.Getenv("LITELLM_MASTER_KEY")
 	client := gateway.NewClient(gateway.WithMasterKey(masterKey))
 
@@ -137,7 +137,6 @@ func generateKey(config *keygen.Config, req *gateway.GenerateKeyRequest, stdout 
 	fmt.Fprintf(stderr, "  Budget duration: %s\n", config.Duration)
 	fmt.Fprintln(stderr, "")
 
-	ctx := context.Background()
 	resp, err := client.GenerateKey(ctx, req)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Key generation failed: %v\n"), err)
@@ -149,7 +148,7 @@ func generateKey(config *keygen.Config, req *gateway.GenerateKeyRequest, stdout 
 	return exitcodes.ACPExitSuccess
 }
 
-func runKeyRevokeCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runKeyRevokeCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 || (len(args) == 1 && (args[0] == "--help" || args[0] == "-h")) {
 		printKeyRevokeHelp(stdout)
 		return exitcodes.ACPExitSuccess

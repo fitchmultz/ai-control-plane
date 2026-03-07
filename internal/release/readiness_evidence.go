@@ -24,16 +24,17 @@
 package release
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
 const (
@@ -49,7 +50,7 @@ const (
 
 var (
 	readinessNow          = func() time.Time { return time.Now().UTC() }
-	readinessGateExecutor = executeReadinessGate
+	readinessGateExecutor = executeReadinessGateContext
 )
 
 // ReadinessOptions describes how to build a readiness evidence run.
@@ -116,6 +117,10 @@ func NewReadinessVerifier() *ReadinessVerifier {
 
 // RunReadinessEvidence executes the configured readiness gates and writes artifacts.
 func RunReadinessEvidence(opts ReadinessOptions, stdout io.Writer, stderr io.Writer) (*ReadinessSummary, error) {
+	return RunReadinessEvidenceContext(context.Background(), opts, stdout, stderr)
+}
+
+func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, stdout io.Writer, stderr io.Writer) (*ReadinessSummary, error) {
 	if opts.RepoRoot == "" {
 		return nil, fmt.Errorf("repo root is required")
 	}
@@ -193,7 +198,7 @@ func RunReadinessEvidence(opts ReadinessOptions, stdout io.Writer, stderr io.Wri
 		fmt.Fprintf(stdout, "[%s] %s\n", gate.id, gate.title)
 		startedAt := readinessNow()
 		result.StartedAtUTC = startedAt.Format(time.RFC3339)
-		status, finishedAt, runErr := readinessGateExecutor(opts.RepoRoot, opts.MakeBin, gate, result.LogPath, stdout, stderr)
+		status, finishedAt, runErr := readinessGateExecutor(ctx, opts.RepoRoot, opts.MakeBin, gate, result.LogPath, stdout, stderr)
 		result.Status = status
 		result.FinishedAtUTC = finishedAt.Format(time.RFC3339)
 		result.Duration = finishedAt.Sub(startedAt).Round(time.Second).String()
@@ -260,7 +265,7 @@ func buildReadinessGates(opts ReadinessOptions, productionEnabled bool) []readin
 	return gates
 }
 
-func executeReadinessGate(repoRoot string, makeBin string, gate readinessGateSpec, logPath string, stdout io.Writer, stderr io.Writer) (string, time.Time, error) {
+func executeReadinessGateContext(ctx context.Context, repoRoot string, makeBin string, gate readinessGateSpec, logPath string, stdout io.Writer, stderr io.Writer) (string, time.Time, error) {
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		return "FAIL", time.Now().UTC(), fmt.Errorf("create log file: %w", err)
@@ -269,23 +274,29 @@ func executeReadinessGate(repoRoot string, makeBin string, gate readinessGateSpe
 
 	logWriter := io.MultiWriter(stdout, logFile)
 	errWriter := io.MultiWriter(stderr, logFile)
-	cmd := exec.Command(makeBin, gate.command...)
-	cmd.Dir = repoRoot
-	cmd.Stdout = logWriter
-	cmd.Stderr = errWriter
-	cmd.Stdin = nil
-	cmd.Env = append(os.Environ(), "READINESS_EVIDENCE_ACTIVE=1")
-	cmdErr := cmd.Run()
+	res := proc.Run(ctx, proc.Request{
+		Name:    makeBin,
+		Args:    gate.command,
+		Dir:     repoRoot,
+		Env:     []string{"READINESS_EVIDENCE_ACTIVE=1"},
+		Stdout:  logWriter,
+		Stderr:  errWriter,
+		Timeout: 30 * time.Minute,
+	})
 	finishedAt := time.Now().UTC()
-	if cmdErr == nil {
+	if res.Err == nil {
 		return "PASS", finishedAt, nil
 	}
-
-	var exitErr *exec.ExitError
-	if errors.As(cmdErr, &exitErr) {
-		return "FAIL", finishedAt, fmt.Errorf("command exited with status %d", exitErr.ExitCode())
+	if proc.IsTimeout(res.Err) {
+		return "FAIL", finishedAt, fmt.Errorf("command timed out after %s", 30*time.Minute)
 	}
-	return "FAIL", finishedAt, fmt.Errorf("command execution failed: %w", cmdErr)
+	if proc.IsCanceled(res.Err) {
+		return "FAIL", finishedAt, fmt.Errorf("command canceled")
+	}
+	if exitCode, ok := proc.ExitCode(res.Err); ok {
+		return "FAIL", finishedAt, fmt.Errorf("command exited with status %d", exitCode)
+	}
+	return "FAIL", finishedAt, fmt.Errorf("command execution failed: %w", res.Err)
 }
 
 func writeReadinessArtifacts(runDir string, summary *ReadinessSummary) error {

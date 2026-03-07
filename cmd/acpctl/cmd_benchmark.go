@@ -26,6 +26,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,7 +43,7 @@ var benchmarkRunner = performance.RunBaseline
 
 const benchmarkProfileConfigRelativePath = "demo/config/benchmark_thresholds.json"
 
-func runBenchmarkCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runBenchmarkCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 || isHelpToken(args[0]) {
 		printBenchmarkHelp(stdout)
 		if len(args) == 0 {
@@ -55,10 +56,10 @@ func runBenchmarkCommand(args []string, stdout *os.File, stderr *os.File) int {
 		printBenchmarkHelp(stderr)
 		return exitcodes.ACPExitUsage
 	}
-	return runBenchmarkBaseline(args[1:], stdout, stderr)
+	return runBenchmarkBaseline(ctx, args[1:], stdout, stderr)
 }
 
-func runBenchmarkBaseline(args []string, stdout *os.File, stderr *os.File) int {
+func runBenchmarkBaseline(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	opts := performance.BaselineOptions{
 		GatewayURL:     "http://127.0.0.1:4000",
 		MasterKey:      strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY")),
@@ -175,7 +176,7 @@ func runBenchmarkBaseline(args []string, stdout *os.File, stderr *os.File) int {
 	}
 
 	if profileName != "" {
-		catalog, err := performance.LoadProfileCatalog(filepath.Join(detectRepoRoot(), benchmarkProfileConfigRelativePath))
+		catalog, err := performance.LoadProfileCatalog(filepath.Join(detectRepoRootWithContext(ctx), benchmarkProfileConfigRelativePath))
 		if err != nil {
 			fmt.Fprintf(stderr, "Error: %v\n", err)
 			return exitcodes.ACPExitRuntime
@@ -197,9 +198,16 @@ func runBenchmarkBaseline(args []string, stdout *os.File, stderr *os.File) int {
 		}
 	}
 
-	summary, err := benchmarkRunner(context.Background(), opts)
+	summary, err := benchmarkRunner(ctx, opts)
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			fmt.Fprintln(stderr, "Error: benchmark timed out")
+		case errors.Is(err, context.Canceled):
+			fmt.Fprintln(stderr, "Error: benchmark canceled")
+		default:
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+		}
 		return exitcodes.ACPExitRuntime
 	}
 	if jsonOutput {

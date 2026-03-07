@@ -18,6 +18,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -175,7 +176,7 @@ func TestRunDBRestoreCommand_InvalidGzip(t *testing.T) {
 	}
 	defer os.Remove(stderr.Name())
 
-	exitCode := runDBRestoreCommand([]string{invalidFile}, stdout, stderr)
+	exitCode := runDBRestoreCommand(context.Background(), []string{invalidFile}, stdout, stderr)
 	if exitCode != exitcodes.ACPExitRuntime {
 		t.Fatalf("expected runtime exit code for invalid gzip, got %d", exitCode)
 	}
@@ -190,7 +191,7 @@ func TestRunDBRestoreCommand_Help(t *testing.T) {
 
 	stderr := os.Stderr
 
-	exitCode := runDBRestoreCommand([]string{"--help"}, stdout, stderr)
+	exitCode := runDBRestoreCommand(context.Background(), []string{"--help"}, stdout, stderr)
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0 for --help, got %d", exitCode)
 	}
@@ -205,7 +206,7 @@ func TestRunDBBackupCommand_Help(t *testing.T) {
 
 	stderr := os.Stderr
 
-	exitCode := runDBBackupCommand([]string{"--help"}, stdout, stderr)
+	exitCode := runDBBackupCommand(context.Background(), []string{"--help"}, stdout, stderr)
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0 for --help, got %d", exitCode)
 	}
@@ -220,7 +221,7 @@ func TestRunDBDRDrill_Help(t *testing.T) {
 
 	stderr := os.Stderr
 
-	exitCode := runDBDRDrill([]string{"--help"}, stdout, stderr)
+	exitCode := runDBDRDrill(context.Background(), []string{"--help"}, stdout, stderr)
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0 for --help, got %d", exitCode)
 	}
@@ -321,7 +322,7 @@ func TestRunDBBackupCommand_RejectsTraversalBeforeDockerChecks(t *testing.T) {
 	}
 	defer os.Remove(stderr.Name())
 
-	exitCode := runDBBackupCommand([]string{"../../escape"}, stdout, stderr)
+	exitCode := runDBBackupCommand(context.Background(), []string{"../../escape"}, stdout, stderr)
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage exit code for traversal attempt, got %d", exitCode)
 	}
