@@ -1839,5 +1839,5 @@ Refer to the following documents for tool-specific configuration:
 | `make clean` | Remove artifacts + logs. DESTRUCTIVE: deletes Docker volumes. Prompts; use `FORCE=1` for non-interactive. |
 | `make demo-scenario SCENARIO=6` | Run DLP/guardrails demo |
 | `make demo-scenario SCENARIO=7` | Run Network/Endpoint Enforcement demo |
-| `make ci` | Run full CI gate (format, generate, lint, type-check, build, supply-chain-gate, supply-chain-allowlist-expiry-check, script-tests, license-report-update, runtime validation) |
+| `make ci` | Run full CI gate (format, generate, lint, type-check, build, supply-chain-gate, supply-chain-allowlist-expiry-check, script-tests, license-report-update, runtime validation via pinned offline images) |
 | `make build` | Build/recreate Docker containers (requires Docker+Compose; exits 2 if missing) |

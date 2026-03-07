@@ -4,14 +4,17 @@ This guide describes how to package and deliver presentation materials from this
 
 ## Available Slide Assets
 
-### External PNG Deck (Customer-facing)
+### External PNG Deck (Customer-facing, generated on demand)
 - **Location:** `docs/presentation/slides-external/`
-- **Format:** 12 PNG slides
-- **Use for:** customer demos, leadership briefings, and static deck export
+- **Format:** 12 PNG slide exports
+- **Use for:** customer demos, external briefings, and static deck export
+- **Source of truth:** `docs/presentation/ai-control-plane-external-deck.md`
+- **Commit policy:** Generated locally for delivery/distribution; do not commit PNG exports
 
-### Marp Source Deck
-- **Location:** `docs/presentation/ai-control-plane-leadership-deck.md`
-- **Use for:** editable narrative updates and PDF/PPTX generation
+### Marp Source Decks
+- **Leadership/Internal:** `docs/presentation/ai-control-plane-leadership-deck.md`
+- **Customer/External:** `docs/presentation/ai-control-plane-external-deck.md`
+- **Use for:** editable narrative updates and PDF/PPTX/PNG generation
 
 ### Executive One-Pager
 - **Files:**
@@ -27,11 +30,20 @@ cd docs/presentation
 ./generate-pdfs.sh
 ```
 
+### Build PNG slides for customer-facing export
+
+```bash
+cd docs/presentation
+marp ai-control-plane-external-deck.md --images --output slides-external/
+```
+
 ### Build a PDF directly from PNG slides
 
 ```bash
-cd docs/presentation/slides-external
-img2pdf *.png -o ../ai-control-plane-strategy-external.pdf
+cd docs/presentation
+marp ai-control-plane-external-deck.md --images --output slides-external/
+cd slides-external
+img2pdf *.png -o ../ai-control-plane-external-deck.pdf
 ```
 
 ## Presentation Flow (15–20 minutes)
@@ -39,7 +51,7 @@ img2pdf *.png -o ../ai-control-plane-strategy-external.pdf
 1. Problem framing
 2. Architecture and governance approach
 3. Service offerings and operational model
-4. Validation evidence and known limitations
+4. Validation evidence and known limitations for leadership/internal audiences
 5. Decision/next-step ask
 
 ## Messaging Guardrails

@@ -36,11 +36,13 @@ release-bundle-verify: install-binary ## Verify release bundle checksum manifest
 readiness-evidence: install-binary ## Generate a timestamped readiness evidence pack
 	@echo '$(COLOR_BOLD)Generating readiness evidence...$(COLOR_RESET)'
 	@set -euo pipefail; \
-	args='--output-dir "$(READINESS_EVIDENCE_OUT_DIR)" --bundle-version "$(RELEASE_BUNDLE_VERSION)"'; \
+	set -- "$(ACPCTL_BIN)" deploy readiness-evidence run \
+		--output-dir "$(READINESS_EVIDENCE_OUT_DIR)" \
+		--bundle-version "$(RELEASE_BUNDLE_VERSION)"; \
 	if [ "$(READINESS_INCLUDE_PRODUCTION)" = "1" ]; then \
-		args="$$args --include-production --secrets-env-file \"$(SECRETS_ENV_FILE)\""; \
+		set -- "$$@" --include-production --secrets-env-file "$(SECRETS_ENV_FILE)"; \
 	fi; \
-	eval '$(ACPCTL_BIN) deploy readiness-evidence run '$$args
+	"$$@"
 
 .PHONY: readiness-evidence-verify
 readiness-evidence-verify: install-binary ## Verify the latest readiness evidence pack
@@ -50,23 +52,30 @@ readiness-evidence-verify: install-binary ## Verify the latest readiness evidenc
 pilot-closeout-bundle: install-binary ## Build a local pilot closeout bundle from example or customer-specific docs
 	@echo '$(COLOR_BOLD)Building pilot closeout bundle...$(COLOR_RESET)'
 	@set -euo pipefail; \
-	args='--output-dir "$(PILOT_CLOSEOUT_OUT_DIR)" --customer "$(PILOT_CUSTOMER)" --pilot-name "$(PILOT_NAME)" --decision "$(PILOT_DECISION)" --charter "$(PILOT_CHARTER)" --acceptance-memo "$(PILOT_ACCEPTANCE_MEMO)" --validation-checklist "$(PILOT_VALIDATION_CHECKLIST)"'; \
+	set -- "$(ACPCTL_BIN)" deploy pilot-closeout-bundle build \
+		--output-dir "$(PILOT_CLOSEOUT_OUT_DIR)" \
+		--customer "$(PILOT_CUSTOMER)" \
+		--pilot-name "$(PILOT_NAME)" \
+		--decision "$(PILOT_DECISION)" \
+		--charter "$(PILOT_CHARTER)" \
+		--acceptance-memo "$(PILOT_ACCEPTANCE_MEMO)" \
+		--validation-checklist "$(PILOT_VALIDATION_CHECKLIST)"; \
 	if [ -n "$(PILOT_OPERATOR_CHECKLIST)" ]; then \
-		args="$$args --operator-checklist \"$(PILOT_OPERATOR_CHECKLIST)\""; \
+		set -- "$$@" --operator-checklist "$(PILOT_OPERATOR_CHECKLIST)"; \
 	fi; \
 	if [ -n "$(PILOT_READINESS_RUN_DIR)" ]; then \
-		args="$$args --readiness-run-dir \"$(PILOT_READINESS_RUN_DIR)\""; \
+		set -- "$$@" --readiness-run-dir "$(PILOT_READINESS_RUN_DIR)"; \
 	fi; \
-	eval '$(ACPCTL_BIN) deploy pilot-closeout-bundle build '$$args
+	"$$@"
 
 .PHONY: pilot-closeout-bundle-verify
 pilot-closeout-bundle-verify: install-binary ## Verify the latest pilot closeout bundle
 	@set -euo pipefail; \
-	args=''; \
+	set -- "$(ACPCTL_BIN)" deploy pilot-closeout-bundle verify; \
 	if [ -n "$(PILOT_CLOSEOUT_RUN_DIR)" ]; then \
-		args='--run-dir "$(PILOT_CLOSEOUT_RUN_DIR)"'; \
+		set -- "$$@" --run-dir "$(PILOT_CLOSEOUT_RUN_DIR)"; \
 	fi; \
-	eval '$(ACPCTL_BIN) deploy pilot-closeout-bundle verify '$$args
+	"$$@"
 
 .PHONY: artifact-retention-check
 artifact-retention-check: ## Check stale handoff/release document artifacts

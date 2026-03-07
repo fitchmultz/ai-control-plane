@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# AI Control Plane - Leadership Materials PDF Generator
+# AI Control Plane - Presentation Materials PDF Generator
 #
-# Purpose: Generates PDF documents from Markdown files using Marp CLI
+# Purpose: Generates PDF documents from canonical Marp source decks using Marp CLI
 #
 # Usage: ./generate-pdfs.sh [--help]
 #
@@ -24,9 +24,9 @@ set -euo pipefail
 # Show help if requested before changing directory
 if [[ "${1:-}" == "--help" ]]; then
     cat <<'EOF'
-AI Control Plane - Leadership Materials PDF Generator
+AI Control Plane - Presentation Materials PDF Generator
 
-Purpose: Generates PDF documents from Markdown files using Marp CLI
+Purpose: Generates PDF documents from canonical Marp source decks using Marp CLI
 
 Usage: ./generate-pdfs.sh [--help]
 
@@ -50,7 +50,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "=== AI Control Plane Leadership Materials ==="
+echo "=== AI Control Plane Presentation Materials ==="
 echo ""
 
 # Check for Marp CLI
@@ -75,6 +75,16 @@ marp ai-control-plane-leadership-deck.md \
     --theme default
 
 echo "✓ Generated: ai-control-plane-leadership-deck.pdf"
+echo ""
+
+echo "Generating PDF from external customer deck..."
+marp ai-control-plane-external-deck.md \
+    --pdf \
+    --output ai-control-plane-external-deck.pdf \
+    --allow-local-files \
+    --theme default
+
+echo "✓ Generated: ai-control-plane-external-deck.pdf"
 echo ""
 
 # For HTML one-pager, provide instructions

@@ -11,7 +11,7 @@
 #   - Does not handle deployment automation
 
 .PHONY: ci
-ci: ## Local full CI gate (format, lint, static/security checks, runtime-aware tests)
+ci: ## Local full CI gate (format, lint, static/security checks, runtime-aware tests via pinned offline images)
 	@echo '$(COLOR_BOLD)Running local CI gate...$(COLOR_RESET)'
 	@$(MAKE) --silent install-ci
 	@$(MAKE) --silent format
@@ -27,7 +27,7 @@ ci: ## Local full CI gate (format, lint, static/security checks, runtime-aware t
 	fi; \
 	ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true; \
 	trap 'ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true' EXIT; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent up-offline; \
+	ACP_SLOT=ci-runtime $(MAKE) --silent up-offline-ci; \
 	ACP_SLOT=ci-runtime $(MAKE) --silent ci-runtime-checks
 	@echo '$(COLOR_GREEN)✓ CI gate passed$(COLOR_RESET)'
 
@@ -51,20 +51,20 @@ ci-pr: ## PR-required checks (fast/deterministic: lint, static checks, unit + po
 	@echo '$(COLOR_GREEN)✓ PR-required checks passed$(COLOR_RESET)'
 
 .PHONY: ci-nightly
-ci-nightly: ## Nightly checks (PR checks + runtime smoke + release bundle verification)
+ci-nightly: ## Nightly checks (PR checks + runtime smoke + release bundle verification via pinned offline images)
 	@echo '$(COLOR_BOLD)Running nightly CI checks...$(COLOR_RESET)'
 	@set -euo pipefail; \
 	$(MAKE) --silent ci-pr; \
 	ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true; \
 	trap 'ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true' EXIT; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent up-offline; \
+	ACP_SLOT=ci-runtime $(MAKE) --silent up-offline-ci; \
 	ACP_SLOT=ci-runtime $(MAKE) --silent ci-runtime-checks; \
 	$(MAKE) --silent release-bundle; \
 	$(MAKE) --silent release-bundle-verify
 	@echo '$(COLOR_GREEN)✓ Nightly checks passed$(COLOR_RESET)'
 
 .PHONY: ci-manual-heavy
-ci-manual-heavy: ## Manual heavy checks (nightly checks + hardened image scan)
+ci-manual-heavy: ## Manual heavy checks (nightly checks + local hardened image build/scan)
 	@echo '$(COLOR_BOLD)Running manual heavy CI checks...$(COLOR_RESET)'
 	@$(MAKE) --silent ci-nightly
 	@$(MAKE) --silent hardened-images-build

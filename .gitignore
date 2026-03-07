@@ -27,6 +27,7 @@ handoff-packet/
 # Presentation backups and local scratch outputs
 # ---------------------------------------------------------------------------
 docs/presentation/slides-internal/
+docs/presentation/slides-external/*.png
 *.backup
 *.bak.*
 
