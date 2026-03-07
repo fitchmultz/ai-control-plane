@@ -61,9 +61,9 @@ services:
     env_file: .env
     environment:
       # These must be set in .env (no defaults to prevent misconfiguration)
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required in demo/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in demo/.env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required in demo/.env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -82,6 +82,10 @@ services:
     image: ${LITELLM_IMAGE:-ghcr.io/fitchmultz/acp/litellm-hardened:20260212@sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801}
     pull_policy: ${ACP_PULL_POLICY:-missing}
     env_file: .env
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required in demo/.env}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?LITELLM_SALT_KEY is required in demo/.env}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required in demo/.env}
     ports:
       # Bind to LITELLM_PUBLISH_HOST (default: 127.0.0.1 for security)
       - "${LITELLM_PUBLISH_HOST:-127.0.0.1}:${LITELLM_HOST_PORT:-4000}:4000"
@@ -233,7 +237,7 @@ services:
     logging: *acp-logging
     labels: *acp-labels
     environment:
-      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:-short-key}
+      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:?LIBRECHAT_MEILI_MASTER_KEY is required in demo/.env}
       MEILI_NO_ANALYTICS: "true"
     volumes:
       - librechat_meili_data_${ACP_SLOT:-active}:/meili_data
@@ -258,10 +262,10 @@ services:
       PORT: ${LIBRECHAT_PORT:-3080}
       MONGO_URI: ${LIBRECHAT_MONGO_URI:-mongodb://librechat-mongodb:27017/LibreChat}
       MEILI_HOST: http://librechat-meilisearch:7700
-      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:-short-key}
+      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:?LIBRECHAT_MEILI_MASTER_KEY is required in demo/.env}
       MEILI_NO_ANALYTICS: "true"
-      CREDS_KEY: ${LIBRECHAT_CREDS_KEY:-invalid}
-      CREDS_IV: ${LIBRECHAT_CREDS_IV:-invalid}
+      CREDS_KEY: ${LIBRECHAT_CREDS_KEY:?LIBRECHAT_CREDS_KEY is required in demo/.env}
+      CREDS_IV: ${LIBRECHAT_CREDS_IV:?LIBRECHAT_CREDS_IV is required in demo/.env}
       NO_INDEX: "true"
       SEARCH: "true"
       TRUST_PROXY: "1"

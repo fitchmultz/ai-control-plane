@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
+	"github.com/mitchfultz/ai-control-plane/internal/envfile"
 
 	// PostgreSQL driver for external database mode
 	_ "github.com/lib/pq"
@@ -323,22 +324,11 @@ func repoEnvValue(key string) (string, bool) {
 }
 
 func envFileValue(path, key string) (string, bool) {
-	data, err := os.ReadFile(path)
+	value, ok, err := envfile.LookupFile(path, key)
 	if err != nil {
 		return "", false
 	}
-	for rawLine := range strings.SplitSeq(string(data), "\n") {
-		line := strings.TrimSpace(rawLine)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		lineKey, value, ok := strings.Cut(line, "=")
-		if !ok || !strings.EqualFold(strings.TrimSpace(lineKey), key) {
-			continue
-		}
-		return strings.TrimSpace(value), true
-	}
-	return "", false
+	return strings.TrimSpace(value), ok
 }
 
 func normalizeDatabaseMode(value string) (string, bool) {

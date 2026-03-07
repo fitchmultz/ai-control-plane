@@ -7,7 +7,7 @@
 # Responsibilities:
 #   - Execute single-value and table-formatted SQL queries
 #   - Provide specific data collection functions for cost centers, models, and principals
-#   - Handle testability hooks (CHARGEBACK_PSQL_CMD)
+#   - Handle testability hooks (CHARGEBACK_PSQL_BIN)
 #
 # Non-scope:
 #   - Does NOT handle report rendering or analysis
@@ -23,16 +23,53 @@ if [[ -n "${ACP_CHARGEBACK_DB_LOADED:-}" ]]; then
 fi
 readonly ACP_CHARGEBACK_DB_LOADED=1
 
+resolve_chargeback_psql_bin() {
+    local bin="${CHARGEBACK_PSQL_BIN:-}"
+
+    if [[ -z "${bin}" ]]; then
+        return 1
+    fi
+    if [[ "${bin}" != /* || "${bin}" =~ [[:space:]] ]]; then
+        printf 'ERROR: CHARGEBACK_PSQL_BIN must be an absolute executable path without arguments\n' >&2
+        return 64
+    fi
+    if [[ ! -x "${bin}" || -d "${bin}" ]]; then
+        printf 'ERROR: CHARGEBACK_PSQL_BIN is not executable: %s\n' "${bin}" >&2
+        return 2
+    fi
+
+    printf '%s\n' "${bin}"
+}
+
+run_chargeback_psql() {
+    local tuple_only="$1"
+    local sql="$2"
+    local bin
+    local -a args
+
+    if ! bin="$(resolve_chargeback_psql_bin)"; then
+        return $?
+    fi
+
+    args=()
+    if [[ "${tuple_only}" == "true" ]]; then
+        args+=("-t")
+    fi
+    args+=("-c" "${sql}")
+
+    "${bin}" "${args[@]}" 2>/dev/null
+}
+
 # Execute SQL query with error handling
-# Uses CHARGEBACK_PSQL_CMD override if set (for testing)
+# Uses CHARGEBACK_PSQL_BIN override if set (for testing)
 query() {
     local sql="$1"
     local result
     local exit_code=0
 
-    if [[ -n "${CHARGEBACK_PSQL_CMD:-}" ]]; then
-        # Test mode: use overridden psql command
-        if result=$($CHARGEBACK_PSQL_CMD -t -c "$sql" 2>/dev/null | xargs); then
+    if [[ -n "${CHARGEBACK_PSQL_BIN:-}" ]]; then
+        # Test mode: use overridden psql binary with argv-safe execution
+        if result="$(run_chargeback_psql true "$sql" | xargs)"; then
             if [[ -z "$result" ]]; then
                 echo "0"
                 return 1
@@ -58,9 +95,9 @@ query_table() {
     local result
     local exit_code=0
 
-    if [[ -n "${CHARGEBACK_PSQL_CMD:-}" ]]; then
+    if [[ -n "${CHARGEBACK_PSQL_BIN:-}" ]]; then
         # Test mode
-        result=$($CHARGEBACK_PSQL_CMD -c "$sql" 2>/dev/null) || exit_code=$?
+        result="$(run_chargeback_psql false "$sql")" || exit_code=$?
         if [[ $exit_code -eq 0 && "$result" == *"(0 rows)"* ]]; then
             echo "$result"
             return 1

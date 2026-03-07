@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	"github.com/mitchfultz/ai-control-plane/internal/envfile"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -328,19 +329,11 @@ func (c envVarsSetCheck) Fix(ctx context.Context, opts Options) (bool, string, e
 }
 
 func loadEnvFromFile(path, key string) string {
-	content, err := os.ReadFile(path)
-	if err != nil {
+	value, ok, err := envfile.LookupFile(path, key)
+	if err != nil || !ok {
 		return ""
 	}
-
-	lines := strings.Split(string(content), "\n")
-	prefix := key + "="
-	for _, line := range lines {
-		if after, ok := strings.CutPrefix(line, prefix); ok {
-			return strings.TrimSpace(after)
-		}
-	}
-	return ""
+	return strings.TrimSpace(value)
 }
 
 // gatewayHealthyCheck validates the LiteLLM gateway is healthy.
