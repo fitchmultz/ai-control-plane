@@ -39,7 +39,18 @@ type ciWaitGateway interface {
 }
 
 var newCIWaitCompose = func(repoRoot string) (ciWaitCompose, error) {
-	return docker.NewCompose(docker.DefaultProjectDir(repoRoot))
+	projectName := strings.TrimSpace(os.Getenv("ACP_COMPOSE_PROJECT"))
+	if projectName == "" {
+		slot := strings.TrimSpace(os.Getenv("ACP_SLOT"))
+		if slot == "" {
+			slot = "active"
+		}
+		projectName = "ai-control-plane-" + slot
+	}
+	return docker.NewComposeWithOptions(docker.DefaultProjectDir(repoRoot), docker.ComposeOptions{
+		ProjectName: projectName,
+		Files:       []string{"docker-compose.offline.yml"},
+	})
 }
 
 var newCIWaitGateway = func() ciWaitGateway {

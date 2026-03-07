@@ -63,18 +63,18 @@ func run(ctx context.Context, args []string, stdout *os.File, stderr *os.File) i
 		return exitcodes.ACPExitSuccess
 	}
 
-	if command, ok := lookupNativeCommand(args[0]); ok {
-		return command.Run(ctx, args[1:], stdout, stderr)
-	}
-
-	group, ok := lookupDelegatedGroup(args[0])
+	command, ok := lookupRootCommand(args[0])
 	if !ok {
 		fmt.Fprintf(stderr, "Error: Unknown command: %s\n", args[0])
 		printRootHelp(stderr)
 		return exitcodes.ACPExitUsage
 	}
 
-	return runDelegatedGroup(ctx, group, args[1:], stdout, stderr)
+	if command.NativeRun != nil {
+		return command.NativeRun(ctx, args[1:], stdout, stderr)
+	}
+
+	return runCommandGroup(ctx, command, args[1:], stdout, stderr)
 }
 
 func printRootHelp(out *os.File) {
@@ -99,6 +99,7 @@ Examples:
   acpctl files sync-helm
   acpctl doctor
   acpctl benchmark baseline --requests 20 --concurrency 2
+  acpctl onboard codex --mode subscription --verify
   acpctl doctor --json
   acpctl bridge host_preflight --help
   acpctl deploy up

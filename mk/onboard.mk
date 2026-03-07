@@ -2,7 +2,7 @@
 #
 # Purpose: Provide one-command onboarding for local CLI/IDE tools
 # Responsibilities:
-#   - Bridge to onboarding implementation script
+#   - Invoke the native acpctl onboarding workflow
 #   - Offer Codex-focused shortcuts for subscription-first demos
 #   - Trigger ChatGPT OAuth device login for LiteLLM ChatGPT provider
 #
@@ -17,7 +17,7 @@ onboard: ## Onboard a tool (TOOL=codex|claude|opencode|cursor|copilot)
 		echo 'Try: make onboard-help'; \
 		exit 64; \
 	fi
-	@$(ACPCTL_BIN) bridge onboard "$(TOOL)" \
+	@$(ACPCTL_BIN) onboard "$(TOOL)" \
 		$(if $(MODE),--mode "$(MODE)",) \
 		$(if $(ALIAS),--alias "$(ALIAS)",) \
 		$(if $(BUDGET),--budget "$(BUDGET)",) \
@@ -31,11 +31,11 @@ onboard: ## Onboard a tool (TOOL=codex|claude|opencode|cursor|copilot)
 
 .PHONY: onboard-help
 onboard-help: ## Show onboarding script help
-	@$(ACPCTL_BIN) bridge onboard --help
+	@$(ACPCTL_BIN) onboard --help
 
 .PHONY: onboard-codex
 onboard-codex: ## Codex onboarding shortcut (default MODE=subscription)
-	@$(ACPCTL_BIN) bridge onboard codex \
+	@$(ACPCTL_BIN) onboard codex \
 		--mode "$(or $(MODE),subscription)" \
 		$(if $(ALIAS),--alias "$(ALIAS)",) \
 		$(if $(BUDGET),--budget "$(BUDGET)",) \

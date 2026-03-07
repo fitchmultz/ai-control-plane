@@ -23,18 +23,9 @@ secrets-audit: ## Run secrets and token leak audit
 .PHONY: public-hygiene-check
 public-hygiene-check: ## Fail if local-only secrets/artifacts are tracked by git
 	@echo '$(COLOR_BOLD)Checking public-release tracked file hygiene...$(COLOR_RESET)'
-	@if ! command -v git >/dev/null 2>&1; then \
-		echo '$(COLOR_RED)✗ git is required for public-hygiene-check$(COLOR_RESET)'; \
-		exit 2; \
-	fi
-	@violations="$$(git ls-files | grep -E '^(\.env$$|demo/\.env$$|demo/.*/\.env$$|demo/logs/|demo/backups/|handoff-packet/|\.ralph/|docs/presentation/slides-internal/|docs/presentation/slides-external/.*\.png$$|\.scratchpad\.md$$)' | grep -Ev '/\.gitkeep$$|/\.gitignore$$' || true)"; \
-	if [ -n "$$violations" ]; then \
-		echo '$(COLOR_RED)✗ Local-only files are tracked and block public release:$(COLOR_RESET)'; \
-		printf '%s\n' "$$violations"; \
-		echo '$(COLOR_YELLOW)Remove from git index (git rm --cached ...) and keep in .gitignore.$(COLOR_RESET)'; \
-		exit 1; \
-	fi
-	@echo '$(COLOR_GREEN)✓ Public-release tracked file hygiene passed$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate public-hygiene \
+		&& echo '$(COLOR_GREEN)✓ Public-release tracked file hygiene passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Public-release tracked file hygiene failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: security-gate
 security-gate: ## Run full security gate bundle (hygiene, secrets, license, supply chain)
@@ -48,29 +39,9 @@ security-gate: ## Run full security gate bundle (hygiene, secrets, license, supp
 .PHONY: license-check
 license-check: ## Enforce third-party license boundary policy and restricted-pattern checks
 	@echo '$(COLOR_BOLD)Checking third-party license boundaries...$(COLOR_RESET)'
-	@if ! command -v jq >/dev/null 2>&1; then \
-		echo '$(COLOR_RED)✗ jq is required for license-check$(COLOR_RESET)'; \
-		exit 2; \
-	fi
-	@if ! command -v rg >/dev/null 2>&1; then \
-		echo '$(COLOR_RED)✗ rg (ripgrep) is required for license-check$(COLOR_RESET)'; \
-		exit 2; \
-	fi
-	@if [ ! -f docs/policy/THIRD_PARTY_LICENSE_MATRIX.json ]; then \
-		echo '$(COLOR_RED)✗ Missing policy file: docs/policy/THIRD_PARTY_LICENSE_MATRIX.json$(COLOR_RESET)'; \
-		exit 1; \
-	fi
-	@jq -e '(.schema_version != null) and (.policy_id != null) and ((.scan_scope.include | length) > 0) and ((.restricted_components | type) == "array")' \
-		docs/policy/THIRD_PARTY_LICENSE_MATRIX.json >/dev/null \
-		|| { echo '$(COLOR_RED)✗ License policy JSON missing required fields$(COLOR_RESET)'; exit 1; }
-	@if rg --glob '!docs/**' --glob '!demo/logs/**' --glob '!handoff-packet/**' --glob '!.ralph/**' --glob '!mk/security.mk' \
-		-n 'litellm-enterprise|from litellm\.enterprise|import litellm\.enterprise' . >/dev/null 2>&1; then \
-		echo '$(COLOR_RED)✗ Restricted LiteLLM enterprise references detected outside docs$(COLOR_RESET)'; \
-		rg --glob '!docs/**' --glob '!demo/logs/**' --glob '!handoff-packet/**' --glob '!.ralph/**' --glob '!mk/security.mk' \
-			-n 'litellm-enterprise|from litellm\.enterprise|import litellm\.enterprise' .; \
-		exit 1; \
-	fi
-	@echo '$(COLOR_GREEN)✓ License boundary check passed$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate license \
+		&& echo '$(COLOR_GREEN)✓ License boundary check passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ License boundary check failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: license-report-update
 license-report-update: ## Validate policy and remind maintainers where to update the committed report
@@ -83,22 +54,7 @@ license-report-update: ## Validate policy and remind maintainers where to update
 .PHONY: supply-chain-gate
 supply-chain-gate: ## Validate supply-chain policy contract and digest pinning baseline
 	@echo '$(COLOR_BOLD)Running supply-chain security gate...$(COLOR_RESET)'
-	@if ! command -v jq >/dev/null 2>&1; then \
-		echo '$(COLOR_RED)✗ jq is required for supply-chain-gate$(COLOR_RESET)'; \
-		exit 2; \
-	fi
-	@if [ ! -f demo/config/supply_chain_vulnerability_policy.json ]; then \
-		echo '$(COLOR_RED)✗ Missing policy file: demo/config/supply_chain_vulnerability_policy.json$(COLOR_RESET)'; \
-		exit 1; \
-	fi
-	@jq -e '(.policy_id != null) and (.allowlist | type == "array") and (.severity_policy.fail_on | type == "array")' \
-		demo/config/supply_chain_vulnerability_policy.json >/dev/null \
-		|| { echo '$(COLOR_RED)✗ Supply-chain policy JSON missing required fields$(COLOR_RESET)'; exit 1; }
-	@if grep -H -E '^[[:space:]]*image:[[:space:]]+' demo/docker-compose*.yml | grep -vq '@sha256:'; then \
-		echo '$(COLOR_RED)✗ Found non-digest-pinned image reference(s) in demo/docker-compose*.yml$(COLOR_RESET)'; \
-		grep -H -E '^[[:space:]]*image:[[:space:]]+' demo/docker-compose*.yml | grep -v '@sha256:'; \
-		exit 1; \
-	fi
+	@$(ACPCTL_BIN) validate supply-chain
 	@$(MAKE) --silent supply-chain-allowlist-expiry-check
 	@echo '$(COLOR_GREEN)✓ Supply-chain gate passed (policy + digest + expiry checks)$(COLOR_RESET)'
 

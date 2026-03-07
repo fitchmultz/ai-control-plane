@@ -24,9 +24,6 @@ _acpctl() {
         benchmark)
             _acpctl_benchmark
             ;;
-        bridge)
-            _acpctl_bridge
-            ;;
         completion)
             _acpctl_completion
             ;;
@@ -54,6 +51,9 @@ _acpctl() {
         helm)
             _acpctl_helm
             ;;
+        bridge)
+            _acpctl_bridge
+            ;;
         *)
             _files
             ;;
@@ -70,8 +70,8 @@ _acpctl_commands() {
         "health:Run service health checks"
         "doctor:Environment preflight diagnostics"
         "benchmark:Lightweight local performance baseline"
-        "bridge:Execute mapped legacy script implementations directly"
         "completion:Generate shell completion scripts"
+        "onboard:Configure local tools to route through the gateway"
         "deploy:Service lifecycle, release, and deployment operations"
         "validate:Configuration and policy validation operations"
         "db:Database backup, restore, and inspection operations"
@@ -80,6 +80,7 @@ _acpctl_commands() {
         "demo:Demo scenario, preset, and snapshot operations"
         "terraform:Terraform provisioning workflow helpers"
         "helm:Helm chart validation and smoke tests"
+        "bridge:Execute mapped legacy script implementations directly"
         "help:Show this help message"
     )
     _describe -t commands 'acpctl commands' commands "$@"
@@ -120,22 +121,6 @@ _acpctl_benchmark() {
         "baseline:Run the local gateway performance baseline"
     )
     _describe -t commands 'benchmark subcommands' subcmds "$@"
-}
-
-_acpctl_bridge() {
-    local subcmds=(
-        "host_deploy:Host declarative deployment orchestration"
-        "host_install:Systemd host service installation/management"
-        "host_preflight:Host readiness preflight checks"
-        "host_upgrade_slots:Slot-based host upgrade orchestration"
-        "onboard:Tool onboarding workflows"
-        "prepare_secrets_env:Host secrets contract refresh/sync"
-        "prod_smoke_helm:Helm production smoke workflow"
-        "prod_smoke_test:Runtime production smoke checks"
-        "release_bundle:Deployment release bundle build/verify"
-        "switch_claude_mode:Claude mode switching helper"
-    )
-    _describe -t commands 'bridge subcommands' subcmds "$@"
 }
 
 _acpctl_completion() {
@@ -179,7 +164,9 @@ _acpctl_validate() {
         "detections:Validate detection rule output"
         "siem-queries:Validate SIEM query sync"
         "network-contract:Render network contract artifacts"
-        "supply-chain:Run supply-chain security gate"
+        "public-hygiene:Fail when local-only files are tracked by git"
+        "license:Validate license policy structure and restricted references"
+        "supply-chain:Run supply-chain policy and digest validation"
         "secrets-audit:Run deterministic tracked-file secrets audit"
         "compose-healthchecks:Validate Docker Compose healthchecks"
         "security:Run Make-composed security gate (hygiene, secrets, license, supply chain)"
@@ -248,6 +235,22 @@ _acpctl_helm() {
         "smoke:Run Helm production smoke tests"
     )
     _describe -t commands 'helm subcommands' subcmds "$@"
+}
+
+_acpctl_bridge() {
+    local subcmds=(
+        "host_deploy:Host declarative deployment orchestration"
+        "host_install:Systemd host service installation/management"
+        "host_preflight:Host readiness preflight checks"
+        "host_upgrade_slots:Slot-based host upgrade orchestration"
+        "onboard:Tool onboarding workflows"
+        "prepare_secrets_env:Host secrets contract refresh/sync"
+        "prod_smoke_helm:Helm production smoke workflow"
+        "prod_smoke_test:Runtime production smoke checks"
+        "release_bundle:Deployment release bundle build/verify"
+        "switch_claude_mode:Claude mode switching helper"
+    )
+    _describe -t commands 'bridge subcommands' subcmds "$@"
 }
 
 compdef _acpctl acpctl

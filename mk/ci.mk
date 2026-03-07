@@ -84,29 +84,8 @@ ci-fast: ## Fast CI gate (skip runtime tests; keep static/security checks)
 .PHONY: ci-runtime-checks
 ci-runtime-checks: ## CI runtime checks (requires running services; stateless when paired with down-offline-clean)
 	@echo '$(COLOR_BOLD)Running CI runtime checks...$(COLOR_RESET)'
-	@# The hardened LiteLLM image can take longer to bind on arm64 hosts when the
-	@# offline stack is running through emulation. Keep the CI wait budget aligned
-	@# with that startup envelope instead of failing a healthy-but-slow boot.
-	@set -euo pipefail; \
-	attempt=1; \
-	max_attempts=$(OFFLINE_GATEWAY_READY_MAX_ATTEMPTS); \
-	until curl -fsS \
-		-H "Authorization: Bearer $$LITELLM_MASTER_KEY" \
-		"http://127.0.0.1:$(LITELLM_PORT)/health" >/dev/null 2>&1; do \
-		if [ "$$attempt" -ge "$$max_attempts" ]; then \
-			echo '$(COLOR_RED)✗ Offline gateway health endpoint did not become ready in time$(COLOR_RESET)'; \
-			exit 1; \
-		fi; \
-		echo "  waiting for offline gateway readiness ($$attempt/$$max_attempts)..."; \
-		attempt=$$((attempt + 1)); \
-		sleep 2; \
-	done
-	@curl -fsS \
-		-H "Authorization: Bearer $$LITELLM_MASTER_KEY" \
-		"http://127.0.0.1:$(LITELLM_PORT)/v1/models" >/dev/null \
-		&& echo '$(COLOR_GREEN)✓ Offline gateway health + model endpoints are ready$(COLOR_RESET)' \
-		|| { echo '$(COLOR_RED)✗ Offline models endpoint check failed$(COLOR_RESET)'; exit 1; }
-	@$(MAKE) --silent validate-detections
+	@$(ACPCTL_BIN) ci wait --timeout $$(( $(OFFLINE_GATEWAY_READY_MAX_ATTEMPTS) * 2 ))
+	@$(ACPCTL_BIN) validate detections
 	@echo '$(COLOR_GREEN)✓ CI runtime checks passed$(COLOR_RESET)'
 
 .PHONY: ci-runtime

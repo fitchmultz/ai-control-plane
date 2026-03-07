@@ -1,0 +1,54 @@
+---
+# AI Control Plane - Readiness evidence gate plan
+#
+# Purpose:
+#   Define the canonical readiness evidence gate membership used by
+#   internal/release and related verification workflows.
+# Responsibilities:
+#   - Declare gate identity, command vectors, and log file names.
+#   - Mark production-only gates without duplicating CLI orchestration logic.
+#   - Keep release-bundle arguments parameterized via placeholders.
+# Non-scope:
+#   - Does not execute gates directly.
+#   - Does not replace Make targets or command implementations.
+# Usage:
+#   - Loaded by internal/release/readiness_plan.go.
+# Invariants/Assumptions:
+#   - Commands are Make argument vectors run from the repository root.
+#   - ${BUNDLE_VERSION} and ${SECRETS_ENV_FILE} placeholders are expanded at runtime.
+gates:
+  - id: local_ci
+    title: Local CI Gate
+    required: true
+    log_name: make-ci.log
+    command:
+      - ci
+    notes: Validates the host-first baseline command surface.
+
+  - id: production_ci
+    title: Production CI Gate
+    required: true
+    production_only: true
+    log_name: make-ci-nightly.log
+    command:
+      - ci-nightly
+      - SECRETS_ENV_FILE=${SECRETS_ENV_FILE}
+    notes: Optional customer-like gate; requires a real secrets file.
+
+  - id: release_bundle
+    title: Release Bundle Gate
+    required: true
+    log_name: make-release-bundle.log
+    command:
+      - release-bundle
+      - RELEASE_BUNDLE_VERSION=${BUNDLE_VERSION}
+    notes: Builds the canonical deployment bundle for the run.
+
+  - id: release_bundle_verify
+    title: Release Bundle Verify Gate
+    required: true
+    log_name: make-release-bundle-verify.log
+    command:
+      - release-bundle-verify
+      - RELEASE_BUNDLE_VERSION=${BUNDLE_VERSION}
+    notes: Confirms bundle integrity using the current checksum sidecar.
