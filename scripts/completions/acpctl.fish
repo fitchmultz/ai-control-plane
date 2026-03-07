@@ -6,6 +6,8 @@ complete -c acpctl -f
 
 complete -c acpctl -n '__fish_use_subcommand' -a 'ci' -d 'CI and local gate helpers'
 complete -c acpctl -n '__fish_use_subcommand' -a 'files' -d 'Typed local file synchronization helpers'
+complete -c acpctl -n '__fish_use_subcommand' -a 'env' -d 'Strict .env access helpers'
+complete -c acpctl -n '__fish_use_subcommand' -a 'chargeback' -d 'Typed chargeback rendering helpers'
 complete -c acpctl -n '__fish_use_subcommand' -a 'status' -d 'Aggregated system health overview'
 complete -c acpctl -n '__fish_use_subcommand' -a 'health' -d 'Run service health checks'
 complete -c acpctl -n '__fish_use_subcommand' -a 'doctor' -d 'Environment preflight diagnostics'
@@ -25,6 +27,9 @@ complete -c acpctl -n '__fish_use_subcommand' -a 'help' -d 'Show this help messa
 complete -c acpctl -n '__fish_seen_subcommand_from ci' -a 'should-run-runtime' -d 'Decide whether runtime checks should run'
 complete -c acpctl -n '__fish_seen_subcommand_from ci' -a 'wait' -d 'Wait for services to become healthy'
 complete -c acpctl -n '__fish_seen_subcommand_from files' -a 'sync-helm' -d 'Synchronize canonical repository files into Helm chart files/'
+complete -c acpctl -n '__fish_seen_subcommand_from env' -a 'get' -d 'Read a single env key without shell execution'
+complete -c acpctl -n '__fish_seen_subcommand_from chargeback' -a 'render' -d 'Render canonical chargeback JSON or CSV'
+complete -c acpctl -n '__fish_seen_subcommand_from chargeback' -a 'payload' -d 'Render canonical chargeback webhook payload JSON'
 complete -c acpctl -n '__fish_seen_subcommand_from benchmark' -a 'baseline' -d 'Run the local gateway performance baseline'
 complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'host_deploy' -d 'Host declarative deployment orchestration'
 complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'host_install' -d 'Systemd host service installation/management'

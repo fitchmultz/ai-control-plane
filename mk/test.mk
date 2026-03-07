@@ -43,6 +43,7 @@ script-tests: ## Run all shell script tests
 	@bash scripts/tests/chatgpt_login_test.sh
 	@bash scripts/tests/compose_slot_config_test.sh
 	@bash scripts/tests/chargeback_db_test.sh
+	@bash scripts/tests/chargeback_render_test.sh
 	@bash scripts/tests/supply_chain_allowlist_expiry_check_test.sh
 	@echo '$(COLOR_GREEN)✓ Shell script tests passed$(COLOR_RESET)'
 

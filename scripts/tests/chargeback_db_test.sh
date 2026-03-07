@@ -55,7 +55,7 @@ cat >"${TMP_DIR}/psql-stub" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "\$*" >>"${ARGS_LOG}"
-if [[ "\${1:-}" == "-t" ]]; then
+if [[ "\$*" == *" -t -A "* || "\$*" == -t\ -A* ]]; then
     echo "42"
 else
     echo "(1 row)"
@@ -88,10 +88,35 @@ test_path_only_override() {
         fail "query should return stubbed scalar result"
     fi
 
-    if grep -Fq -- "-t -c SELECT 42;" "${ARGS_LOG}"; then
+    if grep -Fq -- "-X -v ON_ERROR_STOP=1 -P pager=off -t -A -c SELECT 42;" "${ARGS_LOG}"; then
         pass "query executed argv-safe psql invocation"
     else
         fail "query should execute argv-safe psql invocation"
+    fi
+}
+
+test_scalar_trimming_preserves_internal_content() {
+    echo "Test: scalar query trimming is deterministic..."
+    cat >"${TMP_DIR}/psql-stub-trim" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "-X" ]]; then
+    printf '  Alpha  Beta  \n'
+else
+    printf 'unexpected args\n' >&2
+    exit 1
+fi
+EOF
+    chmod +x "${TMP_DIR}/psql-stub-trim"
+
+    CHARGEBACK_PSQL_BIN="${TMP_DIR}/psql-stub-trim"
+    local result
+    result="$(query 'SELECT $$Alpha  Beta$$;')" || true
+
+    if [[ "${result}" == "Alpha  Beta" ]]; then
+        pass "scalar trimming removes only leading/trailing whitespace"
+    else
+        fail "scalar trimming should preserve internal spacing"
     fi
 }
 
@@ -118,6 +143,7 @@ main() {
     echo ""
 
     test_path_only_override
+    test_scalar_trimming_preserves_internal_content
     test_shell_expansion_is_rejected
 
     echo ""

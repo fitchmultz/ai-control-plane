@@ -58,68 +58,13 @@ variance_exceeds_threshold() {
 
 # Detect anomalies (cost centers with unusual spend patterns)
 detect_anomalies() {
-    local cost_center_data="$1"
+    local _cost_center_data="$1"
     local threshold="$2"
-    # current_total available as $3 if needed for anomaly calculations
+    local _current_total="$3"
     local prev_month_start="$4"
     local prev_month_end="$5"
 
-    local anomalies="[]"
-
-    # Parse cost center data and check each for anomalies
-    # Format: cost_center|team|requests|tokens|spend|percent
-    while IFS='|' read -r cc team requests tokens spend percent; do
-        # Skip header and empty lines
-        [[ -z "$cc" || "$cc" == " cost_center" || "$cc" == "cost_center" ]] && continue
-        [[ "$cc" =~ ^-+$ ]] && continue
-        [[ "$cc" =~ ^\( ]] && continue
-
-        # Trim whitespace
-        cc=$(echo "$cc" | xargs)
-        team=$(echo "$team" | xargs)
-        spend=$(echo "$spend" | xargs)
-
-        # Skip unknown cost centers for anomaly detection
-        [[ "$cc" == "unknown-cc" ]] && continue
-
-        # Get previous month spend for this cost center
-        local prev_spend_sql="
-WITH attribution AS (
-  SELECT s.spend,
-    CASE
-      WHEN v.key_alias LIKE '%__cc-%' THEN
-        substring(v.key_alias from '__cc-([0-9]+)')
-      ELSE 'unknown-cc'
-    END AS cost_center
-  FROM \"LiteLLM_SpendLogs\" s
-  LEFT JOIN \"LiteLLM_VerificationToken\" v ON s.api_key = v.token
-  WHERE s.\"startTime\" >= '${prev_month_start} 00:00:00'
-    AND s.\"startTime\" <= '${prev_month_end} 23:59:59'
-)
-SELECT COALESCE(SUM(spend), 0) FROM attribution WHERE cost_center = '${cc}';
-"
-        local prev_spend
-        # shellcheck disable=SC2154
-        prev_spend=$(query "$prev_spend_sql") || prev_spend="0"
-
-        # Check for spike (current vs previous)
-        if [[ -n "$prev_spend" && "$prev_spend" != "0" && "$prev_spend" != "0.00" ]]; then
-            local spike_pct
-            spike_pct=$(echo "scale=2; (($spend - $prev_spend) / $prev_spend) * 100" | bc 2>/dev/null || echo "0")
-
-            if echo "$spike_pct >= $threshold" | bc 2>/dev/null | grep -q "1"; then
-                # Add anomaly to list
-                local anomaly_entry="{\"cost_center\":\"${cc}\",\"team\":\"${team}\",\"current_spend\":${spend},\"previous_spend\":${prev_spend},\"spike_percent\":${spike_pct},\"type\":\"spike\"}"
-                if [[ "$anomalies" == "[]" ]]; then
-                    anomalies="[$anomaly_entry]"
-                else
-                    anomalies="${anomalies%]},$anomaly_entry]"
-                fi
-            fi
-        fi
-    done <<<"$cost_center_data"
-
-    echo "$anomalies"
+    get_cost_center_anomalies_json "$MONTH_START" "$MONTH_END" "$prev_month_start" "$prev_month_end" "$threshold"
 }
 
 # Forecast future spend using linear regression on historical data
@@ -254,14 +199,14 @@ calculate_burn_rate() {
 
 # Check if forecasted spend exceeds budget threshold
 # Input: forecast_3mo_total, total_budget, threshold_percent
-# Output: JSON object with risk assessment
+# Output: pipe-delimited risk_level|budget_percent|threshold_exceeded
 check_budget_risk() {
     local forecast_total="$1"
     local total_budget="$2"
     local threshold="${3:-80}"
 
     if [[ -z "$total_budget" || "$total_budget" == "0" || "$total_budget" == "0.00" ]]; then
-        echo '{"risk_level":"unknown","budget_percent":null,"threshold_exceeded":false}'
+        echo "unknown|N/A|false"
         return
     fi
 
@@ -278,5 +223,5 @@ check_budget_risk() {
         risk_level="medium"
     fi
 
-    echo "{\"risk_level\":\"${risk_level}\",\"budget_percent\":${budget_percent},\"threshold_exceeded\":${threshold_exceeded}}"
+    echo "${risk_level}|${budget_percent}|${threshold_exceeded}"
 }

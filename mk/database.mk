@@ -15,7 +15,7 @@ db-status: ## Show database status and statistics
 	@$(ACPCTL_BIN) db status
 
 .PHONY: chargeback-report
-chargeback-report: ## Generate chargeback/showback report artifacts
+chargeback-report: install-binary ## Generate chargeback/showback report artifacts
 	@demo/scripts/chargeback_report.sh \
 		$(if $(REPORT_MONTH),--month $(REPORT_MONTH),) \
 		$(if $(OUTPUT_FORMAT),--format $(OUTPUT_FORMAT),) \

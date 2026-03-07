@@ -127,6 +127,7 @@ Source of truth: `internal/exitcodes/exitcodes.go`. Shell scripts must honor the
 ### Shell Library Status
 
 Legacy shared shell-library patterns were retired. Keep shell scripts thin and move reusable logic into typed Go modules under `internal/*` and `cmd/acpctl/*`.
+- Chargeback machine-readable outputs now route through `acpctl chargeback`; update canonical `demo/scripts/*` sources, then run `make generate` to refresh Helm copies and completions.
 
 ---
 

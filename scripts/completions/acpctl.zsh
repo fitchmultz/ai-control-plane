@@ -15,6 +15,12 @@ _acpctl() {
         files)
             _acpctl_files
             ;;
+        env)
+            _acpctl_env
+            ;;
+        chargeback)
+            _acpctl_chargeback
+            ;;
         benchmark)
             _acpctl_benchmark
             ;;
@@ -58,6 +64,8 @@ _acpctl_commands() {
     local commands=(
         "ci:CI and local gate helpers"
         "files:Typed local file synchronization helpers"
+        "env:Strict .env access helpers"
+        "chargeback:Typed chargeback rendering helpers"
         "status:Aggregated system health overview"
         "health:Run service health checks"
         "doctor:Environment preflight diagnostics"
@@ -90,6 +98,21 @@ _acpctl_files() {
         "sync-helm:Synchronize canonical repository files into Helm chart files/"
     )
     _describe -t commands 'files subcommands' subcmds "$@"
+}
+
+_acpctl_env() {
+    local subcmds=(
+        "get:Read a single env key without shell execution"
+    )
+    _describe -t commands 'env subcommands' subcmds "$@"
+}
+
+_acpctl_chargeback() {
+    local subcmds=(
+        "render:Render canonical chargeback JSON or CSV"
+        "payload:Render canonical chargeback webhook payload JSON"
+    )
+    _describe -t commands 'chargeback subcommands' subcmds "$@"
 }
 
 _acpctl_benchmark() {

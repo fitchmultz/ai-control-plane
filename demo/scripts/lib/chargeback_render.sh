@@ -5,10 +5,8 @@
 #          Markdown, JSON, and CSV formats.
 #
 # Responsibilities:
-#   - Parse raw database table output into structured formats
 #   - Generate Markdown reports with tables and executive summaries
-#   - Generate JSON reports adhering to stable schema
-#   - Generate CSV reports for finance system integration
+#   - Delegate JSON/CSV serialization to the typed acpctl renderer
 #   - Provide UI helper functions (success, warning, error, section_header)
 #
 # Non-scope:
@@ -67,90 +65,43 @@ error() {
     fi
 }
 
-# Parse cost center data into arrays for JSON/CSV output
-parse_cost_center_data() {
-    local data="$1"
-    local json_array="[]"
+resolve_chargeback_renderer() {
+    if [[ -n "${ACPCTL_BIN:-}" && -x "${ACPCTL_BIN}" ]]; then
+        printf '%s\n' "${ACPCTL_BIN}"
+        return 0
+    fi
 
-    while IFS='|' read -r cc team requests tokens spend percent; do
-        # Skip header and empty lines
-        [[ -z "$cc" || "$cc" == " cost_center" || "$cc" == "cost_center" ]] && continue
-        [[ "$cc" =~ ^-+$ ]] && continue
-        [[ "$cc" =~ ^\( ]] && continue
+    local repo_root="${PROJECT_ROOT:-}"
+    if [[ -z "${repo_root}" ]]; then
+        local lib_dir
+        lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        repo_root="$(cd "${lib_dir}/../../.." && pwd)"
+    fi
 
-        # Trim whitespace
-        cc=$(echo "$cc" | xargs)
-        team=$(echo "$team" | xargs)
-        requests=$(echo "$requests" | xargs)
-        tokens=$(echo "$tokens" | xargs)
-        spend=$(echo "$spend" | xargs)
-        percent=$(echo "$percent" | xargs)
+    if [[ -x "${repo_root}/scripts/acpctl.sh" ]]; then
+        printf '%s\n' "${repo_root}/scripts/acpctl.sh"
+        return 0
+    fi
 
-        # Add to JSON array
-        local entry="{\"cost_center\":\"${cc}\",\"team\":\"${team}\",\"request_count\":${requests:-0},\"token_count\":${tokens:-0},\"spend_amount\":${spend:-0},\"percent_of_total\":${percent:-0}}"
-        if [[ "$json_array" == "[]" ]]; then
-            json_array="[$entry]"
-        else
-            json_array="${json_array%]},$entry]"
-        fi
-    done <<<"$data"
+    if command -v acpctl >/dev/null 2>&1; then
+        printf 'acpctl\n'
+        return 0
+    fi
 
-    echo "$json_array"
-}
-
-# Parse model spend data into JSON
-parse_model_data() {
-    local data="$1"
-    local json_array="[]"
-
-    while IFS='|' read -r model requests tokens spend; do
-        # Skip header and empty lines
-        [[ -z "$model" || "$model" == " model_id" || "$model" == "model_id" ]] && continue
-        [[ "$model" =~ ^-+$ ]] && continue
-        [[ "$model" =~ ^\( ]] && continue
-
-        # Trim whitespace
-        model=$(echo "$model" | xargs)
-        requests=$(echo "$requests" | xargs)
-        tokens=$(echo "$tokens" | xargs)
-        spend=$(echo "$spend" | xargs)
-
-        local entry="{\"model\":\"${model}\",\"request_count\":${requests:-0},\"token_count\":${tokens:-0},\"spend_amount\":${spend:-0}}"
-        if [[ "$json_array" == "[]" ]]; then
-            json_array="[$entry]"
-        else
-            json_array="${json_array%]},$entry]"
-        fi
-    done <<<"$data"
-
-    echo "$json_array"
+    printf 'ERROR: acpctl renderer not found. Run: make install-binary\n' >&2
+    return 2
 }
 
 # Output CSV format
 output_csv() {
     local report_month="$1"
-    local cost_center_data="$2"
+    local cost_center_json="$2"
+    local renderer
 
-    # CSV Header
-    echo "CostCenter,Team,SpendAmount,RequestCount,TokenCount,PercentOfTotal,ReportMonth"
-
-    # Data rows
-    while IFS='|' read -r cc team requests tokens spend percent; do
-        # Skip header and empty lines
-        [[ -z "$cc" || "$cc" == " cost_center" || "$cc" == "cost_center" ]] && continue
-        [[ "$cc" =~ ^-+$ ]] && continue
-        [[ "$cc" =~ ^\( ]] && continue
-
-        # Trim whitespace
-        cc=$(echo "$cc" | xargs)
-        team=$(echo "$team" | xargs)
-        requests=$(echo "$requests" | xargs)
-        tokens=$(echo "$tokens" | xargs)
-        spend=$(echo "$spend" | xargs)
-        percent=$(echo "$percent" | xargs)
-
-        echo "${cc},${team},${spend},${requests},${tokens},${percent},${report_month}"
-    done <<<"$cost_center_data"
+    renderer="$(resolve_chargeback_renderer)" || return $?
+    CHARGEBACK_REPORT_MONTH="${report_month}" \
+        CHARGEBACK_COST_CENTER_JSON="${cost_center_json}" \
+        "${renderer}" chargeback render --format csv
 }
 
 # Parse individual forecast value from comma-separated string
@@ -180,114 +131,47 @@ output_json() {
     local total_spend="$4"
     local total_requests="$5"
     local total_tokens="$6"
-    local cost_center_data="$7"
-    local model_data="$8"
-    local unattributed_data="$9"
-    local variance="${10}"
-    local prev_month_spend="${11}"
-    local anomalies="${12}"
-    local forecast_values="${13:-N/A,N/A,N/A}"
-    local daily_burn="${14:-0}"
-    local days_remaining="${15:-N/A}"
-    local exhaustion_date="${16:-N/A}"
-    local total_budget="${17:-0}"
-    local budget_risk="${18:-{}}"
+    local cost_center_json="$7"
+    local model_json="$8"
+    local variance="${9}"
+    local prev_month_spend="${10}"
+    local anomalies_json="${11}"
+    local forecast_values="${12:-N/A,N/A,N/A}"
+    local daily_burn="${13:-0}"
+    local days_remaining="${14:-N/A}"
+    local exhaustion_date="${15:-N/A}"
+    local total_budget="${16:-0}"
+    local budget_risk_level="${17:-unknown}"
+    local budget_risk_percent="${18:-N/A}"
+    local budget_risk_threshold_exceeded="${19:-false}"
+    local renderer
 
-    local timestamp
-    # shellcheck disable=SC2154
-    timestamp=$(get_timestamp)
-
-    # Parse data into JSON arrays
-    local cost_center_json
-    cost_center_json=$(parse_cost_center_data "$cost_center_data")
-
-    local model_json
-    model_json=$(parse_model_data "$model_data")
-
-    # Calculate attribution coverage
-    local unattributed_spend=0
-    local coverage_percent=100
-
-    # Extract unattributed amount from data
-    while IFS='|' read -r cc team requests tokens spend percent; do
-        cc=$(echo "$cc" | xargs 2>/dev/null || echo "")
-        if [[ "$cc" == "unknown-cc" ]]; then
-            unattributed_spend=$(echo "$spend" | xargs)
-            break
-        fi
-    done <<<"$cost_center_data"
-
-    if [[ -n "$total_spend" && "$total_spend" != "0" ]]; then
-        coverage_percent=$(echo "scale=2; (($total_spend - $unattributed_spend) / $total_spend) * 100" | bc 2>/dev/null || echo "100")
-    fi
-
-    # Build forecast section
-    local forecast_enabled_bool="true"
-    if [[ "${FORECAST_ENABLED:-true}" != "true" ]]; then
-        forecast_enabled_bool="false"
-    fi
-
-    local days_remaining_json="null"
-    if [[ "$days_remaining" != "N/A" && "$days_remaining" =~ ^[0-9]+$ ]]; then
-        days_remaining_json="$days_remaining"
-    fi
-
-    local exhaustion_date_json="\"N/A\""
-    if [[ "$exhaustion_date" != "N/A" && "$exhaustion_date" != "" ]]; then
-        exhaustion_date_json="\"$exhaustion_date\""
-    fi
-
-    # Build JSON output
-    cat <<EOF
-{
-  "schema_version": "${SCHEMA_VERSION}",
-  "report_metadata": {
-    "generated_at": "${timestamp}",
-    "report_month": "${report_month}",
-    "period_start": "${month_start}",
-    "period_end": "${month_end}"
-  },
-  "executive_summary": {
-    "total_spend": ${total_spend:-0},
-    "total_requests": ${total_requests:-0},
-    "total_tokens": ${total_tokens:-0},
-    "attribution_coverage_percent": ${coverage_percent},
-    "unattributed_spend": ${unattributed_spend:-0}
-  },
-  "allocations_by_cost_center": ${cost_center_json},
-  "allocations_by_model": ${model_json},
-  "variance_analysis": {
-    "previous_month_spend": ${prev_month_spend:-0},
-    "variance_percent": $(if [[ "${variance:-0}" == "N/A" ]]; then echo '"N/A"'; else echo "${variance:-0}"; fi),
-    "variance_threshold": ${VARIANCE_THRESHOLD},
-    "variance_threshold_exceeded": $(if variance_exceeds_threshold "$variance" "$VARIANCE_THRESHOLD"; then echo "true"; else echo "false"; fi)
-  },
-  "anomalies": ${anomalies},
-  "forecast": {
-    "enabled": ${forecast_enabled_bool},
-    "methodology": "linear_regression",
-    "confidence_note": "Estimates based on historical trends; actual spend may vary +/- 20%",
-    "predictions": {
-      "month_1": $(parse_forecast_value "$forecast_values" 1),
-      "month_2": $(parse_forecast_value "$forecast_values" 2),
-      "month_3": $(parse_forecast_value "$forecast_values" 3)
-    },
-    "burn_rate": {
-      "daily_average": ${daily_burn:-0},
-      "days_until_exhaustion": ${days_remaining_json},
-      "exhaustion_date": ${exhaustion_date_json}
-    },
-    "budget_analysis": {
-      "total_budget": ${total_budget:-0},
-      "risk_assessment": ${budget_risk:-{}}
-    }
-  },
-  "configuration": {
-    "variance_threshold_percent": ${VARIANCE_THRESHOLD},
-    "anomaly_threshold_percent": ${ANOMALY_THRESHOLD}
-  }
-}
-EOF
+    renderer="$(resolve_chargeback_renderer)" || return $?
+    CHARGEBACK_SCHEMA_VERSION="${SCHEMA_VERSION}" \
+        CHARGEBACK_GENERATED_AT="$(get_timestamp)" \
+        CHARGEBACK_REPORT_MONTH="${report_month}" \
+        CHARGEBACK_MONTH_START="${month_start}" \
+        CHARGEBACK_MONTH_END="${month_end}" \
+        CHARGEBACK_TOTAL_SPEND="${total_spend}" \
+        CHARGEBACK_TOTAL_REQUESTS="${total_requests}" \
+        CHARGEBACK_TOTAL_TOKENS="${total_tokens}" \
+        CHARGEBACK_COST_CENTER_JSON="${cost_center_json}" \
+        CHARGEBACK_MODEL_JSON="${model_json}" \
+        CHARGEBACK_VARIANCE="${variance}" \
+        CHARGEBACK_PREV_MONTH_SPEND="${prev_month_spend}" \
+        CHARGEBACK_ANOMALIES_JSON="${anomalies_json}" \
+        CHARGEBACK_FORECAST_VALUES="${forecast_values}" \
+        CHARGEBACK_DAILY_BURN="${daily_burn}" \
+        CHARGEBACK_DAYS_REMAINING="${days_remaining}" \
+        CHARGEBACK_EXHAUSTION_DATE="${exhaustion_date}" \
+        CHARGEBACK_TOTAL_BUDGET="${total_budget}" \
+        CHARGEBACK_BUDGET_RISK_LEVEL="${budget_risk_level}" \
+        CHARGEBACK_BUDGET_RISK_PERCENT="${budget_risk_percent}" \
+        CHARGEBACK_BUDGET_RISK_THRESHOLD_EXCEEDED="${budget_risk_threshold_exceeded}" \
+        CHARGEBACK_VARIANCE_THRESHOLD="${VARIANCE_THRESHOLD}" \
+        CHARGEBACK_ANOMALY_THRESHOLD="${ANOMALY_THRESHOLD}" \
+        CHARGEBACK_FORECAST_ENABLED="${FORECAST_ENABLED:-true}" \
+        "${renderer}" chargeback render --format json
 }
 
 # Output Markdown format
