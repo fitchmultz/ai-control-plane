@@ -1,14 +1,17 @@
 // cmd_delegated.go - Make-delegated command implementation
 //
-// Purpose: Handle commands that delegate to Make targets
+// Purpose: Route grouped CLI subcommands to native handlers or Make targets.
 // Responsibilities:
-//   - Define command groups and subcommands
-//   - Map subcommands to Make targets
-//   - Forward arguments to Make
-//
-// Non-scope:
-//   - Does not implement command logic (delegated to Make)
-//   - Does not validate Make target arguments
+//   - Define grouped command metadata and Make target mappings.
+//   - Dispatch native overrides where typed behavior exists.
+//   - Preserve delegated execution for Make-owned workflows.
+// Scope:
+//   - Command selection, help rendering, and Make process invocation.
+// Usage:
+//   - Invoked by top-level CLI parsing for grouped commands such as validate/db.
+// Invariants/Assumptions:
+//   - Make-owned policy remains authoritative for delegated subcommands.
+//   - Native handlers must own their own help text when explicitly routed here.
 
 package main
 
@@ -86,9 +89,9 @@ var delegatedGroups = []makeDelegatedGroup{
 			{Name: "siem-queries", MakeTarget: "validate-siem-queries", Description: "Validate SIEM query sync"},
 			{Name: "network-contract", MakeTarget: "network-contract", Description: "Render network contract artifacts"},
 			{Name: "supply-chain", MakeTarget: "supply-chain-gate", Description: "Run supply-chain security gate"},
-			{Name: "secrets-audit", MakeTarget: "secrets-audit", Description: "Run secrets and token leak audit"},
+			{Name: "secrets-audit", MakeTarget: "secrets-audit", Description: "Run deterministic tracked-file secrets audit"},
 			{Name: "compose-healthchecks", MakeTarget: "validate-compose-healthchecks", Description: "Validate Docker Compose healthchecks"},
-			{Name: "security", MakeTarget: "security-gate", Description: "Run full security validation gate"},
+			{Name: "security", MakeTarget: "security-gate", Description: "Run Make-composed security gate (hygiene, secrets, license, supply chain)"},
 		},
 	},
 	{
@@ -224,6 +227,7 @@ func printDelegatedGroupHelp(out *os.File, group makeDelegatedGroup) {
 
 func printDelegatedSubcommandHelp(out *os.File, group makeDelegatedGroup, sub makeDelegatedSubcommand) {
 	fmt.Fprintf(out, "Usage: acpctl %s %s [make args]\n\n", group.Name, sub.Name)
+	fmt.Fprintf(out, "%s\n\n", sub.Description)
 	fmt.Fprintf(out, "Delegates to make target: %s\n\n", sub.MakeTarget)
 	fmt.Fprintln(out, "Examples:")
 	fmt.Fprintf(out, "  acpctl %s %s\n", group.Name, sub.Name)
@@ -248,6 +252,12 @@ func runDelegatedGroup(group makeDelegatedGroup, args []string, stdout *os.File,
 		return exitcodes.ACPExitUsage
 	}
 
+	if group.Name == "validate" {
+		if code, handled := runNativeValidateSubcommand(subcommand.Name, args[1:], stdout, stderr); handled {
+			return code
+		}
+	}
+
 	if len(args) > 1 && isHelpToken(args[1]) {
 		printDelegatedSubcommandHelp(stdout, group, subcommand)
 		return exitcodes.ACPExitSuccess
@@ -262,23 +272,6 @@ func runDelegatedGroup(group makeDelegatedGroup, args []string, stdout *os.File,
 			return runDBRestoreCommand(args[1:], stdout, stderr)
 		case "dr-drill":
 			return runDBDRDrill(args[1:], stdout, stderr)
-		}
-	}
-
-	if group.Name == "validate" {
-		switch subcommand.Name {
-		case "detections":
-			return runValidateDetections(args[1:], stdout, stderr)
-		case "siem-queries":
-			return runValidateSiemQueries(args[1:], stdout, stderr)
-		case "config":
-			return runValidateConfig(args[1:], stdout, stderr)
-		case "compose-healthchecks":
-			return runValidateComposeHealthchecks(args[1:], stdout, stderr)
-		case "secrets-audit":
-			return runSecretsAudit(args[1:], stdout, stderr)
-		case "security":
-			return runSecurityGate(args[1:], stdout, stderr)
 		}
 	}
 
@@ -320,6 +313,23 @@ func runDelegatedGroup(group makeDelegatedGroup, args []string, stdout *os.File,
 	}
 
 	return runMakeTarget(subcommand.MakeTarget, args[1:], stdout, stderr)
+}
+
+func runNativeValidateSubcommand(name string, args []string, stdout *os.File, stderr *os.File) (int, bool) {
+	switch name {
+	case "detections":
+		return runValidateDetections(args, stdout, stderr), true
+	case "siem-queries":
+		return runValidateSiemQueries(args, stdout, stderr), true
+	case "config":
+		return runValidateConfig(args, stdout, stderr), true
+	case "compose-healthchecks":
+		return runValidateComposeHealthchecks(args, stdout, stderr), true
+	case "secrets-audit":
+		return runSecretsAudit(args, stdout, stderr), true
+	default:
+		return 0, false
+	}
 }
 
 func runMakeTarget(target string, makeArgs []string, stdout *os.File, stderr *os.File) int {
