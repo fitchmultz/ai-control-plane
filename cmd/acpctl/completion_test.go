@@ -243,7 +243,10 @@ func TestResolveSuggestions_KeyPrefixes(t *testing.T) {
 func TestResolveSuggestions_BridgeCommands(t *testing.T) {
 	catalog := completionCatalog{
 		rootCommands: []string{"bridge", "deploy"},
-		bridgeNames:  []string{"host_deploy", "onboard"},
+		groupSubcommands: map[string][]string{
+			"bridge": {"host_deploy", "onboard"},
+		},
+		bridgeNames: []string{"host_deploy", "onboard"},
 	}
 
 	suggestions := resolveSuggestions([]string{"bridge"}, "", catalog)
@@ -541,10 +544,34 @@ SCENARIO_KEY_ALIAS=test-key
 	if len(catalog.rootCommands) == 0 {
 		t.Error("expected non-empty root commands")
 	}
+	if !slices.Contains(catalog.rootCommands, "health") {
+		t.Fatalf("expected health in root commands, got: %v", catalog.rootCommands)
+	}
+	if !slices.Contains(catalog.rootCommands, "helm") {
+		t.Fatalf("expected helm in root commands, got: %v", catalog.rootCommands)
+	}
 
 	// Check group subcommands
 	if len(catalog.groupSubcommands) == 0 {
 		t.Error("expected non-empty group subcommands")
+	}
+	if !slices.Contains(catalog.groupSubcommands["ci"], "wait") {
+		t.Fatalf("expected ci wait in catalog, got: %v", catalog.groupSubcommands["ci"])
+	}
+	if !slices.Contains(catalog.groupSubcommands["benchmark"], "baseline") {
+		t.Fatalf("expected benchmark baseline in catalog, got: %v", catalog.groupSubcommands["benchmark"])
+	}
+	if !slices.Contains(catalog.groupSubcommands["bridge"], "host_preflight") {
+		t.Fatalf("expected bridge host_preflight in catalog, got: %v", catalog.groupSubcommands["bridge"])
+	}
+	if !slices.Contains(catalog.groupSubcommands["helm"], "smoke") {
+		t.Fatalf("expected helm smoke in catalog, got: %v", catalog.groupSubcommands["helm"])
+	}
+	if !slices.Contains(catalog.groupSubcommands["deploy"], "artifact-retention") {
+		t.Fatalf("expected deploy artifact-retention in catalog, got: %v", catalog.groupSubcommands["deploy"])
+	}
+	if !slices.Contains(catalog.groupSubcommands["validate"], "compose-healthchecks") {
+		t.Fatalf("expected validate compose-healthchecks in catalog, got: %v", catalog.groupSubcommands["validate"])
 	}
 
 	// Check bridge names
@@ -568,4 +595,132 @@ SCENARIO_KEY_ALIAS=test-key
 	if len(catalog.scenarioIDs) != 1 || catalog.scenarioIDs[0] != "1" {
 		t.Errorf("expected ['1'], got: %v", catalog.scenarioIDs)
 	}
+}
+
+func TestBuildCompletionCatalog_ExcludesStaleCommands(t *testing.T) {
+	catalog := buildCompletionCatalog(t.TempDir())
+
+	forbidden := map[string][]string{
+		"key":  {"rbac-whoami", "rbac-roles"},
+		"host": {"upgrade-status"},
+		"demo": {"status"},
+	}
+
+	for group, names := range forbidden {
+		for _, name := range names {
+			if slices.Contains(catalog.groupSubcommands[group], name) {
+				t.Fatalf("unexpected stale subcommand %q in %q: %v", name, group, catalog.groupSubcommands[group])
+			}
+		}
+	}
+}
+
+func TestGeneratedCompletionScriptsFollowCatalog(t *testing.T) {
+	catalog := buildCompletionCatalog(t.TempDir())
+
+	for _, shell := range []string{"bash", "zsh", "fish"} {
+		content := captureCompletionScript(t, shell)
+
+		for _, root := range catalog.rootCommands {
+			if !strings.Contains(content, root) {
+				t.Fatalf("%s completion missing root command %q", shell, root)
+			}
+		}
+
+		for _, group := range []string{"ci", "completion", "bridge", "deploy", "validate", "helm"} {
+			for _, subcommand := range catalog.groupSubcommands[group] {
+				if !strings.Contains(content, subcommand) {
+					t.Fatalf("%s completion missing %s subcommand %q", shell, group, subcommand)
+				}
+			}
+		}
+
+		for _, stale := range []string{"rbac-whoami", "rbac-roles", "upgrade-status"} {
+			if strings.Contains(content, stale) {
+				t.Fatalf("%s completion unexpectedly contains stale subcommand %q", shell, stale)
+			}
+		}
+	}
+}
+
+func TestNativeHelpSurfacesFollowRegistry(t *testing.T) {
+	tests := []struct {
+		name       string
+		command    string
+		renderHelp func(*os.File)
+	}{
+		{name: "ci", command: "ci", renderHelp: printCIHelp},
+		{name: "files", command: "files", renderHelp: printFilesHelp},
+		{name: "benchmark", command: "benchmark", renderHelp: printBenchmarkHelp},
+		{name: "completion", command: "completion", renderHelp: printCompletionHelp},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			content := captureHelpOutput(t, tc.renderHelp)
+			command := mustLookupNativeCommand(tc.command)
+			for _, subcommand := range command.Subcommands {
+				if !strings.Contains(content, subcommand.Name) {
+					t.Fatalf("%s help missing subcommand %q", tc.name, subcommand.Name)
+				}
+				if !strings.Contains(content, subcommand.Description) {
+					t.Fatalf("%s help missing description for %q", tc.name, subcommand.Name)
+				}
+			}
+		})
+	}
+}
+
+func captureCompletionScript(t *testing.T, shell string) string {
+	t.Helper()
+
+	stdout, err := os.CreateTemp("", "acpctl_completion_stdout")
+	if err != nil {
+		t.Fatalf("failed to create temp stdout: %v", err)
+	}
+	defer os.Remove(stdout.Name())
+
+	stderr, err := os.CreateTemp("", "acpctl_completion_stderr")
+	if err != nil {
+		t.Fatalf("failed to create temp stderr: %v", err)
+	}
+	defer os.Remove(stderr.Name())
+
+	if exitCode := runCompletionSubcommand([]string{shell}, stdout, stderr); exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected success generating %s completion, got %d", shell, exitCode)
+	}
+
+	if _, err := stdout.Seek(0, 0); err != nil {
+		t.Fatalf("failed to seek stdout: %v", err)
+	}
+
+	buf := new(bytes.Buffer)
+	if _, err := buf.ReadFrom(stdout); err != nil {
+		t.Fatalf("failed to read stdout: %v", err)
+	}
+
+	return buf.String()
+}
+
+func captureHelpOutput(t *testing.T, renderHelp func(*os.File)) string {
+	t.Helper()
+
+	stdout, err := os.CreateTemp("", "acpctl_help_stdout")
+	if err != nil {
+		t.Fatalf("failed to create temp help stdout: %v", err)
+	}
+	defer os.Remove(stdout.Name())
+
+	renderHelp(stdout)
+
+	if _, err := stdout.Seek(0, 0); err != nil {
+		t.Fatalf("failed to seek help stdout: %v", err)
+	}
+
+	buf := new(bytes.Buffer)
+	if _, err := buf.ReadFrom(stdout); err != nil {
+		t.Fatalf("failed to read help stdout: %v", err)
+	}
+
+	return buf.String()
 }

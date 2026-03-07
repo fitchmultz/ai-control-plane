@@ -40,12 +40,18 @@ func runFilesSubcommand(args []string, stdout *os.File, stderr *os.File) int {
 }
 
 func printFilesHelp(out *os.File) {
+	command := mustLookupNativeCommand("files")
+
 	fmt.Fprint(out, `Usage: acpctl files <subcommand> [options]
 
 Typed file synchronization workflows.
 
 Subcommands:
-  sync-helm   Synchronize canonical repository files into Helm chart files/
+`)
+	for _, subcommand := range command.Subcommands {
+		fmt.Fprintf(out, "  %-12s %s\n", subcommand.Name, subcommand.Description)
+	}
+	fmt.Fprint(out, `
 
 Examples:
   acpctl files sync-helm

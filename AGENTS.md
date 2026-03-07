@@ -87,6 +87,7 @@ make health      # Verify services
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
+- **acpctl command metadata:** `cmd/acpctl/command_registry.go` is the canonical source for visible native root commands plus completion/help ordering; delegated groups and bridge names still derive from `cmd_delegated.go` and `cmd_bridge.go`
 
 ---
 

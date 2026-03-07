@@ -47,9 +47,18 @@ func runCompletionSubcommand(args []string, stdout *os.File, stderr *os.File) in
 }
 
 func printCompletionHelp(out *os.File) {
+	command := mustLookupNativeCommand("completion")
+
 	fmt.Fprint(out, `Usage: acpctl completion <bash|zsh|fish>
 
 Generate shell completion scripts.
+
+Supported shells:
+`)
+	for _, subcommand := range command.Subcommands {
+		fmt.Fprintf(out, "  %-5s %s\n", subcommand.Name, subcommand.Description)
+	}
+	fmt.Fprint(out, `
 
 To install completions:
 
@@ -69,188 +78,92 @@ Exit codes:
 }
 
 func generateBashCompletion(stdout *os.File, stderr *os.File) int {
-	script := `_acpctl_complete() {
-    local cur prev opts
-    COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
-    # Main commands
-    local commands="ci files status doctor bridge completion deploy validate db key host demo terraform help"
-    
-    # Complete main command
-    if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "${commands}" -- ${cur}) )
-        return 0
-    fi
-    
-    # Subcommand completions
-    case "${COMP_WORDS[1]}" in
-        ci)
-            local ci_cmds="should-run-runtime help"
-            COMPREPLY=( $(compgen -W "${ci_cmds}" -- ${cur}) )
-            ;;
-        files)
-            local file_cmds="sync-helm help"
-            COMPREPLY=( $(compgen -W "${file_cmds}" -- ${cur}) )
-            ;;
-        deploy)
-            local deploy_cmds="up down restart health logs ps up-production up-offline up-tls help"
-            COMPREPLY=( $(compgen -W "${deploy_cmds}" -- ${cur}) )
-            ;;
-        validate)
-            local validate_cmds="lint config detections siem-queries help"
-            COMPREPLY=( $(compgen -W "${validate_cmds}" -- ${cur}) )
-            ;;
-        db)
-            local db_cmds="status backup restore shell dr-drill help"
-            COMPREPLY=( $(compgen -W "${db_cmds}" -- ${cur}) )
-            ;;
-        key)
-            local key_cmds="gen revoke gen-dev gen-lead rbac-whoami rbac-roles help"
-            COMPREPLY=( $(compgen -W "${key_cmds}" -- ${cur}) )
-            ;;
-        host)
-            local host_cmds="preflight check apply install service-status upgrade-status help"
-            COMPREPLY=( $(compgen -W "${host_cmds}" -- ${cur}) )
-            ;;
-        demo)
-            local demo_cmds="scenario all preset snapshot restore status help"
-            COMPREPLY=( $(compgen -W "${demo_cmds}" -- ${cur}) )
-            ;;
-        terraform)
-            local tf_cmds="init plan apply destroy fmt validate help"
-            COMPREPLY=( $(compgen -W "${tf_cmds}" -- ${cur}) )
-            ;;
-        *)
-            COMPREPLY=()
-            ;;
-    esac
-}
+	catalog := buildCompletionCatalog(detectRepoRoot())
+	var script strings.Builder
 
-complete -o default -F _acpctl_complete acpctl
-`
-	fmt.Fprint(stdout, script)
+	fmt.Fprintf(&script, "_acpctl_complete() {\n")
+	fmt.Fprintf(&script, "    local cur\n")
+	fmt.Fprintf(&script, "    COMPREPLY=()\n")
+	fmt.Fprintf(&script, "    cur=\"${COMP_WORDS[COMP_CWORD]}\"\n\n")
+	fmt.Fprintf(&script, "    local commands=%q\n\n", bashWordList(catalog.rootCommands))
+	fmt.Fprintf(&script, "    if [[ ${COMP_CWORD} -eq 1 ]]; then\n")
+	fmt.Fprintf(&script, "        COMPREPLY=( $(compgen -W \"${commands}\" -- \"${cur}\") )\n")
+	fmt.Fprintf(&script, "        return 0\n")
+	fmt.Fprintf(&script, "    fi\n\n")
+	fmt.Fprintf(&script, "    case \"${COMP_WORDS[1]}\" in\n")
+	script.WriteString(renderBashSubcommandCases(catalog))
+	fmt.Fprintf(&script, "        *)\n")
+	fmt.Fprintf(&script, "            COMPREPLY=()\n")
+	fmt.Fprintf(&script, "            ;;\n")
+	fmt.Fprintf(&script, "    esac\n")
+	fmt.Fprintf(&script, "}\n\n")
+	fmt.Fprintf(&script, "complete -o default -F _acpctl_complete acpctl\n")
+
+	fmt.Fprint(stdout, script.String())
 	return exitcodes.ACPExitSuccess
 }
 
 func generateZshCompletion(stdout *os.File, stderr *os.File) int {
-	script := `#compdef acpctl
+	registry := buildCommandRegistry()
+	var script strings.Builder
 
-_acpctl() {
-    local curcontext="$curcontext" state line
-    typeset -A opt_args
+	fmt.Fprintf(&script, "#compdef acpctl\n\n")
+	fmt.Fprintf(&script, "_acpctl() {\n")
+	fmt.Fprintf(&script, "    local curcontext=\"$curcontext\" state line\n")
+	fmt.Fprintf(&script, "    typeset -A opt_args\n\n")
+	fmt.Fprintf(&script, "    _arguments -C \\\n")
+	fmt.Fprintf(&script, "        '1: :_acpctl_commands' \\\n")
+	fmt.Fprintf(&script, "        '*:: :->args'\n\n")
+	fmt.Fprintf(&script, "    case \"$line[1]\" in\n")
+	script.WriteString(renderZshSubcommandCases(registry))
+	fmt.Fprintf(&script, "        *)\n")
+	fmt.Fprintf(&script, "            _files\n")
+	fmt.Fprintf(&script, "            ;;\n")
+	fmt.Fprintf(&script, "    esac\n")
+	fmt.Fprintf(&script, "}\n\n")
+	fmt.Fprintf(&script, "_acpctl_commands() {\n")
+	fmt.Fprintf(&script, "    local commands=(\n")
+	script.WriteString(renderZshDescribeEntries(registry.RootCommands))
+	fmt.Fprintf(&script, "    )\n")
+	fmt.Fprintf(&script, "    _describe -t commands 'acpctl commands' commands \"$@\"\n")
+	fmt.Fprintf(&script, "}\n\n")
+	script.WriteString(renderZshSubcommandFunctions(registry))
+	fmt.Fprintf(&script, "compdef _acpctl acpctl\n")
 
-    _arguments -C \
-        '1: :_acpctl_commands' \
-        '*:: :->args'
-
-    case "$line[1]" in
-        ci)
-            _acpctl_ci
-            ;;
-        files)
-            _acpctl_files
-            ;;
-        status)
-            _arguments \
-                '--json[Output in JSON format]' \
-                '--wide[Show extended details]' \
-                '--watch[Watch mode]'
-            ;;
-        doctor)
-            _arguments \
-                '--json[Output in JSON format]' \
-                '--wide[Show extended details]' \
-                '--fix[Attempt auto-remediation]'
-            ;;
-        *)
-            _files
-            ;;
-    esac
-}
-
-_acpctl_commands() {
-    local commands=(
-        "ci:CI and local gate helpers"
-        "files:Typed local file synchronization helpers"
-        "status:Aggregated system health overview"
-        "doctor:Environment preflight diagnostics"
-        "bridge:Execute mapped legacy script implementations"
-        "completion:Generate shell completion scripts"
-        "deploy:Service lifecycle and deployment helpers"
-        "validate:Validation and policy checks"
-        "db:Database operations"
-        "key:Virtual key operations"
-        "host:Host deployment and service operations"
-        "demo:Demo scenarios and state operations"
-        "terraform:Terraform provisioning helpers"
-        "help:Show help message"
-    )
-    _describe -t commands 'acpctl commands' commands "$@"
-}
-
-_acpctl_ci() {
-    local subcmds=(
-        "should-run-runtime:Decide whether runtime checks should run"
-        "help:Show help"
-    )
-    _describe -t commands 'ci subcommands' subcmds "$@"
-}
-
-_acpctl_files() {
-    local subcmds=(
-        "sync-helm:Synchronize files into Helm chart"
-        "help:Show help"
-    )
-    _describe -t commands 'files subcommands' subcmds "$@"
-}
-
-compdef _acpctl acpctl
-`
-	fmt.Fprint(stdout, script)
+	fmt.Fprint(stdout, script.String())
 	return exitcodes.ACPExitSuccess
 }
 
 func generateFishCompletion(stdout *os.File, stderr *os.File) int {
-	script := `function __acpctl_complete
-    # Fish completion function for acpctl
-end
+	registry := buildCommandRegistry()
+	var script strings.Builder
 
-complete -c acpctl -f
+	fmt.Fprintf(&script, "function __acpctl_complete\n")
+	fmt.Fprintf(&script, "    # Fish completion function for acpctl\n")
+	fmt.Fprintf(&script, "end\n\n")
+	fmt.Fprintf(&script, "complete -c acpctl -f\n\n")
+	for _, command := range registry.RootCommands {
+		fmt.Fprintf(
+			&script,
+			"complete -c acpctl -n '__fish_use_subcommand' -a %s -d %s\n",
+			shellSingleQuote(command.Name),
+			shellSingleQuote(command.Description),
+		)
+	}
+	fmt.Fprintf(&script, "\n")
+	for _, command := range registry.RootCommands {
+		for _, subcommand := range registry.GroupSubcommands[command.Name] {
+			fmt.Fprintf(
+				&script,
+				"complete -c acpctl -n '__fish_seen_subcommand_from %s' -a %s -d %s\n",
+				command.Name,
+				shellSingleQuote(subcommand.Name),
+				shellSingleQuote(subcommand.Description),
+			)
+		}
+	}
 
-# Main commands
-complete -c acpctl -n '__fish_use_subcommand' -a "ci" -d "CI and local gate helpers"
-complete -c acpctl -n '__fish_use_subcommand' -a "files" -d "File synchronization helpers"
-complete -c acpctl -n '__fish_use_subcommand' -a "status" -d "System health overview"
-complete -c acpctl -n '__fish_use_subcommand' -a "doctor" -d "Environment diagnostics"
-complete -c acpctl -n '__fish_use_subcommand' -a "bridge" -d "Execute legacy scripts"
-complete -c acpctl -n '__fish_use_subcommand' -a "completion" -d "Generate completions"
-complete -c acpctl -n '__fish_use_subcommand' -a "deploy" -d "Service lifecycle"
-complete -c acpctl -n '__fish_use_subcommand' -a "validate" -d "Validation checks"
-complete -c acpctl -n '__fish_use_subcommand' -a "db" -d "Database operations"
-complete -c acpctl -n '__fish_use_subcommand' -a "key" -d "Virtual key operations"
-complete -c acpctl -n '__fish_use_subcommand' -a "host" -d "Host deployment"
-complete -c acpctl -n '__fish_use_subcommand' -a "demo" -d "Demo scenarios"
-complete -c acpctl -n '__fish_use_subcommand' -a "terraform" -d "Terraform helpers"
-
-# CI subcommands
-complete -c acpctl -n '__fish_seen_subcommand_from ci' -a "should-run-runtime" -d "Decide runtime checks"
-
-# Files subcommands
-complete -c acpctl -n '__fish_seen_subcommand_from files' -a "sync-helm" -d "Sync Helm files"
-
-# Status options
-complete -c acpctl -n '__fish_seen_subcommand_from status' -l json -d "JSON output"
-complete -c acpctl -n '__fish_seen_subcommand_from status' -l wide -d "Extended details"
-complete -c acpctl -n '__fish_seen_subcommand_from status' -l watch -d "Watch mode"
-
-# Doctor options
-complete -c acpctl -n '__fish_seen_subcommand_from doctor' -l json -d "JSON output"
-complete -c acpctl -n '__fish_seen_subcommand_from doctor' -l wide -d "Extended details"
-complete -c acpctl -n '__fish_seen_subcommand_from doctor' -l fix -d "Auto-remediation"
-`
-	fmt.Fprint(stdout, script)
+	fmt.Fprint(stdout, script.String())
 	return exitcodes.ACPExitSuccess
 }
 
@@ -305,9 +218,6 @@ func resolveSuggestions(words []string, prefix string, catalog completionCatalog
 		if subcmds, ok := catalog.groupSubcommands[lastWord]; ok {
 			return subcmds
 		}
-		if lastWord == "bridge" {
-			return catalog.bridgeNames
-		}
 	}
 
 	// Default: return root commands
@@ -337,23 +247,104 @@ func dedupeAndSort(input []string) []string {
 
 // buildCompletionCatalog creates a catalog from the repository
 func buildCompletionCatalog(repoRoot string) completionCatalog {
-	return completionCatalog{
-		rootCommands: []string{"ci", "files", "status", "doctor", "bridge", "completion", "deploy", "validate", "db", "key", "host", "demo", "terraform", "help"},
-		groupSubcommands: map[string][]string{
-			"deploy":    {"up", "down", "restart", "health", "logs", "ps", "up-production", "up-offline", "up-tls"},
-			"validate":  {"lint", "config", "detections", "siem-queries", "network-contract", "supply-chain", "secrets-audit"},
-			"db":        {"status", "backup", "restore", "shell", "dr-drill"},
-			"key":       {"gen", "revoke", "gen-dev", "gen-lead", "rbac-whoami", "rbac-roles"},
-			"host":      {"preflight", "check", "apply", "install", "service-status", "upgrade-status"},
-			"demo":      {"scenario", "all", "preset", "snapshot", "restore", "status"},
-			"terraform": {"init", "plan", "apply", "destroy", "fmt", "validate"},
-		},
-		bridgeNames: []string{"host_deploy", "host_install", "host_preflight", "host_upgrade_slots", "onboard", "prepare_secrets_env", "prod_smoke_helm", "prod_smoke_test", "release_bundle", "switch_claude_mode"},
-		modelNames:  extractModelNames(repoRoot),
-		presetNames: extractPresetNames(repoRoot),
-		scenarioIDs: extractScenarioIDs(repoRoot),
-		keyAliases:  extractKeyAliases(repoRoot),
+	registry := buildCommandRegistry()
+	catalog := completionCatalog{
+		rootCommands:     make([]string, 0, len(registry.RootCommands)),
+		groupSubcommands: make(map[string][]string, len(registry.GroupSubcommands)),
+		bridgeNames:      make([]string, 0, len(registry.BridgeCommands)),
+		modelNames:       extractModelNames(repoRoot),
+		presetNames:      extractPresetNames(repoRoot),
+		scenarioIDs:      extractScenarioIDs(repoRoot),
+		keyAliases:       extractKeyAliases(repoRoot),
 	}
+
+	for _, command := range registry.RootCommands {
+		catalog.rootCommands = append(catalog.rootCommands, command.Name)
+	}
+	for groupName, subcommands := range registry.GroupSubcommands {
+		names := make([]string, 0, len(subcommands))
+		for _, subcommand := range subcommands {
+			names = append(names, subcommand.Name)
+		}
+		catalog.groupSubcommands[groupName] = names
+	}
+	for _, bridge := range registry.BridgeCommands {
+		catalog.bridgeNames = append(catalog.bridgeNames, bridge.Name)
+	}
+
+	return catalog
+}
+
+func bashWordList(values []string) string {
+	return strings.Join(values, " ")
+}
+
+func renderBashSubcommandCases(catalog completionCatalog) string {
+	registry := buildCommandRegistry()
+	var script strings.Builder
+	for _, command := range registry.RootCommands {
+		subcommands := catalog.groupSubcommands[command.Name]
+		if len(subcommands) == 0 {
+			continue
+		}
+		fmt.Fprintf(&script, "        %s)\n", command.Name)
+		fmt.Fprintf(&script, "            local subcmds=%q\n", bashWordList(subcommands))
+		fmt.Fprintf(&script, "            COMPREPLY=( $(compgen -W \"${subcmds}\" -- \"${cur}\") )\n")
+		fmt.Fprintf(&script, "            ;;\n")
+	}
+	return script.String()
+}
+
+func renderZshSubcommandCases(registry commandRegistry) string {
+	var script strings.Builder
+	for _, command := range registry.RootCommands {
+		if len(registry.GroupSubcommands[command.Name]) == 0 {
+			continue
+		}
+		fmt.Fprintf(&script, "        %s)\n", command.Name)
+		fmt.Fprintf(&script, "            _acpctl_%s\n", zshFunctionName(command.Name))
+		fmt.Fprintf(&script, "            ;;\n")
+	}
+	return script.String()
+}
+
+func renderZshSubcommandFunctions(registry commandRegistry) string {
+	var script strings.Builder
+	for _, command := range registry.RootCommands {
+		subcommands := registry.GroupSubcommands[command.Name]
+		if len(subcommands) == 0 {
+			continue
+		}
+		fmt.Fprintf(&script, "_acpctl_%s() {\n", zshFunctionName(command.Name))
+		fmt.Fprintf(&script, "    local subcmds=(\n")
+		script.WriteString(renderZshDescribeEntries(subcommands))
+		fmt.Fprintf(&script, "    )\n")
+		fmt.Fprintf(&script, "    _describe -t commands '%s subcommands' subcmds \"$@\"\n", command.Name)
+		fmt.Fprintf(&script, "}\n\n")
+	}
+	return script.String()
+}
+
+func renderZshDescribeEntries(commands []commandDescriptor) string {
+	var script strings.Builder
+	for _, command := range commands {
+		fmt.Fprintf(&script, "        %q\n", zshDescribeEntry(command))
+	}
+	return script.String()
+}
+
+func zshDescribeEntry(command commandDescriptor) string {
+	description := strings.ReplaceAll(command.Description, `\`, `\\`)
+	description = strings.ReplaceAll(description, ":", `\:`)
+	return command.Name + ":" + description
+}
+
+func zshFunctionName(name string) string {
+	return strings.ReplaceAll(name, "-", "_")
+}
+
+func shellSingleQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\"'\"'`) + "'"
 }
 
 // extractModelNames extracts model names from litellm.yaml

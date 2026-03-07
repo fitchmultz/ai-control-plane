@@ -1,55 +1,67 @@
 _acpctl_complete() {
-    local cur prev opts
+    local cur
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
-    # Main commands
-    local commands="ci files status doctor bridge completion deploy validate db key host demo terraform help"
-    
-    # Complete main command
+
+    local commands="ci files status health doctor benchmark bridge completion deploy validate db key host demo terraform helm help"
+
     if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "${commands}" -- ${cur}) )
+        COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
         return 0
     fi
-    
-    # Subcommand completions
+
     case "${COMP_WORDS[1]}" in
         ci)
-            local ci_cmds="should-run-runtime help"
-            COMPREPLY=( $(compgen -W "${ci_cmds}" -- ${cur}) )
+            local subcmds="should-run-runtime wait"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         files)
-            local file_cmds="sync-helm help"
-            COMPREPLY=( $(compgen -W "${file_cmds}" -- ${cur}) )
+            local subcmds="sync-helm"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        benchmark)
+            local subcmds="baseline"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        bridge)
+            local subcmds="host_deploy host_install host_preflight host_upgrade_slots onboard prepare_secrets_env prod_smoke_helm prod_smoke_test release_bundle switch_claude_mode"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        completion)
+            local subcmds="bash zsh fish"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         deploy)
-            local deploy_cmds="up down restart health logs ps up-production up-offline up-tls help"
-            COMPREPLY=( $(compgen -W "${deploy_cmds}" -- ${cur}) )
+            local subcmds="up down restart health logs ps up-production prod-smoke up-offline down-offline health-offline up-tls down-tls tls-health helm-validate release-bundle readiness-evidence pilot-closeout-bundle artifact-retention"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         validate)
-            local validate_cmds="lint config detections siem-queries help"
-            COMPREPLY=( $(compgen -W "${validate_cmds}" -- ${cur}) )
+            local subcmds="lint config detections siem-queries network-contract supply-chain secrets-audit compose-healthchecks security"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         db)
-            local db_cmds="status backup restore shell dr-drill help"
-            COMPREPLY=( $(compgen -W "${db_cmds}" -- ${cur}) )
+            local subcmds="status backup restore shell dr-drill"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         key)
-            local key_cmds="gen revoke gen-dev gen-lead rbac-whoami rbac-roles help"
-            COMPREPLY=( $(compgen -W "${key_cmds}" -- ${cur}) )
+            local subcmds="gen revoke gen-dev gen-lead"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         host)
-            local host_cmds="preflight check apply install service-status upgrade-status help"
-            COMPREPLY=( $(compgen -W "${host_cmds}" -- ${cur}) )
+            local subcmds="preflight check apply install service-status"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         demo)
-            local demo_cmds="scenario all preset snapshot restore status help"
-            COMPREPLY=( $(compgen -W "${demo_cmds}" -- ${cur}) )
+            local subcmds="scenario all preset snapshot restore"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         terraform)
-            local tf_cmds="init plan apply destroy fmt validate help"
-            COMPREPLY=( $(compgen -W "${tf_cmds}" -- ${cur}) )
+            local subcmds="init plan apply destroy fmt validate"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        helm)
+            local subcmds="validate smoke"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         *)
             COMPREPLY=()

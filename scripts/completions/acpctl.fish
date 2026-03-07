@@ -4,33 +4,93 @@ end
 
 complete -c acpctl -f
 
-# Main commands
-complete -c acpctl -n '__fish_use_subcommand' -a "ci" -d "CI and local gate helpers"
-complete -c acpctl -n '__fish_use_subcommand' -a "files" -d "File synchronization helpers"
-complete -c acpctl -n '__fish_use_subcommand' -a "status" -d "System health overview"
-complete -c acpctl -n '__fish_use_subcommand' -a "doctor" -d "Environment diagnostics"
-complete -c acpctl -n '__fish_use_subcommand' -a "bridge" -d "Execute legacy scripts"
-complete -c acpctl -n '__fish_use_subcommand' -a "completion" -d "Generate completions"
-complete -c acpctl -n '__fish_use_subcommand' -a "deploy" -d "Service lifecycle"
-complete -c acpctl -n '__fish_use_subcommand' -a "validate" -d "Validation checks"
-complete -c acpctl -n '__fish_use_subcommand' -a "db" -d "Database operations"
-complete -c acpctl -n '__fish_use_subcommand' -a "key" -d "Virtual key operations"
-complete -c acpctl -n '__fish_use_subcommand' -a "host" -d "Host deployment"
-complete -c acpctl -n '__fish_use_subcommand' -a "demo" -d "Demo scenarios"
-complete -c acpctl -n '__fish_use_subcommand' -a "terraform" -d "Terraform helpers"
+complete -c acpctl -n '__fish_use_subcommand' -a 'ci' -d 'CI and local gate helpers'
+complete -c acpctl -n '__fish_use_subcommand' -a 'files' -d 'Typed local file synchronization helpers'
+complete -c acpctl -n '__fish_use_subcommand' -a 'status' -d 'Aggregated system health overview'
+complete -c acpctl -n '__fish_use_subcommand' -a 'health' -d 'Run service health checks'
+complete -c acpctl -n '__fish_use_subcommand' -a 'doctor' -d 'Environment preflight diagnostics'
+complete -c acpctl -n '__fish_use_subcommand' -a 'benchmark' -d 'Lightweight local performance baseline'
+complete -c acpctl -n '__fish_use_subcommand' -a 'bridge' -d 'Execute mapped legacy script implementations directly'
+complete -c acpctl -n '__fish_use_subcommand' -a 'completion' -d 'Generate shell completion scripts'
+complete -c acpctl -n '__fish_use_subcommand' -a 'deploy' -d 'Service lifecycle, release, and deployment operations'
+complete -c acpctl -n '__fish_use_subcommand' -a 'validate' -d 'Configuration and policy validation operations'
+complete -c acpctl -n '__fish_use_subcommand' -a 'db' -d 'Database backup, restore, and inspection operations'
+complete -c acpctl -n '__fish_use_subcommand' -a 'key' -d 'Virtual key lifecycle operations'
+complete -c acpctl -n '__fish_use_subcommand' -a 'host' -d 'Host-first deployment and operations'
+complete -c acpctl -n '__fish_use_subcommand' -a 'demo' -d 'Demo scenario, preset, and snapshot operations'
+complete -c acpctl -n '__fish_use_subcommand' -a 'terraform' -d 'Terraform provisioning workflow helpers'
+complete -c acpctl -n '__fish_use_subcommand' -a 'helm' -d 'Helm chart validation and smoke tests'
+complete -c acpctl -n '__fish_use_subcommand' -a 'help' -d 'Show this help message'
 
-# CI subcommands
-complete -c acpctl -n '__fish_seen_subcommand_from ci' -a "should-run-runtime" -d "Decide runtime checks"
-
-# Files subcommands
-complete -c acpctl -n '__fish_seen_subcommand_from files' -a "sync-helm" -d "Sync Helm files"
-
-# Status options
-complete -c acpctl -n '__fish_seen_subcommand_from status' -l json -d "JSON output"
-complete -c acpctl -n '__fish_seen_subcommand_from status' -l wide -d "Extended details"
-complete -c acpctl -n '__fish_seen_subcommand_from status' -l watch -d "Watch mode"
-
-# Doctor options
-complete -c acpctl -n '__fish_seen_subcommand_from doctor' -l json -d "JSON output"
-complete -c acpctl -n '__fish_seen_subcommand_from doctor' -l wide -d "Extended details"
-complete -c acpctl -n '__fish_seen_subcommand_from doctor' -l fix -d "Auto-remediation"
+complete -c acpctl -n '__fish_seen_subcommand_from ci' -a 'should-run-runtime' -d 'Decide whether runtime checks should run'
+complete -c acpctl -n '__fish_seen_subcommand_from ci' -a 'wait' -d 'Wait for services to become healthy'
+complete -c acpctl -n '__fish_seen_subcommand_from files' -a 'sync-helm' -d 'Synchronize canonical repository files into Helm chart files/'
+complete -c acpctl -n '__fish_seen_subcommand_from benchmark' -a 'baseline' -d 'Run the local gateway performance baseline'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'host_deploy' -d 'Host declarative deployment orchestration'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'host_install' -d 'Systemd host service installation/management'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'host_preflight' -d 'Host readiness preflight checks'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'host_upgrade_slots' -d 'Slot-based host upgrade orchestration'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'onboard' -d 'Tool onboarding workflows'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'prepare_secrets_env' -d 'Host secrets contract refresh/sync'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'prod_smoke_helm' -d 'Helm production smoke workflow'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'prod_smoke_test' -d 'Runtime production smoke checks'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'release_bundle' -d 'Deployment release bundle build/verify'
+complete -c acpctl -n '__fish_seen_subcommand_from bridge' -a 'switch_claude_mode' -d 'Claude mode switching helper'
+complete -c acpctl -n '__fish_seen_subcommand_from completion' -a 'bash' -d 'Generate Bash completion script'
+complete -c acpctl -n '__fish_seen_subcommand_from completion' -a 'zsh' -d 'Generate Zsh completion script'
+complete -c acpctl -n '__fish_seen_subcommand_from completion' -a 'fish' -d 'Generate Fish completion script'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'up' -d 'Start default services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'down' -d 'Stop default services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'restart' -d 'Restart default services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'health' -d 'Run service health checks'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'logs' -d 'Tail service logs'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'ps' -d 'Show running services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'up-production' -d 'Start production profile services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'prod-smoke' -d 'Run production smoke tests'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'up-offline' -d 'Start offline mode services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'down-offline' -d 'Stop offline mode services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'health-offline' -d 'Run offline mode health checks'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'up-tls' -d 'Start TLS mode services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'down-tls' -d 'Stop TLS mode services'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'tls-health' -d 'Run TLS health checks'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'helm-validate' -d 'Validate Helm chart'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'release-bundle' -d 'Build deployment release bundle'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'readiness-evidence' -d 'Generate and verify dated readiness evidence'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'pilot-closeout-bundle' -d 'Assemble and verify a pilot closeout evidence bundle'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'artifact-retention' -d 'Enforce document artifact retention policy'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'lint' -d 'Run static validation/lint gate'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'config' -d 'Validate demo deployment configuration'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'detections' -d 'Validate detection rule output'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'siem-queries' -d 'Validate SIEM query sync'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'network-contract' -d 'Render network contract artifacts'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'supply-chain' -d 'Run supply-chain security gate'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'secrets-audit' -d 'Run deterministic tracked-file secrets audit'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'compose-healthchecks' -d 'Validate Docker Compose healthchecks'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'security' -d 'Run Make-composed security gate (hygiene, secrets, license, supply chain)'
+complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'status' -d 'Show database status and statistics'
+complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'backup' -d 'Create database backup'
+complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'restore' -d 'Restore embedded database from backup'
+complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'shell' -d 'Open database shell'
+complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'dr-drill' -d 'Run database DR restore drill'
+complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'gen' -d 'Generate a standard virtual key'
+complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'revoke' -d 'Revoke a virtual key by alias'
+complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'gen-dev' -d 'Generate a developer key'
+complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'gen-lead' -d 'Generate a team-lead key'
+complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'preflight' -d 'Validate host readiness'
+complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'check' -d 'Run declarative host preflight/check mode'
+complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'apply' -d 'Run declarative host apply/converge'
+complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'install' -d 'Install systemd service'
+complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'service-status' -d 'Show service status'
+complete -c acpctl -n '__fish_seen_subcommand_from demo' -a 'scenario' -d 'Run a specific demo scenario'
+complete -c acpctl -n '__fish_seen_subcommand_from demo' -a 'all' -d 'Run all demo scenarios'
+complete -c acpctl -n '__fish_seen_subcommand_from demo' -a 'preset' -d 'Run a named demo preset'
+complete -c acpctl -n '__fish_seen_subcommand_from demo' -a 'snapshot' -d 'Create a named demo snapshot'
+complete -c acpctl -n '__fish_seen_subcommand_from demo' -a 'restore' -d 'Restore a named demo snapshot'
+complete -c acpctl -n '__fish_seen_subcommand_from terraform' -a 'init' -d 'Initialize Terraform'
+complete -c acpctl -n '__fish_seen_subcommand_from terraform' -a 'plan' -d 'Run Terraform plan'
+complete -c acpctl -n '__fish_seen_subcommand_from terraform' -a 'apply' -d 'Run Terraform apply'
+complete -c acpctl -n '__fish_seen_subcommand_from terraform' -a 'destroy' -d 'Run Terraform destroy'
+complete -c acpctl -n '__fish_seen_subcommand_from terraform' -a 'fmt' -d 'Format Terraform files'
+complete -c acpctl -n '__fish_seen_subcommand_from terraform' -a 'validate' -d 'Validate Terraform configuration'
+complete -c acpctl -n '__fish_seen_subcommand_from helm' -a 'validate' -d 'Validate Helm chart'
+complete -c acpctl -n '__fish_seen_subcommand_from helm' -a 'smoke' -d 'Run Helm production smoke tests'
