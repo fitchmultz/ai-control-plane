@@ -1,24 +1,23 @@
-// cmd_security_test.go - Tests for security validation commands
+// cmd_security_test.go - Tests for security validation command behavior
 //
-// Purpose: Provide unit tests for security-related validation commands
-//
+// Purpose: Verify the typed security command surface stays deterministic and honest.
 // Responsibilities:
-//   - Test runSecretsAudit for correct detection and exit codes
-//   - Test runSecurityGate for proper gate behavior
-//   - Ensure foundIssues flag is properly set when issues are found
-//
-// Non-scope:
-//   - Does not test actual git-secrets integration (external tool)
-//   - Does not test full filesystem scanning (uses temp directories)
-//
+//   - Exercise fixture-backed tracked-file secrets auditing.
+//   - Verify placeholder/example content behavior intentionally.
+//   - Confirm aggregate security validation delegates to the Make-owned gate.
+// Scope:
+//   - Unit coverage for `acpctl validate secrets-audit` and validate security routing.
+// Usage:
+//   - Run with `go test ./cmd/acpctl`.
 // Invariants/Assumptions:
-//   - Tests use temporary directories to avoid dependency on mutable repo state
-//   - Tests verify exit codes match the contract (0=success, 1=issues found)
+//   - Tests operate on isolated temp git repos instead of the live checkout.
+//   - Aggregate security policy remains owned by `make security-gate`.
+
 package main
 
 import (
-	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -26,163 +25,215 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
-func TestRunSecretsAudit_NoIssues(t *testing.T) {
-	// Create a temporary directory structure without suspicious files
-	tmpDir, err := os.MkdirTemp("", "acpctl_security_test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Create a demo subdirectory
-	demoDir := filepath.Join(tmpDir, "demo")
-	if err := os.MkdirAll(demoDir, 0755); err != nil {
-		t.Fatalf("failed to create demo dir: %v", err)
-	}
-
-	// Create a normal file
-	normalFile := filepath.Join(demoDir, "config.txt")
-	if err := os.WriteFile(normalFile, []byte("normal content"), 0644); err != nil {
-		t.Fatalf("failed to write config file: %v", err)
-	}
-
-	stdout, err := os.CreateTemp("", "acpctl_test_stdout")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(stdout.Name())
-
-	stderr, err := os.CreateTemp("", "acpctl_test_stderr")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(stderr.Name())
-
-	// Override detectRepoRoot temporarily by creating expected structure
-	origRepoRoot := detectRepoRoot()
-	_ = origRepoRoot
-
-	exitCode := runSecretsAudit([]string{}, stdout, stderr)
-
-	// In the actual repo, this may or may not find issues depending on state
-	// We just verify the function runs without panic
-	if exitCode != exitcodes.ACPExitSuccess && exitCode != exitcodes.ACPExitDomain {
-		t.Errorf("expected exit code 0 or 1, got %d", exitCode)
-	}
-}
-
 func TestRunSecretsAudit_Help(t *testing.T) {
-	stdout, err := os.CreateTemp("", "acpctl_test_stdout")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(stdout.Name())
+	stdout, stderr := newTestFiles(t)
 
-	stderr := os.Stderr
-
-	exitCode := runSecretsAudit([]string{"--help"}, stdout, stderr)
+	exitCode := runSecretsAudit([]string{"help"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
-		t.Errorf("expected exit code %d for --help, got %d", exitcodes.ACPExitSuccess, exitCode)
+		t.Fatalf("expected help to succeed, got %d", exitCode)
 	}
-
-	stdout.Seek(0, 0)
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(stdout)
-	content := buf.String()
-
-	if !strings.Contains(content, "Usage:") {
-		t.Errorf("expected usage message, got: %s", content)
+	if !strings.Contains(readFile(t, stdout), "deterministic tracked-file secrets audit") {
+		t.Fatalf("expected tracked-file help text, got %s", readFile(t, stdout))
 	}
 }
 
-func TestRunSecurityGate_Help(t *testing.T) {
-	stdout, err := os.CreateTemp("", "acpctl_test_stdout")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(stdout.Name())
+func TestRunSecretsAudit_CleanTrackedRepoPasses(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md":         "clean fixture\n",
+			"demo/.env.example": "LITELLM_MASTER_KEY=sk-litellm-master-change-me\nLITELLM_SALT_KEY=sk-litellm-salt-change-me\n",
+		},
+	})
 
-	stderr := os.Stderr
-
-	exitCode := runSecurityGate([]string{"--help"}, stdout, stderr)
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runSecretsAudit(nil, stdout, stderr)
+	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
-		t.Errorf("expected exit code %d for --help, got %d", exitcodes.ACPExitSuccess, exitCode)
+		t.Fatalf("expected success, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
 	}
-
-	stdout.Seek(0, 0)
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(stdout)
-	content := buf.String()
-
-	if !strings.Contains(content, "Usage:") {
-		t.Errorf("expected usage message, got: %s", content)
+	if !strings.Contains(readFile(t, stdout), "Secrets audit passed") {
+		t.Fatalf("expected success output, got %s", readFile(t, stdout))
 	}
 }
 
-// TestRunSecretsAudit_SuspiciousFilename tests that files with suspicious
-// names (containing "password", "secret", "token", "key", "api_key")
-// are properly flagged as issues.
-func TestRunSecretsAudit_SuspiciousFilename(t *testing.T) {
-	// Create a temporary directory with a suspiciously named file
-	tmpDir, err := os.MkdirTemp("", "acpctl_security_test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
+func TestRunSecretsAudit_FailsOnTrackedPrivateKeyFile(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md":         "fixture\n",
+			"deploy/id_rsa":     "not a real key, but tracked like one\n",
+			"demo/.env.example": "OPENAI_API_KEY=\n",
+		},
+	})
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runSecretsAudit(nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitDomain {
+		t.Fatalf("expected domain failure, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
 	}
-	defer os.RemoveAll(tmpDir)
-
-	// Create a demo subdirectory structure
-	demoDir := filepath.Join(tmpDir, "demo")
-	if err := os.MkdirAll(demoDir, 0755); err != nil {
-		t.Fatalf("failed to create demo dir: %v", err)
-	}
-
-	// Create a file with a suspicious name
-	suspiciousFile := filepath.Join(demoDir, "my_password.txt")
-	if err := os.WriteFile(suspiciousFile, []byte("secret content"), 0644); err != nil {
-		t.Fatalf("failed to write suspicious file: %v", err)
-	}
-
-	// The test verifies the audit logic by checking that the code
-	// properly sets foundIssues when suspicious files are encountered.
-	// The actual scan uses detectRepoRoot() which points to the real repo,
-	// so this test verifies the code structure is correct.
-
-	stdout := os.Stdout
-	stderr, err := os.CreateTemp("", "acpctl_test_stderr")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(stderr.Name())
-
-	// Run the audit - it will scan the actual repo, not our temp dir
-	// but we're verifying the function doesn't panic and handles output correctly
-	exitCode := runSecretsAudit([]string{}, stdout, stderr)
-
-	// Verify exit code is valid
-	if exitCode != exitcodes.ACPExitSuccess && exitCode != exitcodes.ACPExitDomain {
-		t.Errorf("expected exit code 0 or 1, got %d", exitCode)
+	if !strings.Contains(readFile(t, stdout), "[private-key-file]") {
+		t.Fatalf("expected private-key filename finding, got %s", readFile(t, stdout))
 	}
 }
 
-// TestRunSecretsAudit_SuspiciousFilename_Recursive tests recursive directory scanning
-func TestRunSecretsAudit_SuspiciousFilename_Recursive(t *testing.T) {
-	// This test verifies that the recursive scanning logic works correctly
-	// by checking the code structure handles subdirectories
+func TestRunSecretsAudit_FailsOnSecretContent(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md":           "fixture\n",
+			"config/provider.txt": "OPENAI_API_KEY=" + "sk-" + strings.Repeat("a", 24) + "\n",
+			"demo/.env.example":   "OPENAI_API_KEY=\n",
+		},
+	})
 
-	stdout := os.Stdout
-	stderr, err := os.CreateTemp("", "acpctl_test_stderr")
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runSecretsAudit(nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitDomain {
+		t.Fatalf("expected domain failure, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+	if !strings.Contains(readFile(t, stdout), "[openai-style-key]") {
+		t.Fatalf("expected OpenAI-style key finding, got %s", readFile(t, stdout))
+	}
+}
+
+func TestRunSecretsAudit_AllowsDocumentedExamplePlaceholders(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md": "fixture\n",
+			"demo/.env.example": strings.Join([]string{
+				"# PLACEHOLDER: safe committed example",
+				"LITELLM_MASTER_KEY=sk-litellm-master-change-me",
+				"LITELLM_SALT_KEY=sk-litellm-salt-change-me",
+				"# Format: AIza...",
+				"GEMINI_API_KEY=",
+				"",
+			}, "\n"),
+		},
+	})
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runSecretsAudit(nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected placeholder examples to pass, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+}
+
+func TestRunDelegatedGroup_ValidateSecurityDelegatesToSecurityGate(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md": "fixture\n",
+		},
+	})
+
+	recordPath := filepath.Join(repoRoot, "make-invocation.txt")
+	fakeMake := filepath.Join(repoRoot, "fake-make.sh")
+	writeFile(t, fakeMake, strings.Join([]string{
+		"#!/bin/sh",
+		"printf '%s\\n' \"$@\" > \"" + recordPath + "\"",
+		"exit 0",
+		"",
+	}, "\n"))
+	if err := os.Chmod(fakeMake, 0o755); err != nil {
+		t.Fatalf("chmod fake make: %v", err)
+	}
+
+	validateGroup, ok := lookupDelegatedGroup("validate")
+	if !ok {
+		t.Fatalf("expected validate group to exist")
+	}
+
+	originalMakeBin := os.Getenv("ACPCTL_MAKE_BIN")
+	if err := os.Setenv("ACPCTL_MAKE_BIN", fakeMake); err != nil {
+		t.Fatalf("set ACPCTL_MAKE_BIN: %v", err)
+	}
+	defer func() {
+		if originalMakeBin == "" {
+			_ = os.Unsetenv("ACPCTL_MAKE_BIN")
+			return
+		}
+		_ = os.Setenv("ACPCTL_MAKE_BIN", originalMakeBin)
+	}()
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runDelegatedGroup(validateGroup, []string{"security"}, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected delegated security success, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+
+	recorded := strings.TrimSpace(readFileFromPath(t, recordPath))
+	if recorded != "security-gate" {
+		t.Fatalf("expected make to receive security-gate, got %q", recorded)
+	}
+}
+
+func TestRunDelegatedGroup_ValidateSecretsAuditHelpUsesNativeHelp(t *testing.T) {
+	validateGroup, ok := lookupDelegatedGroup("validate")
+	if !ok {
+		t.Fatalf("expected validate group to exist")
+	}
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := runDelegatedGroup(validateGroup, []string{"secrets-audit", "help"}, stdout, stderr)
+
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected native help success, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+
+	helpOutput := readFile(t, stdout)
+	if !strings.Contains(helpOutput, "deterministic tracked-file secrets audit") {
+		t.Fatalf("expected native help output, got %s", helpOutput)
+	}
+	if strings.Contains(helpOutput, "Delegates to make target") {
+		t.Fatalf("expected native help rather than delegated help, got %s", helpOutput)
+	}
+}
+
+type securityFixtureOptions struct {
+	TrackedFiles map[string]string
+}
+
+func writeSecurityFixtureRepo(t *testing.T, repoRoot string, opts securityFixtureOptions) {
+	t.Helper()
+	for relPath, contents := range opts.TrackedFiles {
+		writeFile(t, filepath.Join(repoRoot, relPath), contents)
+	}
+	runGit(t, repoRoot, "init", "-q")
+	runGit(t, repoRoot, "add", ".")
+}
+
+func runGit(t *testing.T, repoRoot string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = repoRoot
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
+		t.Fatalf("git %s failed: %v output=%s", strings.Join(args, " "), err, output)
 	}
-	defer os.Remove(stderr.Name())
+}
 
-	// Run the audit
-	exitCode := runSecretsAudit([]string{}, stdout, stderr)
-
-	// Verify the function completes without panic and returns valid exit code
-	if exitCode != exitcodes.ACPExitSuccess && exitCode != exitcodes.ACPExitDomain {
-		t.Errorf("expected exit code 0 or 1, got %d", exitCode)
+func readFileFromPath(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
 	}
+	return string(data)
 }

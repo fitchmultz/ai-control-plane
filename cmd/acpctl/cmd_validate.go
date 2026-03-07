@@ -1,16 +1,17 @@
 // cmd_validate.go - Validation commands implementation
 //
-// Purpose: Provide native Go implementation of validation scripts.
+// Purpose: Provide native Go validation workflows for repo configuration contracts.
 // Responsibilities:
-//   - Validate detection rule contracts.
-//   - Validate SIEM query mappings against enabled detections.
-//   - Validate deployment configuration.
-//   - Validate network firewall contracts.
-//   - Validate compose healthchecks.
-//
-// Non-scope:
-//   - Does not fix validation issues.
-//   - Does not modify configuration files.
+//   - Validate detection rule contracts and SIEM mapping parity.
+//   - Validate deployment configuration and compose healthchecks.
+//   - Report deterministic, contract-aligned exit codes for validation failures.
+// Scope:
+//   - Read-only validation of committed configuration and policy files.
+// Usage:
+//   - Invoked through `acpctl validate <subcommand>`.
+// Invariants/Assumptions:
+//   - Validation commands must be safe to run repeatedly without side effects.
+//   - Help token handling stays consistent with delegated command routing.
 
 package main
 
@@ -30,7 +31,7 @@ func runValidateDetections(args []string, stdout *os.File, stderr *os.File) int 
 		if arg == "--verbose" || arg == "-v" {
 			verbose = true
 		}
-		if arg == "--help" || arg == "-h" {
+		if isHelpToken(arg) {
 			printValidateDetectionsHelp(stdout)
 			return exitcodes.ACPExitSuccess
 		}
@@ -102,7 +103,7 @@ func runValidateSiemQueries(args []string, stdout *os.File, stderr *os.File) int
 		if arg == "--verbose" || arg == "-v" {
 			verbose = true
 		}
-		if arg == "--help" || arg == "-h" {
+		if isHelpToken(arg) {
 			printValidateSiemQueriesHelp(stdout)
 			return exitcodes.ACPExitSuccess
 		}
@@ -158,7 +159,7 @@ func runValidateSiemQueries(args []string, stdout *os.File, stderr *os.File) int
 
 func runValidateConfig(args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
-		if arg == "--help" || arg == "-h" {
+		if isHelpToken(arg) {
 			printValidateConfigHelp(stdout)
 			return exitcodes.ACPExitSuccess
 		}
@@ -204,7 +205,7 @@ func runValidateConfig(args []string, stdout *os.File, stderr *os.File) int {
 
 func runValidateComposeHealthchecks(args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
-		if arg == "--help" || arg == "-h" {
+		if isHelpToken(arg) {
 			printValidateComposeHealthchecksHelp(stdout)
 			return exitcodes.ACPExitSuccess
 		}
