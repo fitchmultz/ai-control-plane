@@ -30,6 +30,7 @@
 //	  - cmd_status.go   : System status collection
 //	  - cmd_doctor.go   : Environment diagnostics
 //	  - cmd_completion.go: Shell completions
+//	  - cmd_chargeback.go: Chargeback rendering/payload helpers
 //	  - cmd_delegated.go: Make-delegated commands
 //	  - common.go       : Shared utilities
 package main
@@ -94,6 +95,7 @@ Examples:
   acpctl ci should-run-runtime --quiet
   acpctl ci wait --timeout 120
   acpctl env get LITELLM_MASTER_KEY
+  acpctl chargeback render --format json
   acpctl files sync-helm
   acpctl doctor
   acpctl benchmark baseline --requests 20 --concurrency 2

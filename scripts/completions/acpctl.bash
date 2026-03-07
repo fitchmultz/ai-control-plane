@@ -3,7 +3,7 @@ _acpctl_complete() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
 
-    local commands="ci files status health doctor benchmark bridge completion deploy validate db key host demo terraform helm help"
+    local commands="ci files env chargeback status health doctor benchmark bridge completion deploy validate db key host demo terraform helm help"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
@@ -17,6 +17,14 @@ _acpctl_complete() {
             ;;
         files)
             local subcmds="sync-helm"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        env)
+            local subcmds="get"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        chargeback)
+            local subcmds="render payload"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         benchmark)

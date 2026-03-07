@@ -153,6 +153,17 @@ func nativeCommandDefinitions() []nativeCommandDefinition {
 		},
 		{
 			commandDescriptor: commandDescriptor{
+				Name:        "chargeback",
+				Description: "Typed chargeback rendering helpers",
+			},
+			Run: runChargebackCommand,
+			Subcommands: []commandDescriptor{
+				{Name: "render", Description: "Render canonical chargeback JSON or CSV"},
+				{Name: "payload", Description: "Render canonical chargeback webhook payload JSON"},
+			},
+		},
+		{
+			commandDescriptor: commandDescriptor{
 				Name:        "status",
 				Description: "Aggregated system health overview",
 			},

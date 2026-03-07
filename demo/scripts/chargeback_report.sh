@@ -225,37 +225,25 @@ send_notifications() {
     verbose_log "Sending notifications..."
     local payload
     payload=$(
-        cat <<EOF
-{
-  "event": "chargeback_report_generated",
-  "report_month": "${report_month}",
-  "total_spend": ${total_spend:-0},
-  "variance_percent": "${variance}",
-  "anomalies": ${anomalies},
-  "timestamp": "$(get_timestamp)"
-}
-EOF
+        CHARGEBACK_PAYLOAD_EVENT="chargeback_report_generated" \
+            CHARGEBACK_REPORT_MONTH="${report_month}" \
+            CHARGEBACK_TOTAL_SPEND="${total_spend:-0}" \
+            CHARGEBACK_VARIANCE="${variance}" \
+            CHARGEBACK_ANOMALIES_JSON="${anomalies}" \
+            CHARGEBACK_PAYLOAD_TIMESTAMP="$(get_timestamp)" \
+            "${PROJECT_ROOT}/scripts/acpctl.sh" chargeback payload --target generic
     )
     [[ -n "${GENERIC_WEBHOOK_URL:-}" ]] && send_generic_webhook_alert "$GENERIC_WEBHOOK_URL" "$payload" || true
 
     if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
         local slack_payload
         slack_payload=$(
-            cat <<EOF
-{
-  "text": "📊 Monthly Chargeback Report Generated",
-  "attachments": [{
-    "color": "${variance_status_color}",
-    "title": "Report for ${report_month}",
-    "fields": [
-      {"title": "Total Spend", "value": "\$${total_spend}", "short": true},
-      {"title": "Variance", "value": "${variance}%", "short": true}
-    ],
-    "footer": "AI Control Plane",
-    "ts": $(date +%s)
-  }]
-}
-EOF
+            CHARGEBACK_REPORT_MONTH="${report_month}" \
+                CHARGEBACK_TOTAL_SPEND="${total_spend:-0}" \
+                CHARGEBACK_VARIANCE="${variance}" \
+                CHARGEBACK_SLACK_COLOR="${variance_status_color}" \
+                CHARGEBACK_SLACK_EPOCH="$(date +%s)" \
+                "${PROJECT_ROOT}/scripts/acpctl.sh" chargeback payload --target slack
         )
         send_slack_alert "$SLACK_WEBHOOK_URL" "$slack_payload" || true
     fi
@@ -281,6 +269,12 @@ COST_CENTER_DATA=$(get_cost_center_spend "$MONTH_START" "$MONTH_END") || COST_CE
 MODEL_DATA=$(get_model_spend "$MONTH_START" "$MONTH_END") || MODEL_DATA=""
 UNATTRIBUTED_DATA=$(get_unattributed_usage "$MONTH_START" "$MONTH_END") || UNATTRIBUTED_DATA=""
 TOP_PRINCIPALS=$(get_top_principals "$MONTH_START" "$MONTH_END" 20) || TOP_PRINCIPALS=""
+COST_CENTER_JSON="[]"
+MODEL_JSON="[]"
+if [[ "$OUTPUT_FORMAT" == "json" || "$OUTPUT_FORMAT" == "csv" || "$OUTPUT_FORMAT" == "all" ]]; then
+    COST_CENTER_JSON=$(get_cost_center_spend_json "$MONTH_START" "$MONTH_END") || COST_CENTER_JSON="[]"
+    MODEL_JSON=$(get_model_spend_json "$MONTH_START" "$MONTH_END") || MODEL_JSON="[]"
+fi
 
 PREV_MONTH_SPEND=$(get_total_spend "$PREV_MONTH_START" "$PREV_MONTH_END") || PREV_MONTH_SPEND="0"
 VARIANCE=$(calculate_variance "$TOTAL_SPEND" "$PREV_MONTH_SPEND")
@@ -293,6 +287,9 @@ DAYS_REMAINING="N/A"
 EXHAUSTION_DATE="N/A"
 TOTAL_BUDGET="0"
 BUDGET_RISK="{}"
+BUDGET_RISK_LEVEL="unknown"
+BUDGET_RISK_PERCENT="N/A"
+BUDGET_RISK_THRESHOLD_EXCEEDED="false"
 
 if [[ "$FORECAST_ENABLED" == "true" ]]; then
     verbose_log "Calculating spend forecast..."
@@ -319,17 +316,19 @@ if [[ "$FORECAST_ENABLED" == "true" ]]; then
     FORECAST_3MO_TOTAL=$(echo "$FORECAST_M1 + $FORECAST_M2 + $FORECAST_M3" | bc)
 
     BUDGET_RISK=$(check_budget_risk "$FORECAST_3MO_TOTAL" "$TOTAL_BUDGET" "$BUDGET_ALERT_THRESHOLD")
+    IFS='|' read -r BUDGET_RISK_LEVEL BUDGET_RISK_PERCENT BUDGET_RISK_THRESHOLD_EXCEEDED <<<"$BUDGET_RISK"
 fi
 
 EXIT_CODE=0
 case "$OUTPUT_FORMAT" in
-csv) output_csv "$TARGET_MONTH" "$COST_CENTER_DATA" ;;
+csv) output_csv "$TARGET_MONTH" "$COST_CENTER_JSON" ;;
 json)
     output_json "$TARGET_MONTH" "$MONTH_START" "$MONTH_END" \
         "$TOTAL_SPEND" "$TOTAL_REQUESTS" "$TOTAL_TOKENS" \
-        "$COST_CENTER_DATA" "$MODEL_DATA" "$UNATTRIBUTED_DATA" \
+        "$COST_CENTER_JSON" "$MODEL_JSON" \
         "$VARIANCE" "$PREV_MONTH_SPEND" "$ANOMALIES" \
-        "$FORECAST_VALUES" "$DAILY_BURN" "$DAYS_REMAINING" "$EXHAUSTION_DATE" "$TOTAL_BUDGET" "$BUDGET_RISK"
+        "$FORECAST_VALUES" "$DAILY_BURN" "$DAYS_REMAINING" "$EXHAUSTION_DATE" "$TOTAL_BUDGET" \
+        "$BUDGET_RISK_LEVEL" "$BUDGET_RISK_PERCENT" "$BUDGET_RISK_THRESHOLD_EXCEEDED"
     ;;
 markdown)
     output_markdown "$TARGET_MONTH" "$MONTH_START" "$MONTH_END" \
@@ -341,9 +340,9 @@ markdown)
 all)
     MD=$(output_markdown "$TARGET_MONTH" "$MONTH_START" "$MONTH_END" "$TOTAL_SPEND" "$TOTAL_REQUESTS" "$TOTAL_TOKENS" "$COST_CENTER_DATA" "$MODEL_DATA" "$UNATTRIBUTED_DATA" "$TOP_PRINCIPALS" "$VARIANCE" "$PREV_MONTH_SPEND" "$ANOMALIES" "$FORECAST_VALUES" "$DAILY_BURN" "$DAYS_REMAINING" "$EXHAUSTION_DATE" "$TOTAL_BUDGET" "$BUDGET_RISK")
     archive_report "$TARGET_MONTH" "md" "$MD" >/dev/null
-    JSON=$(output_json "$TARGET_MONTH" "$MONTH_START" "$MONTH_END" "$TOTAL_SPEND" "$TOTAL_REQUESTS" "$TOTAL_TOKENS" "$COST_CENTER_DATA" "$MODEL_DATA" "$UNATTRIBUTED_DATA" "$VARIANCE" "$PREV_MONTH_SPEND" "$ANOMALIES" "$FORECAST_VALUES" "$DAILY_BURN" "$DAYS_REMAINING" "$EXHAUSTION_DATE" "$TOTAL_BUDGET" "$BUDGET_RISK")
+    JSON=$(output_json "$TARGET_MONTH" "$MONTH_START" "$MONTH_END" "$TOTAL_SPEND" "$TOTAL_REQUESTS" "$TOTAL_TOKENS" "$COST_CENTER_JSON" "$MODEL_JSON" "$VARIANCE" "$PREV_MONTH_SPEND" "$ANOMALIES" "$FORECAST_VALUES" "$DAILY_BURN" "$DAYS_REMAINING" "$EXHAUSTION_DATE" "$TOTAL_BUDGET" "$BUDGET_RISK_LEVEL" "$BUDGET_RISK_PERCENT" "$BUDGET_RISK_THRESHOLD_EXCEEDED")
     archive_report "$TARGET_MONTH" "json" "$JSON" >/dev/null
-    CSV=$(output_csv "$TARGET_MONTH" "$COST_CENTER_DATA")
+    CSV=$(output_csv "$TARGET_MONTH" "$COST_CENTER_JSON")
     archive_report "$TARGET_MONTH" "csv" "$CSV" >/dev/null
     echo "$MD"
     ;;
