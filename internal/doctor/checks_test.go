@@ -1,3 +1,24 @@
+// checks_test.go validates doctor prerequisite and environment checks.
+//
+// Purpose:
+//
+//	Verify doctor checks classify ports, environment state, and supporting
+//	services deterministically across local test environments.
+//
+// Responsibilities:
+//   - Exercise individual doctor checks and their severity mapping.
+//   - Use controlled listeners and test servers for port and gateway cases.
+//   - Validate fix helpers that materialize repo-local configuration.
+//
+// Scope:
+//   - Covers unit behavior in the internal/doctor package only.
+//
+// Usage:
+//   - Run via `go test ./internal/doctor`.
+//
+// Invariants/Assumptions:
+//   - Tests avoid depending on fixed ports or preinstalled runtime services.
+//   - Temporary repo state is created under test-owned directories.
 package doctor
 
 import (

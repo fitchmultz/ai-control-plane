@@ -70,9 +70,17 @@ run_case() {
     local name="$1"
     local expected_exit="$2"
     local policy_file="$3"
+    local safe_name="${name// /_}"
+    local stdout_file="$TMP_ROOT/$safe_name.out"
+    local stderr_file="$TMP_ROOT/$safe_name.err"
 
     set +e
-    python3 "$SCRIPT_UNDER_TEST" --policy "$policy_file" --warn-days 45 --fail-days 14 >/tmp/acp-supply-check.out 2>/tmp/acp-supply-check.err
+    python3 "$SCRIPT_UNDER_TEST" \
+        --policy "$policy_file" \
+        --warn-days 45 \
+        --fail-days 14 \
+        --today "$FIXED_TODAY" \
+        >"$stdout_file" 2>"$stderr_file"
     local exit_code=$?
     set -e
 
@@ -81,28 +89,19 @@ run_case() {
     else
         fail "$name (expected exit $expected_exit, got $exit_code)"
         echo "--- stdout ---"
-        cat /tmp/acp-supply-check.out || true
+        cat "$stdout_file" || true
         echo "--- stderr ---"
-        cat /tmp/acp-supply-check.err || true
+        cat "$stderr_file" || true
     fi
 }
 
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/acp-supply-expiry-test.XXXXXX")"
-trap 'rm -rf "$TMP_ROOT" /tmp/acp-supply-check.out /tmp/acp-supply-check.err' EXIT
+trap 'rm -rf "$TMP_ROOT"' EXIT
 
-today="$(date +%Y-%m-%d)"
-warn_date="$(
-    date -v+20d +%Y-%m-%d 2>/dev/null || python3 - <<'PY'
-import datetime
-print((datetime.date.today() + datetime.timedelta(days=20)).isoformat())
-PY
-)"
-healthy_date="$(
-    date -v+120d +%Y-%m-%d 2>/dev/null || python3 - <<'PY'
-import datetime
-print((datetime.date.today() + datetime.timedelta(days=120)).isoformat())
-PY
-)"
+FIXED_TODAY="2026-03-07"
+warn_date="2026-03-27"
+healthy_date="2026-07-05"
+fail_date="2026-03-07"
 
 cat >"$TMP_ROOT/healthy.json" <<EOF
 {"allowlist":[{"id":"CVE-1","package":"pkg","expires_on":"$healthy_date","ticket":"SEC-1"}]}
@@ -113,7 +112,7 @@ cat >"$TMP_ROOT/warn.json" <<EOF
 EOF
 
 cat >"$TMP_ROOT/fail.json" <<EOF
-{"allowlist":[{"id":"CVE-3","package":"pkg","expires_on":"$today","ticket":"SEC-3"}]}
+{"allowlist":[{"id":"CVE-3","package":"pkg","expires_on":"$fail_date","ticket":"SEC-3"}]}
 EOF
 
 cat >"$TMP_ROOT/invalid-date.json" <<'EOF'

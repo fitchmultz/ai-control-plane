@@ -1,8 +1,24 @@
-// Package collectors provides domain-specific status collectors.
+// database.go implements the PostgreSQL status collector.
 //
-// DatabaseCollector uses PostgreSQL's information_schema and pg_stat_activity
-// to collect database health metrics including table existence, version info,
-// database size, and active connections.
+// Purpose:
+//
+//	Inspect PostgreSQL reachability and key metadata used by the ACP runtime so
+//	operator health checks can explain database readiness.
+//
+// Responsibilities:
+//   - Resolve the PostgreSQL container for the active ACP runtime.
+//   - Execute health and metadata queries through the shared runner/runtime helpers.
+//   - Translate query outcomes into component health messages and suggestions.
+//
+// Scope:
+//   - Covers database connectivity and lightweight operational metrics only.
+//
+// Usage:
+//   - Construct `NewDatabaseCollector(repoRoot)` and call `Collect(ctx)`.
+//
+// Invariants/Assumptions:
+//   - PostgreSQL access is mediated through the collector runtime helpers.
+//   - Query output is sanitized before being surfaced to operators.
 package collectors
 
 import (

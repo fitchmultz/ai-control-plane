@@ -35,6 +35,24 @@ import (
 
 const testMasterKey = "test-master-key"
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func gatewayCollectorForURL(serverURL string) GatewayCollector {
+	host, port, err := net.SplitHostPort(strings.TrimPrefix(serverURL, "http://"))
+	if err != nil {
+		panic(err)
+	}
+	return GatewayCollector{
+		Host:      host,
+		Port:      port,
+		MasterKey: testMasterKey,
+	}
+}
+
 func TestGatewayCollector_Name(t *testing.T) {
 	t.Parallel()
 
@@ -106,11 +124,7 @@ func TestGatewayCollector_HealthEndpoint_Healthy(t *testing.T) {
 			}))
 			defer server.Close()
 
-			c := GatewayCollector{
-				Host:      server.Listener.Addr().(*net.TCPAddr).IP.String(),
-				Port:      fmt.Sprintf("%d", server.Listener.Addr().(*net.TCPAddr).Port),
-				MasterKey: testMasterKey,
-			}
+			c := gatewayCollectorForURL(server.URL)
 
 			ctx := context.Background()
 			result := c.Collect(ctx)
@@ -264,10 +278,18 @@ func TestGatewayCollector_HealthEndpoint_WarningModelsStatus(t *testing.T) {
 func TestGatewayCollector_Unreachable(t *testing.T) {
 	t.Parallel()
 
-	// Use a port that's very unlikely to be in use
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := listener.Addr().(*net.TCPAddr)
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
 	c := GatewayCollector{
-		Host:      "127.0.0.1",
-		Port:      "1",
+		Host:      addr.IP.String(),
+		Port:      fmt.Sprintf("%d", addr.Port),
 		MasterKey: testMasterKey,
 	}
 
@@ -294,26 +316,23 @@ func TestGatewayCollector_Unreachable(t *testing.T) {
 func TestGatewayCollector_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
-	// Create a server that delays response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(100 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
 	c := GatewayCollector{
-		Host:      server.Listener.Addr().(*net.TCPAddr).IP.String(),
-		Port:      fmt.Sprintf("%d", server.Listener.Addr().(*net.TCPAddr).Port),
+		Host:      "127.0.0.1",
+		Port:      "4000",
 		MasterKey: testMasterKey,
+		client: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				<-req.Context().Done()
+				return nil, req.Context().Err()
+			}),
+		},
 	}
 
-	// Create a cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
+	cancel()
 
 	result := c.Collect(ctx)
 
-	// Should be unhealthy due to context cancellation
 	if result.Level != status.HealthLevelUnhealthy {
 		t.Fatalf("expected unhealthy for cancelled context, got %s", result.Level)
 	}
@@ -321,35 +340,36 @@ func TestGatewayCollector_ContextCancellation(t *testing.T) {
 	if !strings.Contains(result.Message, "Gateway unreachable") {
 		t.Fatalf("expected 'Gateway unreachable' in message, got %q", result.Message)
 	}
+	if !strings.Contains(result.Message, context.Canceled.Error()) {
+		t.Fatalf("expected cancellation detail in message, got %q", result.Message)
+	}
 }
 
 func TestGatewayCollector_Timeout(t *testing.T) {
 	t.Parallel()
 
-	// Create a server that delays longer than the timeout
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(6 * time.Second) // Collector timeout is 5 seconds
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
 	c := GatewayCollector{
-		Host:      server.Listener.Addr().(*net.TCPAddr).IP.String(),
-		Port:      fmt.Sprintf("%d", server.Listener.Addr().(*net.TCPAddr).Port),
+		Host:      "127.0.0.1",
+		Port:      "4000",
 		MasterKey: testMasterKey,
+		client: &http.Client{
+			Timeout: 20 * time.Millisecond,
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				<-req.Context().Done()
+				return nil, req.Context().Err()
+			}),
+		},
 	}
 
-	ctx := context.Background()
-	start := time.Now()
-	result := c.Collect(ctx)
-	elapsed := time.Since(start)
+	result := c.Collect(context.Background())
 
 	if result.Level != status.HealthLevelUnhealthy {
 		t.Fatalf("expected unhealthy for timeout, got %s", result.Level)
 	}
-
-	// Should timeout around 5 seconds (with some margin)
-	if elapsed > 7*time.Second {
-		t.Fatalf("expected timeout around 5s, but took %v", elapsed)
+	if !strings.Contains(result.Message, "Gateway unreachable") {
+		t.Fatalf("expected gateway unreachable message, got %q", result.Message)
+	}
+	if !strings.Contains(result.Message, context.DeadlineExceeded.Error()) {
+		t.Fatalf("expected timeout detail in message, got %q", result.Message)
 	}
 }

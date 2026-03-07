@@ -1,3 +1,24 @@
+// package_test.go validates doctor report aggregation and exit-code behavior.
+//
+// Purpose:
+//
+//	Ensure doctor report orchestration combines check results, fix flows, and
+//	exit-code precedence consistently for operator-facing health commands.
+//
+// Responsibilities:
+//   - Verify overall health aggregation across check combinations.
+//   - Verify skipped checks and fixable checks are handled correctly.
+//   - Verify report exit-code precedence and serialization helpers.
+//
+// Scope:
+//   - Covers package-level doctor orchestration, not individual check internals.
+//
+// Usage:
+//   - Run via `go test ./internal/doctor`.
+//
+// Invariants/Assumptions:
+//   - Mock checks return deterministic results for a given test case.
+//   - Report aggregation is pure for the provided inputs.
 package doctor
 
 import (

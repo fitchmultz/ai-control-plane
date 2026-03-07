@@ -55,6 +55,10 @@ def parse_args() -> argparse.Namespace:
         default=14,
         help="Fail when an allowlist entry expires in fewer than this many days (default: 14)",
     )
+    parser.add_argument(
+        "--today",
+        help="Override today's date for deterministic validation (YYYY-MM-DD)",
+    )
     return parser.parse_args()
 
 
@@ -81,7 +85,14 @@ def main() -> int:
         print("Error: policy.allowlist must be an array", file=sys.stderr)
         return 1
 
-    today = dt.date.today()
+    if args.today:
+        try:
+            today = dt.date.fromisoformat(args.today)
+        except ValueError:
+            print("Error: --today must be an ISO date in YYYY-MM-DD format", file=sys.stderr)
+            return 2
+    else:
+        today = dt.date.today()
     warn_hits: list[tuple[str, int | str, str, str]] = []
     fail_hits: list[tuple[str, int | str, str, str]] = []
 

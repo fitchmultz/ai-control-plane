@@ -1,3 +1,24 @@
+// detections.go implements the detection findings status collector.
+//
+// Purpose:
+//
+//	Summarize recent LiteLLM detection findings and prerequisite detection
+//	rules state so ACP health reports reflect audit-signal readiness.
+//
+// Responsibilities:
+//   - Verify detection rules configuration exists locally.
+//   - Resolve the PostgreSQL container and query recent spend-log findings.
+//   - Translate recent finding counts into operator-facing health summaries.
+//
+// Scope:
+//   - Covers detection configuration presence and recent finding aggregation only.
+//
+// Usage:
+//   - Construct `NewDetectionsCollector(repoRoot)` and call `Collect(ctx)`.
+//
+// Invariants/Assumptions:
+//   - Detection findings are derived from LiteLLM spend-log data.
+//   - Missing configuration is reported before runtime queries are attempted.
 package collectors
 
 import (
