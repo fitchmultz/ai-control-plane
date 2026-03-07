@@ -240,10 +240,16 @@ func printBenchmarkSummary(out *os.File, summary *performance.Summary) {
 }
 
 func printBenchmarkHelp(out *os.File) {
+	command := mustLookupNativeCommand("benchmark")
+
 	fmt.Fprint(out, `Usage: acpctl benchmark <command> [OPTIONS]
 
 Commands:
-  baseline   Run the local gateway performance baseline
+`)
+	for _, subcommand := range command.Subcommands {
+		fmt.Fprintf(out, "  %-10s %s\n", subcommand.Name, subcommand.Description)
+	}
+	fmt.Fprint(out, `
 
 Examples:
   acpctl benchmark baseline

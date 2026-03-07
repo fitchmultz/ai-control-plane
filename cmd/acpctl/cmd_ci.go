@@ -45,11 +45,16 @@ func runCISubcommand(args []string, stdout *os.File, stderr *os.File) int {
 }
 
 func printCIHelp(out *os.File) {
+	command := mustLookupNativeCommand("ci")
+
 	fmt.Fprint(out, `Usage: acpctl ci <subcommand> [options]
 
 CI subcommands:
-  should-run-runtime   Decide whether runtime checks should run
-  wait                 Wait for services to become healthy
+`)
+	for _, subcommand := range command.Subcommands {
+		fmt.Fprintf(out, "  %-20s %s\n", subcommand.Name, subcommand.Description)
+	}
+	fmt.Fprint(out, `
 
 Examples:
   acpctl ci should-run-runtime --quiet

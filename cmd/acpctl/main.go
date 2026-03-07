@@ -55,60 +55,39 @@ func run(args []string, stdout *os.File, stderr *os.File) int {
 	case "help", "--help", "-h":
 		printRootHelp(stdout)
 		return exitcodes.ACPExitSuccess
-	case "ci":
-		return runCISubcommand(args[1:], stdout, stderr)
-	case "files":
-		return runFilesSubcommand(args[1:], stdout, stderr)
-	case "status":
-		return runStatusCommand(args[1:], stdout, stderr)
-	case "health":
-		return runHealthCommand(args[1:], stdout, stderr)
-	case "bridge":
-		return runBridgeSubcommand(args[1:], stdout, stderr)
-	case "doctor":
-		return runDoctorCommand(args[1:], stdout, stderr)
-	case "benchmark":
-		return runBenchmarkCommand(args[1:], stdout, stderr)
-	case "completion":
-		return runCompletionSubcommand(args[1:], stdout, stderr)
-	case "__complete":
-		return runHiddenComplete(args[1:], stdout, stderr)
-	default:
-		group, ok := lookupDelegatedGroup(args[0])
-		if !ok {
-			fmt.Fprintf(stderr, "Error: Unknown command: %s\n", args[0])
-			printRootHelp(stderr)
-			return exitcodes.ACPExitUsage
-		}
-		return runDelegatedGroup(group, args[1:], stdout, stderr)
 	}
+
+	if command, ok := lookupNativeCommand(args[0]); ok {
+		return command.Run(args[1:], stdout, stderr)
+	}
+
+	group, ok := lookupDelegatedGroup(args[0])
+	if !ok {
+		fmt.Fprintf(stderr, "Error: Unknown command: %s\n", args[0])
+		printRootHelp(stderr)
+		return exitcodes.ACPExitUsage
+	}
+
+	return runDelegatedGroup(group, args[1:], stdout, stderr)
 }
 
 func printRootHelp(out *os.File) {
+	registry := buildCommandRegistry()
+
 	fmt.Fprint(out, `Usage: acpctl <command> [subcommand] [options or make args]
 
 Typed control-plane CLI for AI Control Plane operations.
 
 Commands:
-  ci               CI and local gate helpers
-  files            Typed local file synchronization helpers
-  status           Aggregated system health overview
-  health           Run service health checks
-  doctor           Environment preflight diagnostics
-  benchmark        Lightweight local performance baseline
-  bridge           Execute mapped legacy script implementations directly
-  completion       Generate shell completion scripts
-  deploy           Service lifecycle, release, and deployment helpers
-  validate         Validation and policy checks
-  db               Database operations
-  key              Virtual key operations
-  host             Host deployment and service operations
-  demo             Demo scenarios and state operations
-  terraform        Terraform provisioning helpers
-  help             Show this help message
+`)
+	for _, command := range registry.RootCommands {
+		fmt.Fprintf(out, "  %-16s %s\n", command.Name, command.Description)
+	}
+	fmt.Fprint(out, `
 
 Examples:
   acpctl ci should-run-runtime --quiet
+  acpctl ci wait --timeout 120
   acpctl files sync-helm
   acpctl doctor
   acpctl benchmark baseline --requests 20 --concurrency 2
@@ -119,6 +98,7 @@ Examples:
   acpctl validate config
   acpctl db status
   acpctl key gen alice --budget 10.00
+  acpctl helm validate
 
 Exit codes:
   0   Success
