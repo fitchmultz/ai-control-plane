@@ -16,10 +16,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
@@ -59,7 +57,7 @@ Watch Mode:
 `)
 }
 
-func runStatusCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	var jsonOutput, wide, watchMode bool
 	var watchInterval int
 
@@ -100,7 +98,7 @@ func runStatusCommand(args []string, stdout *os.File, stderr *os.File) int {
 		}
 	}
 
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	if repoRoot == "" {
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
@@ -131,14 +129,14 @@ func runStatusCommand(args []string, stdout *os.File, stderr *os.File) int {
 	}
 
 	if !watchMode {
-		return runStatusOnce(stdout, stderr, collectorsList, opts, jsonOutput, wide)
+		return runStatusOnce(ctx, stdout, stderr, collectorsList, opts, jsonOutput, wide)
 	}
 
-	return runStatusWatch(stdout, stderr, collectorsList, opts, jsonOutput, wide, watchInterval)
+	return runStatusWatch(ctx, stdout, stderr, collectorsList, opts, jsonOutput, wide, watchInterval)
 }
 
-func runStatusOnce(stdout *os.File, stderr *os.File, collectorsList []status.Collector, opts status.Options, jsonOutput bool, wide bool) int {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, collectorsList []status.Collector, opts status.Options, jsonOutput bool, wide bool) int {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	report := status.CollectAll(ctx, collectorsList, opts)
@@ -165,13 +163,9 @@ func runStatusOnce(stdout *os.File, stderr *os.File, collectorsList []status.Col
 	}
 }
 
-func runStatusWatch(stdout *os.File, stderr *os.File, collectorsList []status.Collector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
+func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, collectorsList []status.Collector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
-
-	// Create a context that cancels on interrupt signal
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	firstRun := true
 	for {

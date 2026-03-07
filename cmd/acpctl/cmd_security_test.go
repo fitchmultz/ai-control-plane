@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,7 +29,7 @@ import (
 func TestRunSecretsAudit_Help(t *testing.T) {
 	stdout, stderr := newTestFiles(t)
 
-	exitCode := runSecretsAudit([]string{"help"}, stdout, stderr)
+	exitCode := runSecretsAudit(context.Background(), []string{"help"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected help to succeed, got %d", exitCode)
@@ -49,7 +50,7 @@ func TestRunSecretsAudit_CleanTrackedRepoPasses(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runSecretsAudit(nil, stdout, stderr)
+		return runSecretsAudit(context.Background(), nil, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -72,7 +73,7 @@ func TestRunSecretsAudit_FailsOnTrackedPrivateKeyFile(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runSecretsAudit(nil, stdout, stderr)
+		return runSecretsAudit(context.Background(), nil, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -95,7 +96,7 @@ func TestRunSecretsAudit_FailsOnSecretContent(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runSecretsAudit(nil, stdout, stderr)
+		return runSecretsAudit(context.Background(), nil, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -124,7 +125,7 @@ func TestRunSecretsAudit_AllowsDocumentedExamplePlaceholders(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runSecretsAudit(nil, stdout, stderr)
+		return runSecretsAudit(context.Background(), nil, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -171,7 +172,7 @@ func TestRunDelegatedGroup_ValidateSecurityDelegatesToSecurityGate(t *testing.T)
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runDelegatedGroup(validateGroup, []string{"security"}, stdout, stderr)
+		return runDelegatedGroup(context.Background(), validateGroup, []string{"security"}, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -191,7 +192,7 @@ func TestRunDelegatedGroup_ValidateSecretsAuditHelpUsesNativeHelp(t *testing.T) 
 	}
 
 	stdout, stderr := newTestFiles(t)
-	exitCode := runDelegatedGroup(validateGroup, []string{"secrets-audit", "help"}, stdout, stderr)
+	exitCode := runDelegatedGroup(context.Background(), validateGroup, []string{"secrets-audit", "help"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected native help success, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))

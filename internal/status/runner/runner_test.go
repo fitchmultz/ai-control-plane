@@ -1,34 +1,79 @@
-// runner_test.go - Tests for command runner
+// runner_test.go - Deterministic tests for the status command runner.
 //
-// Purpose: Test runner interface and mock implementation
+// Purpose:
+//
+//	Verify the runner adapter preserves stdout/stderr capture and explicit
+//	timeout/cancel classification without depending on host shell binaries.
 //
 // Responsibilities:
-//   - Test MockRunner behavior
-//   - Test DefaultRunner integration
-//   - Test output sanitization
+//   - Test MockRunner behavior.
+//   - Test DefaultRunner subprocess execution using helper-process fixtures.
+//   - Test timeout, cancel, and exit-status classification.
+//   - Test output sanitization.
 //
-// Non-scope:
-//   - Does not test actual command execution (integration tests)
+// Scope:
+//   - Covers the internal/status/runner package only.
+//
+// Usage:
+//   - Run via `go test ./internal/status/runner`.
+//
+// Invariants/Assumptions:
+//   - Helper-process tests re-exec the current Go test binary.
+//   - No test depends on host `sleep`, `echo`, or `false`.
 package runner
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestRunnerHelperProcess(t *testing.T) {
+	t.Helper()
+	sep := -1
+	for i, arg := range os.Args {
+		if arg == "--" {
+			sep = i
+			break
+		}
+	}
+	if sep == -1 {
+		return
+	}
+
+	switch os.Args[sep+1] {
+	case "stdout-stderr":
+		fmt.Fprint(os.Stdout, os.Args[sep+2])
+		fmt.Fprint(os.Stderr, os.Args[sep+3])
+		os.Exit(0)
+	case "exit":
+		code, _ := strconv.Atoi(os.Args[sep+2])
+		fmt.Fprint(os.Stderr, "failed")
+		os.Exit(code)
+	case "sleep":
+		d, _ := time.ParseDuration(os.Args[sep+2])
+		time.Sleep(d)
+		os.Exit(0)
+	default:
+		os.Exit(99)
+	}
+}
+
+func helperArgs(mode string, args ...string) []string {
+	return append([]string{"-test.run=TestRunnerHelperProcess", "--", mode}, args...)
+}
 
 func TestMockRunner(t *testing.T) {
 	mock := NewMockRunner()
-
-	// Set up mock response
 	mock.SetResponse("echo hello", &Result{
 		Stdout:   "hello\n",
-		Stderr:   "",
 		ExitCode: 0,
-		Error:    nil,
 	})
 
-	// Test successful response
 	result := mock.Run(context.Background(), "echo", "hello")
 	if result.Error != nil {
 		t.Errorf("Expected no error, got %v", result.Error)
@@ -44,7 +89,6 @@ func TestMockRunner(t *testing.T) {
 func TestMockRunner_NoResponse(t *testing.T) {
 	mock := NewMockRunner()
 
-	// Test missing response
 	result := mock.Run(context.Background(), "unknown", "command")
 	if result.Error == nil {
 		t.Error("Expected error for missing mock response")
@@ -56,10 +100,7 @@ func TestMockRunner_NoResponse(t *testing.T) {
 
 func TestMockRunner_ErrorResponse(t *testing.T) {
 	mock := NewMockRunner()
-
-	// Set up error response
 	mock.SetResponse("failing command", &Result{
-		Stdout:   "",
 		Stderr:   "error message",
 		ExitCode: 1,
 		Error:    context.DeadlineExceeded,
@@ -82,30 +123,12 @@ func TestSanitizeForDisplay(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{
-			input:    "normal output\n",
-			expected: "normal output\n",
-		},
-		{
-			input:    "password=secret123\n",
-			expected: "[REDACTED]\n",
-		},
-		{
-			input:    "SECRET_KEY=abc123\n",
-			expected: "[REDACTED]\n",
-		},
-		{
-			input:    "token=Bearer xyz\n",
-			expected: "[REDACTED]\n",
-		},
-		{
-			input:    "api_key=12345\n",
-			expected: "[REDACTED]\n",
-		},
-		{
-			input:    "error: connection failed\n",
-			expected: "error: connection failed\n",
-		},
+		{input: "normal output\n", expected: "normal output\n"},
+		{input: "password=secret123\n", expected: "[REDACTED]\n"},
+		{input: "SECRET_KEY=abc123\n", expected: "[REDACTED]\n"},
+		{input: "token=Bearer xyz\n", expected: "[REDACTED]\n"},
+		{input: "api_key=12345\n", expected: "[REDACTED]\n"},
+		{input: "error: connection failed\n", expected: "error: connection failed\n"},
 	}
 
 	for _, tt := range tests {
@@ -125,21 +148,58 @@ func TestDefaultRunner_WithWorkDir(t *testing.T) {
 	}
 }
 
-// Test that DefaultRunner properly times out
-func TestDefaultRunner_Timeout(t *testing.T) {
+func TestDefaultRunner_Integration(t *testing.T) {
 	runner := NewDefaultRunner("")
 
-	// Create a context that's already cancelled
+	result := runner.Run(context.Background(), os.Args[0], helperArgs("stdout-stderr", "test-out", "test-err")...)
+	if result.Error != nil {
+		t.Fatalf("unexpected error: %v", result.Error)
+	}
+	if result.Stdout != "test-out" {
+		t.Fatalf("stdout = %q, want test-out", result.Stdout)
+	}
+	if result.Stderr != "test-err" {
+		t.Fatalf("stderr = %q, want test-err", result.Stderr)
+	}
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestDefaultRunner_FailingCommand(t *testing.T) {
+	runner := NewDefaultRunner("")
+
+	result := runner.Run(context.Background(), os.Args[0], helperArgs("exit", "7")...)
+	if result.Error == nil {
+		t.Fatal("expected error")
+	}
+	if result.ExitCode != 7 {
+		t.Fatalf("exit code = %d, want 7", result.ExitCode)
+	}
+}
+
+func TestDefaultRunner_Timeout(t *testing.T) {
+	runner := NewDefaultRunner("")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	result := runner.Run(ctx, os.Args[0], helperArgs("sleep", "1s")...)
+	if !result.TimedOut {
+		t.Fatalf("expected timeout result, got %+v", result)
+	}
+	if result.Canceled {
+		t.Fatalf("expected timeout, not canceled: %+v", result)
+	}
+}
+
+func TestDefaultRunner_Canceled(t *testing.T) {
+	runner := NewDefaultRunner("")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	// This should fail immediately due to cancelled context
-	result := runner.Run(ctx, "sleep", "10")
-
-	// The command should fail because context is cancelled
-	if result.Error == nil {
-		// On some systems this might still work, so just verify we get a result
-		t.Log("Command completed despite cancelled context (may be system-specific)")
+	result := runner.Run(ctx, os.Args[0], helperArgs("sleep", "1s")...)
+	if !result.Canceled {
+		t.Fatalf("expected canceled result, got %+v", result)
 	}
 }
 
@@ -148,7 +208,6 @@ func TestResult_Struct(t *testing.T) {
 		Stdout:   "output",
 		Stderr:   "error",
 		ExitCode: 42,
-		Error:    nil,
 	}
 
 	if result.Stdout != "output" {
@@ -162,47 +221,13 @@ func TestResult_Struct(t *testing.T) {
 	}
 }
 
-// Integration test that actually runs a command
-func TestDefaultRunner_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+func TestMockRunner_PrefixMatch(t *testing.T) {
+	mock := NewMockRunner()
+	pattern := strings.Repeat("a", 120)
+	mock.SetResponse(pattern, &Result{Stdout: "matched"})
 
-	runner := NewDefaultRunner("")
-	ctx := context.Background()
-
-	result := runner.Run(ctx, "echo", "test")
-
-	if result.Error != nil {
-		t.Errorf("Unexpected error: %v", result.Error)
-	}
-
-	if !strings.Contains(result.Stdout, "test") {
-		t.Errorf("Expected output to contain 'test', got %q", result.Stdout)
-	}
-
-	if result.ExitCode != 0 {
-		t.Errorf("Expected exit code 0, got %d", result.ExitCode)
-	}
-}
-
-// Test command that fails
-func TestDefaultRunner_FailingCommand(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	runner := NewDefaultRunner("")
-	ctx := context.Background()
-
-	// Use a command that will definitely fail
-	result := runner.Run(ctx, "false")
-
-	if result.Error == nil {
-		t.Error("Expected error for failing command")
-	}
-
-	if result.ExitCode != 1 {
-		t.Errorf("Expected exit code 1, got %d", result.ExitCode)
+	result := mock.Run(context.Background(), strings.Repeat("a", 120))
+	if result.Stdout != "matched" {
+		t.Fatalf("expected prefix match result, got %+v", result)
 	}
 }

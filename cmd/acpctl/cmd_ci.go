@@ -23,7 +23,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
-func runCISubcommand(args []string, stdout *os.File, stderr *os.File) int {
+func runCISubcommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 {
 		printCIHelp(stdout)
 		return exitcodes.ACPExitUsage
@@ -34,9 +34,9 @@ func runCISubcommand(args []string, stdout *os.File, stderr *os.File) int {
 		printCIHelp(stdout)
 		return exitcodes.ACPExitSuccess
 	case "should-run-runtime":
-		return runCIShouldRunRuntime(args[1:], stdout, stderr)
+		return runCIShouldRunRuntime(ctx, args[1:], stdout, stderr)
 	case "wait":
-		return runCIWaitCommand(args[1:], stdout, stderr)
+		return runCIWaitCommand(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Error: Unknown ci subcommand: %s\n", args[0])
 		printCIHelp(stderr)
@@ -69,7 +69,7 @@ Exit codes:
 `)
 }
 
-func runCIShouldRunRuntime(args []string, stdout *os.File, stderr *os.File) int {
+func runCIShouldRunRuntime(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	var paths repeatedStringFlag
 	var quiet bool
 
@@ -123,11 +123,11 @@ Exit codes:
 		return exitcodes.ACPExitUsage
 	}
 
-	repoRoot := detectRepoRoot()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	repoRoot := detectRepoRootWithContext(ctx)
+	decisionCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	result, err := ci.DecideRuntimeScope(ctx, ci.DecisionOptions{
+	result, err := ci.DecideRuntimeScope(decisionCtx, ci.DecisionOptions{
 		RepoRoot: repoRoot,
 		Paths:    paths,
 		CIFull:   os.Getenv("CI_FULL"),

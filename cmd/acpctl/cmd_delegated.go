@@ -16,15 +16,20 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
+
+const makeTargetTimeout = 30 * time.Minute
 
 // makeDelegatedSubcommand represents a subcommand that delegates to Make
 type makeDelegatedSubcommand struct {
@@ -234,7 +239,7 @@ func printDelegatedSubcommandHelp(out *os.File, group makeDelegatedGroup, sub ma
 	fmt.Fprintf(out, "  acpctl %s %s VERBOSE=1\n", group.Name, sub.Name)
 }
 
-func runDelegatedGroup(group makeDelegatedGroup, args []string, stdout *os.File, stderr *os.File) int {
+func runDelegatedGroup(ctx context.Context, group makeDelegatedGroup, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 {
 		printDelegatedGroupHelp(stdout, group)
 		return exitcodes.ACPExitUsage
@@ -253,7 +258,7 @@ func runDelegatedGroup(group makeDelegatedGroup, args []string, stdout *os.File,
 	}
 
 	if group.Name == "validate" {
-		if code, handled := runNativeValidateSubcommand(subcommand.Name, args[1:], stdout, stderr); handled {
+		if code, handled := runNativeValidateSubcommand(ctx, subcommand.Name, args[1:], stdout, stderr); handled {
 			return code
 		}
 	}
@@ -267,72 +272,72 @@ func runDelegatedGroup(group makeDelegatedGroup, args []string, stdout *os.File,
 	if group.Name == "db" {
 		switch subcommand.Name {
 		case "backup":
-			return runDBBackupCommand(args[1:], stdout, stderr)
+			return runDBBackupCommand(ctx, args[1:], stdout, stderr)
 		case "restore":
-			return runDBRestoreCommand(args[1:], stdout, stderr)
+			return runDBRestoreCommand(ctx, args[1:], stdout, stderr)
 		case "dr-drill":
-			return runDBDRDrill(args[1:], stdout, stderr)
+			return runDBDRDrill(ctx, args[1:], stdout, stderr)
 		}
 	}
 
 	if group.Name == "key" {
 		switch subcommand.Name {
 		case "gen":
-			return runKeyGenCommand(args[1:], stdout, stderr)
+			return runKeyGenCommand(ctx, args[1:], stdout, stderr)
 		case "gen-dev":
 			// Prepend --role developer if not already specified
-			return runKeyGenCommand(append([]string{"--role", "developer"}, args[1:]...), stdout, stderr)
+			return runKeyGenCommand(ctx, append([]string{"--role", "developer"}, args[1:]...), stdout, stderr)
 		case "gen-lead":
 			// Prepend --role team-lead if not already specified
-			return runKeyGenCommand(append([]string{"--role", "team-lead"}, args[1:]...), stdout, stderr)
+			return runKeyGenCommand(ctx, append([]string{"--role", "team-lead"}, args[1:]...), stdout, stderr)
 		case "revoke":
-			return runKeyRevokeCommand(args[1:], stdout, stderr)
+			return runKeyRevokeCommand(ctx, args[1:], stdout, stderr)
 		}
 	}
 
 	if group.Name == "deploy" {
 		switch subcommand.Name {
 		case "artifact-retention":
-			return runArtifactRetentionCommand(args[1:], stdout, stderr)
+			return runArtifactRetentionCommand(ctx, args[1:], stdout, stderr)
 		case "readiness-evidence":
-			return runReadinessEvidenceCommand(args[1:], stdout, stderr)
+			return runReadinessEvidenceCommand(ctx, args[1:], stdout, stderr)
 		case "pilot-closeout-bundle":
-			return runPilotCloseoutBundleCommand(args[1:], stdout, stderr)
+			return runPilotCloseoutBundleCommand(ctx, args[1:], stdout, stderr)
 		case "release-bundle":
-			return runReleaseBundleCommand(args[1:], stdout, stderr)
+			return runReleaseBundleCommand(ctx, args[1:], stdout, stderr)
 		}
 	}
 
 	if group.Name == "helm" {
 		switch subcommand.Name {
 		case "validate":
-			return runHelmValidateCommand(args[1:], stdout, stderr)
+			return runHelmValidateCommand(ctx, args[1:], stdout, stderr)
 		case "smoke":
-			return runHelmSmokeCommand(args[1:], stdout, stderr)
+			return runHelmSmokeCommand(ctx, args[1:], stdout, stderr)
 		}
 	}
 
-	return runMakeTarget(subcommand.MakeTarget, args[1:], stdout, stderr)
+	return runMakeTarget(ctx, subcommand.MakeTarget, args[1:], stdout, stderr)
 }
 
-func runNativeValidateSubcommand(name string, args []string, stdout *os.File, stderr *os.File) (int, bool) {
+func runNativeValidateSubcommand(ctx context.Context, name string, args []string, stdout *os.File, stderr *os.File) (int, bool) {
 	switch name {
 	case "detections":
-		return runValidateDetections(args, stdout, stderr), true
+		return runValidateDetections(ctx, args, stdout, stderr), true
 	case "siem-queries":
-		return runValidateSiemQueries(args, stdout, stderr), true
+		return runValidateSiemQueries(ctx, args, stdout, stderr), true
 	case "config":
-		return runValidateConfig(args, stdout, stderr), true
+		return runValidateConfig(ctx, args, stdout, stderr), true
 	case "compose-healthchecks":
-		return runValidateComposeHealthchecks(args, stdout, stderr), true
+		return runValidateComposeHealthchecks(ctx, args, stdout, stderr), true
 	case "secrets-audit":
-		return runSecretsAudit(args, stdout, stderr), true
+		return runSecretsAudit(ctx, args, stdout, stderr), true
 	default:
 		return 0, false
 	}
 }
 
-func runMakeTarget(target string, makeArgs []string, stdout *os.File, stderr *os.File) int {
+func runMakeTarget(ctx context.Context, target string, makeArgs []string, stdout *os.File, stderr *os.File) int {
 	makeBin := strings.TrimSpace(os.Getenv("ACPCTL_MAKE_BIN"))
 	if makeBin == "" {
 		makeBin = "make"
@@ -342,32 +347,26 @@ func runMakeTarget(target string, makeArgs []string, stdout *os.File, stderr *os
 		return exitcodes.ACPExitPrereq
 	}
 
-	repoRoot := detectRepoRoot()
-	cmd := exec.Command(makeBin, append([]string{target}, makeArgs...)...)
-	cmd.Dir = repoRoot
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Run(); err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
+	repoRoot := detectRepoRootWithContext(ctx)
+	res := proc.Run(ctx, proc.Request{
+		Name:    makeBin,
+		Args:    append([]string{target}, makeArgs...),
+		Dir:     repoRoot,
+		Stdin:   os.Stdin,
+		Stdout:  stdout,
+		Stderr:  stderr,
+		Timeout: makeTargetTimeout,
+	})
+	if res.Err != nil {
+		switch {
+		case proc.IsNotFound(res.Err):
 			fmt.Fprintf(stderr, "Error: make executable not found: %s\n", makeBin)
-			return exitcodes.ACPExitPrereq
+		case proc.IsTimeout(res.Err):
+			fmt.Fprintf(stderr, "Error: make target %q timed out\n", target)
+		case proc.IsCanceled(res.Err):
+			fmt.Fprintf(stderr, "Error: make target %q canceled\n", target)
 		}
-
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			switch exitErr.ExitCode() {
-			case exitcodes.ACPExitDomain, exitcodes.ACPExitPrereq,
-				exitcodes.ACPExitRuntime, exitcodes.ACPExitUsage:
-				return exitErr.ExitCode()
-			default:
-				return exitcodes.ACPExitRuntime
-			}
-		}
-
-		fmt.Fprintf(stderr, "Error: make target execution failed: %v\n", err)
-		return exitcodes.ACPExitRuntime
+		return proc.ACPExitCode(res.Err)
 	}
 
 	return exitcodes.ACPExitSuccess

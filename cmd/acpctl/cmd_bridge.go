@@ -12,14 +12,18 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
+
+const bridgeScriptTimeout = 10 * time.Minute
 
 // bridgeScript defines a bridge command mapping
 type bridgeScript struct {
@@ -128,7 +132,7 @@ Exit codes:
 `)
 }
 
-func runBridgeSubcommand(args []string, stdout *os.File, stderr *os.File) int {
+func runBridgeSubcommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 {
 		printBridgeHelp(stdout)
 		return exitcodes.ACPExitUsage
@@ -146,11 +150,11 @@ func runBridgeSubcommand(args []string, stdout *os.File, stderr *os.File) int {
 		return exitcodes.ACPExitUsage
 	}
 
-	return runBridgeScript(script, args[1:], stdout, stderr)
+	return runBridgeScript(ctx, script, args[1:], stdout, stderr)
 }
 
-func runBridgeScript(script bridgeScript, scriptArgs []string, stdout *os.File, stderr *os.File) int {
-	repoRoot := detectRepoRoot()
+func runBridgeScript(ctx context.Context, script bridgeScript, scriptArgs []string, stdout *os.File, stderr *os.File) int {
+	repoRoot := detectRepoRootWithContext(ctx)
 	if repoRoot == "" {
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
@@ -175,33 +179,26 @@ func runBridgeScript(script bridgeScript, scriptArgs []string, stdout *os.File, 
 		return exitcodes.ACPExitPrereq
 	}
 
-	cmd := exec.Command("/bin/bash", append([]string{scriptPath}, scriptArgs...)...)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Run(); err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			fmt.Fprintf(stderr, "Error: bash executable not found\n")
-			return exitcodes.ACPExitPrereq
+	res := proc.Run(ctx, proc.Request{
+		Name:    "/bin/bash",
+		Args:    append([]string{scriptPath}, scriptArgs...),
+		Dir:     repoRoot,
+		Env:     []string{"ACP_REPO_ROOT=" + repoRoot},
+		Stdin:   os.Stdin,
+		Stdout:  stdout,
+		Stderr:  stderr,
+		Timeout: bridgeScriptTimeout,
+	})
+	if res.Err != nil {
+		switch {
+		case proc.IsNotFound(res.Err):
+			fmt.Fprintln(stderr, "Error: bash executable not found")
+		case proc.IsTimeout(res.Err):
+			fmt.Fprintf(stderr, "Error: bridge script %q timed out\n", script.Name)
+		case proc.IsCanceled(res.Err):
+			fmt.Fprintf(stderr, "Error: bridge script %q canceled\n", script.Name)
 		}
-
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			switch exitErr.ExitCode() {
-			case exitcodes.ACPExitDomain, exitcodes.ACPExitPrereq,
-				exitcodes.ACPExitRuntime, exitcodes.ACPExitUsage:
-				return exitErr.ExitCode()
-			case 127:
-				fmt.Fprintf(stderr, "Error: bridge script reported command not found\n")
-				return exitcodes.ACPExitPrereq
-			default:
-				return exitcodes.ACPExitRuntime
-			}
-		}
-
-		fmt.Fprintf(stderr, "Error: bridge script execution failed: %v\n", err)
-		return exitcodes.ACPExitRuntime
+		return proc.ACPExitCode(res.Err)
 	}
 
 	return exitcodes.ACPExitSuccess

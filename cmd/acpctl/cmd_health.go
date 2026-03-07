@@ -16,8 +16,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
@@ -26,7 +28,9 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
-func runHealthCommand(args []string, stdout *os.File, stderr *os.File) int {
+const healthCommandTimeout = 30 * time.Second
+
+func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	// Parse arguments
 	verbose := false
 	for _, arg := range args {
@@ -49,19 +53,29 @@ func runHealthCommand(args []string, stdout *os.File, stderr *os.File) int {
 	}
 
 	// Detect Docker Compose
-	compose, err := docker.NewCompose(docker.DefaultProjectDir(detectRepoRoot()))
+	compose, err := docker.NewCompose(docker.DefaultProjectDir(detectRepoRootWithContext(ctx)))
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 
 	// Run health checks
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, healthCommandTimeout)
+	defer cancel()
 	checker := health.NewChecker(compose, verbose)
 	result := checker.Run(ctx)
 
 	// Print summary
 	checker.PrintSummary(result)
+
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		fmt.Fprintln(stderr, out.Fail("Health check timed out"))
+		return exitcodes.ACPExitRuntime
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		fmt.Fprintln(stderr, out.Fail("Health check canceled"))
+		return exitcodes.ACPExitRuntime
+	}
 
 	// Return appropriate exit code
 	switch result.Overall {
@@ -104,6 +118,7 @@ Exit codes:
   0   All required services healthy
   1   One or more required services unhealthy
   2   Prerequisites not ready
+  3   Runtime/internal error (including timeout or cancellation)
   64  Usage error
 `)
 }

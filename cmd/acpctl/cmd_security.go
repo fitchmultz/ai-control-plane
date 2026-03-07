@@ -18,9 +18,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -29,6 +29,7 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
 type secretFinding struct {
@@ -113,7 +114,7 @@ var secretContentRules = []secretContentRule{
 	},
 }
 
-func runSecretsAudit(args []string, stdout *os.File, stderr *os.File) int {
+func runSecretsAudit(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if isHelpToken(arg) {
 			printSecretsAuditHelp(stdout)
@@ -130,8 +131,8 @@ func runSecretsAudit(args []string, stdout *os.File, stderr *os.File) int {
 	fmt.Fprintln(stdout, out.Bold("=== Secrets Audit ==="))
 	fmt.Fprintln(stdout, "Scanning tracked files for likely public-repo secret leaks...")
 
-	repoRoot := detectRepoRoot()
-	trackedFiles, err := listTrackedFiles(repoRoot)
+	repoRoot := detectRepoRootWithContext(ctx)
+	trackedFiles, err := listTrackedFiles(ctx, repoRoot)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Secrets audit could not enumerate tracked files: %v\n"), err)
 		return exitcodes.ACPExitPrereq
@@ -159,19 +160,22 @@ func runSecretsAudit(args []string, stdout *os.File, stderr *os.File) int {
 	return exitcodes.ACPExitSuccess
 }
 
-func listTrackedFiles(repoRoot string) ([]string, error) {
+func listTrackedFiles(ctx context.Context, repoRoot string) ([]string, error) {
 	if err := ensureExecutable("git"); err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command("git", "ls-files", "-z")
-	cmd.Dir = repoRoot
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, err
+	res := proc.Run(ctx, proc.Request{
+		Name:    "git",
+		Args:    []string{"ls-files", "-z"},
+		Dir:     repoRoot,
+		Timeout: repoRootDetectTimeout,
+	})
+	if res.Err != nil {
+		return nil, res.Err
 	}
 
-	rawPaths := bytes.Split(output, []byte{0})
+	rawPaths := bytes.Split([]byte(res.Stdout), []byte{0})
 	paths := make([]string, 0, len(rawPaths))
 	for _, rawPath := range rawPaths {
 		if len(rawPath) == 0 {

@@ -23,7 +23,10 @@
 //     bridge names respectively.
 package main
 
-import "os"
+import (
+	"context"
+	"os"
+)
 
 type commandDescriptor struct {
 	Name        string
@@ -32,7 +35,7 @@ type commandDescriptor struct {
 
 type nativeCommandDefinition struct {
 	commandDescriptor
-	Run         func(args []string, stdout *os.File, stderr *os.File) int
+	Run         func(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int
 	Subcommands []commandDescriptor
 	Hidden      bool
 }

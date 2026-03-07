@@ -100,7 +100,15 @@ func RunBaseline(ctx context.Context, opts BaselineOptions) (*Summary, error) {
 		nowFn = func() time.Time { return time.Now().UTC() }
 	}
 	for warmupIndex := 0; warmupIndex < normalized.WarmupRequests; warmupIndex++ {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
 		if _, warmupErr := requestFn(ctx, normalized); warmupErr != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			return nil, fmt.Errorf("warmup request %d failed: %w", warmupIndex+1, warmupErr)
 		}
 	}
@@ -112,23 +120,47 @@ func RunBaseline(ctx context.Context, opts BaselineOptions) (*Summary, error) {
 	var wg sync.WaitGroup
 	for worker := 0; worker < normalized.Concurrency; worker++ {
 		wg.Go(func() {
-			for index := range jobs {
-				latency, requestErr := requestFn(ctx, normalized)
-				sample := Sample{Index: index, Latency: latency, Status: "ok"}
-				if requestErr != nil {
-					sample.Status = "error"
-					sample.Error = requestErr.Error()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case index, ok := <-jobs:
+					if !ok {
+						return
+					}
+					latency, requestErr := requestFn(ctx, normalized)
+					sample := Sample{Index: index, Latency: latency, Status: "ok"}
+					if requestErr != nil {
+						if ctx.Err() != nil {
+							return
+						}
+						sample.Status = "error"
+						sample.Error = requestErr.Error()
+					}
+					select {
+					case results <- sample:
+					case <-ctx.Done():
+						return
+					}
 				}
-				results <- sample
 			}
 		})
 	}
+enqueue:
 	for index := 0; index < normalized.Requests; index++ {
-		jobs <- index + 1
+		select {
+		case jobs <- index + 1:
+		case <-ctx.Done():
+			break enqueue
+		}
 	}
 	close(jobs)
 	wg.Wait()
 	close(results)
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 
 	samples := make([]Sample, 0, normalized.Requests)
 	for sample := range results {

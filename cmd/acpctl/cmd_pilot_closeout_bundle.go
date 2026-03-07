@@ -23,6 +23,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/release"
 )
 
-func runPilotCloseoutBundleCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runPilotCloseoutBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 || isHelpToken(args[0]) {
 		printPilotCloseoutBundleHelp(stdout)
 		if len(args) == 0 {
@@ -44,9 +45,9 @@ func runPilotCloseoutBundleCommand(args []string, stdout *os.File, stderr *os.Fi
 
 	switch args[0] {
 	case "build":
-		return runPilotCloseoutBundleBuild(args[1:], stdout, stderr)
+		return runPilotCloseoutBundleBuild(ctx, args[1:], stdout, stderr)
 	case "verify":
-		return runPilotCloseoutBundleVerify(args[1:], stdout, stderr)
+		return runPilotCloseoutBundleVerify(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Error: unknown pilot-closeout-bundle command: %s\n", args[0])
 		printPilotCloseoutBundleHelp(stderr)
@@ -54,9 +55,9 @@ func runPilotCloseoutBundleCommand(args []string, stdout *os.File, stderr *os.Fi
 	}
 }
 
-func runPilotCloseoutBundleBuild(args []string, stdout *os.File, stderr *os.File) int {
+func runPilotCloseoutBundleBuild(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	out := output.New()
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	options := release.PilotCloseoutOptions{
 		RepoRoot:   repoRoot,
 		OutputRoot: filepath.Join(repoRoot, "demo", "logs", "pilot-closeout"),
@@ -151,9 +152,9 @@ func runPilotCloseoutBundleBuild(args []string, stdout *os.File, stderr *os.File
 	return exitcodes.ACPExitSuccess
 }
 
-func runPilotCloseoutBundleVerify(args []string, stdout *os.File, stderr *os.File) int {
+func runPilotCloseoutBundleVerify(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	out := output.New()
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	runDir := ""
 
 	for index := 0; index < len(args); index++ {

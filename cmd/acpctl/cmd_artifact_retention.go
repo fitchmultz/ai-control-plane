@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,12 +35,12 @@ type artifactRetentionConfig struct {
 	RepoRoot     string
 }
 
-func runArtifactRetentionCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runArtifactRetentionCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	config := artifactRetentionConfig{
 		Mode:         "check",
 		KeepEvidence: 1,
 		KeepBundles:  1,
-		RepoRoot:     detectRepoRoot(),
+		RepoRoot:     detectRepoRootWithContext(ctx),
 	}
 
 	for i := 0; i < len(args); i++ {

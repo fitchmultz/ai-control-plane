@@ -34,7 +34,7 @@ import (
 
 func TestRunBenchmarkCommand_NoArgsReturnsUsage(t *testing.T) {
 	stdout, stderr := newTestFiles(t)
-	exitCode := runBenchmarkCommand(nil, stdout, stderr)
+	exitCode := runBenchmarkCommand(context.Background(), nil, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage exit code, got %d", exitCode)
@@ -75,7 +75,7 @@ func TestRunBenchmarkBaseline_JSONSuccess(t *testing.T) {
 	}
 	t.Cleanup(func() { benchmarkRunner = original })
 
-	exitCode := runBenchmarkCommand([]string{"baseline", "--requests", "5", "--concurrency", "3", "--json"}, stdout, stderr)
+	exitCode := runBenchmarkCommand(context.Background(), []string{"baseline", "--requests", "5", "--concurrency", "3", "--json"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected success, got %d stderr=%s", exitCode, readFile(t, stderr))
@@ -105,7 +105,7 @@ func TestRunBenchmarkBaseline_FailuresReturnDomainExit(t *testing.T) {
 	}
 	t.Cleanup(func() { benchmarkRunner = original })
 
-	exitCode := runBenchmarkCommand([]string{"baseline"}, stdout, stderr)
+	exitCode := runBenchmarkCommand(context.Background(), []string{"baseline"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitDomain {
 		t.Fatalf("expected domain exit code, got %d", exitCode)
@@ -159,12 +159,29 @@ func TestRunBenchmarkBaseline_ProfileAppliesDefaults(t *testing.T) {
 	t.Cleanup(func() { benchmarkRunner = original })
 
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runBenchmarkCommand([]string{"baseline", "--profile", "interactive"}, stdout, stderr)
+		return runBenchmarkCommand(context.Background(), []string{"baseline", "--profile", "interactive"}, stdout, stderr)
 	})
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected success, got %d stderr=%s", exitCode, readFile(t, stderr))
 	}
 	if !strings.Contains(readFile(t, stdout), "Profile: interactive") {
 		t.Fatalf("expected profile in summary output, got %s", readFile(t, stdout))
+	}
+}
+
+func TestRunBenchmarkBaseline_CanceledReturnsRuntime(t *testing.T) {
+	stdout, stderr := newTestFiles(t)
+	original := benchmarkRunner
+	benchmarkRunner = func(_ context.Context, _ performance.BaselineOptions) (*performance.Summary, error) {
+		return nil, context.Canceled
+	}
+	t.Cleanup(func() { benchmarkRunner = original })
+
+	exitCode := runBenchmarkCommand(context.Background(), []string{"baseline"}, stdout, stderr)
+	if exitCode != exitcodes.ACPExitRuntime {
+		t.Fatalf("expected runtime exit code, got %d", exitCode)
+	}
+	if !strings.Contains(readFile(t, stderr), "benchmark canceled") {
+		t.Fatalf("expected cancel message, got %s", readFile(t, stderr))
 	}
 }

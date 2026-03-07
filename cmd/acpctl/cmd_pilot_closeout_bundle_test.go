@@ -21,6 +21,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +32,7 @@ import (
 
 func TestRunPilotCloseoutBundleCommand_NoArgsReturnsUsage(t *testing.T) {
 	stdout, stderr := newTestFiles(t)
-	exitCode := runPilotCloseoutBundleCommand(nil, stdout, stderr)
+	exitCode := runPilotCloseoutBundleCommand(context.Background(), nil, stdout, stderr)
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage exit code, got %d", exitCode)
 	}
@@ -59,7 +60,7 @@ func TestRunPilotCloseoutBundleBuild_Succeeds(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runPilotCloseoutBundleCommand([]string{
+		return runPilotCloseoutBundleCommand(context.Background(), []string{
 			"build",
 			"--customer", "Falcon Insurance Group",
 			"--pilot-name", "Claims Governance Pilot",

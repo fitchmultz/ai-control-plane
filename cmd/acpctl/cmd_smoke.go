@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 )
 
-func runSmokeTestCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runSmokeTestCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if arg == "--help" || arg == "-h" {
 			printSmokeTestHelp(stdout)

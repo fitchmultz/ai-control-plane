@@ -23,11 +23,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
 // DecisionOptions controls runtime-scope decision behavior.
@@ -74,10 +76,6 @@ func DecideRuntimeScope(ctx context.Context, options DecisionOptions) (DecisionR
 			return DecisionResult{ShouldRun: true, Reason: "Repository root not provided; running runtime checks conservatively."}, nil
 		}
 
-		if _, err := exec.LookPath("git"); err != nil {
-			return DecisionResult{ShouldRun: true, Reason: "git not available; running runtime checks conservatively."}, nil
-		}
-
 		inside, err := runGit(ctx, repoRoot, "rev-parse", "--is-inside-work-tree")
 		if err != nil || strings.TrimSpace(inside) != "true" {
 			return DecisionResult{ShouldRun: true, Reason: "Not in a git work tree; running runtime checks conservatively."}, nil
@@ -117,13 +115,16 @@ func DecideRuntimeScope(ctx context.Context, options DecisionOptions) (DecisionR
 }
 
 func runGit(ctx context.Context, repoRoot string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = repoRoot
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
+	res := proc.Run(ctx, proc.Request{
+		Name:    "git",
+		Args:    args,
+		Dir:     repoRoot,
+		Timeout: 10 * time.Second,
+	})
+	if res.Err != nil {
+		return "", res.Err
 	}
-	return string(out), nil
+	return res.Stdout, nil
 }
 
 func parseNullDelimited(input string) []string {

@@ -13,6 +13,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +28,7 @@ func TestRunValidateDetections_Success(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateDetections([]string{"--verbose"}, stdout, stderr)
+		return runValidateDetections(context.Background(), []string{"--verbose"}, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -44,7 +45,7 @@ func TestRunValidateDetections_FailsOnDuplicateRuleID(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateDetections(nil, stdout, stderr)
+		return runValidateDetections(context.Background(), nil, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -62,7 +63,7 @@ func TestRunValidateSIEMQueries_FailsOnMissingDetectionMapping(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateSiemQueries(nil, stdout, stderr)
+		return runValidateSiemQueries(context.Background(), nil, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -81,7 +82,7 @@ func TestRunValidateSIEMQueries_SchemaValidation(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateSiemQueries([]string{"--validate-schema"}, stdout, stderr)
+		return runValidateSiemQueries(context.Background(), []string{"--validate-schema"}, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {

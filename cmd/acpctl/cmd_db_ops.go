@@ -29,7 +29,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
-func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	customName := ""
 	backupDir := os.Getenv("BACKUP_DIR")
 
@@ -47,7 +47,7 @@ func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
 
 	out := output.New()
 
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	if backupDir == "" {
 		backupDir = filepath.Join(repoRoot, "demo", "backups")
 	}
@@ -86,7 +86,6 @@ func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
 	fmt.Fprintf(stdout, "Backup file: %s\n", backupFile)
 
 	// Check database is accessible
-	ctx := context.Background()
 	if !dbClient.IsAccessible(ctx) {
 		fmt.Fprintln(stderr, out.Fail("PostgreSQL is not accepting connections"))
 		return exitcodes.ACPExitPrereq
@@ -135,7 +134,7 @@ func runDBBackupCommand(args []string, stdout *os.File, stderr *os.File) int {
 	return exitcodes.ACPExitSuccess
 }
 
-func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
+func runDBRestoreCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	backupFile := ""
 
 	for i := range args {
@@ -153,7 +152,7 @@ func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
 	out := output.New()
 
 	if backupFile == "" {
-		repoRoot := detectRepoRoot()
+		repoRoot := detectRepoRootWithContext(ctx)
 		backupDir := filepath.Join(repoRoot, "demo", "backups")
 		latest, err := findLatestBackup(backupDir)
 		if err != nil {
@@ -187,7 +186,7 @@ func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
 		return exitcodes.ACPExitPrereq
 	}
 
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	compose, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot))
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
@@ -205,7 +204,6 @@ func runDBRestoreCommand(args []string, stdout *os.File, stderr *os.File) int {
 	fmt.Fprintln(stdout, "WARNING: This will overwrite the current database!")
 
 	// Check database is accessible
-	ctx := context.Background()
 	if !dbClient.IsAccessible(ctx) {
 		fmt.Fprintln(stderr, out.Fail("PostgreSQL is not accepting connections"))
 		return exitcodes.ACPExitPrereq
@@ -318,7 +316,7 @@ Exit codes:
 `)
 }
 
-func runDBDRDrill(args []string, stdout *os.File, stderr *os.File) int {
+func runDBDRDrill(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	for _, arg := range args {
 		if arg == "--help" || arg == "-h" {
 			printDBDRDrillHelp(stdout)

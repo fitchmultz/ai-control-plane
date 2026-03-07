@@ -23,9 +23,17 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
+)
+
+const (
+	detectComposeTimeout  = 5 * time.Second
+	composeCommandTimeout = 30 * time.Second
+	dockerInfoTimeout     = 5 * time.Second
 )
 
 // Compose provides Docker Compose operations
@@ -38,7 +46,11 @@ type Compose struct {
 // DetectCompose detects the available Docker Compose command
 func DetectCompose() (*Compose, error) {
 	// Prefer V2: docker compose
-	if cmd := exec.Command("docker", "compose", "version"); cmd.Run() == nil {
+	if res := proc.Run(context.Background(), proc.Request{
+		Name:    "docker",
+		Args:    []string{"compose", "version"},
+		Timeout: detectComposeTimeout,
+	}); res.Err == nil {
 		return &Compose{
 			cmd:        "docker",
 			argsPrefix: []string{"compose"},
@@ -46,9 +58,13 @@ func DetectCompose() (*Compose, error) {
 	}
 
 	// Fall back to V1: docker-compose
-	if path, err := exec.LookPath("docker-compose"); err == nil {
+	if res := proc.Run(context.Background(), proc.Request{
+		Name:    "docker-compose",
+		Args:    []string{"version"},
+		Timeout: detectComposeTimeout,
+	}); res.Err == nil {
 		return &Compose{
-			cmd: path,
+			cmd: "docker-compose",
 		}, nil
 	}
 
@@ -76,34 +92,43 @@ func (c *Compose) Command() string {
 // PS lists running containers
 func (c *Compose) PS(ctx context.Context) (string, error) {
 	args := c.buildArgs("ps")
-	cmd := exec.CommandContext(ctx, c.cmd, args...)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("docker compose ps failed: %w", err)
+	res := proc.Run(ctx, proc.Request{
+		Name:    c.cmd,
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	if res.Err != nil {
+		return "", fmt.Errorf("docker compose ps failed: %w", res.Err)
 	}
-	return string(output), nil
+	return res.Stdout, nil
 }
 
 // PSFilter lists containers filtered by service name
 func (c *Compose) PSFilter(ctx context.Context, service string) (string, error) {
 	args := c.buildArgs("ps", service)
-	cmd := exec.CommandContext(ctx, c.cmd, args...)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("docker compose ps %s failed: %w", service, err)
+	res := proc.Run(ctx, proc.Request{
+		Name:    c.cmd,
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	if res.Err != nil {
+		return "", fmt.Errorf("docker compose ps %s failed: %w", service, res.Err)
 	}
-	return string(output), nil
+	return res.Stdout, nil
 }
 
 // ContainerID returns the container ID for a service
 func (c *Compose) ContainerID(ctx context.Context, service string) (string, error) {
 	args := c.buildArgs("ps", "-q", service)
-	cmd := exec.CommandContext(ctx, c.cmd, args...)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get container ID for %s: %w", service, err)
+	res := proc.Run(ctx, proc.Request{
+		Name:    c.cmd,
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	if res.Err != nil {
+		return "", fmt.Errorf("failed to get container ID for %s: %w", service, res.Err)
 	}
-	id := strings.TrimSpace(string(output))
+	id := strings.TrimSpace(res.Stdout)
 	if id == "" {
 		return "", fmt.Errorf("container not found for service: %s", service)
 	}
@@ -128,17 +153,23 @@ func (c *Compose) Up(ctx context.Context, detach bool, profiles ...string) error
 	for _, profile := range profiles {
 		args = append(args, "--profile", profile)
 	}
-	cmd := exec.CommandContext(ctx, c.cmd, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run()
+	res := proc.Run(ctx, proc.Request{
+		Name:    c.cmd,
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	return res.Err
 }
 
 // Down stops services
 func (c *Compose) Down(ctx context.Context) error {
 	args := c.buildArgs("down")
-	cmd := exec.CommandContext(ctx, c.cmd, args...)
-	return cmd.Run()
+	res := proc.Run(ctx, proc.Request{
+		Name:    c.cmd,
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	return res.Err
 }
 
 // Logs shows service logs
@@ -150,44 +181,55 @@ func (c *Compose) Logs(ctx context.Context, service string, follow bool) error {
 	if service != "" {
 		args = append(args, service)
 	}
-	cmd := exec.CommandContext(ctx, c.cmd, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run()
+	res := proc.Run(ctx, proc.Request{
+		Name:    c.cmd,
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	return res.Err
 }
 
 // Exec executes a command in a container
 func (c *Compose) Exec(ctx context.Context, service string, command ...string) (string, error) {
 	args := c.buildArgs(append([]string{"exec", service}, command...)...)
-	cmd := exec.CommandContext(ctx, c.cmd, args...)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("docker compose exec failed: %w", err)
+	res := proc.Run(ctx, proc.Request{
+		Name:    c.cmd,
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	if res.Err != nil {
+		return "", fmt.Errorf("docker compose exec failed: %w", res.Err)
 	}
-	return string(output), nil
+	return res.Stdout, nil
 }
 
 // ExecInContainer executes a command in a specific container by ID
 func ExecInContainer(ctx context.Context, containerID string, command ...string) (string, error) {
 	args := append([]string{"exec", containerID}, command...)
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("docker exec failed: %w", err)
+	res := proc.Run(ctx, proc.Request{
+		Name:    "docker",
+		Args:    args,
+		Timeout: composeCommandTimeout,
+	})
+	if res.Err != nil {
+		return "", fmt.Errorf("docker exec failed: %w", res.Err)
 	}
-	return string(output), nil
+	return res.Stdout, nil
 }
 
 // ExecInContainerWithStdin executes a command in a specific container by ID with streamed stdin.
 func ExecInContainerWithStdin(ctx context.Context, containerID string, stdin io.Reader, command ...string) (string, error) {
 	args := append([]string{"exec", "-i", containerID}, command...)
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdin = stdin
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("docker exec failed: %s: %w", strings.TrimSpace(string(output)), err)
+	res := proc.Run(ctx, proc.Request{
+		Name:    "docker",
+		Args:    args,
+		Stdin:   stdin,
+		Timeout: composeCommandTimeout,
+	})
+	if res.Err != nil {
+		return "", fmt.Errorf("docker exec failed: %s: %w", strings.TrimSpace(res.Stderr), res.Err)
 	}
-	return string(output), nil
+	return res.Stdout + res.Stderr, nil
 }
 
 // buildArgs builds the full argument list including project directory
@@ -209,6 +251,10 @@ func DefaultProjectDir(repoRoot string) string {
 
 // IsDockerRunning checks if Docker daemon is accessible
 func IsDockerRunning() bool {
-	cmd := exec.Command("docker", "info")
-	return cmd.Run() == nil
+	res := proc.Run(context.Background(), proc.Request{
+		Name:    "docker",
+		Args:    []string{"info"},
+		Timeout: dockerInfoTimeout,
+	})
+	return res.Err == nil
 }

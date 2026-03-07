@@ -22,6 +22,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,7 +35,7 @@ func TestRunMakeTarget_MissingOverrideReturnsPrereq(t *testing.T) {
 	t.Setenv("ACPCTL_MAKE_BIN", filepath.Join(t.TempDir(), "missing-make"))
 	t.Setenv("ACP_REPO_ROOT", t.TempDir())
 
-	if code := runMakeTarget("up", nil, os.Stdout, os.Stderr); code != exitcodes.ACPExitPrereq {
+	if code := runMakeTarget(context.Background(), "up", nil, os.Stdout, os.Stderr); code != exitcodes.ACPExitPrereq {
 		t.Fatalf("expected exit code %d, got %d", exitcodes.ACPExitPrereq, code)
 	}
 }
@@ -49,7 +50,7 @@ func TestRunMakeTarget_NonExecutableOverrideReturnsPrereq(t *testing.T) {
 	t.Setenv("ACPCTL_MAKE_BIN", nonExec)
 	t.Setenv("ACP_REPO_ROOT", tmpDir)
 
-	if code := runMakeTarget("up", nil, os.Stdout, os.Stderr); code != exitcodes.ACPExitPrereq {
+	if code := runMakeTarget(context.Background(), "up", nil, os.Stdout, os.Stderr); code != exitcodes.ACPExitPrereq {
 		t.Fatalf("expected exit code %d, got %d", exitcodes.ACPExitPrereq, code)
 	}
 }
@@ -67,7 +68,7 @@ func TestRunMakeTarget_ExecutableOverrideRunsTarget(t *testing.T) {
 	t.Setenv("ACPCTL_MAKE_BIN", makeStub)
 	t.Setenv("ACP_REPO_ROOT", tmpDir)
 
-	if code := runMakeTarget("demo-target", []string{"FLAG=1"}, os.Stdout, os.Stderr); code != exitcodes.ACPExitSuccess {
+	if code := runMakeTarget(context.Background(), "demo-target", []string{"FLAG=1"}, os.Stdout, os.Stderr); code != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected exit code %d, got %d", exitcodes.ACPExitSuccess, code)
 	}
 

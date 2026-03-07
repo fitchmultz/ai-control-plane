@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -20,7 +21,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/filesync"
 )
 
-func runFilesSubcommand(args []string, stdout *os.File, stderr *os.File) int {
+func runFilesSubcommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 0 {
 		printFilesHelp(stdout)
 		return exitcodes.ACPExitUsage
@@ -31,7 +32,7 @@ func runFilesSubcommand(args []string, stdout *os.File, stderr *os.File) int {
 		printFilesHelp(stdout)
 		return exitcodes.ACPExitSuccess
 	case "sync-helm":
-		return runFilesSyncHelm(args[1:], stdout, stderr)
+		return runFilesSyncHelm(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Error: Unknown files subcommand: %s\n", args[0])
 		printFilesHelp(stderr)
@@ -83,7 +84,7 @@ Exit codes:
 `)
 }
 
-func runFilesSyncHelm(args []string, stdout *os.File, stderr *os.File) int {
+func runFilesSyncHelm(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if len(args) == 1 && isHelpToken(args[0]) {
 		printFilesSyncHelmHelp(stdout)
 		return exitcodes.ACPExitSuccess
@@ -94,7 +95,7 @@ func runFilesSyncHelm(args []string, stdout *os.File, stderr *os.File) int {
 		return exitcodes.ACPExitUsage
 	}
 
-	repoRoot := detectRepoRoot()
+	repoRoot := detectRepoRootWithContext(ctx)
 	if strings.TrimSpace(repoRoot) == "" {
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime

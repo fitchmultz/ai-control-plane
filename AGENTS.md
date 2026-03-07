@@ -84,6 +84,7 @@ make health      # Verify services
 - **Delete before adding:** Net-negative diffs are wins when behavior stays correct
 - **Evidence over opinion:** Tests, data constraints, and benchmarks settle debates
 - **Fix root cause:** If the same issue appears elsewhere, fix all occurrences
+- **Canonical subprocess execution:** Operator-facing subprocesses should use `internal/proc` with caller context propagation and bounded deadlines; avoid bare `exec.Command` in CLI/internal execution paths
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
