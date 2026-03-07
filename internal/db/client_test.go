@@ -17,8 +17,11 @@
 package db
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -398,4 +401,67 @@ func TestClient_Close(t *testing.T) {
 
 	// Note: Testing Close() with actual external connection would require
 	// a real PostgreSQL instance, which is beyond unit test scope
+}
+
+func TestClientRestore_EmbeddedStreamsSQLToPSQL(t *testing.T) {
+	client := &Client{
+		mode:        "embedded",
+		dbUser:      "litellm",
+		containerID: "cid-123",
+	}
+
+	originalExec := execInContainerWithStdin
+	defer func() {
+		execInContainerWithStdin = originalExec
+	}()
+
+	execInContainerWithStdin = func(ctx context.Context, containerID string, stdin io.Reader, command ...string) (string, error) {
+		if containerID != "cid-123" {
+			t.Fatalf("expected containerID cid-123, got %q", containerID)
+		}
+
+		expectedCommand := []string{"psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "litellm", "-d", "postgres"}
+		if strings.Join(command, "\x00") != strings.Join(expectedCommand, "\x00") {
+			t.Fatalf("expected command %v, got %v", expectedCommand, command)
+		}
+
+		data, err := io.ReadAll(stdin)
+		if err != nil {
+			t.Fatalf("failed to read streamed sql: %v", err)
+		}
+		if string(data) != "SELECT 1;" {
+			t.Fatalf("expected streamed sql %q, got %q", "SELECT 1;", string(data))
+		}
+		return "", nil
+	}
+
+	if err := client.Restore(t.Context(), strings.NewReader("SELECT 1;")); err != nil {
+		t.Fatalf("expected restore to succeed, got %v", err)
+	}
+}
+
+func TestClientRestore_ExternalModeRejected(t *testing.T) {
+	client := &Client{mode: "external"}
+
+	originalExec := execInContainerWithStdin
+	defer func() {
+		execInContainerWithStdin = originalExec
+	}()
+
+	called := false
+	execInContainerWithStdin = func(ctx context.Context, containerID string, stdin io.Reader, command ...string) (string, error) {
+		called = true
+		return "", nil
+	}
+
+	err := client.Restore(t.Context(), strings.NewReader("SELECT 1;"))
+	if err == nil {
+		t.Fatal("expected restore to fail for external mode")
+	}
+	if !strings.Contains(err.Error(), "restore not supported for external database mode") {
+		t.Fatalf("expected unsupported-mode error, got %v", err)
+	}
+	if called {
+		t.Fatal("expected restore executor not to be called for external mode")
+	}
 }
