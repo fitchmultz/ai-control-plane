@@ -19,14 +19,11 @@ make onboard TOOL=claude MODE=api-key HOST=GATEWAY_HOST
 
 ### Manual Mode Switching
 ```bash
-# Check current mode
-./scripts/acpctl.sh bridge switch_claude_mode status
+# Activate API key mode
+cp ~/.claude/settings.local.json ~/.claude/settings.json
 
-# Switch to API key mode
-./scripts/acpctl.sh bridge switch_claude_mode api-key
-
-# Switch to MAX subscription mode
-./scripts/acpctl.sh bridge switch_claude_mode max
+# Activate MAX subscription mode
+cp ~/.claude/settings.max.json ~/.claude/settings.json
 ```
 
 ## Virtual Keys
@@ -82,6 +79,6 @@ Full guide: `CLAUDE_CODE_TESTING.md`
 # Onboarding help
 make onboard-help
 
-# Mode switcher help
-./scripts/acpctl.sh bridge switch_claude_mode --help
+# Onboarding help
+./scripts/acpctl.sh onboard claude --help
 ```

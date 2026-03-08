@@ -112,12 +112,6 @@ Operator interface order in this runbook:
   ```bash
   # Run host preflight checks
   make host-preflight
-  
-  # Secondary bridge compatibility path for custom requirements
-  ./scripts/acpctl.sh bridge host_preflight --profile production \
-    --min-disk-gb 50 \
-    --require-port-open 4000 \
-    --require-port-blocked 5432
   ```
   
   **Evidence Requirement**: Capture preflight output with timestamp and hostname:
@@ -130,8 +124,7 @@ Operator interface order in this runbook:
   make host-check INVENTORY=deploy/ansible/inventory/hosts.yml
   ```
   
-  Note: Host preflight is automatically executed before Ansible unless explicitly bypassed
-  (set `SKIP_HOST_PREFLIGHT=1` with `make host-check INVENTORY=...`, or use `./scripts/acpctl.sh bridge host_deploy --skip-host-preflight ...`).
+  Note: Declarative check/apply validates the tracked Ansible inventory and playbook surface. Run `make host-preflight` separately on the gateway host before service installation.
 - [ ] **Helm Validation**: For Kubernetes deployments
   ```bash
   make helm-validate
@@ -275,8 +268,8 @@ The following artifacts must be included in customer handoff bundles:
     # Verify specific bundle
     make release-bundle-verify RELEASE_BUNDLE_PATH=demo/logs/release-bundles/ai-control-plane-deploy-v2026.02.11.tar.gz
     
-    # Secondary compatibility path (direct script)
-    ./scripts/acpctl.sh bridge release_bundle verify --bundle demo/logs/release-bundles/ai-control-plane-deploy-v2026.02.11.tar.gz
+    # Secondary typed path
+    ./scripts/acpctl.sh deploy release-bundle verify --bundle demo/logs/release-bundles/ai-control-plane-deploy-v2026.02.11.tar.gz
     ```
   - **Bundle Contents**:
     - `payload/` - Canonical deployment files (Makefile, docker-compose.yml, configs, docs)
@@ -492,73 +485,47 @@ For external databases, perform restore drills using provider-specific snapshot 
 
 ## Upgrade Procedures
 
-### Docker Compose (Slot-Based Upgrade)
+### Docker Compose (In-Place Upgrade)
 
-The slot-based upgrade workflow uses active/standby deployment slots to enable zero-downtime upgrades with fast rollback capability.
-
-**Outage Budget**: 
-- Cutover target: ≤60 seconds
-- Rollback target: ≤60 seconds
-
-**Slot Port Allocation**:
-
-| Slot | Project Name | LiteLLM Port | Caddy HTTP | Caddy HTTPS |
-|------|--------------|--------------|------------|-------------|
-| active | acp-active | 4000 | 80 | 443 |
-| standby | acp-standby | 4001 | 8080 | 8443 |
-
-Environment variables for customization:
-- `LITELLM_HOST_PORT` - Override LiteLLM host port
-- `CADDY_HTTP_HOST_PORT` - Override Caddy HTTP port  
-- `CADDY_HTTPS_HOST_PORT` - Override Caddy HTTPS port
+The host-first public command surface now performs in-place upgrades. The supported workflow is: validate, backup, converge the new checkout or config, then restart the systemd-managed service and re-run health checks.
 
 **Upgrade Steps**:
 
-1. **Backup**: Create database backup (safety precaution)
+1. **Backup**: Create a database backup before changing the running host.
    ```bash
    make db-backup
    ```
 
-2. **Prepare Standby**: Deploy new release to standby slot
-   ```bash
-   make host-upgrade-prepare RELEASE=v1.2.3
-   ```
-   This starts services on alternate ports (4001/8080/8443) without affecting production traffic.
+2. **Refresh checkout/config**: Pull the tracked repository state or apply the approved configuration change.
 
-3. **Validate Standby**: Run smoke tests against standby
+3. **Validate the production contract**:
    ```bash
-   make host-upgrade-smoke-standby
+   make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+   make host-preflight
    ```
-   All tests must pass before proceeding.
 
-4. **Cutover**: Switch traffic from active to standby
+4. **Refresh secrets and restart the service**:
    ```bash
-   make host-upgrade-cutover
+   make host-secrets-refresh \
+     SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env \
+     HOST_COMPOSE_ENV_FILE=demo/.env
+   make host-service-restart
    ```
-   This atomically updates the traffic marker and verifies health.
 
-5. **Verify**: Confirm post-cutover health
+5. **Verify runtime health**:
    ```bash
-   make host-upgrade-status
-   make prod-smoke PUBLIC_URL=https://your-gateway.example.com
+   make health
+   make db-status
+   make prod-smoke
    ```
 
 **Rollback (if needed)**:
 
-If issues are detected after cutover, rollback immediately:
-```bash
-make host-upgrade-rollback
-```
+If issues are detected after restart, restore the last known-good repo/config and restart the service again. If data integrity is involved, restore the database backup first:
 
-**Rehearsal**: Test the full workflow before production:
-```bash
-make host-upgrade-rehearse
-```
-
-**Emergency Fallback**: If slot workflow fails, use traditional restart method:
 ```bash
 ./scripts/acpctl.sh db restore demo/backups/litellm-backup-YYYYMMDD-HHMMSS.sql.gz
-make restart
+make host-service-restart
 ```
 
 #### Go/No-Go Decision Matrix
@@ -566,55 +533,33 @@ make restart
 | Check | Command | Go Criteria | No-Go Action |
 |-------|---------|-------------|--------------|
 | Pre-checks | `make validate-config-production` | Exit 0 | Fix config issues |
-| Standby health | `make host-upgrade-smoke-standby` | All tests PASS | Debug standby, do not cutover |
-| Database connectivity | Implicit in smoke tests | Connection OK | Check postgres container |
-| Key generation | Implicit in smoke tests | Key created | Check master key/auth config |
-
-#### Rollback Triggers
-
-Execute immediate rollback if ANY of the following occur:
-
-| Trigger | Detection Method | Rollback Command |
-|---------|-----------------|------------------|
-| Post-cutover health fails | `make host-upgrade-status` shows unhealthy | `make host-upgrade-rollback` |
-| Smoke test regression | `make prod-smoke` fails | `make host-upgrade-rollback` |
-| Auth/keygen failures | Key generation or validation fails | `make host-upgrade-rollback` + check logs |
-| Performance degradation | Response times >2x baseline | `make host-upgrade-rollback` |
-| Error rate spike | 5xx errors in logs | `make host-upgrade-rollback` |
+| Host readiness | `make host-preflight` | Exit 0 | Fix host/runtime contract issues |
+| Runtime health | `make health` | Exit 0 | Inspect service logs before restart retry |
+| Smoke tests | `make prod-smoke` | Exit 0 | Roll back repo/config and restart |
 
 #### Evidence Capture Checklist
 
 After any upgrade or rollback, capture the following:
 
-1. **Upgrade Evidence Log**:
+1. **Service status**:
    ```bash
-   cat demo/logs/upgrade_evidence.log
+   make host-service-status
    ```
-   Contains timestamped checkpoint records of all operations.
 
-2. **Current Traffic Target**:
-   ```bash
-   cat demo/.active_slot
-   ```
-   Shows which slot (active/standby) is currently serving traffic.
-
-3. **Container Status**:
-   ```bash
-   make host-upgrade-status
-   ```
-   Shows running containers per slot and recent activity.
-
-4. **Gateway Health**:
+2. **Gateway health**:
    ```bash
    make health
    ```
 
-5. **Database Status**:
+3. **Database status**:
    ```bash
    make db-status
    ```
 
-Archive these artifacts for audit purposes.
+4. **Recent service logs**:
+   ```bash
+   journalctl -u ai-control-plane --since "1 hour ago" --no-pager
+   ```
 
 ### Declarative Host Orchestrator
 

@@ -66,6 +66,7 @@ _acpctl_commands() {
         "health:Run service health checks"
         "doctor:Environment preflight diagnostics"
         "benchmark:Lightweight local performance baseline"
+        "smoke:Run runtime production smoke checks"
         "completion:Generate shell completion scripts"
         "onboard:Configure local tools to route through the gateway"
         "deploy:Service lifecycle, release, and deployment operations"
@@ -150,7 +151,7 @@ _acpctl_deploy() {
 _acpctl_validate() {
     local subcmds=(
         "lint:Run static validation/lint gate"
-        "config:Validate demo deployment configuration"
+        "config:Validate deployment configuration (use --production for host contract checks)"
         "detections:Validate detection rule output"
         "siem-queries:Validate SIEM query sync"
         "network-contract:Render network contract artifacts"
@@ -193,7 +194,12 @@ _acpctl_host() {
         "check:Run declarative host preflight/check mode"
         "apply:Run declarative host apply/converge"
         "install:Install systemd service"
+        "uninstall:Uninstall systemd service"
         "service-status:Show service status"
+        "service-start:Start the systemd service"
+        "service-stop:Stop the systemd service"
+        "service-restart:Restart the systemd service"
+        "secrets-refresh:Validate and sync canonical host secrets into the Compose runtime env file"
     )
     _describe -t commands 'host subcommands' subcmds "$@"
 }
@@ -234,13 +240,11 @@ _acpctl_bridge() {
         "host_deploy:Host declarative deployment orchestration"
         "host_install:Systemd host service installation/management"
         "host_preflight:Host readiness preflight checks"
-        "host_upgrade_slots:Slot-based host upgrade orchestration"
         "onboard:Tool onboarding workflows"
         "prepare_secrets_env:Host secrets contract refresh/sync"
         "prod_smoke_helm:Helm production smoke workflow"
         "prod_smoke_test:Runtime production smoke checks"
         "release_bundle:Deployment release bundle build/verify"
-        "switch_claude_mode:Claude mode switching helper"
     )
     _describe -t commands 'bridge subcommands' subcmds "$@"
 }

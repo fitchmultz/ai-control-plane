@@ -90,10 +90,6 @@ fail() {
     ((TESTS_FAILED++)) || true
 }
 
-host_upgrade_script_path() {
-    printf '%s\n' "$REPO_ROOT/scripts/libexec/host_upgrade_slots_impl.sh"
-}
-
 # -----------------------------------------------------------------------------
 # Test Cases
 # -----------------------------------------------------------------------------
@@ -233,75 +229,24 @@ test_main_compose_has_no_insecure_secret_fallbacks() {
 }
 
 test_slot_ports_distinct() {
-    # Verify that the script defines distinct ports for active and standby
-    local host_upgrade_script
-    host_upgrade_script="$(host_upgrade_script_path)"
-
-    if [[ ! -f "$host_upgrade_script" ]]; then
-        if grep -Fq '${LITELLM_HOST_PORT:-4000}:4000' "$COMPOSE_DIR/docker-compose.yml"; then
-            pass "Compose supports slot-specific LiteLLM host port overrides"
-        else
-            fail "Compose should expose LiteLLM host port overrides for slot isolation"
-        fi
-        return
-    fi
-
-    if grep -q "SLOT_ACTIVE_PORT=4000" "$host_upgrade_script"; then
-        pass "Active slot port is 4000"
-    elif grep -q "readonly SLOT_ACTIVE_PORT=4000" "$host_upgrade_script"; then
-        pass "Active slot port constant is 4000"
+    if grep -Fq '${LITELLM_HOST_PORT:-4000}:4000' "$COMPOSE_DIR/docker-compose.yml"; then
+        pass "Compose supports slot-specific LiteLLM host port overrides"
     else
-        fail "Active slot port not set to 4000"
-    fi
-
-    if grep -q "SLOT_STANDBY_PORT=4001" "$host_upgrade_script"; then
-        pass "Standby slot port is 4001"
-    elif grep -q "readonly SLOT_STANDBY_PORT=4001" "$host_upgrade_script"; then
-        pass "Standby slot port constant is 4001"
-    else
-        fail "Standby slot port not set to 4001"
+        fail "Compose should expose LiteLLM host port overrides for slot isolation"
     fi
 }
 
 test_slot_project_names_distinct() {
-    local host_upgrade_script
-    host_upgrade_script="$(host_upgrade_script_path)"
-
-    if [[ ! -f "$host_upgrade_script" ]]; then
-        if grep -q 'librechat_mongodb_data_active' "$COMPOSE_DIR/docker-compose.yml" &&
-            grep -q 'librechat_mongodb_data_standby' "$COMPOSE_DIR/docker-compose.yml"; then
-            pass "Compose declares distinct active and standby volume namespaces"
-        else
-            fail "Compose should declare distinct active and standby volume namespaces"
-        fi
-        return
-    fi
-
-    if grep -q "acp-active" "$host_upgrade_script"; then
-        pass "Active slot project name is 'acp-active'"
+    if grep -q 'librechat_mongodb_data_active' "$COMPOSE_DIR/docker-compose.yml" &&
+        grep -q 'librechat_mongodb_data_standby' "$COMPOSE_DIR/docker-compose.yml"; then
+        pass "Compose declares distinct active and standby volume namespaces"
     else
-        fail "Active slot project name not found"
-    fi
-
-    if grep -q "acp-standby" "$host_upgrade_script"; then
-        pass "Standby slot project name is 'acp-standby'"
-    else
-        fail "Standby slot project name not found"
+        fail "Compose should declare distinct active and standby volume namespaces"
     fi
 }
 
 test_volume_names_not_conflicting() {
-    # Check that volume names in compose files don't collide
-    local host_upgrade_script
-    host_upgrade_script="$(host_upgrade_script_path)"
-
-    # Look for slot-scoped volume handling
-    if [[ -f "$host_upgrade_script" ]] && grep -q "get_slot_project\|get_compose_file" "$host_upgrade_script"; then
-        pass "Slot-specific volume handling exists"
-    else
-        # Alternative: check if project names are used to scope volumes
-        pass "Slot project names provide volume scoping"
-    fi
+    pass "Slot project names and ACP_SLOT-scoped volumes provide runtime isolation"
 }
 
 test_compose_syntax_port_mappings() {
@@ -319,19 +264,10 @@ test_compose_syntax_port_mappings() {
 }
 
 test_standby_compose_file_pattern() {
-    # Check if standby compose file exists or if main compose is used for both
-    local host_upgrade_script
-    host_upgrade_script="$(host_upgrade_script_path)"
-
     if [[ -f "$COMPOSE_DIR/docker-compose.standby.yml" ]]; then
         pass "Standby-specific compose file exists"
     else
-        # Check if script handles standby by using main compose with different project
-        if [[ -f "$host_upgrade_script" ]] && grep -q "docker-compose.standby.yml" "$host_upgrade_script"; then
-            pass "Script references standby compose file"
-        else
-            pass "Slot handling uses main compose with project or env scoping"
-        fi
+        pass "Slot handling uses main compose with project or env scoping"
     fi
 }
 
@@ -345,26 +281,11 @@ test_compose_network_isolation() {
     fi
 }
 
-test_host_upgrade_script_compose_helpers() {
-    local host_upgrade_script
-    host_upgrade_script="$(host_upgrade_script_path)"
-
-    if [[ ! -f "$host_upgrade_script" ]]; then
-        pass "Slot compose helper script no longer exists; compose contract is validated directly"
-        return
-    fi
-
-    # Check for compose-related helper functions
-    if grep -q "get_compose_file" "$host_upgrade_script"; then
-        pass "get_compose_file helper function exists"
+test_slot_project_env_contract() {
+    if grep -q 'name: ai_control_plane_pgdata_${ACP_SLOT:-active}' "$COMPOSE_DIR/docker-compose.yml"; then
+        pass "Compose uses ACP_SLOT-scoped persistent volume names"
     else
-        fail "get_compose_file helper function missing"
-    fi
-
-    if grep -q "get_docker_compose" "$host_upgrade_script"; then
-        pass "get_docker_compose helper function exists"
-    else
-        fail "get_docker_compose helper function missing"
+        fail "Compose should use ACP_SLOT-scoped persistent volume names"
     fi
 }
 
@@ -393,7 +314,7 @@ test_volume_names_not_conflicting
 test_compose_syntax_port_mappings
 test_standby_compose_file_pattern
 test_compose_network_isolation
-test_host_upgrade_script_compose_helpers
+test_slot_project_env_contract
 
 # Summary
 echo ""

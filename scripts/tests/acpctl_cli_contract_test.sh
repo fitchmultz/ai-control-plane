@@ -241,7 +241,6 @@ echo ""
 echo "Test: flow commands delegate to expected make targets..."
 assert_make_target "up" "deploy up delegates to make up" deploy up
 assert_make_target "db-status" "db status delegates to make db-status" db status
-assert_make_target "host-preflight" "host preflight delegates to make host-preflight" host preflight
 assert_make_target "demo-all" "demo all delegates to make demo-all" demo all
 assert_make_target "up-tls" "deploy up-tls delegates to make up-tls" deploy up-tls
 assert_make_target "tf-plan" "terraform plan delegates to make tf-plan" terraform plan
@@ -251,6 +250,8 @@ echo "Test: typed command paths do not delegate to make..."
 assert_typed_no_delegation "validate config runs via typed path" validate config
 assert_typed_no_delegation "validate config --production stays make-independent" validate config --production --secrets-env-file /tmp/secrets.env
 assert_typed_no_delegation "chargeback report help stays make-independent" chargeback report --help
+assert_typed_no_delegation "host preflight help stays make-independent" host preflight --help
+assert_typed_no_delegation "bridge host_preflight help stays make-independent" bridge host_preflight --help
 
 : >"$CAPTURE_FILE"
 KEY_DRY_RUN_RC=0

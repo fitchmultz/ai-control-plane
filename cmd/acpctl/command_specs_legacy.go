@@ -57,6 +57,10 @@ func makeLeafSpec(name string, summary string, target string) *commandSpec {
 }
 
 func bridgeLeafSpec(name string, summary string, relativePath string) *commandSpec {
+	return bridgeLeafSpecWithArgs(name, summary, relativePath)
+}
+
+func bridgeLeafSpecWithArgs(name string, summary string, relativePath string, bridgeArgs ...string) *commandSpec {
 	return &commandSpec{
 		Name:              name,
 		Summary:           summary,
@@ -65,6 +69,7 @@ func bridgeLeafSpec(name string, summary string, relativePath string) *commandSp
 		Backend: commandBackend{
 			Kind:               commandBackendBridge,
 			BridgeRelativePath: relativePath,
+			BridgeArgs:         append([]string(nil), bridgeArgs...),
 		},
 	}
 }
@@ -247,16 +252,32 @@ func hostCommandSpec() *commandSpec {
 		Description: "Host-first deployment and operations.",
 		Examples: []string{
 			"acpctl host preflight",
-			"acpctl host check",
-			"acpctl host apply",
+			"acpctl host check --inventory deploy/ansible/inventory/hosts.yml",
+			"acpctl host apply --inventory deploy/ansible/inventory/hosts.yml",
+			"acpctl host install --service-user acp",
 		},
 		Children: []*commandSpec{
-			makeLeafSpec("preflight", "Validate host readiness", "host-preflight"),
-			makeLeafSpec("check", "Run declarative host preflight/check mode", "host-check"),
-			makeLeafSpec("apply", "Run declarative host apply/converge", "host-apply"),
-			makeLeafSpec("install", "Install systemd service", "host-install"),
-			makeLeafSpec("service-status", "Show service status", "host-service-status"),
+			bridgeLeafSpec("preflight", "Validate host readiness", "scripts/libexec/host_preflight_impl.sh"),
+			bridgeLeafSpecWithArgs("check", "Run declarative host preflight/check mode", "scripts/libexec/host_deploy_impl.sh", "check"),
+			bridgeLeafSpecWithArgs("apply", "Run declarative host apply/converge", "scripts/libexec/host_deploy_impl.sh", "apply"),
+			bridgeLeafSpecWithArgs("install", "Install systemd service", "scripts/libexec/host_install_impl.sh", "install"),
+			bridgeLeafSpecWithArgs("uninstall", "Uninstall systemd service", "scripts/libexec/host_install_impl.sh", "uninstall"),
+			bridgeLeafSpecWithArgs("service-status", "Show service status", "scripts/libexec/host_install_impl.sh", "service-status"),
+			bridgeLeafSpecWithArgs("service-start", "Start the systemd service", "scripts/libexec/host_install_impl.sh", "service-start"),
+			bridgeLeafSpecWithArgs("service-stop", "Stop the systemd service", "scripts/libexec/host_install_impl.sh", "service-stop"),
+			bridgeLeafSpecWithArgs("service-restart", "Restart the systemd service", "scripts/libexec/host_install_impl.sh", "service-restart"),
+			bridgeLeafSpec("secrets-refresh", "Validate and sync canonical host secrets into the Compose runtime env file", "scripts/libexec/prepare_secrets_env_impl.sh"),
 		},
+	}
+}
+
+func smokeCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:              "smoke",
+		Summary:           "Run runtime production smoke checks",
+		Description:       "Run runtime production smoke checks.",
+		AllowTrailingArgs: true,
+		Backend:           legacyNativeBackend(runSmokeTestCommand),
 	}
 }
 
@@ -330,13 +351,11 @@ func bridgeCommandSpec() *commandSpec {
 			bridgeLeafSpec("host_deploy", "Host declarative deployment orchestration", "scripts/libexec/host_deploy_impl.sh"),
 			bridgeLeafSpec("host_install", "Systemd host service installation/management", "scripts/libexec/host_install_impl.sh"),
 			bridgeLeafSpec("host_preflight", "Host readiness preflight checks", "scripts/libexec/host_preflight_impl.sh"),
-			bridgeLeafSpec("host_upgrade_slots", "Slot-based host upgrade orchestration", "scripts/libexec/host_upgrade_slots_impl.sh"),
 			bridgeLeafSpec("onboard", "Tool onboarding workflows", "scripts/libexec/onboard_impl.sh"),
 			bridgeLeafSpec("prepare_secrets_env", "Host secrets contract refresh/sync", "scripts/libexec/prepare_secrets_env_impl.sh"),
 			bridgeLeafSpec("prod_smoke_helm", "Helm production smoke workflow", "scripts/libexec/prod_smoke_helm_impl.sh"),
 			bridgeLeafSpec("prod_smoke_test", "Runtime production smoke checks", "scripts/libexec/prod_smoke_test_impl.sh"),
 			bridgeLeafSpec("release_bundle", "Deployment release bundle build/verify", "scripts/libexec/release_bundle_impl.sh"),
-			bridgeLeafSpec("switch_claude_mode", "Claude mode switching helper", "scripts/libexec/switch_claude_mode_impl.sh"),
 		},
 	}
 }

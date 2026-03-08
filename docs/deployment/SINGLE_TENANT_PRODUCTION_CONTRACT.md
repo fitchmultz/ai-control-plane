@@ -338,27 +338,20 @@ Use the provided validation scripts to check configuration:
 Before running deployment orchestration, the host must pass operational readiness checks:
 
 ```bash
-# Run host preflight (production profile)
+# Run host preflight
 make host-preflight
 
-# Or run directly with custom requirements
-./scripts/acpctl.sh bridge host_preflight --profile production \
-  --min-disk-gb 50 \
-  --require-port-open 4000 \
-  --require-port-blocked 5432
-
-# Skip preflight (emergency only - not recommended for production)
-make host-check INVENTORY=inventory.yml SKIP_HOST_PREFLIGHT=1
+# Or run directly against an explicit secrets file
+./scripts/acpctl.sh host preflight --secrets-env-file /etc/ai-control-plane/secrets.env
 ```
 
-**Required Checks** (production profile):
-- Docker version >= 24.0.0
-- Docker Compose version >= 2.20.0
-- Disk headroom >= 20GB
-- Time synchronization active (NTP/timesyncd/chrony)
-- Service user has required permissions (docker group, repo access, temp-dir write access)
-- Required ports are available (configurable)
-- Blocked ports are not listening (configurable)
+**Required Checks**:
+- Docker binary and daemon are available
+- Docker Compose is available
+- systemd is available
+- The tracked systemd unit template exists
+- The canonical secrets file passes the production validation contract
+- The Compose runtime env parent directory exists
 
 **Exit Codes**:
 - `0` - All checks passed, host is ready
@@ -366,7 +359,7 @@ make host-check INVENTORY=inventory.yml SKIP_HOST_PREFLIGHT=1
 - `2` - Prerequisites not ready (missing tools)
 - `64` - Usage error (invalid arguments)
 
-**Integration**: The host orchestrator (`./scripts/acpctl.sh bridge host_deploy`) automatically executes preflight before Ansible unless `--skip-host-preflight` is provided.
+**Integration**: Run `make host-preflight` on the gateway host before `make host-install`. Declarative `make host-check` / `make host-apply` validate the tracked Ansible inventory and playbook surface separately.
 
 ### Docker Compose Validation
 

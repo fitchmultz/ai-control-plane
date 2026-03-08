@@ -27,6 +27,7 @@ func acpctlCommandSpec() *commandSpec {
 		healthCommandSpec(),
 		doctorCommandSpec(),
 		benchmarkCommandSpec(),
+		smokeCommandSpec(),
 		completionCommandSpec(),
 		onboardCommandSpec(),
 		deployCommandSpec(),

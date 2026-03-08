@@ -91,6 +91,7 @@ make health      # Verify services
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
+- **Host surface contract:** Supported host workflows are `host preflight`, `host check/apply`, `host secrets-refresh`, `host install/uninstall`, and `host service-*`; do not reintroduce slot-upgrade host commands without a fully implemented end-to-end backend
 - **acpctl command platform:** `cmd/acpctl/command_spec.go` owns parsing/help/completion/dispatch; `cmd/acpctl/command_registry.go` only composes per-domain command specs into the root tree
 - **Config ownership:** `internal/config` is the only Go package that may touch process env or repo-local `.env`; other packages must consume typed config from it
 - **Database service boundaries:** `internal/db` is split by responsibility: connector/runtime discovery, readonly metrics/reporting readers, and admin backup/restore workflows; do not reintroduce generic raw SQL execution on operator-facing surfaces
