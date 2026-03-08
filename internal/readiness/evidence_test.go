@@ -30,6 +30,7 @@ import (
 	"testing"
 
 	"github.com/mitchfultz/ai-control-plane/internal/bundle"
+	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 )
 
 func TestRunContextGeneratesArtifactsAndVerifierPasses(t *testing.T) {
@@ -76,6 +77,20 @@ func TestRunContextGeneratesArtifactsAndVerifierPasses(t *testing.T) {
 	}
 	if verified.RunID != summary.RunID {
 		t.Fatalf("verified run id = %s, want %s", verified.RunID, summary.RunID)
+	}
+	for _, gate := range summary.GateResults {
+		if gate.Status == "SKIPPED" || strings.TrimSpace(gate.LogPath) == "" {
+			continue
+		}
+		if got := statMode(t, gate.LogPath); got != fsutil.PrivateFilePerm {
+			t.Fatalf("gate log mode = %04o, want %04o", got, fsutil.PrivateFilePerm)
+		}
+	}
+	if got := statMode(t, summary.RunDirectory); got != fsutil.PrivateDirPerm {
+		t.Fatalf("run directory mode = %04o, want %04o", got, fsutil.PrivateDirPerm)
+	}
+	if got := statMode(t, filepath.Join(outputRoot, LatestRunPointerName)); got != fsutil.PrivateFilePerm {
+		t.Fatalf("latest run pointer mode = %04o, want %04o", got, fsutil.PrivateFilePerm)
 	}
 }
 
@@ -256,4 +271,13 @@ func writePlanFixture(t *testing.T, repoRoot string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write readiness plan fixture: %v", err)
 	}
+}
+
+func statMode(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("os.Stat(%s) error = %v", path, err)
+	}
+	return info.Mode().Perm()
 }

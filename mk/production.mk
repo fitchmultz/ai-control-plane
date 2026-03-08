@@ -27,14 +27,14 @@ up-production: validate-config-production ## Start production profile with OTEL
 .PHONY: prod-smoke
 prod-smoke: ## Run production smoke tests
 	@echo '$(COLOR_BOLD)Running production smoke tests...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) smoke \
+	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
 		&& echo '$(COLOR_GREEN)✓ Production smoke tests passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Production smoke tests failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: prod-smoke-local-tls
 prod-smoke-local-tls: ## Run production smoke tests against local TLS
 	@echo '$(COLOR_BOLD)Running production smoke tests against local TLS...$(COLOR_RESET)'
-	@GATEWAY_HOST=localhost LITELLM_PORT=$(TLS_PORT) $(ACPCTL_BIN) smoke \
+	@GATEWAY_HOST=localhost LITELLM_PORT=$(TLS_PORT) $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
 		&& echo '$(COLOR_GREEN)✓ Local TLS smoke tests passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Local TLS smoke tests failed$(COLOR_RESET)'; exit 1; }
 
@@ -72,7 +72,7 @@ restart-tls: down-tls up-tls ## Restart TLS mode services
 .PHONY: tls-health
 tls-health: ## Run TLS health checks
 	@echo '$(COLOR_BOLD)Running TLS health checks...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) health \
+	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
 		&& echo '$(COLOR_GREEN)✓ TLS health checks passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ TLS health checks failed$(COLOR_RESET)'; exit 1; }
 

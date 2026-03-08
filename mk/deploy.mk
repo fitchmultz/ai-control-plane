@@ -79,7 +79,7 @@ logs-db: ## Tail database logs only
 .PHONY: health
 health: ## Run service health checks
 	@echo '$(COLOR_BOLD)Running health checks...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) health \
+	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
 		&& echo '$(COLOR_GREEN)✓ Health checks passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Health checks failed$(COLOR_RESET)'; exit 1; }
 

@@ -41,6 +41,7 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/artifactrun"
 	"github.com/mitchfultz/ai-control-plane/internal/bundle"
+	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
@@ -246,9 +247,13 @@ func persistRun(outputRoot string, summary *Summary) error {
 }
 
 func executeGate(ctx context.Context, repoRoot string, makeBin string, gate gateSpec, logPath string, stdout io.Writer, stderr io.Writer) (string, time.Time, error) {
-	logFile, err := os.Create(logPath)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fsutil.PrivateFilePerm)
 	if err != nil {
 		return "FAIL", time.Now().UTC(), fmt.Errorf("create log file: %w", err)
+	}
+	if err := logFile.Chmod(fsutil.PrivateFilePerm); err != nil {
+		_ = logFile.Close()
+		return "FAIL", time.Now().UTC(), fmt.Errorf("chmod log file: %w", err)
 	}
 	defer logFile.Close()
 
@@ -284,9 +289,9 @@ func writeArtifacts(runDir string, summary *Summary) error {
 		return fmt.Errorf("write readiness summary json: %w", err)
 	}
 	return artifactrun.WriteArtifacts(runDir, []artifactrun.Artifact{
-		{Path: SummaryMarkdownName, Body: []byte(renderSummaryMarkdown(summary)), Perm: 0o644},
-		{Path: TrackerMarkdownName, Body: []byte(renderTrackerMarkdown(summary)), Perm: 0o644},
-		{Path: DecisionMarkdownName, Body: []byte(renderDecisionMarkdown(summary)), Perm: 0o644},
+		{Path: SummaryMarkdownName, Body: []byte(renderSummaryMarkdown(summary)), Perm: fsutil.PrivateFilePerm},
+		{Path: TrackerMarkdownName, Body: []byte(renderTrackerMarkdown(summary)), Perm: fsutil.PrivateFilePerm},
+		{Path: DecisionMarkdownName, Body: []byte(renderDecisionMarkdown(summary)), Perm: fsutil.PrivateFilePerm},
 	})
 }
 

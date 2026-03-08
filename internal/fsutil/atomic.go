@@ -27,6 +27,13 @@ import (
 	"path/filepath"
 )
 
+const (
+	PrivateDirPerm  os.FileMode = 0o700
+	PrivateFilePerm os.FileMode = 0o600
+	PublicDirPerm   os.FileMode = 0o755
+	PublicFilePerm  os.FileMode = 0o644
+)
+
 func AtomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	tempFile, err := os.CreateTemp(dir, ".tmp-*")
@@ -58,4 +65,30 @@ func AtomicWriteFile(path string, data []byte, perm os.FileMode) error {
 		return fmt.Errorf("rename temp file into place: %w", err)
 	}
 	return nil
+}
+
+func EnsureDir(path string, perm os.FileMode) error {
+	if err := os.MkdirAll(path, perm); err != nil {
+		return fmt.Errorf("create directory %s: %w", path, err)
+	}
+	if err := os.Chmod(path, perm); err != nil {
+		return fmt.Errorf("chmod directory %s: %w", path, err)
+	}
+	return nil
+}
+
+func EnsurePrivateDir(path string) error {
+	return EnsureDir(path, PrivateDirPerm)
+}
+
+func EnsurePublicDir(path string) error {
+	return EnsureDir(path, PublicDirPerm)
+}
+
+func AtomicWritePrivateFile(path string, data []byte) error {
+	return AtomicWriteFile(path, data, PrivateFilePerm)
+}
+
+func AtomicWritePublicFile(path string, data []byte) error {
+	return AtomicWriteFile(path, data, PublicFilePerm)
 }

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 )
 
 func TestFindLatestBackup_EmptyDir(t *testing.T) {
@@ -342,5 +343,48 @@ func TestRunDBBackupCommand_RejectsTraversalBeforeDockerChecks(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "backup name") {
 		t.Fatalf("expected stderr to mention backup name validation, got %q", string(data))
+	}
+}
+
+func TestWriteCompressedBackupFileUsesPrivateModes(t *testing.T) {
+	backupPath := filepath.Join(t.TempDir(), "nested", "backup.sql.gz")
+	if err := writeCompressedBackupFile(backupPath, "SELECT 1;\n"); err != nil {
+		t.Fatalf("writeCompressedBackupFile() error = %v", err)
+	}
+
+	fileInfo, err := os.Stat(backupPath)
+	if err != nil {
+		t.Fatalf("os.Stat(file) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != fsutil.PrivateFilePerm {
+		t.Fatalf("backup file mode = %04o, want %04o", got, fsutil.PrivateFilePerm)
+	}
+
+	dirInfo, err := os.Stat(filepath.Dir(backupPath))
+	if err != nil {
+		t.Fatalf("os.Stat(dir) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != fsutil.PrivateDirPerm {
+		t.Fatalf("backup dir mode = %04o, want %04o", got, fsutil.PrivateDirPerm)
+	}
+
+	file, err := os.Open(backupPath)
+	if err != nil {
+		t.Fatalf("os.Open() error = %v", err)
+	}
+	defer file.Close()
+
+	reader, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatalf("gzip.NewReader() error = %v", err)
+	}
+	defer reader.Close()
+
+	payload, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("io.ReadAll() error = %v", err)
+	}
+	if got := string(payload); got != "SELECT 1;\n" {
+		t.Fatalf("payload = %q, want %q", got, "SELECT 1;\n")
 	}
 }

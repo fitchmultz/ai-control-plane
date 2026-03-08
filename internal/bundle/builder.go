@@ -52,7 +52,7 @@ func NewBuilder(repoRoot string, verbose bool) *Builder {
 
 // Build creates a release bundle from the plan.
 func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
-	if err := os.MkdirAll(plan.OutputDir, 0o755); err != nil {
+	if err := fsutil.EnsurePrivateDir(plan.OutputDir); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -63,7 +63,7 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 	defer os.RemoveAll(stageDir)
 
 	payloadDir := filepath.Join(stageDir, "payload")
-	if err := os.MkdirAll(payloadDir, 0o755); err != nil {
+	if err := fsutil.EnsurePrivateDir(payloadDir); err != nil {
 		return fmt.Errorf("failed to create payload directory: %w", err)
 	}
 
@@ -79,7 +79,7 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 	manifestPaths := append([]string(nil), CanonicalPaths...)
 	sort.Strings(manifestPaths)
 	manifestContent := strings.Join(manifestPaths, "\n") + "\n"
-	if err := fsutil.AtomicWriteFile(installManifest, []byte(manifestContent), 0o644); err != nil {
+	if err := fsutil.AtomicWritePrivateFile(installManifest, []byte(manifestContent)); err != nil {
 		return fmt.Errorf("failed to create install manifest: %w", err)
 	}
 
@@ -103,7 +103,7 @@ func (b *Builder) copyPayloadFiles(payloadDir string, stdout io.Writer) error {
 	for _, relPath := range CanonicalPaths {
 		src := filepath.Join(b.repoRoot, relPath)
 		dst := filepath.Join(payloadDir, relPath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		if err := fsutil.EnsurePrivateDir(filepath.Dir(dst)); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
 		}
 		if err := copyFile(src, dst); err != nil {
@@ -134,12 +134,16 @@ func (b *Builder) buildChecksums(payloadDir string, outputPath string) error {
 
 	sort.Strings(checksums)
 	content := strings.Join(checksums, "\n") + "\n"
-	return fsutil.AtomicWriteFile(outputPath, []byte(content), 0o644)
+	return fsutil.AtomicWritePrivateFile(outputPath, []byte(content))
 }
 
 func (b *Builder) createReproducibleTarball(stageDir string, outputPath string) error {
-	file, err := os.Create(outputPath)
+	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fsutil.PrivateFilePerm)
 	if err != nil {
+		return err
+	}
+	if err := file.Chmod(fsutil.PrivateFilePerm); err != nil {
+		_ = file.Close()
 		return err
 	}
 	defer file.Close()
@@ -209,7 +213,7 @@ func (b *Builder) createChecksumSidecar(bundlePath string) error {
 		return err
 	}
 	content := fmt.Sprintf("%s  %s\n", hash, filepath.Base(bundlePath))
-	return fsutil.AtomicWriteFile(bundlePath+".sha256", []byte(content), 0o644)
+	return fsutil.AtomicWritePrivateFile(bundlePath+".sha256", []byte(content))
 }
 
 func collectRegularFiles(root string) ([]string, error) {
@@ -240,7 +244,7 @@ func copyFile(src string, dst string) error {
 	if err != nil {
 		return err
 	}
-	return fsutil.AtomicWriteFile(dst, data, 0o644)
+	return fsutil.AtomicWritePrivateFile(dst, data)
 }
 
 // ComputeFileHash computes the SHA256 hash of a file.

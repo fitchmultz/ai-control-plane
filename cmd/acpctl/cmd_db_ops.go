@@ -23,6 +23,7 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
@@ -73,7 +75,7 @@ func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, std
 		return exitcodes.ACPExitPrereq
 	}
 
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
+	if err := fsutil.EnsurePrivateDir(backupDir); err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to create backup directory: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
@@ -110,19 +112,8 @@ func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, std
 		return exitcodes.ACPExitDomain
 	}
 
-	// Write compressed backup
-	file, err := os.Create(backupFile)
-	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to create backup file: %v\n"), err)
-		return exitcodes.ACPExitRuntime
-	}
-	defer file.Close()
-
-	gzipWriter := gzip.NewWriter(file)
-	defer gzipWriter.Close()
-
-	if _, err := gzipWriter.Write([]byte(sql)); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to compress backup: %v\n"), err)
+	if err := writeCompressedBackupFile(backupFile, sql); err != nil {
+		fmt.Fprintf(stderr, out.Fail("Failed to write backup file: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
@@ -305,6 +296,26 @@ func resolveBackupOutputPath(backupDir string, customName string) (string, error
 	}
 
 	return target, nil
+}
+
+func writeCompressedBackupFile(path string, sql string) error {
+	if err := fsutil.EnsurePrivateDir(filepath.Dir(path)); err != nil {
+		return err
+	}
+
+	var payload bytes.Buffer
+	gzipWriter := gzip.NewWriter(&payload)
+	if _, err := gzipWriter.Write([]byte(sql)); err != nil {
+		_ = gzipWriter.Close()
+		return fmt.Errorf("compress backup: %w", err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return fmt.Errorf("close gzip writer: %w", err)
+	}
+	if err := fsutil.AtomicWritePrivateFile(path, payload.Bytes()); err != nil {
+		return fmt.Errorf("persist backup atomically: %w", err)
+	}
+	return nil
 }
 
 func printDBBackupHelp(out *os.File) {
