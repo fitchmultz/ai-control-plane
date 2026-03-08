@@ -20,7 +20,7 @@ set -euo pipefail
 #   - Tests do not require network access.
 
 show_help() {
-	cat <<'EOF'
+    cat <<'EOF'
 Usage: onboard_export_contract_test.sh [OPTIONS]
 
 Validate onboarding export output and defaults.
@@ -31,8 +31,8 @@ EOF
 }
 
 if [[ "${1:-}" == "--help" ]]; then
-	show_help
-	exit 0
+    show_help
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -109,21 +109,21 @@ chmod +x "${TEST_BIN_DIR}/acpctl"
 
 TEST_SCRIPT="${TEST_SCRIPT_DIR}/onboard_impl.sh"
 run_onboard() {
-	PATH="${TEST_STUB_BIN_DIR}:${PATH}" \
-		HOME="${TMP_ROOT}/home" \
-		"${TEST_SCRIPT}" "$@"
+    PATH="${TEST_STUB_BIN_DIR}:${PATH}" \
+        HOME="${TMP_ROOT}/home" \
+        "${TEST_SCRIPT}" "$@"
 }
 
 assert_contains() {
-	local haystack="$1"
-	local needle="$2"
-	local description="$3"
-	if grep -Fq "${needle}" <<<"${haystack}"; then
-		printf '  ✓ %s\n' "${description}"
-	else
-		printf '  ✗ %s\n' "${description}"
-		exit 1
-	fi
+    local haystack="$1"
+    local needle="$2"
+    local description="$3"
+    if grep -Fq "${needle}" <<<"${haystack}"; then
+        printf '  ✓ %s\n' "${description}"
+    else
+        printf '  ✗ %s\n' "${description}"
+        exit 1
+    fi
 }
 
 printf 'Onboard Export Contract Test\n'
@@ -132,8 +132,8 @@ printf '============================\n'
 output="$(run_onboard codex --mode api-key --alias redaction 2>&1)"
 assert_contains "${output}" 'export OPENAI_API_KEY="sk-test-...cdef"' "default output redacts OpenAI key"
 if grep -Fq "sk-test-full-key-1234567890-abcdef" <<<"${output}"; then
-	printf '  ✗ default output must not print full key\n'
-	exit 1
+    printf '  ✗ default output must not print full key\n'
+    exit 1
 fi
 printf '  ✓ default output hides full key\n'
 
@@ -151,7 +151,7 @@ assert_contains "${output}" 'export ANTHROPIC_BASE_URL="http://127.0.0.1:4000"' 
 rm -f "${TMP_ROOT}/env-pwned"
 run_onboard codex --mode api-key >/dev/null 2>&1 || true
 if [[ -e "${TMP_ROOT}/env-pwned" ]]; then
-	printf '  ✗ .env payload must not execute\n'
-	exit 1
+    printf '  ✗ .env payload must not execute\n'
+    exit 1
 fi
 printf '  ✓ .env payload is treated as data\n'

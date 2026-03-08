@@ -81,7 +81,7 @@ The LiteLLM gateway runs on a gateway host, connecting to PostgreSQL on a separa
 Production secrets are sourced from the canonical host file
 `/etc/ai-control-plane/secrets.env`. `demo/.env` is a runtime sync target used
 by Compose and is refreshed from the canonical file via
-`./scripts/acpctl.sh bridge prepare_secrets_env`.
+`make host-secrets-refresh`.
 
 The following sections define required and optional variables.
 
@@ -585,11 +585,11 @@ The validation script follows the repository's standardized exit code contract:
 
 ## Runtime Validation
 
-Configuration validation (static checks) is performed by `make validate-config`. Runtime validation (proving the contract on a running deployment) is performed by the production smoke test script.
+Configuration validation (static checks) is performed by `make validate-config`. Runtime validation (proving the contract on a running deployment) is performed by `make prod-smoke`.
 
 ### Smoke Test Script
 
-The `./scripts/acpctl.sh bridge prod_smoke_test` validates these production invariants against a running deployment:
+The `make prod-smoke` workflow validates these production invariants against a running deployment:
 
 1. **Reachability**: Gateway health endpoint is accessible
 2. **Auth Enforcement**: No anonymous access to `/v1/models`

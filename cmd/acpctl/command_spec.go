@@ -747,7 +747,7 @@ func resolveSuggestions(words []string, prefix string, repoRoot string) []string
 		return nil
 	}
 	if len(words) == 0 {
-		return append([]string(nil), spec.VisibleRootNames...)
+		return filterSuggestionsByPrefix(append([]string(nil), spec.VisibleRootNames...), prefix)
 	}
 	current := spec.Root
 	for _, word := range words {
@@ -779,9 +779,9 @@ func resolveSuggestions(words []string, prefix string, repoRoot string) []string
 			}
 			names = append(names, child.Name)
 		}
-		return dedupeAndSort(names)
+		return filterSuggestionsByPrefix(dedupeAndSort(names), prefix)
 	}
-	return append([]string(nil), spec.VisibleRootNames...)
+	return filterSuggestionsByPrefix(append([]string(nil), spec.VisibleRootNames...), prefix)
 }
 
 func (spec *commandSpec) suggestValues(repoRoot string, key string) []string {
@@ -814,6 +814,19 @@ func dedupeAndSort(values []string) []string {
 	}
 	sort.Strings(deduped)
 	return deduped
+}
+
+func filterSuggestionsByPrefix(values []string, prefix string) []string {
+	if len(values) == 0 || prefix == "" {
+		return values
+	}
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.HasPrefix(value, prefix) {
+			filtered = append(filtered, value)
+		}
+	}
+	return filtered
 }
 
 func firstValue(values []string) string {

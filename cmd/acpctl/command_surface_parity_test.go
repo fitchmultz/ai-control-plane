@@ -157,6 +157,11 @@ func TestRetiredCommandReferencesStayRemoved(t *testing.T) {
 		"make network-contract",
 		"make helm-dr-drill",
 		"make helm-db-backup-verify",
+		"demo/scripts/validate_deployment_config.sh",
+		"./scripts/acpctl.sh bridge host_deploy",
+		"./scripts/acpctl.sh bridge host_install",
+		"./scripts/acpctl.sh bridge prepare_secrets_env",
+		"./scripts/acpctl.sh bridge prod_smoke_test",
 	}
 
 	var issues []string
@@ -396,4 +401,49 @@ func mustRelPath(t *testing.T, repoRoot string, path string) string {
 		t.Fatalf("rel %s: %v", path, err)
 	}
 	return filepath.ToSlash(rel)
+}
+
+func TestExtractCommandSnippetsFindsFencedAndInlineCommands(t *testing.T) {
+	line := "Use `make validate-detections` or `./scripts/acpctl.sh validate detections` before review."
+	got := extractCommandSnippets(line, "make", "./scripts/acpctl.sh")
+	want := []string{"make validate-detections", "./scripts/acpctl.sh validate detections"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("extractCommandSnippets() mismatch\nwant: %v\n got: %v", want, got)
+	}
+}
+
+func TestExtractCommandSnippetsIgnoresCommentLinesWithoutCommandPrefix(t *testing.T) {
+	got := extractCommandSnippets("# make validate-detections", "make")
+	if len(got) != 0 {
+		t.Fatalf("expected commented command to be ignored, got %v", got)
+	}
+}
+
+func TestPublishedMakeTargetIgnoresWildcardsAndEnvPrefixes(t *testing.T) {
+	if _, ok := publishedMakeTarget("FOO=bar make validate-detections"); ok {
+		t.Fatal("expected env-prefixed make command to be ignored")
+	}
+	if _, ok := publishedMakeTarget("make validate-*"); ok {
+		t.Fatal("expected wildcard make command to be ignored")
+	}
+	target, ok := publishedMakeTarget("make validate-detections")
+	if !ok || target != "validate-detections" {
+		t.Fatalf("expected concrete make target, got %q %v", target, ok)
+	}
+}
+
+func TestValidatePublishedCommandLineHandlesLeavesAndInvalidSubcommands(t *testing.T) {
+	spec, err := loadCommandSpec()
+	if err != nil {
+		t.Fatalf("loadCommandSpec() error = %v", err)
+	}
+	if issue, ok := validatePublishedCommandLine(spec.Root, "./scripts/acpctl.sh validate detections --verbose"); ok {
+		t.Fatalf("expected valid leaf command, got %q", issue)
+	}
+	if issue, ok := validatePublishedCommandLine(spec.Root, "./scripts/acpctl.sh validate nope"); !ok || issue != "unknown subcommand validate nope" {
+		t.Fatalf("expected invalid subcommand issue, got %q %v", issue, ok)
+	}
+	if issue, ok := validatePublishedCommandLine(spec.Root, "./scripts/acpctl.sh not-a-root"); !ok || issue != "unknown root command not-a-root" {
+		t.Fatalf("expected invalid root issue, got %q %v", issue, ok)
+	}
 }

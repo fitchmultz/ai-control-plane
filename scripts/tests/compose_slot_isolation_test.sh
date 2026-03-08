@@ -20,7 +20,7 @@ set -euo pipefail
 #   - Tests operate on tracked compose files only.
 
 show_help() {
-	cat <<'EOF'
+    cat <<'EOF'
 Usage: compose_slot_isolation_test.sh [OPTIONS]
 
 Validate compose slot isolation contracts.
@@ -31,8 +31,8 @@ EOF
 }
 
 if [[ "${1:-}" == "--help" ]]; then
-	show_help
-	exit 0
+    show_help
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,19 +43,19 @@ printf 'Compose Slot Isolation Test\n'
 printf '===========================\n'
 
 if ! grep -Fq '${LITELLM_HOST_PORT:-4000}:4000' "${COMPOSE_FILE}"; then
-	printf '  ✗ compose should expose slot-specific LiteLLM host port overrides\n'
-	exit 1
+    printf '  ✗ compose should expose slot-specific LiteLLM host port overrides\n'
+    exit 1
 fi
 printf '  ✓ compose exposes slot-specific LiteLLM host port overrides\n'
 
 if ! grep -q 'name: ai_control_plane_pgdata_${ACP_SLOT:-active}' "${COMPOSE_FILE}"; then
-	printf '  ✗ compose should use ACP_SLOT-scoped pgdata names\n'
-	exit 1
+    printf '  ✗ compose should use ACP_SLOT-scoped pgdata names\n'
+    exit 1
 fi
 printf '  ✓ compose uses ACP_SLOT-scoped pgdata names\n'
 
 if ! grep -q 'librechat_mongodb_data_active' "${COMPOSE_FILE}" || ! grep -q 'librechat_mongodb_data_standby' "${COMPOSE_FILE}"; then
-	printf '  ✗ compose should declare distinct active and standby librechat volumes\n'
-	exit 1
+    printf '  ✗ compose should declare distinct active and standby librechat volumes\n'
+    exit 1
 fi
 printf '  ✓ compose declares distinct active and standby librechat volumes\n'

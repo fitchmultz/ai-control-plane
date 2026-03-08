@@ -47,8 +47,8 @@ Add any scoped exceptions here:
 - `make readiness-evidence-verify`
 - `make pilot-closeout-bundle`
 - `make pilot-closeout-bundle-verify`
-- `./scripts/acpctl.sh validate detections`
-- `./scripts/acpctl.sh validate siem-queries --validate-schema`
+- `make validate-detections`
+- `make validate-siem-schema`
 - [PILOT_CLOSEOUT_BUNDLE_REFERENCE]
 - [CUSTOMER_EVIDENCE_REFERENCE]
 

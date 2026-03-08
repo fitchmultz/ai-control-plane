@@ -20,7 +20,7 @@ set -euo pipefail
 #   - Tests do not require real gateway services.
 
 show_help() {
-	cat <<'EOF'
+    cat <<'EOF'
 Usage: onboard_help_contract_test.sh [OPTIONS]
 
 Validate onboarding help and usage behavior.
@@ -31,8 +31,8 @@ EOF
 }
 
 if [[ "${1:-}" == "--help" ]]; then
-	show_help
-	exit 0
+    show_help
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -98,21 +98,21 @@ chmod +x "${TEST_BIN_DIR}/acpctl"
 TEST_SCRIPT="${TEST_SCRIPT_DIR}/onboard_impl.sh"
 
 run_onboard() {
-	PATH="${TEST_STUB_BIN_DIR}:${PATH}" \
-		HOME="${TMP_ROOT}/home" \
-		"${TEST_SCRIPT}" "$@"
+    PATH="${TEST_STUB_BIN_DIR}:${PATH}" \
+        HOME="${TMP_ROOT}/home" \
+        "${TEST_SCRIPT}" "$@"
 }
 
 assert_contains() {
-	local haystack="$1"
-	local needle="$2"
-	local description="$3"
-	if grep -Fq "${needle}" <<<"${haystack}"; then
-		printf '  ✓ %s\n' "${description}"
-	else
-		printf '  ✗ %s\n' "${description}"
-		exit 1
-	fi
+    local haystack="$1"
+    local needle="$2"
+    local description="$3"
+    if grep -Fq "${needle}" <<<"${haystack}"; then
+        printf '  ✓ %s\n' "${description}"
+    else
+        printf '  ✗ %s\n' "${description}"
+        exit 1
+    fi
 }
 
 printf 'Onboard Help Contract Test\n'
@@ -131,7 +131,7 @@ assert_contains "${codex_help}" "subscription mode" "codex help mentions subscri
 invalid_rc=0
 invalid_output="$(run_onboard invalid-tool 2>&1)" || invalid_rc=$?
 if [[ "${invalid_rc}" -ne 64 ]]; then
-	printf '  ✗ invalid tool should exit 64 (got %s)\n' "${invalid_rc}"
-	exit 1
+    printf '  ✗ invalid tool should exit 64 (got %s)\n' "${invalid_rc}"
+    exit 1
 fi
 assert_contains "${invalid_output}" "unsupported tool: invalid-tool" "invalid tool reports explicit error"

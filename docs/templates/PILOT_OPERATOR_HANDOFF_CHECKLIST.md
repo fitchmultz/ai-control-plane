@@ -14,11 +14,11 @@ Use this checklist when the pilot is moving from build activity into day-to-day 
 ## Minimum Command Set Confirmed
 
 - [ ] `make health`
-- [ ] `./scripts/acpctl.sh status`
+- [ ] `make status`
 - [ ] `make readiness-evidence`
 - [ ] `make readiness-evidence-verify`
-- [ ] `./scripts/acpctl.sh validate detections`
-- [ ] `./scripts/acpctl.sh validate siem-queries --validate-schema`
+- [ ] `make validate-detections`
+- [ ] `make validate-siem-schema`
 
 ## Operational Readiness
 

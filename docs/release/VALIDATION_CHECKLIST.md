@@ -20,6 +20,7 @@ Expected:
 - exits 0
 - shell/Go checks pass
 - `acpctl` contract tests pass
+- repo command/docs parity checks pass
 - no tracked local-only artifacts/secrets (`public-hygiene-check`)
 
 ## 2) Full local CI gate (runtime included)

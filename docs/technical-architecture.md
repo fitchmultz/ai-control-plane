@@ -56,7 +56,7 @@ Direct-to-provider usage outside the gateway is treated as a detection-and-respo
 ### Runtime verification
 
 - `make health` validates service endpoints.
-- `make doctor` (or `./scripts/acpctl.sh doctor`) performs structured environment diagnostics and actionable remediation hints.
+- `make doctor` performs structured environment diagnostics and actionable remediation hints.
 
 ### Governance validation
 

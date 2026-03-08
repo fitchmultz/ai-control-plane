@@ -424,8 +424,8 @@ Validate what would change without making modifications:
 # Using Makefile
 make host-check INVENTORY=deploy/ansible/inventory/hosts.yml
 
-# Secondary compatibility path (direct script)
-./scripts/acpctl.sh bridge host_deploy check --inventory deploy/ansible/inventory/hosts.yml
+# Typed entrypoint equivalent
+./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.yml
 ```
 
 #### Step 3: Apply (Converge)
@@ -436,8 +436,8 @@ Deploy or update the gateway host:
 # Using Makefile
 make host-apply INVENTORY=deploy/ansible/inventory/hosts.yml
 
-# Secondary compatibility path (direct script)
-./scripts/acpctl.sh bridge host_deploy apply --inventory deploy/ansible/inventory/hosts.yml
+# Typed entrypoint equivalent
+./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml
 ```
 
 The apply operation is idempotent—running it multiple times will converge to the same state without unnecessary changes.
@@ -456,7 +456,7 @@ ssh ubuntu@192.168.1.122 'cd /opt/ai-control-plane && make health'
 Override inventory variables without editing the file:
 
 ```bash
-./scripts/acpctl.sh bridge host_deploy apply \
+./scripts/acpctl.sh host apply \
   --inventory deploy/ansible/inventory/hosts.yml \
   --limit acp-gateway-1 \
   --repo-path /var/lib/acp \
@@ -554,23 +554,23 @@ For advanced use cases or integration with automation, use the deployment script
 
 ```bash
 # Install with default options
-./scripts/acpctl.sh bridge host_install install
+./scripts/acpctl.sh host install
 
 # Install with explicit secrets/runtime paths
-./scripts/acpctl.sh bridge host_install install \
+./scripts/acpctl.sh host install \
   --env-file /etc/ai-control-plane/secrets.env \
   --compose-env-file demo/.env
 
 # Start the service after refreshing secrets
-./scripts/acpctl.sh bridge host_install service-start \
+./scripts/acpctl.sh host service-start \
   --env-file /etc/ai-control-plane/secrets.env \
   --compose-env-file demo/.env
 
 # Uninstall the service
-./scripts/acpctl.sh bridge host_install uninstall
+./scripts/acpctl.sh host uninstall
 
 # Show help
-./scripts/acpctl.sh bridge host_install --help
+./scripts/acpctl.sh host --help
 ```
 
 **Direct systemctl operations:**

@@ -20,7 +20,7 @@ set -euo pipefail
 #   - Tests run entirely from temp fixtures.
 
 show_help() {
-	cat <<'EOF'
+    cat <<'EOF'
 Usage: onboard_verify_mode_test.sh [OPTIONS]
 
 Validate onboarding verify behavior and makefile wiring.
@@ -31,8 +31,8 @@ EOF
 }
 
 if [[ "${1:-}" == "--help" ]]; then
-	show_help
-	exit 0
+    show_help
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -95,10 +95,10 @@ chmod +x "${TEST_STUB_BIN_DIR}/curl"
 
 TEST_SCRIPT="${TEST_SCRIPT_DIR}/onboard_impl.sh"
 run_onboard() {
-	ACP_TEST_CURL_LOG="${CURL_LOG}" \
-		PATH="${TEST_STUB_BIN_DIR}:${PATH}" \
-		HOME="${TMP_ROOT}/home" \
-		"${TEST_SCRIPT}" "$@"
+    ACP_TEST_CURL_LOG="${CURL_LOG}" \
+        PATH="${TEST_STUB_BIN_DIR}:${PATH}" \
+        HOME="${TMP_ROOT}/home" \
+        "${TEST_SCRIPT}" "$@"
 }
 
 printf 'Onboard Verify Mode Test\n'
@@ -107,34 +107,34 @@ printf '========================\n'
 : >"${CURL_LOG}"
 verify_output="$(run_onboard codex --mode api-key --verify 2>&1)"
 if ! grep -Fq "Gateway health and authorized model checks passed" <<<"${verify_output}"; then
-	printf '  ✗ verify should report success\n'
-	exit 1
+    printf '  ✗ verify should report success\n'
+    exit 1
 fi
 printf '  ✓ verify reports success\n'
 
 if ! grep -Fq "/health" "${CURL_LOG}"; then
-	printf '  ✗ verify should call health endpoint\n'
-	exit 1
+    printf '  ✗ verify should call health endpoint\n'
+    exit 1
 fi
 printf '  ✓ verify calls health endpoint\n'
 
 if ! grep -Fq "/v1/models" "${CURL_LOG}"; then
-	printf '  ✗ verify should call models endpoint\n'
-	exit 1
+    printf '  ✗ verify should call models endpoint\n'
+    exit 1
 fi
 printf '  ✓ verify calls models endpoint\n'
 
 if ! grep -Fq "Authorization: Bearer sk-test-full-key-1234567890-abcdef" "${CURL_LOG}"; then
-	printf '  ✗ verify should send authorization header\n'
-	exit 1
+    printf '  ✗ verify should send authorization header\n'
+    exit 1
 fi
 printf '  ✓ verify sends authorization header\n'
 
 mk_file="${PROJECT_ROOT}/mk/onboard.mk"
 for target in onboard: onboard-codex: chatgpt-auth-copy:; do
-	if ! grep -q "^${target}" "${mk_file}"; then
-		printf '  ✗ missing make target %s\n' "${target}"
-		exit 1
-	fi
+    if ! grep -q "^${target}" "${mk_file}"; then
+        printf '  ✗ missing make target %s\n' "${target}"
+        exit 1
+    fi
 done
 printf '  ✓ onboarding make targets remain present\n'

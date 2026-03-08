@@ -62,8 +62,8 @@ Primary references:
 **Short answer:** The repo now has typed validation for the detection pack and SIEM mappings.
 
 **Repo proof now:**
-- `./scripts/acpctl.sh validate detections`
-- `./scripts/acpctl.sh validate siem-queries --validate-schema`
+- `make validate-detections`
+- `make validate-siem-schema`
 - These commands verify enabled-rule coverage, severity/category alignment, required platform queries, normalized schema mappings, and approved-model placeholder integrity.
 
 **Customer dependency:**
