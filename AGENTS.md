@@ -89,7 +89,7 @@ make health      # Verify services
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
-- **acpctl command metadata:** `cmd/acpctl/command_registry.go` is the canonical source for root commands, grouped subcommands, completion ordering, and bridge compatibility entries
+- **acpctl command platform:** `cmd/acpctl/command_spec.go` owns parsing/help/completion/dispatch; `cmd/acpctl/command_registry.go` only composes per-domain command specs into the root tree
 - **Config ownership:** `internal/config` is the only Go package that may touch process env or repo-local `.env`; other packages must consume typed config from it
 - **Validation/security ownership:** canonical deployment/config scan scope lives in `internal/policy`; structural validators live in `internal/validation`; security policy enforcement lives in `internal/security`
 - **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/release/readiness_plan.go` materializes it

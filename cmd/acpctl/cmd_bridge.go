@@ -12,7 +12,7 @@
 //   - Low-level script invocation only; selection and help live in grouped dispatch.
 //
 // Usage:
-//   - Called by cmd_delegated.go for script-backed grouped subcommands.
+//   - Called by command_spec.go for script-backed command leaves.
 //
 // Invariants/Assumptions:
 //   - Bridge scripts are executable files rooted under the repository.
@@ -33,14 +33,14 @@ import (
 
 const bridgeScriptTimeout = 10 * time.Minute
 
-func runBridgeScript(ctx context.Context, subcommand subcommandDefinition, scriptArgs []string, stdout *os.File, stderr *os.File) int {
+func runBridgeScript(ctx context.Context, relativePath string, commandName string, scriptArgs []string, stdout *os.File, stderr *os.File) int {
 	repoRoot := detectRepoRootWithContext(ctx)
 	if repoRoot == "" {
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
 	}
 
-	scriptPath := filepath.Join(repoRoot, subcommand.ScriptRelativePath)
+	scriptPath := filepath.Join(repoRoot, relativePath)
 	info, err := os.Stat(scriptPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -74,9 +74,9 @@ func runBridgeScript(ctx context.Context, subcommand subcommandDefinition, scrip
 		case proc.IsNotFound(res.Err):
 			fmt.Fprintln(stderr, "Error: bash executable not found")
 		case proc.IsTimeout(res.Err):
-			fmt.Fprintf(stderr, "Error: bridge script %q timed out\n", subcommand.Name)
+			fmt.Fprintf(stderr, "Error: bridge script %q timed out\n", commandName)
 		case proc.IsCanceled(res.Err):
-			fmt.Fprintf(stderr, "Error: bridge script %q canceled\n", subcommand.Name)
+			fmt.Fprintf(stderr, "Error: bridge script %q canceled\n", commandName)
 		}
 		return proc.ACPExitCode(res.Err)
 	}

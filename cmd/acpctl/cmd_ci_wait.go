@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -68,72 +67,95 @@ var newCIWaitGateway = func() ciWaitGateway {
 	return gateway.NewClient()
 }
 
-func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	timeout := 120 * time.Second
-	interval := 5 * time.Second
-	verbose := false
+type ciWaitOptions struct {
+	Timeout  time.Duration
+	Verbose  bool
+	Interval time.Duration
+}
 
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--timeout":
-			if i+1 >= len(args) {
-				fmt.Fprintln(stderr, "Invalid --timeout value")
-				return exitcodes.ACPExitUsage
-			}
-			t, err := strconv.Atoi(args[i+1])
-			if err != nil || t <= 0 {
-				fmt.Fprintf(stderr, "Invalid --timeout value: '%s' (must be a positive integer)\n", args[i+1])
-				return exitcodes.ACPExitUsage
-			}
-			timeout = time.Duration(t) * time.Second
-			i++
-		case "--verbose", "-v":
-			verbose = true
-		case "--help", "-h":
-			printCIWaitHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		default:
-			if strings.HasPrefix(args[i], "-") {
-				fmt.Fprintf(stderr, "Unknown option: %s\n", args[i])
-				return exitcodes.ACPExitUsage
-			}
-		}
+func ciWaitCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "wait",
+		Summary:     "Wait for services to become healthy",
+		Description: "Wait for Docker services to be healthy before proceeding.",
+		Examples: []string{
+			"acpctl ci wait",
+			"acpctl ci wait --timeout 60",
+			"acpctl ci wait --verbose",
+		},
+		Options: []commandOptionSpec{
+			{Name: "timeout", ValueName: "SECONDS", Summary: "Maximum time to wait", Type: optionValueInt, DefaultText: "120"},
+			{Name: "verbose", Short: "v", Summary: "Enable verbose output", Type: optionValueBool},
+		},
+		Sections: []commandHelpSection{
+			{
+				Title: "Environment variables",
+				Lines: []string{
+					"LITELLM_MASTER_KEY  Master key for authorized gateway checks (required)",
+				},
+			},
+		},
+		Backend: commandBackend{
+			Kind:       commandBackendNative,
+			NativeBind: bindCIWaitOptions,
+			NativeRun:  executeCIWaitCommand,
+		},
 	}
+}
+
+func bindCIWaitOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	timeoutSeconds := 120
+	if input.String("timeout") != "" {
+		value, err := input.Int("timeout")
+		if err != nil || value <= 0 {
+			return nil, fmt.Errorf("invalid --timeout value: %q (must be a positive integer)", input.String("timeout"))
+		}
+		timeoutSeconds = value
+	}
+	return ciWaitOptions{
+		Timeout:  time.Duration(timeoutSeconds) * time.Second,
+		Interval: 5 * time.Second,
+		Verbose:  input.Bool("verbose"),
+	}, nil
+}
+
+func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(ciWaitOptions)
 
 	out := output.New()
 
 	// Prerequisite checks
 	if !prereq.CommandExists("docker") {
-		fmt.Fprintln(stderr, out.Fail("docker not found"))
+		fmt.Fprintln(runCtx.Stderr, out.Fail("docker not found"))
 		return exitcodes.ACPExitPrereq
 	}
 
-	compose, err := newCIWaitCompose(detectRepoRootWithContext(ctx))
+	compose, err := newCIWaitCompose(runCtx.RepoRoot)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Docker Compose not available: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 
 	gw := newCIWaitGateway()
 	if !gw.HasMasterKey() {
-		fmt.Fprintln(stderr, out.Fail("LITELLM_MASTER_KEY is required for authorized gateway health checks"))
-		fmt.Fprintln(stderr, "Set LITELLM_MASTER_KEY in your environment or demo/.env")
+		fmt.Fprintln(runCtx.Stderr, out.Fail("LITELLM_MASTER_KEY is required for authorized gateway health checks"))
+		fmt.Fprintln(runCtx.Stderr, "Set LITELLM_MASTER_KEY in your environment or demo/.env")
 		return exitcodes.ACPExitUsage
 	}
 
-	fmt.Fprintln(stdout, out.Bold("Waiting for services to become healthy..."))
-	if verbose {
-		fmt.Fprintf(stdout, "Timeout: %s, Check interval: %s\n", timeout, interval)
+	fmt.Fprintln(runCtx.Stdout, out.Bold("Waiting for services to become healthy..."))
+	if opts.Verbose {
+		fmt.Fprintf(runCtx.Stdout, "Timeout: %s, Check interval: %s\n", opts.Timeout, opts.Interval)
 	}
 
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	waitCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
 	postgresHealthy := false
 	litellmHealthy := false
 	litellmAPIReady := false
 
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(opts.Interval)
 	defer ticker.Stop()
 
 	probe := func() {
@@ -141,29 +163,29 @@ func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stder
 
 		if strings.Contains(ps, "postgres") && strings.Contains(ps, "healthy") {
 			if !postgresHealthy {
-				fmt.Fprintln(stdout, out.Pass("PostgreSQL is healthy"))
+				fmt.Fprintln(runCtx.Stdout, out.Pass("PostgreSQL is healthy"))
 				postgresHealthy = true
 			}
-		} else if verbose {
-			fmt.Fprintln(stdout, "  PostgreSQL not healthy yet")
+		} else if opts.Verbose {
+			fmt.Fprintln(runCtx.Stdout, "  PostgreSQL not healthy yet")
 		}
 
 		if strings.Contains(ps, "litellm") && strings.Contains(ps, "healthy") {
 			if !litellmHealthy {
-				fmt.Fprintln(stdout, out.Pass("LiteLLM is healthy"))
+				fmt.Fprintln(runCtx.Stdout, out.Pass("LiteLLM is healthy"))
 				litellmHealthy = true
 			}
-		} else if verbose {
-			fmt.Fprintln(stdout, "  LiteLLM not healthy yet")
+		} else if opts.Verbose {
+			fmt.Fprintln(runCtx.Stdout, "  LiteLLM not healthy yet")
 		}
 
 		if !litellmAPIReady {
 			healthy, _, err := gw.Health(waitCtx)
 			if err == nil && healthy {
-				fmt.Fprintln(stdout, out.Pass("LiteLLM API is responding (authorized HTTP 200)"))
+				fmt.Fprintln(runCtx.Stdout, out.Pass("LiteLLM API is responding (authorized HTTP 200)"))
 				litellmAPIReady = true
-			} else if verbose {
-				fmt.Fprintln(stdout, "  LiteLLM API not responding yet")
+			} else if opts.Verbose {
+				fmt.Fprintln(runCtx.Stdout, "  LiteLLM API not responding yet")
 			}
 		}
 	}
@@ -171,25 +193,25 @@ func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stder
 	for {
 		probe()
 		if postgresHealthy && litellmHealthy && litellmAPIReady {
-			fmt.Fprintln(stdout)
-			fmt.Fprintln(stdout, out.Green("All services are healthy and ready"))
+			fmt.Fprintln(runCtx.Stdout)
+			fmt.Fprintln(runCtx.Stdout, out.Green("All services are healthy and ready"))
 			return exitcodes.ACPExitSuccess
 		}
 
 		select {
 		case <-waitCtx.Done():
-			fmt.Fprintln(stdout)
+			fmt.Fprintln(runCtx.Stdout)
 			if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				fmt.Fprintln(stderr, out.Fail("CI wait canceled"))
+				fmt.Fprintln(runCtx.Stderr, out.Fail("CI wait canceled"))
 				return exitcodes.ACPExitRuntime
 			}
-			fmt.Fprintf(stdout, out.Fail("Timeout: Services did not become healthy within %s\n"), timeout)
+			fmt.Fprintf(runCtx.Stdout, out.Fail("Timeout: Services did not become healthy within %s\n"), opts.Timeout)
 			statusCtx, statusCancel := context.WithTimeout(ctx, 2*time.Second)
 			defer statusCancel()
 			if ps, err := compose.PS(statusCtx); err == nil && strings.TrimSpace(ps) != "" {
-				fmt.Fprintln(stdout)
-				fmt.Fprintln(stdout, "Current container status:")
-				fmt.Fprintln(stdout, ps)
+				fmt.Fprintln(runCtx.Stdout)
+				fmt.Fprintln(runCtx.Stdout, "Current container status:")
+				fmt.Fprintln(runCtx.Stdout, ps)
 			}
 			return exitcodes.ACPExitDomain
 		case <-ticker.C:
@@ -198,30 +220,25 @@ func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stder
 	}
 }
 
-func printCIWaitHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl ci wait [OPTIONS]
-
-Wait for Docker services to be healthy before proceeding.
-Exits with error if services don't become healthy within timeout.
-
-Options:
-  --timeout SECONDS  Maximum time to wait (default: 120)
-  --verbose, -v      Enable verbose output
-  --help, -h         Show this help message
-
-Environment variables:
-  LITELLM_MASTER_KEY  Master key for authorized gateway checks (required)
-
-Examples:
-  acpctl ci wait              # Wait with default timeout (120 seconds)
-  acpctl ci wait --timeout 60 # Wait with 60 second timeout
-  acpctl ci wait --verbose    # Verbose mode for debugging
-
-Exit codes:
-  0   All services healthy
-  1   Timeout or services unhealthy
-  2   Prerequisites not ready
-  3   Runtime/internal error (including cancellation)
-  64  Usage error
-`)
+func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	spec := ciWaitCommandSpec()
+	input, helpOnly, err := parseLeafInput(spec, args)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitUsage
+	}
+	if helpOnly {
+		printCommandHelp(stdout, []*commandSpec{acpctlCommandSpec(), ciCommandSpec(), spec})
+		return exitcodes.ACPExitSuccess
+	}
+	opts, err := bindCIWaitOptions(commandBindContext{RepoRoot: detectRepoRootWithContext(ctx)}, input)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitUsage
+	}
+	return executeCIWaitCommand(ctx, commandRunContext{
+		RepoRoot: detectRepoRootWithContext(ctx),
+		Stdout:   stdout,
+		Stderr:   stderr,
+	}, opts)
 }

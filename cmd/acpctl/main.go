@@ -58,76 +58,21 @@ func main() {
 
 func run(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	if err := commandStartupError(); err != nil {
-		fmt.Fprintf(stderr, "Error: invalid command registry: %v\n", err)
+		fmt.Fprintf(stderr, "Error: invalid command spec: %v\n", err)
 		return exitcodes.ACPExitRuntime
 	}
-	if len(args) == 0 {
-		printRootHelp(stdout)
-		return exitcodes.ACPExitUsage
-	}
-
-	switch args[0] {
-	case "help", "--help", "-h":
-		printRootHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
-
-	command, err := lookupRootCommand(args[0])
+	invocation, err := parseInvocation(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: Unknown command: %s\n", args[0])
-		printRootHelp(stderr)
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		rootSpec, specErr := loadCommandSpec()
+		if specErr == nil {
+			printCommandHelp(stderr, []*commandSpec{rootSpec.Root})
+		}
 		return exitcodes.ACPExitUsage
 	}
-
-	if command.NativeRun != nil {
-		return command.NativeRun(ctx, args[1:], stdout, stderr)
+	if len(args) == 0 {
+		printCommandHelp(stdout, invocation.Path)
+		return exitcodes.ACPExitUsage
 	}
-
-	return runCommandGroup(ctx, command, args[1:], stdout, stderr)
-}
-
-func printRootHelp(out *os.File) {
-	registry := buildCommandRegistry()
-
-	fmt.Fprint(out, `Usage: acpctl <command> [subcommand] [options or make args]
-
-Typed control-plane CLI for AI Control Plane operations.
-
-Commands:
-`)
-	for _, command := range registry.RootCommands {
-		fmt.Fprintf(out, "  %-16s %s\n", command.Name, command.Description)
-	}
-	fmt.Fprint(out, `
-
-Examples:
-  acpctl ci should-run-runtime --quiet
-  acpctl ci wait --timeout 120
-  acpctl env get LITELLM_MASTER_KEY
-  acpctl chargeback report --format all
-  acpctl chargeback render --format json
-  acpctl doctor
-  acpctl benchmark baseline --requests 20 --concurrency 2
-  acpctl onboard codex --mode subscription --verify
-  acpctl doctor --json
-  acpctl bridge host_preflight --help
-  acpctl deploy up
-  acpctl deploy readiness-evidence run
-  acpctl validate config
-  acpctl db status
-  acpctl key gen alice --budget 10.00
-  acpctl helm validate
-
-Exit codes:
-  0   Success
-  1   Domain non-success
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-
-Environment:
-  ACPCTL_MAKE_BIN   Override make executable used by delegated commands
-                    (default: make)
-  ACP_REPO_ROOT     Override repository root detection
-`)
+	return executeInvocation(ctx, invocation, stdout, stderr)
 }

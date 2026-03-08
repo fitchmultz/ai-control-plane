@@ -39,7 +39,7 @@ func TestRunBenchmarkCommand_NoArgsReturnsUsage(t *testing.T) {
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage exit code, got %d", exitCode)
 	}
-	if !strings.Contains(readFile(t, stdout), "Usage: acpctl benchmark <command>") {
+	if !strings.Contains(readFile(t, stdout), "Usage: acpctl benchmark <subcommand>") {
 		t.Fatalf("expected benchmark help output, got %s", readFile(t, stdout))
 	}
 }

@@ -1,23 +1,22 @@
-// cmd_delegated.go - Grouped command dispatch implementation.
+// cmd_delegated.go - Delegated command execution helpers.
 //
 // Purpose:
 //
-//	Route grouped CLI subcommands through the canonical command catalog.
+//	Execute Make-backed and bridge-backed command leaves selected by the typed
+//	command-spec layer.
 //
 // Responsibilities:
-//   - Render grouped command help from catalog metadata.
-//   - Dispatch grouped subcommands to native handlers, Make targets, or bridge scripts.
-//   - Preserve deterministic usage and exit-code behavior across grouped commands.
+//   - Run Make targets with repo-root context and bounded timeouts.
+//   - Validate executable overrides before launching delegated processes.
 //
 // Scope:
-//   - Command selection, help rendering, and Make process invocation.
+//   - Low-level delegated process execution only.
 //
 // Usage:
-//   - Invoked by main.go for any root command that owns subcommands.
+//   - Invoked by command_spec.go after command parsing and help routing finish.
 //
 // Invariants/Assumptions:
-//   - Grouped subcommands resolve through command_registry.go only.
-//   - Native handlers remain responsible for their own detailed help text.
+//   - Typed command specs already resolved the concrete delegated command path.
 package main
 
 import (
@@ -36,93 +35,6 @@ import (
 )
 
 const makeTargetTimeout = 30 * time.Minute
-
-func runCommandGroup(ctx context.Context, root rootCommandDefinition, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 {
-		printCommandGroupHelp(stdout, root)
-		return exitcodes.ACPExitUsage
-	}
-
-	if isHelpToken(args[0]) {
-		printCommandGroupHelp(stdout, root)
-		return exitcodes.ACPExitSuccess
-	}
-
-	subcommand, err := lookupSubcommand(root, args[0])
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: Unknown %s subcommand: %s\n", root.Name, args[0])
-		printCommandGroupHelp(stderr, root)
-		return exitcodes.ACPExitUsage
-	}
-
-	if subcommand.NativeRun != nil {
-		return subcommand.NativeRun(ctx, args[1:], stdout, stderr)
-	}
-
-	if len(args) > 1 && isHelpToken(args[1]) {
-		printGroupedSubcommandHelp(stdout, root, subcommand)
-		return exitcodes.ACPExitSuccess
-	}
-
-	if subcommand.ScriptRelativePath != "" {
-		return runBridgeScript(ctx, subcommand, args[1:], stdout, stderr)
-	}
-
-	return runMakeTarget(ctx, subcommand.MakeTarget, args[1:], stdout, stderr)
-}
-
-func lookupDelegatedGroup(name string) (rootCommandDefinition, bool) {
-	command, err := lookupRootCommand(name)
-	if err != nil || command.NativeRun != nil {
-		return rootCommandDefinition{}, false
-	}
-	return command, true
-}
-
-func runDelegatedGroup(ctx context.Context, root rootCommandDefinition, args []string, stdout *os.File, stderr *os.File) int {
-	return runCommandGroup(ctx, root, args, stdout, stderr)
-}
-
-func printCommandGroupHelp(out *os.File, root rootCommandDefinition) {
-	fmt.Fprintf(out, "Usage: acpctl %s <subcommand> [options or make args]\n\n", root.Name)
-	fmt.Fprintf(out, "%s.\n\n", root.Description)
-	fmt.Fprintln(out, "Subcommands:")
-	for _, subcommand := range root.Subcommands {
-		fmt.Fprintf(out, "  %-22s %s\n", subcommand.Name, subcommand.Description)
-	}
-	if len(root.Examples) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Examples:")
-		for _, example := range root.Examples {
-			fmt.Fprintf(out, "  %s\n", example)
-		}
-	}
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Exit codes:")
-	fmt.Fprintln(out, "  0   Success")
-	fmt.Fprintln(out, "  1   Domain non-success")
-	fmt.Fprintln(out, "  2   Prerequisites not ready")
-	fmt.Fprintln(out, "  3   Runtime/internal error")
-	fmt.Fprintln(out, "  64  Usage error")
-}
-
-func printGroupedSubcommandHelp(out *os.File, root rootCommandDefinition, subcommand subcommandDefinition) {
-	usage := subcommand.Usage
-	if usage == "" {
-		usage = fmt.Sprintf("acpctl %s %s [make args]", root.Name, subcommand.Name)
-	}
-	fmt.Fprintf(out, "Usage: %s\n\n", usage)
-	fmt.Fprintf(out, "%s\n\n", subcommand.Description)
-	switch {
-	case subcommand.MakeTarget != "":
-		fmt.Fprintf(out, "Delegates to make target: %s\n\n", subcommand.MakeTarget)
-		fmt.Fprintln(out, "Examples:")
-		fmt.Fprintf(out, "  acpctl %s %s\n", root.Name, subcommand.Name)
-		fmt.Fprintf(out, "  acpctl %s %s VERBOSE=1\n", root.Name, subcommand.Name)
-	case subcommand.ScriptRelativePath != "":
-		fmt.Fprintf(out, "Executes bridge script: %s\n", subcommand.ScriptRelativePath)
-	}
-}
 
 func runMakeTarget(ctx context.Context, target string, makeArgs []string, stdout *os.File, stderr *os.File) int {
 	makeBin := config.NewLoader().Tooling().MakeBinary

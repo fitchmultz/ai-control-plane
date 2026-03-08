@@ -22,10 +22,7 @@ package main
 
 import (
 	"context"
-	"errors"
-	"flag"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/ci"
@@ -33,126 +30,72 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
-func runCISubcommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 {
-		printCIHelp(stdout)
-		return exitcodes.ACPExitUsage
-	}
+type ciShouldRunRuntimeOptions struct {
+	Paths []string
+	Quiet bool
+}
 
-	switch args[0] {
-	case "help", "--help", "-h":
-		printCIHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	case "should-run-runtime":
-		return runCIShouldRunRuntime(ctx, args[1:], stdout, stderr)
-	case "wait":
-		return runCIWaitCommand(ctx, args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "Error: Unknown ci subcommand: %s\n", args[0])
-		printCIHelp(stderr)
-		return exitcodes.ACPExitUsage
+func ciCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "ci",
+		Summary:     "CI and local gate helpers",
+		Description: "CI and local gate helpers.",
+		Examples: []string{
+			"acpctl ci should-run-runtime --quiet",
+			"acpctl ci wait --timeout 120",
+		},
+		Children: []*commandSpec{
+			{
+				Name:        "should-run-runtime",
+				Summary:     "Decide whether runtime checks should run",
+				Description: "Determine whether CI runtime checks should run for the current change set.",
+				Examples: []string{
+					"acpctl ci should-run-runtime --quiet",
+					"acpctl ci should-run-runtime --path docs/README.md --path mk/runtime.mk",
+				},
+				Options: []commandOptionSpec{
+					{Name: "path", ValueName: "PATH", Summary: "Add a changed path explicitly", Type: optionValueString, Repeatable: true},
+					{Name: "quiet", Short: "q", Summary: "Print no informational output", Type: optionValueBool},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindCIShouldRunRuntimeOptions,
+					NativeRun:  runCIShouldRunRuntime,
+				},
+			},
+			ciWaitCommandSpec(),
+		},
 	}
 }
 
-func printCIHelp(out *os.File) {
-	command, err := lookupNativeRootCommand("ci")
-	if err != nil {
-		fmt.Fprintf(out, "Error: %v\n", err)
-		return
+func bindCIShouldRunRuntimeOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	opts := ciShouldRunRuntimeOptions{
+		Paths: input.Strings("path"),
+		Quiet: input.Bool("quiet"),
 	}
-
-	fmt.Fprint(out, `Usage: acpctl ci <subcommand> [options]
-
-CI subcommands:
-`)
-	for _, subcommand := range command.Subcommands {
-		fmt.Fprintf(out, "  %-20s %s\n", subcommand.Name, subcommand.Description)
+	if err := ci.ValidateDecisionArgs(opts.Paths); err != nil {
+		return nil, err
 	}
-	fmt.Fprint(out, `
-
-Examples:
-  acpctl ci should-run-runtime --quiet
-  acpctl ci wait --timeout 120
-
-Exit codes:
-  0   Success
-  1   Domain non-success
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
+	return opts, nil
 }
 
-func runCIShouldRunRuntime(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	var paths repeatedStringFlag
-	var quiet bool
-
-	fs := flag.NewFlagSet("should-run-runtime", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Var(&paths, "path", "Add a changed path explicitly (repeatable)")
-	fs.BoolVar(&quiet, "quiet", false, "Print no informational output")
-	fs.BoolVar(&quiet, "q", false, "Print no informational output")
-	help := fs.Bool("help", false, "Show help")
-	fs.BoolVar(help, "h", false, "Show help")
-
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), `Usage: acpctl ci should-run-runtime [OPTIONS]
-
-Determine whether CI runtime checks should run for the current change set.
-
-Options:
-  --path PATH   Add a changed path explicitly (repeatable)
-  --quiet, -q   Print no informational output
-  --help, -h    Show this help message
-
-Exit codes:
-  0   Runtime checks should run
-  1   Runtime checks can be skipped
-  2   Prerequisites not ready
-  64  Usage error
-`)
-	}
-
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			fs.Usage()
-			return exitcodes.ACPExitSuccess
-		}
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitUsage
-	}
-
-	if *help {
-		fs.Usage()
-		return exitcodes.ACPExitSuccess
-	}
-
-	if len(fs.Args()) > 0 {
-		fmt.Fprintf(stderr, "Error: Unknown positional argument(s): %s\n", fs.Args())
-		return exitcodes.ACPExitUsage
-	}
-
-	if err := ci.ValidateDecisionArgs(paths); err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitUsage
-	}
-
-	repoRoot := detectRepoRootWithContext(ctx)
+func runCIShouldRunRuntime(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(ciShouldRunRuntimeOptions)
 	decisionCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	result, err := ci.DecideRuntimeScope(decisionCtx, ci.DecisionOptions{
-		RepoRoot: repoRoot,
-		Paths:    paths,
+		RepoRoot: runCtx.RepoRoot,
+		Paths:    opts.Paths,
 		CIFull:   config.NewLoader().Tooling().CIFull,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: runtime scope decision failed: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: runtime scope decision failed: %v\n", err)
 		return exitcodes.ACPExitRuntime
 	}
 
-	if !quiet && result.Reason != "" {
-		fmt.Fprintln(stdout, result.Reason)
+	if !opts.Quiet && result.Reason != "" {
+		fmt.Fprintln(runCtx.Stdout, result.Reason)
 	}
 
 	if result.ShouldRun {
