@@ -20,7 +20,7 @@ set -euo pipefail
 #   - Tests run in a temp fixture and do not invoke real make targets.
 
 show_help() {
-	cat <<'EOF'
+    cat <<'EOF'
 Usage: acpctl_cli_delegation_test.sh [OPTIONS]
 
 Validate delegated make targets for scripts/acpctl.sh.
@@ -31,8 +31,8 @@ EOF
 }
 
 if [[ "${1:-}" == "--help" ]]; then
-	show_help
-	exit 0
+    show_help
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,24 +66,24 @@ EOF
 chmod +x "${MAKE_STUB}"
 
 run_with_make_stub() {
-	: >"${CAPTURE_FILE}"
-	ACPCTL_BIN="${GO_SHIM}" \
-		ACPCTL_MAKE_BIN="${MAKE_STUB}" \
-		ACPCTL_TEST_CAPTURE_FILE="${CAPTURE_FILE}" \
-		ACP_REPO_ROOT="${REPO_ROOT}" \
-		"${SCRIPT_UNDER_TEST}" "$@"
+    : >"${CAPTURE_FILE}"
+    ACPCTL_BIN="${GO_SHIM}" \
+        ACPCTL_MAKE_BIN="${MAKE_STUB}" \
+        ACPCTL_TEST_CAPTURE_FILE="${CAPTURE_FILE}" \
+        ACP_REPO_ROOT="${REPO_ROOT}" \
+        "${SCRIPT_UNDER_TEST}" "$@"
 }
 
 assert_make_target() {
-	local expected_target="$1"
-	shift
-	run_with_make_stub "$@" >/dev/null 2>&1
-	actual_target="$(head -n1 "${CAPTURE_FILE}" || true)"
-	if [[ "${actual_target}" != "${expected_target}" ]]; then
-		printf '  ✗ expected target %s, got %s\n' "${expected_target}" "${actual_target}"
-		exit 1
-	fi
-	printf '  ✓ %s -> %s\n' "$*" "${expected_target}"
+    local expected_target="$1"
+    shift
+    run_with_make_stub "$@" >/dev/null 2>&1
+    actual_target="$(head -n1 "${CAPTURE_FILE}" || true)"
+    if [[ "${actual_target}" != "${expected_target}" ]]; then
+        printf '  ✗ expected target %s, got %s\n' "${expected_target}" "${actual_target}"
+        exit 1
+    fi
+    printf '  ✓ %s -> %s\n' "$*" "${expected_target}"
 }
 
 printf 'ACPCTL CLI Delegation Contract Test\n'
@@ -97,11 +97,11 @@ assert_make_target "tf-plan" terraform plan
 
 missing_rc=0
 ACPCTL_BIN="${GO_SHIM}" \
-	ACPCTL_MAKE_BIN="${TMP_DIR}/missing-make" \
-	ACP_REPO_ROOT="${REPO_ROOT}" \
-	"${SCRIPT_UNDER_TEST}" deploy up >/dev/null 2>&1 || missing_rc=$?
+    ACPCTL_MAKE_BIN="${TMP_DIR}/missing-make" \
+    ACP_REPO_ROOT="${REPO_ROOT}" \
+    "${SCRIPT_UNDER_TEST}" deploy up >/dev/null 2>&1 || missing_rc=$?
 if [[ "${missing_rc}" -ne 2 ]]; then
-	printf '  ✗ missing ACPCTL_MAKE_BIN should exit 2 (got %s)\n' "${missing_rc}"
-	exit 1
+    printf '  ✗ missing ACPCTL_MAKE_BIN should exit 2 (got %s)\n' "${missing_rc}"
+    exit 1
 fi
 printf '  ✓ missing ACPCTL_MAKE_BIN exits 2\n'

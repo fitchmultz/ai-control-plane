@@ -39,3 +39,17 @@ func TestResolveSuggestionsFallsBackWhenPathIsUnknown(t *testing.T) {
 		t.Fatalf("expected root fallback suggestions, got %v", rootSuggestions)
 	}
 }
+
+func TestResolveSuggestionsFiltersRootsByPrefix(t *testing.T) {
+	rootSuggestions := resolveSuggestions(nil, "de", t.TempDir())
+	if !slices.Equal(rootSuggestions, []string{"deploy", "demo"}) {
+		t.Fatalf("expected prefix-filtered root suggestions, got %v", rootSuggestions)
+	}
+}
+
+func TestResolveSuggestionsFiltersKnownSubcommandsByPrefix(t *testing.T) {
+	deploySuggestions := resolveSuggestions([]string{"deploy"}, "re", t.TempDir())
+	if !slices.Equal(deploySuggestions, []string{"readiness-evidence", "release-bundle", "restart"}) {
+		t.Fatalf("expected prefix-filtered deploy suggestions, got %v", deploySuggestions)
+	}
+}

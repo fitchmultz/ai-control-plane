@@ -264,7 +264,7 @@ make validate-siem-queries
 # 8) Executive reporting
 make release-bundle
 make release-bundle-verify
-./scripts/acpctl.sh validate siem-queries --validate-schema
+make validate-siem-schema
 ```
 
 ### Enforcement vs Bypass: Key Distinction

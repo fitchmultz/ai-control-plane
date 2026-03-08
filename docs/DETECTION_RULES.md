@@ -438,7 +438,7 @@ WHERE s.model NOT IN (
 
 ```bash
 # Validation tooling sets this variable during detection execution
-# (invoked via `make validate-detections` or `./scripts/acpctl.sh validate detections`):
+# (invoked via `make validate-detections`):
 docker exec ... psql ... -v "APPROVED_MODELS_JSON='[\"model1\",\"model2\"]'" -c "..."
 ```
 

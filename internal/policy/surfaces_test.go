@@ -22,6 +22,7 @@ package policy
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -50,6 +51,46 @@ func TestExpandDeploymentSurfacesIncludesNestedCanonicalTargets(t *testing.T) {
 	assertSurfaceKind(t, targetKinds, "deploy/helm/ai-control-plane/templates/deployment-litellm.yaml", SurfaceHelmTpl)
 	assertSurfaceKind(t, targetKinds, "deploy/ansible/playbooks/gateway_host.yml", SurfaceAnsibleYML)
 	assertSurfaceKind(t, targetKinds, "deploy/terraform/examples/aws-complete/main.tf", SurfaceTerraform)
+}
+
+func TestExpandDeploymentSurfacesIncludesExplicitRequiredTargetsWhenGlobMatchesNothing(t *testing.T) {
+	repoRoot := t.TempDir()
+
+	targets, err := ExpandDeploymentSurfaces(repoRoot)
+	if err != nil {
+		t.Fatalf("ExpandDeploymentSurfaces returned error: %v", err)
+	}
+
+	targetKinds := make(map[string]SurfaceKind, len(targets))
+	for _, target := range targets {
+		targetKinds[target.Path] = target.Kind
+	}
+	assertSurfaceKind(t, targetKinds, "demo/docker-compose.yml", SurfaceCompose)
+	assertSurfaceKind(t, targetKinds, "deploy/helm/ai-control-plane/values.yaml", SurfaceHelmValues)
+}
+
+func TestExpandDeploymentSurfacesSortsAndDedupesDeterministically(t *testing.T) {
+	repoRoot := t.TempDir()
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "a.yaml"), "profile: demo\n")
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "b.yaml"), "profile: demo\n")
+
+	spec := SurfaceSpec{
+		ID:    "dedupe",
+		Kind:  SurfaceHelmValues,
+		Paths: []string{"deploy/helm/ai-control-plane/examples/b.yaml"},
+		Globs: []string{"deploy/helm/ai-control-plane/examples/**/*.yaml"},
+	}
+	got, err := expandSpec(repoRoot, spec)
+	if err != nil {
+		t.Fatalf("expandSpec returned error: %v", err)
+	}
+	want := []string{
+		"deploy/helm/ai-control-plane/examples/a.yaml",
+		"deploy/helm/ai-control-plane/examples/b.yaml",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expandSpec mismatch\nwant: %v\n got: %v", want, got)
+	}
 }
 
 func assertSurfaceKind(t *testing.T, got map[string]SurfaceKind, path string, want SurfaceKind) {

@@ -20,7 +20,7 @@ set -euo pipefail
 #   - Tests remain deterministic regardless of local tooling availability.
 
 show_help() {
-	cat <<'EOF'
+    cat <<'EOF'
 Usage: compose_slot_validation_test.sh [OPTIONS]
 
 Validate compose configuration generation or static syntax markers.
@@ -31,8 +31,8 @@ EOF
 }
 
 if [[ "${1:-}" == "--help" ]]; then
-	show_help
-	exit 0
+    show_help
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,29 +43,29 @@ printf 'Compose Slot Validation Test\n'
 printf '============================\n'
 
 if docker compose version >/dev/null 2>&1; then
-	docker compose -f "${COMPOSE_DIR}/docker-compose.yml" config >/dev/null
-	docker compose -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
-	printf '  ✓ docker compose validates main and offline configs\n'
+    docker compose -f "${COMPOSE_DIR}/docker-compose.yml" config >/dev/null
+    docker compose -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
+    printf '  ✓ docker compose validates main and offline configs\n'
 elif command -v docker-compose >/dev/null 2>&1; then
-	docker-compose -f "${COMPOSE_DIR}/docker-compose.yml" config >/dev/null
-	docker-compose -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
-	printf '  ✓ docker-compose validates main and offline configs\n'
+    docker-compose -f "${COMPOSE_DIR}/docker-compose.yml" config >/dev/null
+    docker-compose -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
+    printf '  ✓ docker-compose validates main and offline configs\n'
 else
-	if ! grep -q "^services:" "${COMPOSE_DIR}/docker-compose.yml"; then
-		printf '  ✗ main compose file missing services section\n'
-		exit 1
-	fi
-	printf '  ✓ main compose file includes services section\n'
+    if ! grep -q "^services:" "${COMPOSE_DIR}/docker-compose.yml"; then
+        printf '  ✗ main compose file missing services section\n'
+        exit 1
+    fi
+    printf '  ✓ main compose file includes services section\n'
 fi
 
 if grep -Eq 'short-key|:-invalid' "${COMPOSE_DIR}/docker-compose.yml"; then
-	printf '  ✗ main compose file contains insecure secret fallbacks\n'
-	exit 1
+    printf '  ✗ main compose file contains insecure secret fallbacks\n'
+    exit 1
 fi
 printf '  ✓ main compose file has no insecure secret fallbacks\n'
 
 if ! grep -q '127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432' "${COMPOSE_DIR}/docker-compose.offline.yml"; then
-	printf '  ✗ offline postgres should stay localhost-bound\n'
-	exit 1
+    printf '  ✗ offline postgres should stay localhost-bound\n'
+    exit 1
 fi
 printf '  ✓ offline postgres stays localhost-bound\n'

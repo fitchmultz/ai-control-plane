@@ -20,7 +20,7 @@ set -euo pipefail
 #   - Tests do not require Docker or make delegation.
 
 show_help() {
-	cat <<'EOF'
+    cat <<'EOF'
 Usage: acpctl_cli_help_test.sh [OPTIONS]
 
 Validate scripts/acpctl.sh help output and usage behavior.
@@ -31,8 +31,8 @@ EOF
 }
 
 if [[ "${1:-}" == "--help" ]]; then
-	show_help
-	exit 0
+    show_help
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,15 +55,15 @@ EOF
 chmod +x "${GO_SHIM}"
 
 assert_contains() {
-	local haystack="$1"
-	local needle="$2"
-	local description="$3"
-	if grep -Fq "${needle}" <<<"${haystack}"; then
-		printf '  ✓ %s\n' "${description}"
-	else
-		printf '  ✗ %s\n' "${description}"
-		exit 1
-	fi
+    local haystack="$1"
+    local needle="$2"
+    local description="$3"
+    if grep -Fq "${needle}" <<<"${haystack}"; then
+        printf '  ✓ %s\n' "${description}"
+    else
+        printf '  ✗ %s\n' "${description}"
+        exit 1
+    fi
 }
 
 printf 'ACPCTL CLI Help Contract Test\n'
@@ -84,7 +84,7 @@ assert_contains "${help_output}" "doctor" "--help lists doctor command"
 unknown_rc=0
 ACPCTL_BIN="${GO_SHIM}" "${SCRIPT_UNDER_TEST}" unknown-command >/dev/null 2>&1 || unknown_rc=$?
 if [[ "${unknown_rc}" -ne 64 ]]; then
-	printf '  ✗ unknown command should exit 64 (got %s)\n' "${unknown_rc}"
-	exit 1
+    printf '  ✗ unknown command should exit 64 (got %s)\n' "${unknown_rc}"
+    exit 1
 fi
 printf '  ✓ unknown command exits 64\n'

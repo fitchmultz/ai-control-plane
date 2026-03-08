@@ -107,7 +107,7 @@ make release-bundle
 Expected outcomes:
 - Deterministic checks pass before runtime validation starts
 - Services start and pass health checks
-- `./scripts/acpctl.sh doctor` reports actionable environment diagnostics
+- `make doctor` reports actionable environment diagnostics
 - Release bundle generation succeeds with checksums
 
 > Generated runtime/evidence artifacts are intentionally local-only and gitignored. See [docs/ARTIFACTS.md](docs/ARTIFACTS.md).

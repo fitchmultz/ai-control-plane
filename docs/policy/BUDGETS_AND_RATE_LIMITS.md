@@ -65,21 +65,18 @@ make key-revoke ALIAS=<alias>
 
 ```bash
 make db-status
-./scripts/acpctl.sh db status
 ```
 
 ### Detection validation
 
 ```bash
 make validate-detections
-./scripts/acpctl.sh validate detections
 ```
 
 ### SIEM sync validation
 
 ```bash
 make validate-siem-queries
-./scripts/acpctl.sh validate siem-queries
 ```
 
 ## Recommended Operating Cadence

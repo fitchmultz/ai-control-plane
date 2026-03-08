@@ -79,8 +79,8 @@ Minimum commands:
 ```bash
 make ci
 make health
-./scripts/acpctl.sh validate detections
-./scripts/acpctl.sh validate siem-queries --validate-schema
+make validate-detections
+make validate-siem-schema
 ```
 
 Must be true before moving on:

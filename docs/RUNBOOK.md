@@ -824,7 +824,7 @@ See [docs/security/DETECTION.md](security/DETECTION.md) for detailed SQL queries
 make validate-detections       # Run interactive SIEM demo
 make validate-siem-schema     # View normalized schema
 make validate-siem-queries    # View SIEM query examples
-make validate-detections  # View recent telemetry
+make detection-normalized     # View recent telemetry snapshot
 ```
 
 See [docs/security/SIEM_INTEGRATION.md](security/SIEM_INTEGRATION.md) for complete SIEM integration guide.

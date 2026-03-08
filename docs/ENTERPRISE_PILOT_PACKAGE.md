@@ -66,10 +66,10 @@ Use these documents together instead of creating custom pilot prose from scratch
 
 | Area | Proven in repo | Proof path |
 |---|---|---|
-| Gateway health and operator workflow | Yes | `make ci`, `make health`, `./scripts/acpctl.sh status`, `docs/RUNBOOK.md` |
-| Approved-model enforcement contract | Yes | `demo/config/litellm.yaml`, `docs/policy/APPROVED_MODELS.md`, `./scripts/acpctl.sh validate detections`, `./scripts/acpctl.sh validate siem-queries --validate-schema` |
+| Gateway health and operator workflow | Yes | `make ci`, `make health`, `make status`, `docs/RUNBOOK.md` |
+| Approved-model enforcement contract | Yes | `demo/config/litellm.yaml`, `docs/policy/APPROVED_MODELS.md`, `make validate-detections`, `make validate-siem-schema` |
 | Budget and rate-limit governance | Yes | `docs/policy/BUDGETS_AND_RATE_LIMITS.md`, `docs/policy/FINANCIAL_GOVERNANCE_AND_CHARGEBACK.md`, `make db-status` |
-| Detection pack to SIEM mapping consistency | Yes | `demo/config/detection_rules.yaml`, `demo/config/siem_queries.yaml`, `./scripts/acpctl.sh validate detections`, `./scripts/acpctl.sh validate siem-queries --validate-schema` |
+| Detection pack to SIEM mapping consistency | Yes | `demo/config/detection_rules.yaml`, `demo/config/siem_queries.yaml`, `make validate-detections`, `make validate-siem-schema` |
 | Managed browser path architecture | Yes, architecture + config baseline | `docs/security/ENTERPRISE_AUTH_ARCHITECTURE.md`, `docs/tooling/LIBRECHAT.md` |
 | Customer-network egress blocking effectiveness | No | Customer environment validation required |
 | External compliance attestation | No | Crosswalk is planning/reference material, not certification |
@@ -137,8 +137,8 @@ Hard-stop rule:
 
 | Success criterion | How to verify | Owner |
 |---|---|---|
-| Gateway baseline is healthy and repeatable | `make ci`, `make health`, `./scripts/acpctl.sh status` | Delivery team |
-| Detection pack and SIEM mappings are internally consistent | `./scripts/acpctl.sh validate detections`; `./scripts/acpctl.sh validate siem-queries --validate-schema` | Delivery team |
+| Gateway baseline is healthy and repeatable | `make ci`, `make health`, `make status` | Delivery team |
+| Detection pack and SIEM mappings are internally consistent | `make validate-detections`; `make validate-siem-schema` | Delivery team |
 | Unapproved routed request is rejected or surfaced correctly | Run approved/unapproved demo scenarios and capture logs | Delivery team + customer security |
 | SIEM receives normalized evidence with user/team attribution | Customer ingestion test using `docs/security/SIEM_INTEGRATION.md` | Customer SOC |
 | Bypass path is classified as enforced or detective in writing | Review against `docs/ENTERPRISE_BUYER_OBJECTIONS.md` and network-owner signoff | Customer network + sponsor |
@@ -156,8 +156,8 @@ make readiness-evidence-verify
 make pilot-closeout-bundle
 make pilot-closeout-bundle-verify
 make health
-./scripts/acpctl.sh validate detections
-./scripts/acpctl.sh validate siem-queries --validate-schema
+make validate-detections
+make validate-siem-schema
 ```
 
 To build a complete packet, start from:

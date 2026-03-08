@@ -692,7 +692,7 @@ For automation that needs typed exit-code granularity, call the typed entrypoint
 | **64** | Usage error |
 
 ```bash
-./scripts/acpctl.sh validate detections
+make validate-detections
 code=$?
 
 if [ "$code" -ne 0 ]; then
@@ -720,7 +720,7 @@ Always investigate context before taking remedial action. Consider tuning thresh
 
 ## Detection Output Contract (Public Snapshot)
 
-Public-snapshot detection entrypoints (`make validate-detections` and `./scripts/acpctl.sh validate detections`) emit human-readable validation output and exit codes; they do not emit the legacy structured JSON findings payload.
+Public-snapshot detection entrypoints (`make validate-detections`, `make validate-siem-queries`, and `make validate-siem-schema`) emit human-readable validation output and exit codes; they do not emit the legacy structured JSON findings payload.
 
 For machine-parsed evidence in this snapshot:
 - Use the normalized evidence feed: `demo/logs/normalized/evidence.jsonl`
@@ -839,7 +839,7 @@ For real-time alerting, configure webhooks in your monitoring stack:
 
 ```bash
 # Example: Send to Slack on domain validation findings
-./scripts/acpctl.sh validate detections
+make validate-detections
 code=$?
 if [ "$code" -eq 1 ]; then
   curl -X POST -H 'Content-type: application/json' \
@@ -1305,9 +1305,6 @@ make validate-siem-queries
 
 # Include schema validation checks
 make validate-siem-schema
-
-# Typed entrypoint equivalent
-./scripts/acpctl.sh validate siem-queries --validate-schema
 ```
 
 Custom rule/query path overrides are not part of the public-snapshot command surface; update tracked config files in `demo/config/` and rerun validation.

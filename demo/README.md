@@ -361,8 +361,7 @@ The onboarding workflow is exposed through `make onboard` (primary) and implemen
 
 ## Secondary Direct Script Entry Points
 
-- `./scripts/acpctl.sh bridge ...` is transitional; use `./scripts/acpctl.sh bridge --help` for the current supported surface
-- `./scripts/acpctl.sh bridge onboard` - One-command tool onboarding (Claude, Codex, OpenCode, Cursor)
+- `make onboard` - One-command tool onboarding (Claude, Codex, OpenCode, Cursor)
 - `make key-gen` - Generate LiteLLM virtual keys for testing authentication
 - `make health` - Comprehensive health check for all services
 - `make db-backup` - Backup the PostgreSQL database
@@ -411,8 +410,8 @@ healthcheck:
 # Validate compose healthcheck configuration (run by make lint)
 make validate-compose-healthchecks
 
-# Typed entrypoint help
-./scripts/acpctl.sh validate compose-healthchecks --help
+# Typed validation entrypoint
+./scripts/acpctl.sh validate compose-healthchecks
 ```
 
 Validation runs automatically during `make lint` and `make ci`.
