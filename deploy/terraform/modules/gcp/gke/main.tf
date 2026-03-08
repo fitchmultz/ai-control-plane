@@ -115,9 +115,7 @@ resource "google_container_cluster" "primary" {
   }
 
   # Enable Shielded Nodes for enhanced security
-  shielded_nodes {
-    enabled = true
-  }
+  enable_shielded_nodes = true
 
   # Network policy (enabled by default)
   network_policy {
@@ -130,12 +128,6 @@ resource "google_container_cluster" "primary" {
 
   # Enable dataplane V2 for enhanced networking and security
   datapath_provider = "ADVANCED_DATAPATH"
-
-  # Cost management configuration
-  resource_usage_export_config {
-    enable_network_egress_metering       = true
-    enable_resource_consumption_metering = true
-  }
 
   # Maintenance policy
   maintenance_policy {
@@ -193,8 +185,6 @@ resource "google_container_cluster" "primary" {
           max_unavailable = 0
         }
 
-        disk_size_gb = 100
-        disk_type    = "pd-balanced"
       }
     }
   }

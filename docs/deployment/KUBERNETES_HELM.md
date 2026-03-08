@@ -127,38 +127,28 @@ litellm:
 
 ## 3. Quick Start
 
-### Demo Installation (Quick Start)
-
-```bash
-# Add the Helm repository (or use local chart)
-# helm repo add acp https://<your-github-org>.github.io/ai-control-plane
-
-# Install with defaults (embedded PostgreSQL)
-helm install acp ./deploy/helm/ai-control-plane -n acp --create-namespace
-
-# Port-forward to access locally
-kubectl port-forward -n acp svc/acp-ai-control-plane-litellm 4000:4000
-
-# Access the UI
-curl http://localhost:4000/health
-```
-
-### Production Installation
+### Production Installation (Default Path)
 
 ```bash
 # Create namespace
 kubectl create namespace acp
 
-# Create secrets (see Secrets section below)
+# Create externally managed secrets (see Secrets section below)
 kubectl create secret generic ai-control-plane-secrets \
   --from-literal=LITELLM_MASTER_KEY='your-secure-master-key-32-chars-min' \
   --from-literal=LITELLM_SALT_KEY='your-secure-salt-key-32-chars-min' \
-  --from-literal=DATABASE_URL='postgresql://user:pass@postgres-host:5432/litellm' \
+  --from-literal=DATABASE_URL='postgresql://user:pass@postgres-host:5432/litellm?sslmode=require' \
   -n acp
 
-# Install with production values
-helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp \
-  -f ./deploy/helm/ai-control-plane/examples/values.production.yaml
+# Install using the secure-by-default chart baseline
+helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp
+```
+
+### Explicit Demo Installation
+
+```bash
+helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp --create-namespace \
+  -f ./deploy/helm/ai-control-plane/examples/values.demo.yaml
 ```
 
 ---
@@ -212,31 +202,20 @@ kubectl delete namespace acp
 
 ### Configuration Methods
 
-1. **values.yaml**: Default configuration (don't modify directly)
+1. **values.yaml**: Secure-by-default production configuration
 2. **Custom values file**: `-f my-values.yaml`
 3. **Command line**: `--set key=value`
 4. **Existing secrets**: Reference external secrets
 
 ### Secrets Configuration
 
-**Option 1: Chart creates secrets (dev/demo only)**
-
-```yaml
-secrets:
-  create: true
-  litellm:
-    masterKey: "your-secure-master-key"
-    saltKey: "your-secure-salt-key"
-```
-
-**Option 2: Reference existing secrets (production)**
+**Option 1: Existing secret (default production contract)**
 
 ```bash
-# Create secret manually
 kubectl create secret generic ai-control-plane-secrets \
   --from-literal=LITELLM_MASTER_KEY='...' \
   --from-literal=LITELLM_SALT_KEY='...' \
-  --from-literal=DATABASE_URL='...' \
+  --from-literal=DATABASE_URL='postgresql://user:pass@db.example.com:5432/litellm?sslmode=require' \
   -n acp
 ```
 
@@ -248,6 +227,20 @@ secrets:
     masterKeyKey: LITELLM_MASTER_KEY
     saltKeyKey: LITELLM_SALT_KEY
     databaseUrlKey: DATABASE_URL
+```
+
+**Option 2: Demo-only chart-managed secrets**
+
+```yaml
+profile: demo
+demo:
+  enabled: true
+
+secrets:
+  create: true
+  litellm:
+    masterKey: "demo-only-master-key"
+    saltKey: "demo-only-salt-key"
 ```
 
 **Option 3: External Secrets Operator (production recommended)**
@@ -335,17 +328,7 @@ ingress:
         - ai-control-plane.example.com
 ```
 
-### Option 3: LoadBalancer Service (Cloud Provider TLS)
-
-```yaml
-ingress:
-  enabled: false
-
-litellm:
-  service:
-    type: LoadBalancer
-    # Add cloud provider annotations as needed
-```
+LoadBalancer-based direct service exposure is intentionally removed from the primary chart path. Use ingress with TLS termination instead.
 
 ### Security Note: OAuth Token Safety
 
@@ -380,7 +363,7 @@ externalDatabase:
 ### Database URL Format
 
 ```
-postgresql://username:password@hostname:5432/database
+postgresql://username:password@hostname:5432/database?sslmode=require
 ```
 
 ### Cloud Managed Databases
@@ -423,7 +406,7 @@ kubectl logs -n acp -l app.kubernetes.io/component=litellm
 
 # Check health endpoint (port-forward first)
 kubectl port-forward -n acp svc/acp-ai-control-plane-litellm 4000:4000
-curl http://localhost:4000/health
+curl -H "Authorization: Bearer <master-key>" http://localhost:4000/health
 ```
 
 ### Scaling

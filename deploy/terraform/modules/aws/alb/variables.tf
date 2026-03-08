@@ -31,13 +31,13 @@ variable "security_groups" {
 variable "internal" {
   description = "Whether the ALB is internal (true) or internet-facing (false)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_deletion_protection" {
   description = "Enable deletion protection for the ALB"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "idle_timeout" {
@@ -167,7 +167,7 @@ variable "health_check_matcher" {
 variable "access_logs_enabled" {
   description = "Enable access logs for the ALB"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "access_logs_bucket" {

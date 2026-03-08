@@ -24,17 +24,17 @@ output "release_version" {
 
 output "chart_version" {
   description = "Version of the chart that was deployed"
-  value       = helm_release.this.metadata[0].version
+  value       = helm_release.this.metadata.version
 }
 
 output "chart_name" {
   description = "Name of the chart that was deployed"
-  value       = helm_release.this.metadata[0].name
+  value       = helm_release.this.metadata.name
 }
 
 output "chart_app_version" {
   description = "Application version of the deployed chart"
-  value       = helm_release.this.metadata[0].app_version
+  value       = helm_release.this.metadata.app_version
 }
 
 output "release_id" {

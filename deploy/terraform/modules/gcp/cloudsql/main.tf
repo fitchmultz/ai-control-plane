@@ -2,7 +2,7 @@
 # Creates a PostgreSQL 16 instance with optional private IP
 
 locals {
-  require_ssl = false
+  require_ssl = true
 }
 
 # Get VPC network data if private IP is requested
@@ -90,7 +90,7 @@ resource "google_sql_database_instance" "instance" {
     ip_configuration {
       ipv4_enabled    = var.vpc_network == null
       private_network = var.vpc_network != null ? data.google_compute_network.vpc[0].id : null
-      require_ssl     = local.require_ssl
+      ssl_mode        = local.require_ssl ? "ENCRYPTED_ONLY" : "ALLOW_UNENCRYPTED_AND_ENCRYPTED"
 
       dynamic "authorized_networks" {
         for_each = var.authorized_networks

@@ -101,7 +101,7 @@ http://127.0.0.1:4000
 
 **Remote Mode (Docker Host):**
 ```
-http://GATEWAY_HOST:4000
+https://GATEWAY_HOST
 ```
 
 Replace `GATEWAY_HOST` with your gateway host (hostname or IP).
@@ -160,7 +160,7 @@ Services run on a remote Docker host, Cursor connects over network.
 
 | Setting | Value |
 |---------|-------|
-| Base URL | `http://GATEWAY_HOST:4000` |
+| Base URL | `https://GATEWAY_HOST` |
 | API Key | Your LiteLLM virtual key |
 | Network | Client to Docker host |
 
@@ -177,7 +177,7 @@ Use this mode for:
 │      (Cursor running here)          │
 │  ┌───────────────────────────────┐  │
 │  │  Cursor Settings:             │  │
-│  │  Base URL: GATEWAY_HOST:4000  │  │
+│  │  Base URL: https://GATEWAY_HOST │  │
 │  │  API Key: sk-<virtual-key>    │  │
 │  └───────────────────────────────┘  │
 └──────────────┬────────────────────────┘
@@ -187,7 +187,8 @@ Use this mode for:
 │      Docker Host                    │
 │      GATEWAY_HOST                   │
 │  ┌───────────────────────────────┐  │
-│  │  LiteLLM: 0.0.0.0:4000        │  │
+│  │  Caddy TLS: 0.0.0.0:443       │  │
+│  │  LiteLLM: internal-only       │  │
 │  │  Routes to upstream providers │  │
 │  │  Logs to PostgreSQL           │  │
 │  └───────────────────────────────┘  │
@@ -297,7 +298,7 @@ This runs all SIEM-style detection rules against the audit log.
 ```bash
 # Test gateway connectivity
 curl http://127.0.0.1:4000/health  # Local mode
-curl http://GATEWAY_HOST:4000/health  # Remote mode
+curl https://GATEWAY_HOST/health  # Remote mode
 
 # Check if LiteLLM is running
 make ps
@@ -305,7 +306,7 @@ make ps
 
 **Solutions**:
 - Verify LiteLLM is running: `make up`
-- Check firewall allows port 4000 from client
+- Check firewall allows port 443 from client to the TLS gateway
 - Confirm base URL matches your deployment mode
 - Check Docker host connectivity in remote mode
 

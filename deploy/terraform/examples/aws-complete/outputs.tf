@@ -99,25 +99,6 @@ output "database_url" {
 }
 
 #------------------------------------------------------------------------------
-# Load Balancer Outputs
-#------------------------------------------------------------------------------
-
-output "alb_dns_name" {
-  description = "DNS name of the Application Load Balancer (if enabled)"
-  value       = var.enable_alb ? module.alb[0].alb_dns_name : null
-}
-
-output "alb_zone_id" {
-  description = "Zone ID of the Application Load Balancer (for Route 53 alias records)"
-  value       = var.enable_alb ? module.alb[0].alb_zone_id : null
-}
-
-output "alb_arn" {
-  description = "ARN of the Application Load Balancer (if enabled)"
-  value       = var.enable_alb ? module.alb[0].alb_arn : null
-}
-
-#------------------------------------------------------------------------------
 # IRSA Outputs
 #------------------------------------------------------------------------------
 
@@ -161,17 +142,17 @@ output "helm_chart_version" {
 
 output "application_url" {
   description = "URL to access the AI Control Plane (LiteLLM gateway)"
-  value       = var.enable_alb ? "http://${module.alb[0].alb_dns_name}" : "Use kubectl port-forward: kubectl port-forward svc/${var.helm_release_name}-litellm 4000:4000 -n ${var.namespace}"
+  value       = var.enable_ingress ? "https://${var.ingress_host}" : "Use kubectl port-forward: kubectl port-forward svc/${var.helm_release_name}-litellm 4000:4000 -n ${var.namespace}"
 }
 
 output "application_https_url" {
-  description = "HTTPS URL to access the AI Control Plane (if HTTPS is enabled)"
-  value       = var.enable_alb && var.alb_enable_https ? "https://${module.alb[0].alb_dns_name}" : null
+  description = "HTTPS URL to access the AI Control Plane when ingress is enabled"
+  value       = var.enable_ingress ? "https://${var.ingress_host}" : null
 }
 
 output "litellm_health_endpoint" {
   description = "Health check endpoint for LiteLLM"
-  value       = var.enable_alb ? "http://${module.alb[0].alb_dns_name}/health" : "kubectl exec -n ${var.namespace} deployment/${var.helm_release_name}-litellm -- curl -s http://localhost:4000/health"
+  value       = var.enable_ingress ? "https://${var.ingress_host}/health" : "kubectl exec -n ${var.namespace} deployment/${var.helm_release_name}-litellm -- curl -s -H 'Authorization: Bearer <master-key>' http://localhost:4000/health"
 }
 
 #------------------------------------------------------------------------------
@@ -180,13 +161,13 @@ output "litellm_health_endpoint" {
 
 output "litellm_master_key" {
   description = "Master key for LiteLLM admin authentication (sensitive)"
-  value       = local.litellm_master_key
+  value       = var.litellm_master_key
   sensitive   = true
 }
 
 output "litellm_salt_key" {
   description = "Salt key for LiteLLM encryption (sensitive - never change after set)"
-  value       = local.litellm_salt_key
+  value       = var.litellm_salt_key
   sensitive   = true
 }
 
@@ -207,7 +188,7 @@ output "kubectl_commands" {
     # Port-forward to access LiteLLM locally
     kubectl port-forward svc/${var.helm_release_name}-litellm 4000:4000 -n ${var.namespace}
 
-    # Check service account and IRSA
+    # Check service account and optional IRSA binding
     kubectl describe sa ${var.helm_release_name}-sa -n ${var.namespace}
 
     # Get secret information
@@ -225,16 +206,16 @@ output "next_steps" {
     ==========================================
 
     1. Configure kubectl:
-       ${self.kubeconfig_command}
+       aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}
 
     2. Verify deployment:
        kubectl get pods -n ${var.namespace}
 
     3. Access LiteLLM:
-       ${var.enable_alb ? "URL: http://${module.alb[0].alb_dns_name}" : "Port-forward: kubectl port-forward svc/${var.helm_release_name}-litellm 4000:4000 -n ${var.namespace}"}
+       ${var.enable_ingress ? "URL: https://${var.ingress_host}" : "Port-forward: kubectl port-forward svc/${var.helm_release_name}-litellm 4000:4000 -n ${var.namespace}"}
 
     4. Check health:
-       ${var.enable_alb ? "curl http://${module.alb[0].alb_dns_name}/health" : "kubectl exec -n ${var.namespace} deployment/${var.helm_release_name}-litellm -- curl -s http://localhost:4000/health"}
+       ${var.enable_ingress ? "curl https://${var.ingress_host}/health" : "kubectl exec -n ${var.namespace} deployment/${var.helm_release_name}-litellm -- curl -s -H 'Authorization: Bearer <master-key>' http://localhost:4000/health"}
 
     5. View logs:
        kubectl logs -n ${var.namespace} -l app.kubernetes.io/component=litellm -f
@@ -246,7 +227,7 @@ output "next_steps" {
     - Master Key (sensitive): Used for LiteLLM admin API authentication
     - Salt Key (sensitive): Used for encryption - NEVER CHANGE after initial setup
     - Database: External RDS PostgreSQL instance
-    - IRSA: Service account linked to IAM role for AWS API access
+    - IRSA: Optional and scoped only to the AWS APIs you explicitly grant
 
   EOT
 }

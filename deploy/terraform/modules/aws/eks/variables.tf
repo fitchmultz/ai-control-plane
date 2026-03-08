@@ -39,7 +39,7 @@ variable "cluster_enabled_log_types" {
 variable "cluster_endpoint_public_access" {
   description = "Enable public access to the cluster endpoint"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "cluster_endpoint_private_access" {
@@ -51,7 +51,12 @@ variable "cluster_endpoint_private_access" {
 variable "cluster_public_access_cidrs" {
   description = "List of CIDR blocks allowed for public access to the cluster endpoint"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
+
+  validation {
+    condition     = alltrue([for cidr in var.cluster_public_access_cidrs : cidr != "0.0.0.0/0"])
+    error_message = "cluster_public_access_cidrs must not include 0.0.0.0/0. Provide explicit admin CIDRs only."
+  }
 }
 
 variable "cluster_service_ipv4_cidr" {
@@ -83,7 +88,7 @@ variable "cluster_encryption_config" {
 variable "create_kms_key" {
   description = "Create a KMS key for cluster encryption"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_security_groups_for_pods" {
@@ -98,22 +103,22 @@ variable "enable_security_groups_for_pods" {
 variable "node_groups" {
   description = "Map of EKS managed node group definitions"
   type = map(object({
-    desired_size             = optional(number, 2)
-    min_size                 = optional(number, 1)
-    max_size                 = optional(number, 5)
-    instance_types           = optional(list(string), ["t3.medium"])
-    capacity_type            = optional(string, "ON_DEMAND")
-    ami_type                 = optional(string, "AL2_x86_64")
-    disk_size                = optional(number, 50)
+    desired_size               = optional(number, 2)
+    min_size                   = optional(number, 1)
+    max_size                   = optional(number, 5)
+    instance_types             = optional(list(string), ["t3.medium"])
+    capacity_type              = optional(string, "ON_DEMAND")
+    ami_type                   = optional(string, "AL2_x86_64")
+    disk_size                  = optional(number, 50)
     max_unavailable_percentage = optional(number, 25)
-    labels                   = optional(map(string), {})
+    labels                     = optional(map(string), {})
     taints = optional(list(object({
       key    = string
       value  = optional(string, null)
       effect = string
     })), [])
-    launch_template_id       = optional(string, null)
-    launch_template_version  = optional(string, null)
+    launch_template_id      = optional(string, null)
+    launch_template_version = optional(string, null)
     remote_access = optional(object({
       ec2_ssh_key               = string
       source_security_group_ids = optional(list(string), [])

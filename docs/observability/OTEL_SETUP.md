@@ -18,10 +18,10 @@ The AI Control Plane provides two OTEL collector configurations:
 The `OTEL_COLLECTOR_CONFIG_FILE` environment variable selects the configuration:
 
 ```bash
-# Demo configuration (default)
+# Demo configuration (local-only collector ports bound to 127.0.0.1)
 OTEL_COLLECTOR_CONFIG_FILE=config.yaml make up-production
 
-# Production configuration
+# Production configuration (collector export hardened; remote ingest must use HTTPS)
 OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml make up-production
 ```
 
@@ -42,7 +42,8 @@ The production configuration (`config.production.yaml`) includes:
 |----------|----------|---------|-------------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | - | Remote OTLP endpoint URL (https://...) |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | No | `http/protobuf` | Production collector export protocol (must be `http/protobuf`) |
-| `OTEL_EXPORTER_OTLP_AUTH_HEADER` | No | - | Auth header for remote endpoint |
+| `OTEL_EXPORTER_OTLP_AUTH_HEADER` | No | - | Auth header for remote exporter endpoint |
+| `OTEL_INGEST_AUTH_TOKEN` | Yes for remote ingest | - | Shared secret enforced at the HTTPS `/otel/*` ingress |
 | `OTEL_RESOURCE_ENVIRONMENT` | Yes | `demo` | Environment tag (must be non-`demo` in production) |
 | `OTEL_RESOURCE_DEPLOYMENT` | Yes | `local` | Deployment identifier (e.g., `us-east-1`) |
 | `OTEL_MEMORY_LIMIT_MIB` | No | `256` | Memory limit in MiB |
@@ -152,19 +153,21 @@ make otel-health
 ### 2. Configure Codex for OTEL Export (Direct OAuth Mode Only)
 
 ```bash
-# Set OTEL environment variables (client -> collector)
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4317"
-export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
+# Local-only demo path
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4318"
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
 export OTEL_SERVICE_NAME="codex-cli"
 
 # Run Codex (in direct OAuth mode, not gateway-routed)
 codex
 ```
 
-For remote deployment (client machine + gateway host):
+For remote deployment (client machine + gateway host), use the TLS-protected OTLP/HTTP ingress:
 
 ```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://GATEWAY_HOST:4317"
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://gateway.example.com/otel"
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer ${OTEL_INGEST_AUTH_TOKEN}"
 ```
 
 ### 3. View Telemetry
@@ -181,11 +184,12 @@ make logs
 
 ### Environment Variables
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint | `127.0.0.1:4317` |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | Client protocol to OTEL collector | `grpc` |
-| `OTEL_SERVICE_NAME` | Service name | `codex-cli` |
+| Variable | Demo / local default | Remote / production path |
+|----------|----------------------|--------------------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:4318` | `https://gateway.example.com/otel` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | `http/protobuf` |
+| `OTEL_EXPORTER_OTLP_HEADERS` | unset | `Authorization=Bearer ${OTEL_INGEST_AUTH_TOKEN}` |
+| `OTEL_SERVICE_NAME` | `codex-cli` | `codex-cli` |
 
 ### OTEL Collector Configuration
 
@@ -246,30 +250,33 @@ telemetry.jsonl
 
 ### Remote Deployment
 
-For remote deployment (client machine + gateway host):
+For remote deployment (client machine + gateway host), do not publish raw collector ports beyond localhost. Remote clients must use the HTTPS ingress path on the gateway:
 
 ```
 Client machine (CLIENT_HOST)      Gateway host (GATEWAY_HOST)
-+--------+                       +--------+
-| Codex  |                       | OTEL   |
-| (Direct| OTLP Export --------> |Collector|
-| OAuth) | GATEWAY_HOST:4317         +--------+
-+--------+                               |
++--------+                       +----------------------+
+| Codex  |                       | TLS/Auth Reverse     |
+| (Direct| HTTPS /otel/* ----->  | Proxy -> OTEL        |
+| OAuth) |                       | Collector (localhost)|
++--------+                       +----------------------+
+                                         |
                                          v
                                    /var/log/otel/
                                   telemetry.jsonl
 ```
 
-1. Update `OTEL_EXPORTER_OTLP_ENDPOINT` to the gateway host:
+1. Update `OTEL_EXPORTER_OTLP_ENDPOINT` to the gateway HTTPS OTEL path:
    ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT="http://GATEWAY_HOST:4317"
+   export OTEL_EXPORTER_OTLP_ENDPOINT="https://GATEWAY_HOST/otel"
+   export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
+   export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer ${OTEL_INGEST_AUTH_TOKEN}"
    ```
 
-2. Ensure firewall allows ports 4317 and 4318 from client subnet
+2. Ensure firewall allows HTTPS to the gateway and keep raw collector ports bound to localhost only.
 
 3. Test connectivity from the client machine:
    ```bash
-   nc -zv GATEWAY_HOST 4317
+   curl -I https://GATEWAY_HOST/otel/v1/traces
    ```
 
 ## Verification

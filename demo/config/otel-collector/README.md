@@ -93,15 +93,17 @@ make health
 Configure Codex (or other tools) to export telemetry when using **direct OAuth mode** (not gateway-routed):
 
 ```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4317"
-export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4318"
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
 export OTEL_SERVICE_NAME="codex-cli"
 ```
 
-For remote deployment (client machine + gateway host):
+For remote deployment (client machine + gateway host), do not expose collector ports directly. Use an HTTPS reverse proxy that authenticates `/otel/*`:
 
 ```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://GATEWAY_HOST:4317"
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://gateway.example.com/otel"
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer ${OTEL_INGEST_AUTH_TOKEN}"
 ```
 
 ## Gateway-Routed Alternative

@@ -86,7 +86,6 @@ resource "azurerm_kubernetes_cluster" "this" {
       balance_similar_node_groups      = auto_scaler_profile.value.balance_similar_node_groups
       expander                         = auto_scaler_profile.value.expander
       max_graceful_termination_sec     = auto_scaler_profile.value.max_graceful_termination_sec
-      max_node_provision_time          = auto_scaler_profile.value.max_node_provision_time
       max_unready_nodes                = auto_scaler_profile.value.max_unready_nodes
       max_unready_percentage           = auto_scaler_profile.value.max_unready_percentage
       new_pod_scale_up_delay           = auto_scaler_profile.value.new_pod_scale_up_delay
@@ -123,8 +122,7 @@ resource "azurerm_kubernetes_cluster" "this" {
 
   # Microsoft Defender (optional)
   microsoft_defender {
-    enabled = var.enable_microsoft_defender
-    log_analytics_workspace_id = var.enable_microsoft_defender && var.log_analytics_workspace_id != null ? var.log_analytics_workspace_id : null
+    log_analytics_workspace_id = var.log_analytics_workspace_id
   }
 
   # Monitoring (optional)
@@ -153,6 +151,10 @@ resource "azurerm_kubernetes_cluster" "this" {
   tags = var.tags
 
   lifecycle {
+    precondition {
+      condition     = !(var.enable_microsoft_defender || var.enable_oms_agent) || var.log_analytics_workspace_id != null
+      error_message = "log_analytics_workspace_id is required when Microsoft Defender or OMS agent is enabled."
+    }
     prevent_destroy = false
     ignore_changes = [
       # Ignore changes to kubernetes_version to allow controlled upgrades

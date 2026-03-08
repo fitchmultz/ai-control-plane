@@ -4,8 +4,8 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
 # Or: make up-tls
 #
-# This is an OPTIONAL override. The base docker-compose.yml provides HTTP-only
-# access which is suitable for local development and testing.
+# This is the required override for any external client access. The base
+# docker-compose.yml remains cluster/host-local only.
 #
 # Security Features:
 # - Automatic HTTPS with Let's Encrypt (production) or self-signed (dev)
@@ -73,6 +73,8 @@ services:
       - CADDY_DOMAIN=${CADDY_DOMAIN:-}
       # Email for Let's Encrypt notifications
       - CADDY_EMAIL=${CADDY_EMAIL:-}
+      # OTEL ingest shared secret for HTTPS OTLP/HTTP ingress (required for remote OTEL use)
+      - OTEL_INGEST_AUTH_TOKEN=${OTEL_INGEST_AUTH_TOKEN:-}
     restart: unless-stopped
     logging: *acp-logging
     labels: *acp-labels

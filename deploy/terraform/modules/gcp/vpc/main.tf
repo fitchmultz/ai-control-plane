@@ -22,12 +22,6 @@ resource "google_compute_network" "main" {
 
   delete_default_routes_on_create = false
 
-  labels = merge(
-    var.labels,
-    {
-      managed_by = "terraform"
-    }
-  )
 }
 
 #------------------------------------------------------------------------------
@@ -53,12 +47,6 @@ resource "google_compute_subnetwork" "main" {
     }
   }
 
-  labels = merge(
-    var.labels,
-    {
-      managed_by = "terraform"
-    }
-  )
 }
 
 #------------------------------------------------------------------------------
@@ -76,12 +64,6 @@ resource "google_compute_router" "main" {
     asn = 64514
   }
 
-  labels = merge(
-    var.labels,
-    {
-      managed_by = "terraform"
-    }
-  )
 }
 
 #------------------------------------------------------------------------------
@@ -97,12 +79,6 @@ resource "google_compute_address" "nat" {
   address_type = "EXTERNAL"
   network_tier = "PREMIUM"
 
-  labels = merge(
-    var.labels,
-    {
-      managed_by = "terraform"
-    }
-  )
 }
 
 resource "google_compute_router_nat" "main" {

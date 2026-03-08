@@ -18,7 +18,7 @@ variable "aws_region" {
 variable "environment" {
   description = "Environment name (dev, staging, production)"
   type        = string
-  default     = "dev"
+  default     = "production"
 
   validation {
     condition     = contains(["dev", "staging", "production"], var.environment)
@@ -85,7 +85,7 @@ variable "cluster_version" {
 variable "cluster_endpoint_public_access" {
   description = "Enable public access to the cluster endpoint"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "cluster_endpoint_private_access" {
@@ -97,7 +97,12 @@ variable "cluster_endpoint_private_access" {
 variable "cluster_public_access_cidrs" {
   description = "List of CIDR blocks allowed for public access to the cluster endpoint"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
+
+  validation {
+    condition     = alltrue([for cidr in var.cluster_public_access_cidrs : cidr != "0.0.0.0/0"])
+    error_message = "cluster_public_access_cidrs must not include 0.0.0.0/0. Use explicit admin CIDRs only."
+  }
 }
 
 variable "node_groups" {
@@ -169,13 +174,13 @@ variable "rds_backup_retention_period" {
 variable "rds_deletion_protection" {
   description = "Enable deletion protection for RDS instance"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "rds_skip_final_snapshot" {
   description = "Skip final snapshot when destroying the database"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "rds_database_name" {
@@ -193,29 +198,28 @@ variable "rds_username" {
 variable "rds_performance_insights_enabled" {
   description = "Enable Performance Insights"
   type        = bool
-  default     = false
-}
-
-#------------------------------------------------------------------------------
-# ALB Configuration (Optional)
-#------------------------------------------------------------------------------
-
-variable "enable_alb" {
-  description = "Enable Application Load Balancer for external access"
-  type        = bool
   default     = true
 }
 
-variable "alb_certificate_arn" {
-  description = "ARN of the ACM certificate for HTTPS (required if enable_alb is true)"
-  type        = string
-  default     = ""
-}
+#------------------------------------------------------------------------------
+# Ingress Exposure Configuration
+#------------------------------------------------------------------------------
 
-variable "alb_enable_https" {
-  description = "Enable HTTPS listener on ALB"
+variable "public_ingress_enabled" {
+  description = "Expose ingress publicly. Defaults to internal-only ingress."
   type        = bool
   default     = false
+}
+
+variable "alb_certificate_arn" {
+  description = "ARN of the ACM certificate for HTTPS ingress (required if enable_ingress is true)"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.enable_ingress ? length(trimspace(var.alb_certificate_arn)) > 0 : true
+    error_message = "alb_certificate_arn is required when enable_ingress=true."
+  }
 }
 
 #------------------------------------------------------------------------------
@@ -241,17 +245,25 @@ variable "helm_chart_path" {
 }
 
 variable "litellm_master_key" {
-  description = "Master key for LiteLLM admin authentication (auto-generated if empty)"
+  description = "Master key for LiteLLM admin authentication"
   type        = string
-  default     = ""
   sensitive   = true
+
+  validation {
+    condition     = length(trimspace(var.litellm_master_key)) >= 32 && trimspace(var.litellm_master_key) == var.litellm_master_key && can(regex("^[^[:space:]]+$", var.litellm_master_key))
+    error_message = "litellm_master_key must be provided, be at least 32 characters, and contain no whitespace."
+  }
 }
 
 variable "litellm_salt_key" {
-  description = "Salt key for LiteLLM encryption (auto-generated if empty)"
+  description = "Salt key for LiteLLM encryption"
   type        = string
-  default     = ""
   sensitive   = true
+
+  validation {
+    condition     = length(trimspace(var.litellm_salt_key)) >= 32 && trimspace(var.litellm_salt_key) == var.litellm_salt_key && can(regex("^[^[:space:]]+$", var.litellm_salt_key))
+    error_message = "litellm_salt_key must be provided, be at least 32 characters, and contain no whitespace."
+  }
 }
 
 variable "litellm_replica_count" {
@@ -291,12 +303,27 @@ variable "ingress_host" {
   description = "Hostname for the ingress"
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.enable_ingress ? length(trimspace(var.ingress_host)) > 0 : true
+    error_message = "ingress_host is required when enable_ingress=true."
+  }
 }
 
 variable "ingress_class_name" {
   description = "Ingress class name (e.g., alb, nginx, traefik)"
   type        = string
   default     = "alb"
+}
+
+variable "irsa_policy_statements" {
+  description = "Additional IAM policy statements for the workload service account. Leave empty unless the workload must call AWS APIs."
+  type = list(object({
+    effect    = string
+    actions   = list(string)
+    resources = list(string)
+  }))
+  default = []
 }
 
 #------------------------------------------------------------------------------

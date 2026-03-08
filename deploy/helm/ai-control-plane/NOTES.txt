@@ -5,10 +5,10 @@ Thank you for installing {{ .Chart.Name }}.
 
 Your AI Control Plane release "{{ .Release.Name }}" has been deployed to namespace "{{ .Release.Namespace }}".
 
-{{- if eq .Values.profile "demo" }}
+{{- if .Values.demo.enabled }}
 
-⚠️  DEMO PROFILE: This deployment uses placeholder secrets and embedded PostgreSQL.
-   Do NOT use for production. Run with --set profile=production for production validation.
+⚠️  DEMO PROFILE: This deployment is using an explicitly named demo-only values file.
+   Do NOT reuse these settings for production.
 {{- end }}
 
 {{ if .Values.ingress.enabled }}
@@ -22,17 +22,15 @@ Your AI Control Plane release "{{ .Release.Name }}" has been deployed to namespa
 {{ else }}
 ℹ️  External access is NOT configured. To expose the gateway:
    
-   Option 1: Enable Ingress (recommended for production)
+   Option 1: Enable Ingress with TLS (required for external production access)
    helm upgrade {{ .Release.Name }} {{ .Chart.Name }} -n {{ .Release.Namespace }} \
      --set ingress.enabled=true \
      --set ingress.className=nginx \
      --set 'ingress.hosts[0].host=ai-control-plane.example.com' \
      --set 'ingress.hosts[0].paths[0].path=/' \
-     --set 'ingress.hosts[0].paths[0].pathType=Prefix'
-   
-   Option 2: Use LoadBalancer service type
-   helm upgrade {{ .Release.Name }} {{ .Chart.Name }} -n {{ .Release.Namespace }} \
-     --set litellm.service.type=LoadBalancer
+     --set 'ingress.hosts[0].paths[0].pathType=Prefix' \
+     --set 'ingress.tls[0].secretName=ai-control-plane-tls' \
+     --set 'ingress.tls[0].hosts[0]=ai-control-plane.example.com'
 {{ end }}
 
 📋 Next steps:
@@ -49,7 +47,7 @@ Your AI Control Plane release "{{ .Release.Name }}" has been deployed to namespa
 {{- else }}
    # Port-forward to access locally
    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "acp.fullname" . }}-litellm 4000:4000
-   URL: http://localhost:4000/ui
+   URL: http://localhost:4000/ui (localhost-only port-forward path)
 {{- end }}
    Username: admin
    Password: (value of LITELLM_MASTER_KEY from your secrets)
@@ -57,11 +55,11 @@ Your AI Control Plane release "{{ .Release.Name }}" has been deployed to namespa
 4. Configure your AI tools to use the gateway:
    
    Claude Code:
-     export ANTHROPIC_BASE_URL="{{ if .Values.ingress.enabled }}https://{{ (index .Values.ingress.hosts 0).host }}{{ else }}http://localhost:4000{{ end }}"
+     export ANTHROPIC_BASE_URL="{{ if .Values.ingress.enabled }}https://{{ (index .Values.ingress.hosts 0).host }}{{ else }}http://localhost:4000{{ end }}" # localhost-only when using port-forward
      export ANTHROPIC_API_KEY="<your-virtual-key>"
    
    Codex CLI:
-     export OPENAI_BASE_URL="{{ if .Values.ingress.enabled }}https://{{ (index .Values.ingress.hosts 0).host }}{{ else }}http://localhost:4000{{ end }}"
+     export OPENAI_BASE_URL="{{ if .Values.ingress.enabled }}https://{{ (index .Values.ingress.hosts 0).host }}{{ else }}http://localhost:4000{{ end }}" # localhost-only when using port-forward
      export OPENAI_API_KEY="<your-virtual-key>"
 
 {{- if .Values.postgres.enabled }}

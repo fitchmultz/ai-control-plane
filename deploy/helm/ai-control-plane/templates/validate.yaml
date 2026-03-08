@@ -1,0 +1,10 @@
+{{/*
+Validation entrypoint
+
+Responsibilities:
+  - Executes chart-level guardrails before rendering any workload manifests
+
+Non-scope:
+  - Does NOT emit Kubernetes resources
+*/}}
+{{ include "acp.validate" . }}

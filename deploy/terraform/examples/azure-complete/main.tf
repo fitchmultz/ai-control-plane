@@ -29,10 +29,10 @@ locals {
       "general" = merge(
         var.node_pools["general"],
         {
-          vm_size     = "Standard_D4s_v3"
-          min_count   = 2
-          max_count   = 10
-          node_count  = 3
+          vm_size    = "Standard_D4s_v3"
+          min_count  = 2
+          max_count  = 10
+          node_count = 3
         }
       )
     }
@@ -56,6 +56,26 @@ locals {
   postgresql_geo_backup = var.environment == "production" ? true : var.postgresql_geo_redundant_backup_enabled
 }
 
+resource "terraform_data" "deployment_guardrails" {
+  input = {
+    ingress_enabled            = var.ingress_enabled
+    ingress_host               = var.ingress_host
+    log_analytics_workspace_id = var.log_analytics_workspace_id
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.ingress_enabled || var.ingress_host != ""
+      error_message = "ingress_enabled=true requires ingress_host."
+    }
+
+    precondition {
+      condition     = var.log_analytics_workspace_id != ""
+      error_message = "log_analytics_workspace_id is required for the hardened Azure baseline."
+    }
+  }
+}
+
 #------------------------------------------------------------------------------
 # Resource Group
 #------------------------------------------------------------------------------
@@ -75,18 +95,6 @@ resource "random_password" "postgresql" {
   length           = 32
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
-}
-
-# Generate random master key for LiteLLM if not provided
-resource "random_password" "litellm_master" {
-  length  = 48
-  special = false
-}
-
-# Generate random salt key for LiteLLM if not provided
-resource "random_password" "litellm_salt" {
-  length  = 48
-  special = false
 }
 
 #------------------------------------------------------------------------------
@@ -112,11 +120,11 @@ module "aks" {
   source = "../../modules/azure/aks"
 
   # Basic configuration
-  cluster_name       = var.cluster_name
+  cluster_name        = var.cluster_name
   resource_group_name = azurerm_resource_group.main.name
-  location           = azurerm_resource_group.main.location
-  kubernetes_version = var.kubernetes_version
-  sku_tier           = var.sku_tier
+  location            = azurerm_resource_group.main.location
+  kubernetes_version  = var.kubernetes_version
+  sku_tier            = var.sku_tier
 
   # Network configuration
   subnet_id          = module.network.subnet_ids["aks"]
@@ -131,14 +139,19 @@ module "aks" {
   enable_oidc_issuer       = var.enable_oidc_issuer
 
   # Network settings
-  network_plugin = "azure"
-  network_policy = "calico"
-  service_cidr   = "10.1.0.0/16"
-  dns_service_ip = "10.1.0.10"
+  network_plugin                    = "azure"
+  network_policy                    = "calico"
+  service_cidr                      = "10.1.0.0/16"
+  dns_service_ip                    = "10.1.0.10"
+  enable_microsoft_defender         = true
+  enable_oms_agent                  = true
+  enable_azure_policy               = true
+  enable_key_vault_secrets_provider = true
+  log_analytics_workspace_id        = var.log_analytics_workspace_id
 
   tags = local.common_tags
 
-  depends_on = [module.network]
+  depends_on = [terraform_data.deployment_guardrails, module.network]
 }
 
 #------------------------------------------------------------------------------
@@ -149,10 +162,10 @@ module "postgresql" {
   source = "../../modules/azure/postgresql"
 
   # Server configuration
-  server_name       = "${var.name_prefix}-${var.postgresql_server_name}"
+  server_name         = "${var.name_prefix}-${var.postgresql_server_name}"
   resource_group_name = azurerm_resource_group.main.name
-  location          = azurerm_resource_group.main.location
-  postgresql_version = var.postgresql_version
+  location            = azurerm_resource_group.main.location
+  postgresql_version  = var.postgresql_version
 
   # SKU and storage
   sku_name   = local.effective_postgresql_sku
@@ -227,11 +240,11 @@ provider "kubernetes" {
 
 # Configure Helm provider
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = module.aks.host
     cluster_ca_certificate = base64decode(module.aks.cluster_ca_certificate)
 
-    exec {
+    exec = {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "kubelogin"
       args = [
@@ -248,7 +261,7 @@ provider "helm" {
 provider "helm" {
   alias = "cert_auth"
 
-  kubernetes {
+  kubernetes = {
     host                   = module.aks.host
     client_certificate     = base64decode(module.aks.client_certificate)
     client_key             = base64decode(module.aks.client_key)
@@ -293,8 +306,8 @@ module "secrets" {
   secret_name = "ai-control-plane-secrets"
 
   secret_data = {
-    LITELLM_MASTER_KEY = var.litellm_master_key != "" ? var.litellm_master_key : random_password.litellm_master.result
-    LITELLM_SALT_KEY   = var.litellm_salt_key != "" ? var.litellm_salt_key : random_password.litellm_salt.result
+    LITELLM_MASTER_KEY = var.litellm_master_key
+    LITELLM_SALT_KEY   = var.litellm_salt_key
     DATABASE_URL       = "postgresql://${var.postgresql_admin_username}:${random_password.postgresql.result}@${module.postgresql.fqdn}:5432/${var.postgresql_database_name}?sslmode=require"
   }
 
@@ -316,7 +329,7 @@ module "secrets" {
 #------------------------------------------------------------------------------
 
 # Create service account with Azure Workload Identity annotations
-resource "kubernetes_service_account" "workload_identity" {
+resource "kubernetes_service_account_v1" "workload_identity" {
   provider = kubernetes.cert_auth
 
   count = var.enable_workload_identity ? 1 : 0
@@ -354,15 +367,18 @@ module "helm_release" {
   values = merge(
     # Base configuration
     {
-      profile = var.environment == "production" ? "production" : "demo"
+      profile = "production"
+      demo = {
+        enabled = false
+      }
 
       secrets = {
         create = false
         existingSecret = {
-          name             = module.secrets.secret_name
-          masterKeyKey     = "LITELLM_MASTER_KEY"
-          saltKeyKey       = "LITELLM_SALT_KEY"
-          databaseUrlKey   = "DATABASE_URL"
+          name           = module.secrets.secret_name
+          masterKeyKey   = "LITELLM_MASTER_KEY"
+          saltKeyKey     = "LITELLM_SALT_KEY"
+          databaseUrlKey = "DATABASE_URL"
         }
       }
 
@@ -376,7 +392,7 @@ module "helm_release" {
       }
 
       litellm = {
-        replicaCount = var.litellm_replica_count
+        replicaCount = max(var.litellm_replica_count, 2)
         mode         = "online"
       }
 
@@ -389,8 +405,8 @@ module "helm_release" {
       }
     },
 
-    # Production-specific settings
-    var.environment == "production" ? {
+    # Production-safe defaults across the primary Azure path
+    {
       litellm = {
         replicaCount = max(var.litellm_replica_count, 2)
         resources = {
@@ -411,10 +427,10 @@ module "helm_release" {
       }
 
       autoscaling = {
-        enabled                          = var.enable_autoscaling
-        minReplicas                      = 2
-        maxReplicas                      = 10
-        targetCPUUtilizationPercentage   = 70
+        enabled                           = var.enable_autoscaling
+        minReplicas                       = 2
+        maxReplicas                       = 10
+        targetCPUUtilizationPercentage    = 70
         targetMemoryUtilizationPercentage = 80
       }
 
@@ -430,20 +446,21 @@ module "helm_release" {
       networkPolicy = {
         enabled = true
       }
-    } : {},
+    },
 
     # Ingress configuration (if enabled)
     var.ingress_enabled ? {
       ingress = {
-        enabled      = true
-        className    = var.ingress_class_name
-        annotations  = {
-          "cert-manager.io/cluster-issuer"           = "letsencrypt-prod"
-          "nginx.ingress.kubernetes.io/ssl-redirect" = "true"
+        enabled   = true
+        className = var.ingress_class_name
+        annotations = {
+          "cert-manager.io/cluster-issuer"                 = var.ingress_cluster_issuer
+          "nginx.ingress.kubernetes.io/ssl-redirect"       = "true"
+          "nginx.ingress.kubernetes.io/force-ssl-redirect" = "true"
         }
         hosts = [
           {
-            host = var.ingress_host != "" ? var.ingress_host : "${var.helm_release_name}.${var.location}.cloudapp.azure.com"
+            host = var.ingress_host
             paths = [
               {
                 path     = "/"
@@ -454,8 +471,8 @@ module "helm_release" {
         ]
         tls = [
           {
-            secretName = "${var.helm_release_name}-tls"
-            hosts      = [var.ingress_host != "" ? var.ingress_host : "${var.helm_release_name}.${var.location}.cloudapp.azure.com"]
+            secretName = var.ingress_tls_secret_name
+            hosts      = [var.ingress_host]
           }
         ]
       }
@@ -463,9 +480,9 @@ module "helm_release" {
   )
 
   # Deployment safety
-  atomic    = true
-  wait      = true
-  timeout   = 600
+  atomic          = true
+  wait            = true
+  timeout         = 600
   cleanup_on_fail = true
 
   # Use cert_auth provider for simplicity
@@ -473,5 +490,5 @@ module "helm_release" {
     helm = helm.cert_auth
   }
 
-  depends_on = [module.secrets, kubernetes_service_account.workload_identity]
+  depends_on = [terraform_data.deployment_guardrails, module.secrets, kubernetes_service_account_v1.workload_identity]
 }

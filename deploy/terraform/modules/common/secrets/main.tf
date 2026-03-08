@@ -1,10 +1,18 @@
 # Kubernetes Secret Resource
 # Creates a Kubernetes secret with configurable type and data
 
-resource "kubernetes_secret" "this" {
+terraform {
+  required_providers {
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+    }
+  }
+}
+
+resource "kubernetes_secret_v1" "this" {
   metadata {
-    name      = var.secret_name
-    namespace = var.namespace
+    name        = var.secret_name
+    namespace   = var.namespace
     labels      = var.labels
     annotations = var.annotations
   }

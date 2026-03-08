@@ -81,7 +81,7 @@ The LiteLLM proxy includes a built-in admin dashboard for managing virtual keys,
 - URL: `http://127.0.0.1:4000/ui`
 
 **Remote Mode (optional remote client):**
-- URL: `http://GATEWAY_HOST:4000/ui`
+- URL: `https://gateway.example.com/ui`
 
 **Default Credentials:**
 - Username: `admin`
@@ -98,8 +98,8 @@ In this mode, services run on a gateway host and client machines connect over th
 
 **Network Configuration:**
 - **Gateway Host** (where services run): `GATEWAY_HOST`
-  - LiteLLM Gateway: `http://GATEWAY_HOST:4000`
-  - LiteLLM WebUI (optional): `http://GATEWAY_HOST:4000/ui`
+  - LiteLLM Gateway: `https://gateway.example.com`
+  - LiteLLM WebUI (optional): `https://gateway.example.com/ui`
   - PostgreSQL: internal (not published by default; publish 5432 only if needed)
 - **Client Machine** (where AI tools run): `CLIENT_HOST`
   - Claude Code, Codex CLI, and other tools connect to the remote gateway
@@ -747,7 +747,7 @@ For complete database documentation, see [docs/DATABASE.md](../docs/DATABASE.md)
 1. **Services fail to start**: Check `docker-compose logs` for detailed error messages
 2. **Database connection errors**: Ensure the postgres service is healthy: `docker-compose ps postgres`
 3. **Authentication failures**: Verify `LITELLM_MASTER_KEY` matches between `.env` and client requests
-4. **Remote host connectivity**: Ensure firewall allows port 4000 from the client machine (Postgres 5432 only if you publish it)
+4. **Remote host connectivity**: Ensure firewall allows port 443 to the TLS gateway from the client machine (Postgres 5432 only if you intentionally publish it)
 5. **Log files growing too large**: Logs are automatically rotated by Docker. See [LOGGING.md](LOGGING.md) for details.
 
 For comprehensive troubleshooting and database-specific issues, see:

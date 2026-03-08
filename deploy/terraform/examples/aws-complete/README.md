@@ -134,10 +134,10 @@ The module provides environment-specific defaults based on the `environment` var
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `aws_region` | AWS region | `us-east-1` |
-| `environment` | Environment name | `dev` |
+| `environment` | Environment name | `production` |
 | `cluster_version` | EKS Kubernetes version | `1.29` |
-| `enable_alb` | Create Application Load Balancer | `true` |
-| `alb_enable_https` | Enable HTTPS on ALB | `false` |
+| `enable_ingress` | Create TLS-terminated ingress | `false` |
+| `public_ingress_enabled` | Expose ingress publicly | `false` |
 | `alb_certificate_arn` | ACM certificate ARN | `""` |
 | `litellm_replica_count` | Number of LiteLLM pods | `2` |
 
@@ -151,8 +151,7 @@ Outputs:
 cluster_endpoint = "https://XXXXXX.eks.amazonaws.com"
 cluster_name = "ai-control-plane-dev"
 database_endpoint = "ai-control-plane-dev.XXXXXX.us-east-1.rds.amazonaws.com:5432"
-alb_dns_name = "acp-dev-XXXXXX.us-east-1.elb.amazonaws.com"
-application_url = "http://acp-dev-XXXXXX.us-east-1.elb.amazonaws.com"
+application_url = "https://ai-control-plane.example.com"
 kubeconfig_command = "aws eks update-kubeconfig --region us-east-1 --name ai-control-plane-dev"
 ```
 
@@ -168,19 +167,18 @@ terraform output -raw litellm_salt_key
 
 ## Accessing the Application
 
-### Via ALB (if enabled)
+### Via TLS Ingress (if enabled)
 
 ```bash
-# Get the ALB DNS name
-export APP_URL=$(terraform output -raw alb_dns_name)
-curl http://$APP_URL/health
+export APP_URL=$(terraform output -raw application_url)
+curl -H "Authorization: Bearer $(terraform output -raw litellm_master_key)" "$APP_URL/health"
 ```
 
 ### Via Port Forwarding
 
 ```bash
 kubectl port-forward svc/acp-litellm 4000:4000 -n acp
-# Access at http://localhost:4000
+# Access at http://localhost:4000 (localhost-only troubleshooting path)
 ```
 
 ## Security Considerations
@@ -190,14 +188,15 @@ kubectl port-forward svc/acp-litellm 4000:4000 -n acp
 - **Master Key**: Used for LiteLLM admin API authentication
 - **Salt Key**: Used for encryption - **NEVER CHANGE** after initial deployment
 - **Database Password**: Auto-generated and stored in Kubernetes secrets
+- **Application Keys**: Must be supplied explicitly in `terraform.tfvars`
 
 ### IRSA (IAM Roles for Service Accounts)
 
 The deployment creates an IAM role linked to the Kubernetes service account:
 
 - Allows pods to assume AWS permissions without access keys
-- Current permissions: Secrets Manager, CloudWatch Logs
-- Customize in `main.tf` under `module.irsa.policy_statements`
+- Default permissions: none
+- Add scoped permissions through `var.irsa_policy_statements` only when the workload must call AWS APIs
 
 ### Network Security
 

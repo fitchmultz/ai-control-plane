@@ -11,8 +11,8 @@ resource_group_name = "rg-ai-control-plane-dev"
 # Azure region for deployment
 location = "East US"
 
-# Environment tag (dev, staging, production)
-environment = "dev"
+# Environment tag (production is the supported primary deployment baseline)
+environment = "production"
 
 # Prefix for resource naming
 name_prefix = "aicp"
@@ -107,11 +107,14 @@ cluster_name = "ai-control-plane"
 # Backup retention days
 # postgresql_backup_retention_days = 7
 
-# Geo-redundant backup (recommended for production)
-# postgresql_geo_redundant_backup_enabled = false
+# Geo-redundant backup
+# postgresql_geo_redundant_backup_enabled = true
 
-# High availability (recommended for production)
-# postgresql_high_availability_enabled = false
+# High availability
+# postgresql_high_availability_enabled = true
+
+# Log Analytics workspace resource ID (required for Defender/OMS)
+# log_analytics_workspace_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace>"
 
 #------------------------------------------------------------------------------
 # Helm Chart Configuration
@@ -126,26 +129,30 @@ cluster_name = "ai-control-plane"
 # Path to Helm chart (relative to this directory)
 # helm_chart_path = "../../../helm/ai-control-plane"
 
-# LiteLLM master key (leave empty to auto-generate)
-# litellm_master_key = ""
+# LiteLLM master key (required)
+# litellm_master_key = "replace-with-32-character-minimum-master-key"
 
-# LiteLLM salt key (leave empty to auto-generate)
-# litellm_salt_key = ""
+# LiteLLM salt key (required)
+# litellm_salt_key = "replace-with-32-character-minimum-salt-key"
 
 # Number of LiteLLM replicas
-litellm_replica_count = 1
+litellm_replica_count = 2
 
-# Enable ingress for external access
+# Enable ingress for external access after DNS and cert-manager are ready
 # ingress_enabled = false
 
-# Ingress hostname (leave empty for auto-generated)
+# Ingress hostname
 # ingress_host = "ai-control-plane.example.com"
 
 # Ingress class name
 # ingress_class_name = "nginx"
 
-# Enable autoscaling (recommended for production)
-# enable_autoscaling = false
+# TLS secret and cert-manager issuer (required if ingress_enabled = true)
+# ingress_tls_secret_name = "ai-control-plane-tls"
+# ingress_cluster_issuer = "letsencrypt-prod"
+
+# Enable autoscaling
+# enable_autoscaling = true
 
 #------------------------------------------------------------------------------
 # Production Configuration Example

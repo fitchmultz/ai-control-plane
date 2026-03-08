@@ -132,7 +132,7 @@ kubectl get nodes
 # Port-forward to access locally
 kubectl port-forward svc/acp-litellm 4000:4000 -n acp
 
-# Access at http://localhost:4000
+# Access remains localhost-only when port-forwarding; use TLS ingress for shared access
 ```
 
 ## Configuration
@@ -162,6 +162,8 @@ enable_autoscaling = true
 ingress_enabled = true
 ingress_host = "ai-control-plane.yourcompany.com"
 ingress_class_name = "nginx"
+ingress_tls_secret_name = "ai-control-plane-tls"
+ingress_cluster_issuer = "letsencrypt-prod"
 ```
 
 Production will automatically:

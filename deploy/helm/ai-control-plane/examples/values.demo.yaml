@@ -1,0 +1,46 @@
+# Demo Values for AI Control Plane Helm Chart
+#
+# Purpose: Explicitly named demo-only configuration with embedded PostgreSQL.
+# Usage:
+#   helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp \
+#     -f ./deploy/helm/ai-control-plane/examples/values.demo.yaml
+#
+# IMPORTANT: This file opts into insecure demo behavior on purpose.
+
+profile: demo
+
+demo:
+  enabled: true
+
+litellm:
+  replicaCount: 1
+
+secrets:
+  create: true
+  litellm:
+    masterKey: "sk-demo-master-key-123456789012345678901234567890"
+    saltKey: "sk-demo-salt-key-12345678901234567890123456789012"
+
+postgres:
+  enabled: true
+  auth:
+    username: litellm
+    password: "litellm-demo-password"
+    database: litellm
+  persistence:
+    size: 5Gi
+
+externalDatabase:
+  existingSecret: ai-control-plane-secrets
+
+podDisruptionBudget:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+ingress:
+  enabled: false
