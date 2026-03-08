@@ -30,6 +30,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/doctor"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
 )
@@ -105,15 +106,20 @@ func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stder
 		return exitcodes.ACPExitRuntime
 	}
 	gatewayRuntime := config.NewLoader().Gateway(true)
+	inspector := runtimeinspect.NewInspector(repoRoot)
+	defer inspector.Close()
+	runtimeCtx, runtimeCancel := context.WithTimeout(ctx, 30*time.Second)
+	runtimeReport := inspector.Collect(runtimeCtx, status.Options{RepoRoot: repoRoot, Wide: wide})
+	runtimeCancel()
 
 	opts := doctor.Options{
 		RepoRoot:      repoRoot,
-		GatewayHost:   gatewayRuntime.Host,
-		GatewayPort:   gatewayRuntime.Port,
+		Gateway:       gatewayRuntime,
 		RequiredPorts: config.RequiredPorts(),
 		SkipChecks:    skipChecks,
 		Fix:           fix,
 		Wide:          wide,
+		RuntimeReport: &runtimeReport,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)

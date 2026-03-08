@@ -31,12 +31,12 @@ import (
 
 // DatabaseCollector checks PostgreSQL connectivity and metrics.
 type DatabaseCollector struct {
-	client *db.Client
+	runtime db.RuntimeServiceReader
 }
 
 // NewDatabaseCollector creates a new database collector.
-func NewDatabaseCollector(client *db.Client) DatabaseCollector {
-	return DatabaseCollector{client: client}
+func NewDatabaseCollector(runtime db.RuntimeServiceReader) DatabaseCollector {
+	return DatabaseCollector{runtime: runtime}
 }
 
 // Name returns the collector's domain name.
@@ -46,7 +46,7 @@ func (c DatabaseCollector) Name() string {
 
 // Collect gathers database status information.
 func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
-	summary, err := c.client.Summary(ctx)
+	summary, err := c.runtime.Summary(ctx)
 	details := status.ComponentDetails{
 		Mode:           summary.Mode.String(),
 		DatabaseName:   summary.DatabaseName,
@@ -61,7 +61,7 @@ func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
 		details.Error = summary.Ping.Error
 	}
 
-	if c.client.ConfigError() != nil {
+	if c.runtime.ConfigError() != nil {
 		return status.ComponentStatus{
 			Name:    c.Name(),
 			Level:   status.HealthLevelUnhealthy,

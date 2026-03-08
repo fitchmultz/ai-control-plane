@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
@@ -88,6 +89,28 @@ func DetectCompose() (*Compose, error) {
 // NewCompose creates a new Compose instance with the given project directory
 func NewCompose(projectDir string) (*Compose, error) {
 	return NewComposeWithOptions(projectDir, ComposeOptions{})
+}
+
+// NewACPCompose creates a compose instance using ACP slot-aware project defaults.
+func NewACPCompose(repoRoot string, files []string) (*Compose, error) {
+	loader := config.NewLoader().WithRepoRoot(repoRoot)
+	tooling := loader.Tooling()
+	projectName := strings.TrimSpace(tooling.ComposeProject)
+	if projectName == "" {
+		slot := strings.TrimSpace(tooling.Slot)
+		if slot == "" {
+			slot = "active"
+		}
+		projectName = "ai-control-plane-" + slot
+	}
+	resolvedFiles := append([]string(nil), files...)
+	if len(resolvedFiles) == 0 && strings.EqualFold(strings.TrimSpace(tooling.Slot), "ci-runtime") {
+		resolvedFiles = []string{"docker-compose.offline.yml"}
+	}
+	return NewComposeWithOptions(DefaultProjectDir(repoRoot), ComposeOptions{
+		ProjectName: projectName,
+		Files:       resolvedFiles,
+	})
 }
 
 // NewComposeWithOptions creates a new Compose instance with explicit project/file options.

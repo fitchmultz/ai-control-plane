@@ -237,9 +237,14 @@ func bindChargebackPayloadOptions(_ commandBindContext, input parsedCommandInput
 
 func runChargebackReportCommand(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(chargebackReportOptions)
-	client := db.NewClient(runCtx.RepoRoot)
-	defer func() { _ = client.Close() }()
-	if err := client.ConfigError(); err != nil {
+	connector := db.NewConnector(runCtx.RepoRoot)
+	defer func() { _ = connector.Close() }()
+	if err := connector.ConfigError(); err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitUsage
+	}
+	reader, err := db.NewChargebackReader(connector)
+	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
@@ -247,7 +252,7 @@ func runChargebackReportCommand(ctx context.Context, runCtx commandRunContext, r
 	if opts.Verbose {
 		fmt.Fprintln(runCtx.Stderr, "INFO: Generating typed chargeback report")
 	}
-	result, err := chargeback.GenerateReport(ctx, chargeback.NewDBStore(client), chargeback.ReportOptions{
+	result, err := chargeback.GenerateReport(ctx, chargeback.NewDBStore(reader), chargeback.ReportOptions{
 		ReportMonth:          opts.ReportMonth,
 		Format:               opts.Format,
 		ArchiveDir:           opts.ArchiveDir,

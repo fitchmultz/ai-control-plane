@@ -30,13 +30,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
-	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
+	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
-	"github.com/mitchfultz/ai-control-plane/internal/status/collectors"
 )
 
 const healthCommandTimeout = 30 * time.Second
@@ -69,19 +67,12 @@ func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stder
 		return exitcodes.ACPExitRuntime
 	}
 
-	dbClient := db.NewClient(repoRoot)
-	defer dbClient.Close()
-	gatewayClient := gateway.NewClient()
+	inspector := runtimeinspect.NewInspector(repoRoot)
+	defer inspector.Close()
 
 	ctx, cancel := context.WithTimeout(ctx, healthCommandTimeout)
 	defer cancel()
-	report := status.CollectAll(ctx, []status.Collector{
-		collectors.NewGatewayCollector(gatewayClient),
-		collectors.NewDatabaseCollector(dbClient),
-		collectors.NewKeysCollector(dbClient),
-		collectors.NewBudgetCollector(dbClient),
-		collectors.NewDetectionsCollector(repoRoot, dbClient),
-	}, status.Options{RepoRoot: repoRoot, Wide: verbose})
+	report := inspector.Collect(ctx, status.Options{RepoRoot: repoRoot, Wide: verbose})
 	if err := report.WriteHuman(stdout, verbose); err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to render health output: %v\n"), err)
 		return exitcodes.ACPExitRuntime

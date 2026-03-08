@@ -84,25 +84,27 @@ func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, std
 		return exitcodes.ACPExitPrereq
 	}
 
-	dbClient := db.NewClient(repoRoot)
-	defer dbClient.Close()
-	if dbClient.IsExternal() {
-		fmt.Fprintln(stderr, out.Fail("Backup not supported for external database mode"))
+	connector := db.NewConnector(repoRoot)
+	defer connector.Close()
+	runtimeService := db.NewRuntimeService(connector)
+	adminService, err := db.NewAdminService(connector)
+	if err != nil {
+		fmt.Fprintln(stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
 	fmt.Fprintln(stdout, out.Bold("=== Database Backup ==="))
-	fmt.Fprintf(stdout, "Backing up database: %s\n", dbClient.Mode())
+	fmt.Fprintf(stdout, "Backing up database: %s\n", connector.Mode())
 	fmt.Fprintf(stdout, "Backup file: %s\n", backupFile)
 
 	// Check database is accessible
-	if !dbClient.IsAccessible(ctx) {
+	if !runtimeService.IsAccessible(ctx) {
 		fmt.Fprintln(stderr, out.Fail("PostgreSQL is not accepting connections"))
 		return exitcodes.ACPExitPrereq
 	}
 
 	// Perform backup
-	sql, err := dbClient.Backup(ctx)
+	sql, err := adminService.Backup(ctx)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Backup failed: %v\n"), err)
 		return exitcodes.ACPExitDomain
@@ -202,10 +204,12 @@ func runDBRestoreCommand(ctx context.Context, args []string, stdout *os.File, st
 		return exitcodes.ACPExitPrereq
 	}
 
-	dbClient := db.NewClient(repoRoot)
-	defer dbClient.Close()
-	if dbClient.IsExternal() {
-		fmt.Fprintln(stderr, out.Fail("Restore not supported for external database mode"))
+	connector := db.NewConnector(repoRoot)
+	defer connector.Close()
+	runtimeService := db.NewRuntimeService(connector)
+	adminService, err := db.NewAdminService(connector)
+	if err != nil {
+		fmt.Fprintln(stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
@@ -214,12 +218,12 @@ func runDBRestoreCommand(ctx context.Context, args []string, stdout *os.File, st
 	fmt.Fprintln(stdout, "WARNING: This will overwrite the current database!")
 
 	// Check database is accessible
-	if !dbClient.IsAccessible(ctx) {
+	if !runtimeService.IsAccessible(ctx) {
 		fmt.Fprintln(stderr, out.Fail("PostgreSQL is not accepting connections"))
 		return exitcodes.ACPExitPrereq
 	}
 
-	if err := dbClient.Restore(ctx, gzipReader); err != nil {
+	if err := adminService.Restore(ctx, gzipReader); err != nil {
 		fmt.Fprintf(stderr, out.Fail("Restore failed: %v\n"), err)
 		return exitcodes.ACPExitDomain
 	}

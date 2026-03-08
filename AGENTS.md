@@ -87,11 +87,13 @@ make health      # Verify services
 - **Canonical subprocess execution:** Operator-facing subprocesses should use `internal/proc` with caller context propagation and bounded deadlines; avoid bare `exec.Command` in CLI/internal execution paths
 - **Canonical deployment scan scope:** `internal/policy` owns recursive deployment/config surface traversal plus shared target/YAML helpers; expand scope there and reuse those helpers from `internal/security` and `internal/validation` instead of reimplementing walkers or YAML access
 - **Runtime health contract:** route gateway and database health through the typed `internal/gateway` and `internal/db` services, then adapt operator output in `internal/status` / `internal/doctor`; do not reintroduce collector-local HTTP probes or `docker exec psql` helpers
+- **Runtime inspection ownership:** `internal/runtimeinspect` composes shared runtime inspection for `status`, `health`, `doctor`, and `ci wait`; extend readiness/collector wiring there instead of rebuilding per-command polling or interpretation
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
 - **acpctl command platform:** `cmd/acpctl/command_spec.go` owns parsing/help/completion/dispatch; `cmd/acpctl/command_registry.go` only composes per-domain command specs into the root tree
 - **Config ownership:** `internal/config` is the only Go package that may touch process env or repo-local `.env`; other packages must consume typed config from it
+- **Database service boundaries:** `internal/db` is split by responsibility: connector/runtime discovery, readonly metrics/reporting readers, and admin backup/restore workflows; do not reintroduce generic raw SQL execution on operator-facing surfaces
 - **Validation/security ownership:** canonical deployment/config scan scope lives in `internal/policy`; structural validators live in `internal/validation`; security policy enforcement lives in `internal/security`
 - **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/release/readiness_plan.go` materializes it
 - **Artifact-run ownership:** generated readiness and closeout runs must use the shared `internal/release` artifact-run helpers for inventories, latest pointers, and run-directory verification; avoid bespoke run-dir lifecycle code

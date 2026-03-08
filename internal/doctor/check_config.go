@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -52,7 +53,8 @@ func (c configValidCheck) Run(ctx context.Context, opts Options) CheckResult {
 			Details: status.ComponentDetails{MissingFiles: missingFiles},
 		}
 	}
-	if _, err := os.Stat(filepath.Join(opts.RepoRoot, "demo", ".env")); err != nil {
+	envStatus, err := config.NewLoader().WithRepoRoot(opts.RepoRoot).RepoEnvStatus(ctx)
+	if err != nil || !envStatus.Exists {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Config Valid",

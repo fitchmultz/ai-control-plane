@@ -29,11 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
-	"github.com/mitchfultz/ai-control-plane/internal/gateway"
+	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
-	"github.com/mitchfultz/ai-control-plane/internal/status/collectors"
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
 )
 
@@ -113,35 +111,26 @@ func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stder
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
 	}
-	dbClient := db.NewClient(repoRoot)
-	defer dbClient.Close()
-	gatewayClient := gateway.NewClient()
+	inspector := runtimeinspect.NewInspector(repoRoot)
+	defer inspector.Close()
 
 	opts := status.Options{
 		RepoRoot: repoRoot,
 		Wide:     wide,
 	}
 
-	collectorsList := []status.Collector{
-		collectors.NewGatewayCollector(gatewayClient),
-		collectors.NewDatabaseCollector(dbClient),
-		collectors.NewKeysCollector(dbClient),
-		collectors.NewBudgetCollector(dbClient),
-		collectors.NewDetectionsCollector(repoRoot, dbClient),
-	}
-
 	if !watchMode {
-		return runStatusOnce(ctx, stdout, stderr, collectorsList, opts, jsonOutput, wide)
+		return runStatusOnce(ctx, stdout, stderr, inspector, opts, jsonOutput, wide)
 	}
 
-	return runStatusWatch(ctx, stdout, stderr, collectorsList, opts, jsonOutput, wide, watchInterval)
+	return runStatusWatch(ctx, stdout, stderr, inspector, opts, jsonOutput, wide, watchInterval)
 }
 
-func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, collectorsList []status.Collector, opts status.Options, jsonOutput bool, wide bool) int {
+func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspector *runtimeinspect.Inspector, opts status.Options, jsonOutput bool, wide bool) int {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	report := status.CollectAll(ctx, collectorsList, opts)
+	report := inspector.Collect(ctx, opts)
 
 	if jsonOutput {
 		if err := report.WriteJSON(stdout); err != nil {
@@ -165,7 +154,7 @@ func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, collec
 	}
 }
 
-func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, collectorsList []status.Collector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
+func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspector *runtimeinspect.Inspector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
@@ -191,7 +180,7 @@ func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, colle
 
 		// Create timeout context that also respects signal cancellation
 		collectCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		report := status.CollectAll(collectCtx, collectorsList, opts)
+		report := inspector.Collect(collectCtx, opts)
 		cancel()
 
 		// Check if context was cancelled during collection

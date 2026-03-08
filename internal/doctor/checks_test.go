@@ -23,17 +23,14 @@ package doctor
 
 import (
 	"context"
-	"fmt"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -152,29 +149,21 @@ func TestPortsFreeCheck_WithOccupiedPort(t *testing.T) {
 
 func TestOccupiedPortsBelongToRunningACP(t *testing.T) {
 	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/health" {
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	hostPort := strings.TrimPrefix(server.URL, "http://")
-	host, portString, err := net.SplitHostPort(hostPort)
-	if err != nil {
-		t.Fatalf("failed to parse test server URL: %v", err)
-	}
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		t.Fatalf("failed to parse gateway port: %v", err)
-	}
+	port, release := reserveLocalPort(t)
+	defer release()
 
 	opts := Options{
-		GatewayHost: host,
-		GatewayPort: portString,
+		Gateway: config.GatewaySettings{Host: "127.0.0.1", PortInt: port},
+		RuntimeReport: &status.StatusReport{
+			Components: map[string]status.ComponentStatus{
+				"gateway": {
+					Name:    "gateway",
+					Level:   status.HealthLevelHealthy,
+					Message: "Gateway is responding",
+					Details: status.ComponentDetails{HealthReachable: true},
+				},
+			},
+		},
 	}
 
 	if !occupiedPortsBelongToRunningACP(context.Background(), []int{port}, opts) {
@@ -193,14 +182,14 @@ func TestIsPortOccupied(t *testing.T) {
 	// Reserve and release an ephemeral local port to ensure a deterministic free port.
 	freePort, release := reserveLocalPort(t)
 	release()
-	if isPortOccupied(ctx, freePort) {
+	if isPortOccupied(ctx, "127.0.0.1", freePort) {
 		t.Errorf("expected port %d to be free", freePort)
 	}
 
 	// Test with an occupied port
 	occupiedPort, releaseOccupied := reserveLocalPort(t)
 	defer releaseOccupied()
-	if !isPortOccupied(ctx, occupiedPort) {
+	if !isPortOccupied(ctx, "127.0.0.1", occupiedPort) {
 		t.Errorf("expected port %d to be occupied", occupiedPort)
 	}
 }
@@ -343,48 +332,6 @@ func TestEnvVarsSetCheck_Fix_AlreadyExists(t *testing.T) {
 	}
 }
 
-func TestLoadEnvFromFile(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	envPath := filepath.Join(tmpDir, ".env")
-
-	content := `LITELLM_MASTER_KEY=sk-test123
-LITELLM_SALT_KEY=salt456
-# Comment line
-DATABASE_URL=postgresql://localhost
-`
-	if err := os.WriteFile(envPath, []byte(content), 0644); err != nil {
-		t.Fatalf("failed to write env file: %v", err)
-	}
-
-	tests := []struct {
-		key      string
-		expected string
-	}{
-		{"LITELLM_MASTER_KEY", "sk-test123"},
-		{"LITELLM_SALT_KEY", "salt456"},
-		{"DATABASE_URL", "postgresql://localhost"},
-		{"MISSING_KEY", ""},
-	}
-
-	for _, tt := range tests {
-		result := loadEnvFromFile(envPath, tt.key)
-		if result != tt.expected {
-			t.Errorf("loadEnvFromFile(%s) = %q, want %q", tt.key, result, tt.expected)
-		}
-	}
-}
-
-func TestLoadEnvFromFile_NotFound(t *testing.T) {
-	t.Parallel()
-
-	result := loadEnvFromFile("/nonexistent/path/.env", "KEY")
-	if result != "" {
-		t.Errorf("expected empty string for missing file, got %q", result)
-	}
-}
-
 func TestGatewayHealthyCheck_ID(t *testing.T) {
 	t.Parallel()
 	check := gatewayHealthyCheck{}
@@ -394,15 +341,19 @@ func TestGatewayHealthyCheck_ID(t *testing.T) {
 }
 
 func TestGatewayHealthyCheck_Run_MissingMasterKey(t *testing.T) {
-	// Not parallel: modifies global environment state
-	oldKey := os.Getenv("LITELLM_MASTER_KEY")
-	defer os.Setenv("LITELLM_MASTER_KEY", oldKey)
-	os.Unsetenv("LITELLM_MASTER_KEY")
-
 	check := gatewayHealthyCheck{}
 	ctx := context.Background()
 	opts := Options{
-		RepoRoot: t.TempDir(),
+		RuntimeReport: &status.StatusReport{
+			Components: map[string]status.ComponentStatus{
+				"gateway": {
+					Name:    "gateway",
+					Level:   status.HealthLevelWarning,
+					Message: "LITELLM_MASTER_KEY not set; authorized gateway checks skipped",
+					Details: status.ComponentDetails{MasterKeyConfigured: false},
+				},
+			},
+		},
 	}
 
 	result := check.Run(ctx, opts)
@@ -418,25 +369,25 @@ func TestGatewayHealthyCheck_Run_MissingMasterKey(t *testing.T) {
 }
 
 func TestGatewayHealthyCheck_Run_Authorized(t *testing.T) {
-	// Not parallel: modifies global environment state
-	oldKey := os.Getenv("LITELLM_MASTER_KEY")
-	defer os.Setenv("LITELLM_MASTER_KEY", oldKey)
-	os.Setenv("LITELLM_MASTER_KEY", "doctor-test-key")
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer doctor-test-key" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
 	check := gatewayHealthyCheck{}
 	ctx := context.Background()
 	opts := Options{
-		GatewayHost: server.Listener.Addr().(*net.TCPAddr).IP.String(),
-		GatewayPort: fmt.Sprintf("%d", server.Listener.Addr().(*net.TCPAddr).Port),
+		RuntimeReport: &status.StatusReport{
+			Components: map[string]status.ComponentStatus{
+				"gateway": {
+					Name:    "gateway",
+					Level:   status.HealthLevelHealthy,
+					Message: "Gateway is responding",
+					Details: status.ComponentDetails{
+						MasterKeyConfigured: true,
+						HealthReachable:     true,
+						ModelsReachable:     true,
+						ModelsAuthorized:    true,
+						ModelsHTTPStatus:    200,
+					},
+				},
+			},
+		},
 	}
 
 	result := check.Run(ctx, opts)
@@ -537,20 +488,19 @@ func TestCredentialsValidCheck_ID(t *testing.T) {
 }
 
 func TestCredentialsValidCheck_Run_MissingKey(t *testing.T) {
-	// Note: Not running in parallel due to environment manipulation
-
-	// Clear the environment variable
-	oldKey := os.Getenv("LITELLM_MASTER_KEY")
-	defer os.Setenv("LITELLM_MASTER_KEY", oldKey)
-	os.Unsetenv("LITELLM_MASTER_KEY")
-
-	// Create a temp directory with no .env file to ensure key is truly missing
-	tmpDir := t.TempDir()
-
 	check := credentialsValidCheck{}
 	ctx := context.Background()
 	opts := Options{
-		RepoRoot: tmpDir,
+		RuntimeReport: &status.StatusReport{
+			Components: map[string]status.ComponentStatus{
+				"gateway": {
+					Name:    "gateway",
+					Level:   status.HealthLevelWarning,
+					Message: "LITELLM_MASTER_KEY not set; authorized gateway checks skipped",
+					Details: status.ComponentDetails{MasterKeyConfigured: false},
+				},
+			},
+		},
 	}
 
 	result := check.Run(ctx, opts)

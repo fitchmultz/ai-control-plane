@@ -57,3 +57,5 @@ bin/
 .DS_Store
 **/__pycache__/
 CLAUDE.md
+
+.scratchpad.md

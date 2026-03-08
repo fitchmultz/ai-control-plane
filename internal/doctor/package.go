@@ -34,6 +34,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -75,12 +76,12 @@ type Check interface {
 // Options configures diagnostic check behavior.
 type Options struct {
 	RepoRoot      string
-	GatewayHost   string
-	GatewayPort   string
+	Gateway       config.GatewaySettings
 	RequiredPorts []int
 	SkipChecks    map[string]struct{}
 	Fix           bool
 	Wide          bool
+	RuntimeReport *status.StatusReport
 }
 
 // Report aggregates all check results.
