@@ -20,6 +20,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -27,10 +29,13 @@ import (
 
 // GatewaySettings describes the effective gateway endpoint and auth context.
 type GatewaySettings struct {
-	Host      string
-	Port      string
-	PortInt   int
-	MasterKey string
+	Scheme     string
+	Host       string
+	Port       string
+	PortInt    int
+	BaseURL    string
+	TLSEnabled bool
+	MasterKey  string
 }
 
 // ToolingSettings describes process-level command/tooling overrides.
@@ -48,6 +53,19 @@ type ToolingSettings struct {
 
 // Gateway returns gateway settings, optionally allowing repo-local key fallback.
 func (l *Loader) Gateway(includeRepoFallback bool) GatewaySettings {
+	resolve := l.String
+	if includeRepoFallback {
+		resolve = l.RepoAwareString
+	}
+
+	explicitURL := firstNonEmpty(resolve("ACP_GATEWAY_URL"), resolve("GATEWAY_URL"))
+	if strings.TrimSpace(explicitURL) != "" {
+		if settings, ok := parseGatewayURL(explicitURL); ok {
+			settings.MasterKey = strings.TrimSpace(resolve("LITELLM_MASTER_KEY"))
+			return settings
+		}
+	}
+
 	host := l.StringDefault("GATEWAY_HOST", DefaultGatewayHost)
 	portString := l.StringDefault("LITELLM_PORT", strconv.Itoa(DefaultLiteLLMPort))
 	port, err := strconv.Atoi(portString)
@@ -55,15 +73,16 @@ func (l *Loader) Gateway(includeRepoFallback bool) GatewaySettings {
 		port = DefaultLiteLLMPort
 		portString = strconv.Itoa(DefaultLiteLLMPort)
 	}
-	masterKey := l.String("LITELLM_MASTER_KEY")
-	if includeRepoFallback && masterKey == "" {
-		masterKey = l.RepoAwareString("LITELLM_MASTER_KEY")
-	}
+	scheme := normalizeGatewayScheme(resolve("ACP_GATEWAY_SCHEME"), resolve("GATEWAY_SCHEME"), resolve("ACP_GATEWAY_TLS"))
+	masterKey := strings.TrimSpace(resolve("LITELLM_MASTER_KEY"))
 	return GatewaySettings{
-		Host:      host,
-		Port:      portString,
-		PortInt:   port,
-		MasterKey: masterKey,
+		Scheme:     scheme,
+		Host:       host,
+		Port:       portString,
+		PortInt:    port,
+		BaseURL:    buildGatewayBaseURL(scheme, host, portString),
+		TLSEnabled: scheme == "https",
+		MasterKey:  masterKey,
 	}
 }
 
@@ -115,4 +134,73 @@ func nullableFloat(raw string) *float64 {
 // ChargebackTimestamp returns the configured timestamp or a deterministic fallback.
 func (l *Loader) ChargebackTimestamp(now time.Time) string {
 	return l.StringDefault("CHARGEBACK_PAYLOAD_TIMESTAMP", now.UTC().Format(time.RFC3339))
+}
+
+func normalizeGatewayScheme(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(strings.ToLower(value))
+		switch trimmed {
+		case "https", "tls", "true", "1", "yes", "on":
+			return "https"
+		case "http", "false", "0", "no", "off":
+			return "http"
+		}
+	}
+	return "http"
+}
+
+func parseGatewayURL(raw string) (GatewaySettings, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return GatewaySettings{}, false
+	}
+	portString := parsed.Port()
+	port := defaultPortForScheme(parsed.Scheme)
+	if portString != "" {
+		parsedPort, convErr := strconv.Atoi(portString)
+		if convErr != nil || parsedPort <= 0 {
+			return GatewaySettings{}, false
+		}
+		port = parsedPort
+	} else {
+		portString = strconv.Itoa(port)
+	}
+	baseURL := strings.TrimSuffix((&url.URL{
+		Scheme: parsed.Scheme,
+		Host:   parsed.Host,
+	}).String(), "/")
+	return GatewaySettings{
+		Scheme:     parsed.Scheme,
+		Host:       parsed.Hostname(),
+		Port:       portString,
+		PortInt:    port,
+		BaseURL:    baseURL,
+		TLSEnabled: strings.EqualFold(parsed.Scheme, "https"),
+	}, true
+}
+
+func buildGatewayBaseURL(scheme string, host string, port string) string {
+	trimmedScheme := normalizeGatewayScheme(scheme)
+	trimmedHost := strings.TrimSpace(host)
+	trimmedPort := strings.TrimSpace(port)
+	if trimmedPort == "" {
+		return fmt.Sprintf("%s://%s", trimmedScheme, trimmedHost)
+	}
+	return fmt.Sprintf("%s://%s:%s", trimmedScheme, trimmedHost, trimmedPort)
+}
+
+func defaultPortForScheme(scheme string) int {
+	if strings.EqualFold(strings.TrimSpace(scheme), "https") {
+		return 443
+	}
+	return DefaultLiteLLMPort
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

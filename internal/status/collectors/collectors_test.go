@@ -71,7 +71,8 @@ func TestDatabaseCollectorAmbiguousConfig(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/db?sslmode=disable&connect_timeout=1")
 	t.Setenv("ACP_DATABASE_MODE", "")
 
-	collector := NewDatabaseCollector(db.NewClient(""))
+	connector := db.NewConnector("")
+	collector := NewDatabaseCollector(db.NewRuntimeService(connector))
 	result := collector.Collect(context.Background())
 	if result.Level != status.HealthLevelUnhealthy {
 		t.Fatalf("expected unhealthy database status, got %s", result.Level)
@@ -82,7 +83,8 @@ func TestKeysCollectorQueryFailureBecomesWarning(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/db?sslmode=disable&connect_timeout=1")
 	t.Setenv("ACP_DATABASE_MODE", "external")
 
-	collector := NewKeysCollector(db.NewClient(""))
+	connector := db.NewConnector("")
+	collector := NewKeysCollector(db.NewReadonlyService(connector))
 	result := collector.Collect(context.Background())
 	if result.Level != status.HealthLevelWarning {
 		t.Fatalf("expected warning keys status, got %s", result.Level)
@@ -93,7 +95,8 @@ func TestBudgetCollectorQueryFailureBecomesWarning(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/db?sslmode=disable&connect_timeout=1")
 	t.Setenv("ACP_DATABASE_MODE", "external")
 
-	collector := NewBudgetCollector(db.NewClient(""))
+	connector := db.NewConnector("")
+	collector := NewBudgetCollector(db.NewReadonlyService(connector))
 	result := collector.Collect(context.Background())
 	if result.Level != status.HealthLevelWarning {
 		t.Fatalf("expected warning budget status, got %s", result.Level)
@@ -101,7 +104,8 @@ func TestBudgetCollectorQueryFailureBecomesWarning(t *testing.T) {
 }
 
 func TestDetectionsCollectorMissingConfig(t *testing.T) {
-	collector := NewDetectionsCollector(t.TempDir(), db.NewClient(""))
+	connector := db.NewConnector("")
+	collector := NewDetectionsCollector(t.TempDir(), db.NewReadonlyService(connector))
 	result := collector.Collect(context.Background())
 	if result.Level != status.HealthLevelUnknown {
 		t.Fatalf("expected unknown detections status, got %s", result.Level)

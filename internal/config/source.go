@@ -75,6 +75,19 @@ func NewTestLoader(processValues map[string]string, repoRoot string, repoValues 
 	}
 }
 
+// WithRepoRoot clones the loader with an explicit repository root override.
+func (l *Loader) WithRepoRoot(repoRoot string) *Loader {
+	if l == nil {
+		l = NewLoader()
+	}
+	clone := *l
+	clone.repoRoot = strings.TrimSpace(repoRoot)
+	clone.repoRootLoaded = clone.repoRoot != ""
+	clone.repoRootErr = nil
+	clone.repoFile = nil
+	return &clone
+}
+
 type staticSource map[string]string
 
 func (s staticSource) Lookup(key string) (string, bool, error) {
@@ -242,10 +255,4 @@ func (l *Loader) RequireRepoRoot(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("resolve repo root: empty path")
 	}
 	return repoRoot, nil
-}
-
-// LookupEnvFile reads one key from an explicit env file path.
-func LookupEnvFile(path string, key string) (string, bool, error) {
-	value, ok, err := envfile.LookupFile(path, key)
-	return strings.TrimSpace(value), ok, err
 }

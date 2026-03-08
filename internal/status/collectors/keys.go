@@ -32,12 +32,12 @@ import (
 
 // KeysCollector checks virtual key counts and status.
 type KeysCollector struct {
-	client *db.Client
+	reader db.ReadonlyServiceReader
 }
 
 // NewKeysCollector creates a new keys collector.
-func NewKeysCollector(client *db.Client) KeysCollector {
-	return KeysCollector{client: client}
+func NewKeysCollector(reader db.ReadonlyServiceReader) KeysCollector {
+	return KeysCollector{reader: reader}
 }
 
 // Name returns the collector's domain name.
@@ -47,7 +47,7 @@ func (c KeysCollector) Name() string {
 
 // Collect gathers virtual key status information.
 func (c KeysCollector) Collect(ctx context.Context) status.ComponentStatus {
-	summary, err := c.client.KeySummary(ctx)
+	summary, err := c.reader.KeySummary(ctx)
 	details := status.ComponentDetails{
 		TotalKeys:   summary.Total,
 		ActiveKeys:  summary.Active,

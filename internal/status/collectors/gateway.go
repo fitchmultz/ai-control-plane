@@ -32,12 +32,12 @@ import (
 
 // GatewayCollector checks LiteLLM gateway health.
 type GatewayCollector struct {
-	client *gateway.Client
+	reader gateway.StatusReader
 }
 
 // NewGatewayCollector creates a typed gateway collector.
-func NewGatewayCollector(client *gateway.Client) GatewayCollector {
-	return GatewayCollector{client: client}
+func NewGatewayCollector(reader gateway.StatusReader) GatewayCollector {
+	return GatewayCollector{reader: reader}
 }
 
 // Name returns the collector's domain name.
@@ -47,12 +47,18 @@ func (c GatewayCollector) Name() string {
 
 // Collect gathers status information from the LiteLLM gateway.
 func (c GatewayCollector) Collect(ctx context.Context) status.ComponentStatus {
-	state := c.client.Status(ctx)
+	state := c.reader.Status(ctx)
 	details := status.ComponentDetails{
+		Scheme:              state.Scheme,
 		BaseURL:             state.BaseURL,
+		TLSEnabled:          state.TLSEnabled,
 		MasterKeyConfigured: state.MasterKeyConfigured,
 		HTTPStatus:          state.Health.HTTPStatus,
 		ModelsHTTPStatus:    state.Models.HTTPStatus,
+		HealthReachable:     state.Health.Reachable,
+		ModelsReachable:     state.Models.Reachable,
+		HealthAuthorized:    state.Health.Authorized,
+		ModelsAuthorized:    state.Models.Authorized,
 		Reachable:           state.Health.Reachable || state.Models.Reachable,
 		Authorized:          state.Health.Authorized && state.Models.Authorized,
 	}

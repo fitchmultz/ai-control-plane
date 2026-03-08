@@ -34,17 +34,22 @@ type credentialsValidCheck struct{}
 func (c credentialsValidCheck) ID() string { return "credentials_valid" }
 
 func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResult {
-	client := doctorGatewayClient(opts)
-	state := client.Status(ctx)
-	details := status.ComponentDetails{
-		BaseURL:             state.BaseURL,
-		HTTPStatus:          state.Models.HTTPStatus,
-		MasterKeyConfigured: state.MasterKeyConfigured,
-		Authorized:          state.Models.Authorized,
-		Error:               state.Models.Error,
+	component, ok := runtimeComponent(opts, "gateway")
+	if !ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Name:     "Credentials Valid",
+			Level:    status.HealthLevelUnknown,
+			Severity: SeverityRuntime,
+			Message:  "Gateway runtime inspection did not produce a result",
+		}
 	}
 
-	if !state.MasterKeyConfigured {
+	details := component.Details
+	details.HTTPStatus = component.Details.ModelsHTTPStatus
+	details.Authorized = component.Details.ModelsAuthorized
+
+	if !component.Details.MasterKeyConfigured {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Credentials Valid",
@@ -59,7 +64,7 @@ func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResul
 		}
 	}
 
-	if state.Models.Error != "" {
+	if component.Details.Error != "" && !component.Details.ModelsReachable {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Credentials Valid",
@@ -74,7 +79,7 @@ func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResul
 		}
 	}
 
-	if state.Models.Healthy {
+	if component.Details.ModelsAuthorized && component.Details.ModelsHTTPStatus == 200 {
 		details.AuthStatus = "authorized"
 		return CheckResult{
 			ID:       c.ID(),
@@ -86,7 +91,7 @@ func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResul
 		}
 	}
 
-	if !state.Models.Authorized {
+	if !component.Details.ModelsAuthorized {
 		details.AuthStatus = "unauthorized"
 		return CheckResult{
 			ID:       c.ID(),
@@ -107,7 +112,7 @@ func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResul
 		Name:     "Credentials Valid",
 		Level:    status.HealthLevelWarning,
 		Severity: SeverityDomain,
-		Message:  fmt.Sprintf("Unexpected response: %d", state.Models.HTTPStatus),
+		Message:  fmt.Sprintf("Unexpected response: %d", component.Details.ModelsHTTPStatus),
 		Details:  details,
 		Suggestions: []string{
 			"Check gateway status: make health",

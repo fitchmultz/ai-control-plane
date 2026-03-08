@@ -32,6 +32,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,8 +41,8 @@ import (
 )
 
 const (
-	defaultHost           = config.DefaultGatewayHost
 	defaultPort           = config.DefaultLiteLLMPort
+	defaultScheme         = "http"
 	defaultConnectTimeout = config.DefaultHTTPTimeout
 	defaultMaxTime        = 30 * time.Second
 )
@@ -59,7 +61,9 @@ type Probe struct {
 
 // Status captures typed gateway runtime health.
 type Status struct {
+	Scheme              string `json:"scheme"`
 	BaseURL             string `json:"base_url"`
+	TLSEnabled          bool   `json:"tls_enabled"`
 	MasterKeyConfigured bool   `json:"master_key_configured"`
 	Health              Probe  `json:"health"`
 	Models              Probe  `json:"models"`
@@ -67,12 +71,19 @@ type Status struct {
 
 // Client provides gateway HTTP operations.
 type Client struct {
+	scheme         string
 	host           string
 	port           int
+	baseURL        string
 	httpClient     *http.Client
 	masterKey      string
 	connectTimeout time.Duration
 	maxTime        time.Duration
+}
+
+// StatusReader narrows gateway access to typed runtime probes.
+type StatusReader interface {
+	Status(ctx context.Context) Status
 }
 
 // Option configures the Client.
@@ -82,6 +93,7 @@ type Option func(*Client)
 func WithHost(host string) Option {
 	return func(c *Client) {
 		c.host = host
+		c.baseURL = ""
 	}
 }
 
@@ -89,6 +101,27 @@ func WithHost(host string) Option {
 func WithPort(port int) Option {
 	return func(c *Client) {
 		c.port = port
+		c.baseURL = ""
+	}
+}
+
+// WithScheme sets the gateway URL scheme.
+func WithScheme(scheme string) Option {
+	return func(c *Client) {
+		c.scheme = normalizeScheme(scheme)
+		c.baseURL = ""
+	}
+}
+
+// WithBaseURL sets the gateway base URL directly.
+func WithBaseURL(raw string) Option {
+	return func(c *Client) {
+		if parsed, ok := parseBaseURL(raw); ok {
+			c.scheme = parsed.Scheme
+			c.host = parsed.Host
+			c.port = parsed.Port
+			c.baseURL = parsed.BaseURL
+		}
 	}
 }
 
@@ -109,12 +142,12 @@ func WithTimeout(timeout time.Duration) Option {
 // NewClient creates a new gateway client.
 func NewClient(opts ...Option) *Client {
 	runtime := config.NewLoader().Gateway(false)
-	host := runtime.Host
-	port := runtime.PortInt
 
 	c := &Client{
-		host:           host,
-		port:           port,
+		scheme:         normalizeScheme(runtime.Scheme),
+		host:           runtime.Host,
+		port:           runtime.PortInt,
+		baseURL:        strings.TrimSpace(runtime.BaseURL),
 		httpClient:     &http.Client{Timeout: defaultMaxTime},
 		masterKey:      runtime.MasterKey,
 		connectTimeout: defaultConnectTimeout,
@@ -130,7 +163,10 @@ func NewClient(opts ...Option) *Client {
 
 // BaseURL returns the gateway base URL.
 func (c *Client) BaseURL() string {
-	return fmt.Sprintf("http://%s:%d", c.host, c.port)
+	if strings.TrimSpace(c.baseURL) != "" {
+		return c.baseURL
+	}
+	return fmt.Sprintf("%s://%s:%d", normalizeScheme(c.scheme), c.host, c.port)
 }
 
 // HasMasterKey returns true when a non-empty master key is configured.
@@ -138,10 +174,56 @@ func (c *Client) HasMasterKey() bool {
 	return strings.TrimSpace(c.masterKey) != ""
 }
 
+func normalizeScheme(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "https":
+		return "https"
+	default:
+		return defaultScheme
+	}
+}
+
+type parsedBaseURL struct {
+	Scheme  string
+	Host    string
+	Port    int
+	BaseURL string
+}
+
+func parseBaseURL(raw string) (parsedBaseURL, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return parsedBaseURL{}, false
+	}
+	port := defaultPortForScheme(parsed.Scheme)
+	if parsed.Port() != "" {
+		parsedPort, convErr := strconv.Atoi(parsed.Port())
+		if convErr != nil || parsedPort <= 0 {
+			return parsedBaseURL{}, false
+		}
+		port = parsedPort
+	}
+	return parsedBaseURL{
+		Scheme:  parsed.Scheme,
+		Host:    parsed.Hostname(),
+		Port:    port,
+		BaseURL: strings.TrimSuffix((&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String(), "/"),
+	}, true
+}
+
+func defaultPortForScheme(scheme string) int {
+	if strings.EqualFold(strings.TrimSpace(scheme), "https") {
+		return 443
+	}
+	return defaultPort
+}
+
 // Status executes the canonical ACP gateway probes.
 func (c *Client) Status(ctx context.Context) Status {
 	status := Status{
+		Scheme:              normalizeScheme(c.scheme),
 		BaseURL:             c.BaseURL(),
+		TLSEnabled:          normalizeScheme(c.scheme) == "https",
 		MasterKeyConfigured: c.HasMasterKey(),
 	}
 

@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -41,8 +40,12 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 	}
 
 	occupied := []int{}
+	probeHost := opts.Gateway.Host
+	if strings.TrimSpace(probeHost) == "" {
+		probeHost = config.DefaultGatewayHost
+	}
 	for _, port := range ports {
-		if isPortOccupied(ctx, port) {
+		if isPortOccupied(ctx, probeHost, port) {
 			occupied = append(occupied, port)
 		}
 	}
@@ -95,8 +98,8 @@ func (c portsFreeCheck) Fix(ctx context.Context, opts Options) (bool, string, er
 	return false, "", nil
 }
 
-func isPortOccupied(ctx context.Context, port int) bool {
-	addr := fmt.Sprintf("%s:%d", config.DefaultGatewayHost, port)
+func isPortOccupied(ctx context.Context, host string, port int) bool {
+	addr := fmt.Sprintf("%s:%d", host, port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return true
@@ -114,27 +117,10 @@ func joinPorts(ports []int) string {
 }
 
 func occupiedPortsBelongToRunningACP(ctx context.Context, occupied []int, opts Options) bool {
-	_, gatewayPort := gatewayLocation(opts)
+	gatewayPort := opts.Gateway.PortInt
 	if !slices.Contains(occupied, gatewayPort) {
 		return false
 	}
-
-	gatewayHost, _ := gatewayLocation(opts)
-	masterKey := loadGatewayMasterKeyFromRepo(opts.RepoRoot)
-
-	healthURL := fmt.Sprintf("http://%s:%d/health", gatewayHost, gatewayPort)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
-	if err != nil {
-		return false
-	}
-	if masterKey != "" {
-		req.Header.Set("Authorization", "Bearer "+masterKey)
-	}
-	client := &http.Client{Timeout: config.DefaultHealthCheckTimeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden
+	component, ok := runtimeComponent(opts, "gateway")
+	return ok && (component.Details.HealthReachable || component.Details.ModelsReachable)
 }

@@ -1,25 +1,21 @@
-// client_test.go - Tests for the typed database client.
+// client_test.go - Tests for the typed database connector and service split.
 //
 // Purpose:
-//
-//	Verify the shared database service resolves mode and configuration
-//	consistently for embedded and external runtime paths.
+//   - Verify the database connector resolves mode/configuration consistently.
 //
 // Responsibilities:
-//   - Assert mode detection honors explicit ACP_DATABASE_MODE values.
+//   - Assert explicit ACP_DATABASE_MODE values drive connector mode.
 //   - Assert ambiguous DATABASE_URL-only configurations are surfaced.
-//
-// Non-scope:
-//   - Does not require a live PostgreSQL instance.
-//
-// Invariants/Assumptions:
-//   - Tests validate constructor/runtime configuration behavior only.
+//   - Assert admin service construction rejects unsupported external mode.
 //
 // Scope:
 //   - Configuration and constructor behavior only.
 //
 // Usage:
 //   - Used through its package exports and test entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Tests do not require a live PostgreSQL runtime.
 package db
 
 import (
@@ -27,44 +23,32 @@ import (
 	"testing"
 )
 
-func TestDetectDatabaseMode(t *testing.T) {
-	t.Setenv("ACP_DATABASE_MODE", "embedded")
-	if got := detectDatabaseMode(); got != "embedded" {
-		t.Fatalf("expected embedded mode, got %q", got)
-	}
-
-	t.Setenv("ACP_DATABASE_MODE", "external")
-	if got := detectDatabaseMode(); got != "external" {
-		t.Fatalf("expected external mode, got %q", got)
-	}
-}
-
-func TestNewClientExternalMode(t *testing.T) {
+func TestNewConnectorExternalMode(t *testing.T) {
 	t.Setenv("ACP_DATABASE_MODE", "external")
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/db?sslmode=disable&connect_timeout=1")
 
-	client := NewClient("")
-	defer client.Close()
+	connector := NewConnector("")
+	defer connector.Close()
 
-	if !client.IsExternal() {
+	if !connector.IsExternal() {
 		t.Fatal("expected external mode")
 	}
-	if client.IsEmbedded() {
+	if connector.IsEmbedded() {
 		t.Fatal("did not expect embedded mode")
 	}
-	if client.ConfigError() != nil {
-		t.Fatalf("unexpected config error: %v", client.ConfigError())
+	if connector.ConfigError() != nil {
+		t.Fatalf("unexpected config error: %v", connector.ConfigError())
 	}
 }
 
-func TestNewClientFlagsAmbiguousDatabaseURL(t *testing.T) {
+func TestNewConnectorFlagsAmbiguousDatabaseURL(t *testing.T) {
 	t.Setenv("ACP_DATABASE_MODE", "")
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/db?sslmode=disable&connect_timeout=1")
 
-	client := NewClient("")
-	defer client.Close()
+	connector := NewConnector("")
+	defer connector.Close()
 
-	if client.ConfigError() == nil {
+	if connector.ConfigError() == nil {
 		t.Fatal("expected ambiguous database configuration error")
 	}
 }
@@ -73,10 +57,22 @@ func TestDefaultEmbeddedModeWithoutOverrides(t *testing.T) {
 	_ = os.Unsetenv("ACP_DATABASE_MODE")
 	_ = os.Unsetenv("DATABASE_URL")
 
-	client := NewClient("")
-	defer client.Close()
+	connector := NewConnector("")
+	defer connector.Close()
 
-	if !client.IsEmbedded() {
+	if !connector.IsEmbedded() {
 		t.Fatal("expected embedded mode by default")
+	}
+}
+
+func TestNewAdminServiceRejectsExternalMode(t *testing.T) {
+	t.Setenv("ACP_DATABASE_MODE", "external")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/db?sslmode=disable&connect_timeout=1")
+
+	connector := NewConnector("")
+	defer connector.Close()
+
+	if _, err := NewAdminService(connector); err == nil {
+		t.Fatal("expected admin service construction to reject external mode")
 	}
 }

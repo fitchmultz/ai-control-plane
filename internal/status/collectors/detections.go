@@ -36,12 +36,12 @@ import (
 // DetectionsCollector summarizes recent detection findings.
 type DetectionsCollector struct {
 	repoRoot string
-	client   *db.Client
+	reader   db.ReadonlyServiceReader
 }
 
 // NewDetectionsCollector creates a new detections collector.
-func NewDetectionsCollector(repoRoot string, client *db.Client) DetectionsCollector {
-	return DetectionsCollector{repoRoot: repoRoot, client: client}
+func NewDetectionsCollector(repoRoot string, reader db.ReadonlyServiceReader) DetectionsCollector {
+	return DetectionsCollector{repoRoot: repoRoot, reader: reader}
 }
 
 // Name returns the collector's domain name.
@@ -63,7 +63,7 @@ func (c DetectionsCollector) Collect(ctx context.Context) status.ComponentStatus
 		}
 	}
 
-	summary, err := c.client.DetectionSummary(ctx)
+	summary, err := c.reader.DetectionSummary(ctx)
 	details := status.ComponentDetails{
 		SpendLogsTableExists:   summary.SpendLogsTableExists,
 		HighSeverityFindings:   summary.HighSeverity,

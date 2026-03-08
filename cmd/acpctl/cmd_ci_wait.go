@@ -27,44 +27,22 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
-	"github.com/mitchfultz/ai-control-plane/internal/docker"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
-	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
+	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
+	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type ciWaitCompose interface {
-	PS(ctx context.Context) (string, error)
+type ciWaitInspector interface {
+	Collect(ctx context.Context, opts status.Options) status.StatusReport
+	Close() error
 }
 
-type ciWaitGateway interface {
-	Health(ctx context.Context) (bool, int, error)
-	HasMasterKey() bool
-}
-
-var newCIWaitCompose = func(repoRoot string) (ciWaitCompose, error) {
-	tooling := config.NewLoader().Tooling()
-	projectName := strings.TrimSpace(tooling.ComposeProject)
-	if projectName == "" {
-		slot := strings.TrimSpace(tooling.Slot)
-		if slot == "" {
-			slot = "active"
-		}
-		projectName = "ai-control-plane-" + slot
-	}
-	return docker.NewComposeWithOptions(docker.DefaultProjectDir(repoRoot), docker.ComposeOptions{
-		ProjectName: projectName,
-		Files:       []string{"docker-compose.offline.yml"},
-	})
-}
-
-var newCIWaitGateway = func() ciWaitGateway {
-	return gateway.NewClient()
+var newCIWaitInspector = func(repoRoot string) ciWaitInspector {
+	return runtimeinspect.NewInspector(repoRoot)
 }
 
 type ciWaitOptions struct {
@@ -130,18 +108,8 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 		return exitcodes.ACPExitPrereq
 	}
 
-	compose, err := newCIWaitCompose(runCtx.RepoRoot)
-	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Docker Compose not available: %v\n"), err)
-		return exitcodes.ACPExitPrereq
-	}
-
-	gw := newCIWaitGateway()
-	if !gw.HasMasterKey() {
-		fmt.Fprintln(runCtx.Stderr, out.Fail("LITELLM_MASTER_KEY is required for authorized gateway health checks"))
-		fmt.Fprintln(runCtx.Stderr, "Set LITELLM_MASTER_KEY in your environment or demo/.env")
-		return exitcodes.ACPExitUsage
-	}
+	inspector := newCIWaitInspector(runCtx.RepoRoot)
+	defer inspector.Close()
 
 	fmt.Fprintln(runCtx.Stdout, out.Bold("Waiting for services to become healthy..."))
 	if opts.Verbose {
@@ -151,48 +119,33 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 	waitCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
-	postgresHealthy := false
-	litellmHealthy := false
-	litellmAPIReady := false
-
 	ticker := time.NewTicker(opts.Interval)
 	defer ticker.Stop()
 
-	probe := func() {
-		ps, _ := compose.PS(waitCtx)
-
-		if strings.Contains(ps, "postgres") && strings.Contains(ps, "healthy") {
-			if !postgresHealthy {
-				fmt.Fprintln(runCtx.Stdout, out.Pass("PostgreSQL is healthy"))
-				postgresHealthy = true
+	reportedReady := make(map[string]struct{})
+	probe := func() status.StatusReport {
+		report := inspector.Collect(waitCtx, status.Options{RepoRoot: runCtx.RepoRoot, Wide: opts.Verbose})
+		readiness := runtimeinspect.EvaluateReadiness(report, runtimeinspect.DefaultReadinessComponents)
+		for _, name := range runtimeinspect.DefaultReadinessComponents {
+			if _, alreadyReported := reportedReady[name]; alreadyReported {
+				continue
 			}
-		} else if opts.Verbose {
-			fmt.Fprintln(runCtx.Stdout, "  PostgreSQL not healthy yet")
-		}
-
-		if strings.Contains(ps, "litellm") && strings.Contains(ps, "healthy") {
-			if !litellmHealthy {
-				fmt.Fprintln(runCtx.Stdout, out.Pass("LiteLLM is healthy"))
-				litellmHealthy = true
+			component, ok := report.Components[name]
+			if ok && component.Level == status.HealthLevelHealthy {
+				fmt.Fprintln(runCtx.Stdout, out.Pass(ciWaitReadyMessage(name)))
+				reportedReady[name] = struct{}{}
+				continue
 			}
-		} else if opts.Verbose {
-			fmt.Fprintln(runCtx.Stdout, "  LiteLLM not healthy yet")
-		}
-
-		if !litellmAPIReady {
-			healthy, _, err := gw.Health(waitCtx)
-			if err == nil && healthy {
-				fmt.Fprintln(runCtx.Stdout, out.Pass("LiteLLM API is responding (authorized HTTP 200)"))
-				litellmAPIReady = true
-			} else if opts.Verbose {
-				fmt.Fprintln(runCtx.Stdout, "  LiteLLM API not responding yet")
+			if opts.Verbose {
+				fmt.Fprintf(runCtx.Stdout, "  %s not ready yet\n", ciWaitPendingMessage(name, readiness.Pending[name]))
 			}
 		}
+		return report
 	}
 
 	for {
-		probe()
-		if postgresHealthy && litellmHealthy && litellmAPIReady {
+		report := probe()
+		if runtimeinspect.EvaluateReadiness(report, runtimeinspect.DefaultReadinessComponents).Ready {
 			fmt.Fprintln(runCtx.Stdout)
 			fmt.Fprintln(runCtx.Stdout, out.Green("All services are healthy and ready"))
 			return exitcodes.ACPExitSuccess
@@ -206,18 +159,40 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 				return exitcodes.ACPExitRuntime
 			}
 			fmt.Fprintf(runCtx.Stdout, out.Fail("Timeout: Services did not become healthy within %s\n"), opts.Timeout)
-			statusCtx, statusCancel := context.WithTimeout(ctx, 2*time.Second)
+			statusCtx, statusCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer statusCancel()
-			if ps, err := compose.PS(statusCtx); err == nil && strings.TrimSpace(ps) != "" {
+			finalReport := inspector.Collect(statusCtx, status.Options{RepoRoot: runCtx.RepoRoot, Wide: true})
+			if len(finalReport.Components) > 0 {
 				fmt.Fprintln(runCtx.Stdout)
-				fmt.Fprintln(runCtx.Stdout, "Current container status:")
-				fmt.Fprintln(runCtx.Stdout, ps)
+				fmt.Fprintln(runCtx.Stdout, "Current runtime status:")
+				if err := finalReport.WriteHuman(runCtx.Stdout, true); err != nil {
+					fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to render runtime status: %v\n"), err)
+					return exitcodes.ACPExitRuntime
+				}
 			}
 			return exitcodes.ACPExitDomain
 		case <-ticker.C:
 			continue
 		}
 	}
+}
+
+func ciWaitReadyMessage(component string) string {
+	switch component {
+	case "database":
+		return "PostgreSQL is healthy"
+	case "gateway":
+		return "LiteLLM API is responding (authorized HTTP 200)"
+	default:
+		return component + " is ready"
+	}
+}
+
+func ciWaitPendingMessage(component string, pending status.ComponentStatus) string {
+	if pending.Message != "" {
+		return fmt.Sprintf("%s (%s)", component, pending.Message)
+	}
+	return component
 }
 
 func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {

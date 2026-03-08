@@ -5,7 +5,7 @@
 //	Provide shared helper functions used across focused doctor check modules.
 //
 // Responsibilities:
-//   - Read env values from demo/.env safely.
+//   - Reuse runtime inspection results across focused doctor checks.
 //   - Normalize subprocess/network helper output for checks.
 //   - Sanitize potentially sensitive subprocess output.
 //
@@ -23,16 +23,8 @@ package doctor
 import (
 	"strings"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
+	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
-
-func loadEnvFromFile(path, key string) string {
-	value, ok, err := config.LookupEnvFile(path, key)
-	if err != nil || !ok {
-		return ""
-	}
-	return strings.TrimSpace(value)
-}
 
 func firstNonEmptyLine(raw string) string {
 	for line := range strings.SplitSeq(raw, "\n") {
@@ -61,14 +53,10 @@ func sanitizeOutput(output string) string {
 	return strings.Join(result, "\n")
 }
 
-func loadGatewayConfig(repoRoot string) config.GatewaySettings {
-	loader := config.NewLoader()
-	settings := loader.Gateway(false)
-	if strings.TrimSpace(repoRoot) == "" {
-		return settings
+func runtimeComponent(opts Options, name string) (status.ComponentStatus, bool) {
+	if opts.RuntimeReport == nil {
+		return status.ComponentStatus{}, false
 	}
-	if settings.MasterKey == "" {
-		settings.MasterKey = loadEnvFromFile(repoRoot+"/demo/.env", "LITELLM_MASTER_KEY")
-	}
-	return settings
+	component, ok := opts.RuntimeReport.Components[name]
+	return component, ok
 }

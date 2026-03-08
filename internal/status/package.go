@@ -53,13 +53,19 @@ const (
 // ComponentDetails captures typed supplemental runtime details.
 type ComponentDetails struct {
 	Mode                   string   `json:"mode,omitempty"`
+	Scheme                 string   `json:"scheme,omitempty"`
 	BaseURL                string   `json:"base_url,omitempty"`
 	DatabaseName           string   `json:"database_name,omitempty"`
 	DatabaseUser           string   `json:"database_user,omitempty"`
 	ContainerID            string   `json:"container_id,omitempty"`
 	HTTPStatus             int      `json:"http_status,omitempty"`
 	ModelsHTTPStatus       int      `json:"models_http_status,omitempty"`
+	HealthReachable        bool     `json:"health_reachable,omitempty"`
+	ModelsReachable        bool     `json:"models_reachable,omitempty"`
+	HealthAuthorized       bool     `json:"health_authorized,omitempty"`
+	ModelsAuthorized       bool     `json:"models_authorized,omitempty"`
 	MasterKeyConfigured    bool     `json:"master_key_configured,omitempty"`
+	TLSEnabled             bool     `json:"tls_enabled,omitempty"`
 	Reachable              bool     `json:"reachable,omitempty"`
 	Authorized             bool     `json:"authorized,omitempty"`
 	ExpectedTables         int      `json:"expected_tables,omitempty"`
@@ -132,13 +138,19 @@ func (d ComponentDetails) lines() []string {
 	}
 
 	appendText("mode", d.Mode)
+	appendText("scheme", d.Scheme)
 	appendText("base_url", d.BaseURL)
 	appendText("database_name", d.DatabaseName)
 	appendText("database_user", d.DatabaseUser)
 	appendText("container_id", d.ContainerID)
 	appendInt("http_status", d.HTTPStatus)
 	appendInt("models_http_status", d.ModelsHTTPStatus)
+	appendBool("health_reachable", d.HealthReachable)
+	appendBool("models_reachable", d.ModelsReachable)
+	appendBool("health_authorized", d.HealthAuthorized)
+	appendBool("models_authorized", d.ModelsAuthorized)
 	appendBool("master_key_configured", d.MasterKeyConfigured)
+	appendBool("tls_enabled", d.TLSEnabled)
 	appendBool("reachable", d.Reachable)
 	appendBool("authorized", d.Authorized)
 	appendInt("expected_tables", d.ExpectedTables)
@@ -259,8 +271,7 @@ func (r StatusReport) WriteHuman(w io.Writer, wide bool) error {
 	fmt.Fprintln(w, colors.Bold+"=== AI Control Plane Status ==="+colors.Reset)
 	fmt.Fprintln(w)
 
-	order := []string{"gateway", "database", "keys", "budget", "detections"}
-	for _, name := range order {
+	for _, name := range DefaultComponentOrder {
 		component, ok := r.Components[name]
 		if !ok {
 			continue

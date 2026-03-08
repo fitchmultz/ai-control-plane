@@ -32,12 +32,12 @@ import (
 
 // BudgetCollector checks budget utilization.
 type BudgetCollector struct {
-	client *db.Client
+	reader db.ReadonlyServiceReader
 }
 
 // NewBudgetCollector creates a new budget collector.
-func NewBudgetCollector(client *db.Client) BudgetCollector {
-	return BudgetCollector{client: client}
+func NewBudgetCollector(reader db.ReadonlyServiceReader) BudgetCollector {
+	return BudgetCollector{reader: reader}
 }
 
 // Name returns the collector's domain name.
@@ -47,7 +47,7 @@ func (c BudgetCollector) Name() string {
 
 // Collect gathers budget status information.
 func (c BudgetCollector) Collect(ctx context.Context) status.ComponentStatus {
-	summary, err := c.client.BudgetSummary(ctx)
+	summary, err := c.reader.BudgetSummary(ctx)
 	details := status.ComponentDetails{
 		TotalBudgets:           summary.Total,
 		HighUtilizationBudgets: summary.HighUtilization,

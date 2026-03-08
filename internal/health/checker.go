@@ -27,11 +27,9 @@ import (
 	"fmt"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
-	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
-	"github.com/mitchfultz/ai-control-plane/internal/gateway"
+	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
-	"github.com/mitchfultz/ai-control-plane/internal/status/collectors"
 )
 
 // Status represents compatibility health states.
@@ -73,15 +71,9 @@ func NewChecker(compose *docker.Compose, verbose bool) *Checker {
 
 // Run performs all health checks and returns the result.
 func (c *Checker) Run(ctx context.Context) *Result {
-	dbClient := db.NewClient(detectRepoRoot(ctx))
-	defer dbClient.Close()
-	report := status.CollectAll(ctx, []status.Collector{
-		collectors.NewGatewayCollector(gateway.NewClient()),
-		collectors.NewDatabaseCollector(dbClient),
-		collectors.NewKeysCollector(dbClient),
-		collectors.NewBudgetCollector(dbClient),
-		collectors.NewDetectionsCollector(detectRepoRoot(ctx), dbClient),
-	}, status.Options{RepoRoot: detectRepoRoot(ctx), Wide: c.verbose})
+	inspector := runtimeinspect.NewInspector(detectRepoRoot(ctx))
+	defer inspector.Close()
+	report := inspector.Collect(ctx, status.Options{RepoRoot: detectRepoRoot(ctx), Wide: c.verbose})
 	return &Result{
 		Components: convertComponents(report),
 		Overall:    convertLevel(report.Overall),

@@ -34,31 +34,22 @@ func (c envVarsSetCheck) ID() string { return "env_vars_set" }
 
 func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 	requiredVars := []string{"LITELLM_MASTER_KEY", "LITELLM_SALT_KEY", "DATABASE_URL"}
-	missing := []string{}
-	found := []string{}
-	loader := config.NewLoader()
-	envPath := filepath.Join(opts.RepoRoot, "demo", ".env")
-	for _, key := range requiredVars {
-		if loader.String(key) == "" && loadEnvFromFile(envPath, key) == "" {
-			missing = append(missing, key)
-			continue
-		}
-		found = append(found, key)
-	}
-	if len(missing) > 0 {
+	loader := config.NewLoader().WithRepoRoot(opts.RepoRoot)
+	statusResult := loader.RequiredRuntimeEnv(requiredVars)
+	if len(statusResult.Missing) > 0 {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Environment Variables Set",
 			Level:    status.HealthLevelUnhealthy,
 			Severity: SeverityPrereq,
-			Message:  fmt.Sprintf("Missing required environment variables: %v", missing),
+			Message:  fmt.Sprintf("Missing required environment variables: %v", statusResult.Missing),
 			Suggestions: []string{
 				"Run: make install",
 				"Or manually set: export LITELLM_MASTER_KEY=sk-...",
 				"Copy .env.example to demo/.env and configure",
 			},
 			Details: status.ComponentDetails{
-				MissingVars: missing,
+				MissingVars: statusResult.Missing,
 			},
 		}
 	}
@@ -67,15 +58,19 @@ func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 		Name:     "Environment Variables Set",
 		Level:    status.HealthLevelHealthy,
 		Severity: SeverityDomain,
-		Message:  fmt.Sprintf("All required environment variables set (%d found)", len(found)),
+		Message:  fmt.Sprintf("All required environment variables set (%d found)", len(statusResult.Found)),
 		Details:  status.ComponentDetails{},
 	}
 }
 
 func (c envVarsSetCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	envPath := filepath.Join(opts.RepoRoot, "demo", ".env")
+	envStatus, err := config.NewLoader().WithRepoRoot(opts.RepoRoot).RepoEnvStatus(ctx)
+	if err != nil {
+		return false, "", err
+	}
+	envPath := envStatus.Path
 	examplePath := filepath.Join(opts.RepoRoot, "demo", ".env.example")
-	if _, err := os.Stat(envPath); err == nil {
+	if envStatus.Exists {
 		return false, "", nil
 	}
 	if _, err := os.Stat(examplePath); err != nil {

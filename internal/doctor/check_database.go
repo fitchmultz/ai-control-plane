@@ -25,7 +25,6 @@ package doctor
 import (
 	"context"
 
-	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -34,55 +33,35 @@ type dbConnectableCheck struct{}
 func (c dbConnectableCheck) ID() string { return "db_connectable" }
 
 func (c dbConnectableCheck) Run(ctx context.Context, opts Options) CheckResult {
-	client := db.NewClient(opts.RepoRoot)
-	defer client.Close()
+	component, ok := runtimeComponent(opts, "database")
+	if !ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Name:     "Database Connectable",
+			Level:    status.HealthLevelUnknown,
+			Severity: SeverityRuntime,
+			Message:  "Database runtime inspection did not produce a result",
+		}
+	}
 
-	summary, err := client.Summary(ctx)
-	details := status.ComponentDetails{
-		Mode:         summary.Mode.String(),
-		DatabaseName: summary.DatabaseName,
-		DatabaseUser: summary.DatabaseUser,
-		ContainerID:  summary.ContainerID,
-		Error:        summary.Ping.Error,
-	}
-	if client.ConfigError() != nil {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Database Connectable",
-			Level:    status.HealthLevelUnhealthy,
-			Severity: SeverityPrereq,
-			Message:  "Database configuration is ambiguous",
-			Details:  details,
-			Suggestions: []string{
-				"Set ACP_DATABASE_MODE=embedded for the local demo stack",
-				"Or set ACP_DATABASE_MODE=external when using DATABASE_URL",
-			},
-		}
-	}
-	if err != nil {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Database Connectable",
-			Level:    status.HealthLevelUnhealthy,
-			Severity: SeverityDomain,
-			Message:  "PostgreSQL is not accepting connections",
-			Details:  details,
-			Suggestions: []string{
-				"Check PostgreSQL connectivity and credentials",
-				"Restart services: make restart",
-			},
-		}
-	}
 	return CheckResult{
-		ID:       c.ID(),
-		Name:     "Database Connectable",
-		Level:    status.HealthLevelHealthy,
-		Severity: SeverityDomain,
-		Message:  "PostgreSQL is accepting connections",
-		Details:  details,
+		ID:          c.ID(),
+		Name:        "Database Connectable",
+		Level:       component.Level,
+		Severity:    databaseSeverity(component),
+		Message:     component.Message,
+		Details:     component.Details,
+		Suggestions: component.Suggestions,
 	}
 }
 
 func (c dbConnectableCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
 	return false, "", nil
+}
+
+func databaseSeverity(component status.ComponentStatus) Severity {
+	if component.Message == "Database configuration is ambiguous" {
+		return SeverityPrereq
+	}
+	return severityForLevel(component.Level)
 }

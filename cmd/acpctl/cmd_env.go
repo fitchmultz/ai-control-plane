@@ -131,7 +131,7 @@ func runEnvGetCommand(ctx context.Context, args []string, stdout *os.File, stder
 		return exitcodes.ACPExitUsage
 	}
 
-	value, ok, err := config.LookupEnvFile(*envPath, key)
+	value, ok, err := config.NewEnvFile(*envPath).Lookup(key)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: failed to read env file: %v\n", err)
 		return exitcodes.ACPExitPrereq

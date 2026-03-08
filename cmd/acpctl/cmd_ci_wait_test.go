@@ -23,7 +23,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,34 +30,34 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type fakeCIWaitCompose struct {
-	ps string
+type fakeCIWaitInspector struct {
+	reports []status.StatusReport
+	index   int
 }
 
-func (f fakeCIWaitCompose) PS(context.Context) (string, error) {
-	return f.ps, nil
-}
-
-type fakeCIWaitGateway struct {
-	healthy   bool
-	masterKey bool
-}
-
-func (f fakeCIWaitGateway) Health(context.Context) (bool, int, error) {
-	if f.healthy {
-		return true, 200, nil
+func (f *fakeCIWaitInspector) Collect(context.Context, status.Options) status.StatusReport {
+	if len(f.reports) == 0 {
+		return status.StatusReport{}
 	}
-	return false, 503, fmt.Errorf("not ready")
+	if f.index >= len(f.reports) {
+		return f.reports[len(f.reports)-1]
+	}
+	report := f.reports[f.index]
+	f.index++
+	return report
 }
 
-func (f fakeCIWaitGateway) HasMasterKey() bool {
-	return f.masterKey
+func (f *fakeCIWaitInspector) Close() error {
+	return nil
 }
 
 func TestRunCIWaitCommand_SucceedsWhenServicesReady(t *testing.T) {
-	restore := stubCIWaitDeps(t, fakeCIWaitCompose{ps: "postgres healthy\nlitellm healthy\n"}, fakeCIWaitGateway{healthy: true, masterKey: true})
+	restore := stubCIWaitDeps(t, &fakeCIWaitInspector{reports: []status.StatusReport{
+		readyCIWaitReport(),
+	}})
 	defer restore()
 
 	stdout, stderr := newTestFiles(t)
@@ -72,7 +71,9 @@ func TestRunCIWaitCommand_SucceedsWhenServicesReady(t *testing.T) {
 }
 
 func TestRunCIWaitCommand_TimeoutReturnsDomain(t *testing.T) {
-	restore := stubCIWaitDeps(t, fakeCIWaitCompose{ps: "postgres starting\nlitellm starting\n"}, fakeCIWaitGateway{healthy: false, masterKey: true})
+	restore := stubCIWaitDeps(t, &fakeCIWaitInspector{reports: []status.StatusReport{
+		pendingCIWaitReport(),
+	}})
 	defer restore()
 
 	stdout, stderr := newTestFiles(t)
@@ -90,7 +91,9 @@ func TestRunCIWaitCommand_TimeoutReturnsDomain(t *testing.T) {
 }
 
 func TestRunCIWaitCommand_CanceledReturnsRuntime(t *testing.T) {
-	restore := stubCIWaitDeps(t, fakeCIWaitCompose{ps: "postgres starting\nlitellm starting\n"}, fakeCIWaitGateway{healthy: false, masterKey: true})
+	restore := stubCIWaitDeps(t, &fakeCIWaitInspector{reports: []status.StatusReport{
+		pendingCIWaitReport(),
+	}})
 	defer restore()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -106,12 +109,10 @@ func TestRunCIWaitCommand_CanceledReturnsRuntime(t *testing.T) {
 	}
 }
 
-func stubCIWaitDeps(t *testing.T, compose ciWaitCompose, gateway ciWaitGateway) func() {
+func stubCIWaitDeps(t *testing.T, inspector ciWaitInspector) func() {
 	t.Helper()
-	originalCompose := newCIWaitCompose
-	originalGateway := newCIWaitGateway
-	newCIWaitCompose = func(string) (ciWaitCompose, error) { return compose, nil }
-	newCIWaitGateway = func() ciWaitGateway { return gateway }
+	originalInspector := newCIWaitInspector
+	newCIWaitInspector = func(string) ciWaitInspector { return inspector }
 
 	binDir := t.TempDir()
 	dockerPath := filepath.Join(binDir, "docker")
@@ -123,7 +124,26 @@ func stubCIWaitDeps(t *testing.T, compose ciWaitCompose, gateway ciWaitGateway) 
 	t.Setenv("ACP_REPO_ROOT", t.TempDir())
 
 	return func() {
-		newCIWaitCompose = originalCompose
-		newCIWaitGateway = originalGateway
+		newCIWaitInspector = originalInspector
+	}
+}
+
+func readyCIWaitReport() status.StatusReport {
+	return status.StatusReport{
+		Overall: status.HealthLevelHealthy,
+		Components: map[string]status.ComponentStatus{
+			"gateway":  {Name: "gateway", Level: status.HealthLevelHealthy, Message: "Gateway is responding"},
+			"database": {Name: "database", Level: status.HealthLevelHealthy, Message: "Connected"},
+		},
+	}
+}
+
+func pendingCIWaitReport() status.StatusReport {
+	return status.StatusReport{
+		Overall: status.HealthLevelUnhealthy,
+		Components: map[string]status.ComponentStatus{
+			"gateway":  {Name: "gateway", Level: status.HealthLevelUnhealthy, Message: "Gateway unreachable"},
+			"database": {Name: "database", Level: status.HealthLevelWarning, Message: "Database accessible, but schema is incomplete"},
+		},
 	}
 }
