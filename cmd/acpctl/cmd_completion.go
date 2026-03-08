@@ -58,7 +58,11 @@ func runCompletionSubcommand(ctx context.Context, args []string, stdout *os.File
 }
 
 func printCompletionHelp(out *os.File) {
-	command := mustLookupNativeCommand("completion")
+	command, err := lookupNativeRootCommand("completion")
+	if err != nil {
+		fmt.Fprintf(out, "Error: %v\n", err)
+		return
+	}
 
 	fmt.Fprint(out, `Usage: acpctl completion <bash|zsh|fish>
 

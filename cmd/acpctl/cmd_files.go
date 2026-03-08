@@ -50,7 +50,11 @@ func runFilesSubcommand(ctx context.Context, args []string, stdout *os.File, std
 }
 
 func printFilesHelp(out *os.File) {
-	command := mustLookupNativeCommand("files")
+	command, err := lookupNativeRootCommand("files")
+	if err != nil {
+		fmt.Fprintf(out, "Error: %v\n", err)
+		return
+	}
 
 	fmt.Fprint(out, `Usage: acpctl files <subcommand> [options]
 

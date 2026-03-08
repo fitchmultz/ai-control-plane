@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/onboard"
 )
 
@@ -32,8 +33,8 @@ func runOnboardCommand(ctx context.Context, args []string, stdout *os.File, stde
 	opts, err := onboard.ParseArgs(args, detectRepoRootWithContext(ctx), stdout, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return int(onboard.ExitUsage)
+		return exitcodes.ACPExitUsage
 	}
 	result := onboard.Run(ctx, opts)
-	return int(result.ExitCode)
+	return result.ExitCode
 }

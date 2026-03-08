@@ -138,7 +138,7 @@ func runPilotCloseoutBundleBuild(ctx context.Context, args []string, stdout *os.
 	}
 
 	fmt.Fprint(stdout, out.Bold("Building pilot closeout bundle")+"\n")
-	summary, err := release.BuildPilotCloseoutBundle(options)
+	summary, err := release.BuildPilotCloseoutBundle(ctx, options)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime

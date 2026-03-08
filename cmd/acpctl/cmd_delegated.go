@@ -48,8 +48,8 @@ func runCommandGroup(ctx context.Context, root rootCommandDefinition, args []str
 		return exitcodes.ACPExitSuccess
 	}
 
-	subcommand, ok := lookupSubcommand(root, args[0])
-	if !ok {
+	subcommand, err := lookupSubcommand(root, args[0])
+	if err != nil {
 		fmt.Fprintf(stderr, "Error: Unknown %s subcommand: %s\n", root.Name, args[0])
 		printCommandGroupHelp(stderr, root)
 		return exitcodes.ACPExitUsage
@@ -72,8 +72,8 @@ func runCommandGroup(ctx context.Context, root rootCommandDefinition, args []str
 }
 
 func lookupDelegatedGroup(name string) (rootCommandDefinition, bool) {
-	command, ok := lookupRootCommand(name)
-	if !ok || command.NativeRun != nil {
+	command, err := lookupRootCommand(name)
+	if err != nil || command.NativeRun != nil {
 		return rootCommandDefinition{}, false
 	}
 	return command, true

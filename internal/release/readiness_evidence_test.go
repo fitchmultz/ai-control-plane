@@ -21,6 +21,7 @@
 package release
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -46,7 +47,7 @@ func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) 
 		t.Fatalf("write bundle checksum: %v", err)
 	}
 
-	summary, err := RunReadinessEvidence(ReadinessOptions{
+	summary, err := RunReadinessEvidenceContext(context.Background(), ReadinessOptions{
 		RepoRoot:      repoRoot,
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,
@@ -94,7 +95,7 @@ func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
 		t.Fatalf("write bundle checksum: %v", err)
 	}
 
-	summary, err := RunReadinessEvidence(ReadinessOptions{
+	summary, err := RunReadinessEvidenceContext(context.Background(), ReadinessOptions{
 		RepoRoot:          repoRoot,
 		OutputRoot:        outputRoot,
 		MakeBin:           makeBin,
@@ -143,7 +144,7 @@ func TestVerifyReadinessRun_DetectsInventoryMismatch(t *testing.T) {
 		t.Fatalf("write bundle checksum: %v", err)
 	}
 
-	summary, err := RunReadinessEvidence(ReadinessOptions{
+	summary, err := RunReadinessEvidenceContext(context.Background(), ReadinessOptions{
 		RepoRoot:      repoRoot,
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,

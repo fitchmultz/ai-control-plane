@@ -55,7 +55,11 @@ func runEnvCommand(ctx context.Context, args []string, stdout *os.File, stderr *
 }
 
 func printEnvHelp(out *os.File) {
-	command := mustLookupNativeCommand("env")
+	command, err := lookupNativeRootCommand("env")
+	if err != nil {
+		fmt.Fprintf(out, "Error: %v\n", err)
+		return
+	}
 
 	fmt.Fprint(out, `Usage: acpctl env <subcommand> [options]
 

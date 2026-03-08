@@ -20,6 +20,7 @@
 package release
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ func TestBuildPilotCloseoutBundleAndVerify(t *testing.T) {
 	checklistPath := writeTextFixture(t, repoRoot, "docs/checklist.md", "# Checklist\n")
 	operatorPath := writeTextFixture(t, repoRoot, "docs/operator.md", "# Operator\n")
 
-	summary, err := BuildPilotCloseoutBundle(PilotCloseoutOptions{
+	summary, err := BuildPilotCloseoutBundle(context.Background(), PilotCloseoutOptions{
 		RepoRoot:            repoRoot,
 		Customer:            "Falcon Insurance Group",
 		PilotName:           "Claims Governance Pilot",
@@ -67,7 +68,7 @@ func TestBuildPilotCloseoutBundleAndVerify(t *testing.T) {
 func TestVerifyPilotCloseoutBundleDetectsInventoryMismatch(t *testing.T) {
 	repoRoot := t.TempDir()
 	readinessRunDir := writeReadinessRunFixture(t, repoRoot)
-	summary, err := BuildPilotCloseoutBundle(PilotCloseoutOptions{
+	summary, err := BuildPilotCloseoutBundle(context.Background(), PilotCloseoutOptions{
 		RepoRoot:            repoRoot,
 		Customer:            "Falcon Insurance Group",
 		PilotName:           "Claims Governance Pilot",
@@ -108,7 +109,7 @@ func writeReadinessRunFixture(t *testing.T, repoRoot string) string {
 	if err := os.WriteFile(bundlePath+".sha256", []byte("checksum\n"), 0o644); err != nil {
 		t.Fatalf("write bundle checksum: %v", err)
 	}
-	summary, err := RunReadinessEvidence(ReadinessOptions{
+	summary, err := RunReadinessEvidenceContext(context.Background(), ReadinessOptions{
 		RepoRoot:      repoRoot,
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,

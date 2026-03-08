@@ -3,35 +3,38 @@
 // Purpose:
 //
 //	Assemble a single local evidence bundle for pilot closeout review from the
-//	customer memo, validation records, and latest readiness evidence.
+//	customer memo, validation records, and latest readiness evidence using the
+//	shared artifact-run model.
 //
 // Responsibilities:
-//   - Copy closeout source documents into a timestamped bundle directory
-//   - Include the referenced readiness evidence set in the bundle
-//   - Render machine-readable and operator-readable bundle summaries
-//   - Verify bundle inventory consistency
+//   - Copy closeout source documents into a timestamped bundle directory.
+//   - Include the referenced readiness evidence set in the bundle.
+//   - Render machine-readable and operator-readable bundle summaries.
+//   - Verify bundle inventory consistency.
 //
 // Scope:
-//   - Covers local artifact assembly only
-//   - Does not mutate tracked pilot documents
+//   - Covers local artifact assembly only.
+//   - Does not mutate tracked pilot documents.
 //
 // Usage:
 //   - Called from `acpctl deploy pilot-closeout-bundle build`
 //   - Called from `acpctl deploy pilot-closeout-bundle verify`
 //
 // Invariants/Assumptions:
-//   - Bundles live under `demo/logs/pilot-closeout/`
-//   - Input documents already exist and remain the source of truth
+//   - Bundles live under `demo/logs/pilot-closeout/`.
+//   - Input documents already exist and remain the source of truth.
 package release
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 )
 
 const (
@@ -81,7 +84,7 @@ func NewPilotCloseoutVerifier() *PilotCloseoutVerifier {
 }
 
 // BuildPilotCloseoutBundle assembles a timestamped pilot closeout bundle.
-func BuildPilotCloseoutBundle(opts PilotCloseoutOptions) (*PilotCloseoutSummary, error) {
+func BuildPilotCloseoutBundle(_ context.Context, opts PilotCloseoutOptions) (*PilotCloseoutSummary, error) {
 	if strings.TrimSpace(opts.RepoRoot) == "" {
 		return nil, fmt.Errorf("repo root is required")
 	}
@@ -119,17 +122,15 @@ func BuildPilotCloseoutBundle(opts PilotCloseoutOptions) (*PilotCloseoutSummary,
 	}
 
 	nowUTC := readinessNow()
-	runID := fmt.Sprintf("pilot-closeout-%s", nowUTC.Format("20060102T150405Z"))
-	runDir := filepath.Join(opts.OutputRoot, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create pilot closeout directory: %w", err)
+	run, err := createArtifactRun(opts.OutputRoot, "pilot-closeout", nowUTC)
+	if err != nil {
+		return nil, err
 	}
-
 	summary := &PilotCloseoutSummary{
-		RunID:               runID,
+		RunID:               run.RunID,
 		GeneratedAtUTC:      nowUTC.Format(time.RFC3339),
 		RepoRoot:            opts.RepoRoot,
-		RunDirectory:        runDir,
+		RunDirectory:        run.RunDirectory,
 		Customer:            opts.Customer,
 		PilotName:           opts.PilotName,
 		Decision:            opts.Decision,
@@ -140,44 +141,56 @@ func BuildPilotCloseoutBundle(opts PilotCloseoutOptions) (*PilotCloseoutSummary,
 		OperatorChecklist:   opts.OperatorChecklist,
 	}
 
-	if err := copyBundleInput(runDir, "documents/pilot-charter.md", opts.CharterPath); err != nil {
+	if err := copyBundleInput(run.RunDirectory, "documents/pilot-charter.md", opts.CharterPath); err != nil {
 		return nil, err
 	}
-	if err := copyBundleInput(runDir, "documents/pilot-acceptance-memo.md", opts.AcceptanceMemoPath); err != nil {
+	if err := copyBundleInput(run.RunDirectory, "documents/pilot-acceptance-memo.md", opts.AcceptanceMemoPath); err != nil {
 		return nil, err
 	}
-	if err := copyBundleInput(runDir, "documents/pilot-customer-validation-checklist.md", opts.ValidationChecklist); err != nil {
+	if err := copyBundleInput(run.RunDirectory, "documents/pilot-customer-validation-checklist.md", opts.ValidationChecklist); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(opts.OperatorChecklist) != "" {
-		if err := copyBundleInput(runDir, "documents/pilot-operator-handoff-checklist.md", opts.OperatorChecklist); err != nil {
+		if err := copyBundleInput(run.RunDirectory, "documents/pilot-operator-handoff-checklist.md", opts.OperatorChecklist); err != nil {
 			return nil, err
 		}
 	}
-	if err := copyReadinessArtifacts(runDir, opts.ReadinessRunDir); err != nil {
+	if err := copyReadinessArtifacts(run.RunDirectory, opts.ReadinessRunDir); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(runDir, pilotCloseoutSummaryMD), []byte(renderPilotCloseoutSummary(summary)), 0o644); err != nil {
-		return nil, fmt.Errorf("write closeout summary markdown: %w", err)
-	}
-	files, err := readinessGeneratedFiles(runDir)
-	if err != nil {
-		return nil, fmt.Errorf("walk pilot closeout bundle: %w", err)
-	}
-	files = append(files, pilotCloseoutSummaryJSON)
-	files = append(files, pilotCloseoutInventory)
-	sort.Strings(files)
-	summary.GeneratedFiles = files
-	if err := writeJSON(filepath.Join(runDir, pilotCloseoutSummaryJSON), summary); err != nil {
-		return nil, fmt.Errorf("write closeout summary json: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, pilotCloseoutInventory), []byte(strings.Join(files, "\n")+"\n"), 0o644); err != nil {
-		return nil, fmt.Errorf("write closeout inventory: %w", err)
-	}
-	if err := writeLatestPilotCloseoutPointer(opts.OutputRoot, summary.RunDirectory); err != nil {
+	if err := persistPilotCloseoutRun(summary); err != nil {
 		return nil, err
 	}
 	return summary, nil
+}
+
+func persistPilotCloseoutRun(summary *PilotCloseoutSummary) error {
+	if err := writePilotCloseoutArtifacts(summary.RunDirectory, summary); err != nil {
+		return err
+	}
+	files, err := finalizeRunInventory(summary.RunDirectory, pilotCloseoutInventory)
+	if err != nil {
+		return err
+	}
+	summary.GeneratedFiles = files
+	if err := writePilotCloseoutArtifacts(summary.RunDirectory, summary); err != nil {
+		return err
+	}
+	if err := writeLatestRunPointer(filepath.Dir(summary.RunDirectory), pilotCloseoutLatestRun, summary.RunDirectory); err != nil {
+		return fmt.Errorf("write latest pilot closeout pointer: %w", err)
+	}
+	return nil
+}
+
+func writePilotCloseoutArtifacts(runDir string, summary *PilotCloseoutSummary) error {
+	if err := writeJSONArtifact(filepath.Join(runDir, pilotCloseoutSummaryJSON), summary); err != nil {
+		return fmt.Errorf("write closeout summary json: %w", err)
+	}
+	return writeGeneratedArtifacts(runDir, []generatedArtifact{{
+		Path: pilotCloseoutSummaryMD,
+		Body: []byte(renderPilotCloseoutSummary(summary)),
+		Perm: 0o644,
+	}})
 }
 
 // VerifyPilotCloseoutBundle validates the generated bundle.
@@ -201,17 +214,8 @@ func (v *PilotCloseoutVerifier) VerifyPilotCloseoutBundle(runDir string) (*Pilot
 			return nil, fmt.Errorf("missing closeout artifact: %s", name)
 		}
 	}
-	inventoryData, err := os.ReadFile(filepath.Join(runDir, pilotCloseoutInventory))
-	if err != nil {
-		return nil, fmt.Errorf("read closeout inventory: %w", err)
-	}
-	expected := filterNonEmpty(strings.Split(strings.ReplaceAll(string(inventoryData), "\r\n", "\n"), "\n"))
-	actual, err := readinessGeneratedFiles(runDir)
-	if err != nil {
-		return nil, fmt.Errorf("walk closeout inventory: %w", err)
-	}
-	if !stringSlicesEqual(expected, actual) {
-		return nil, fmt.Errorf("inventory mismatch between %s and filesystem", pilotCloseoutInventory)
+	if err := verifyRunInventory(runDir, pilotCloseoutInventory); err != nil {
+		return nil, err
 	}
 	return &summary, nil
 }
@@ -228,7 +232,7 @@ func copyBundleInput(runDir string, relativeDestination string, sourcePath strin
 	if err != nil {
 		return fmt.Errorf("read bundle source %s: %w", sourcePath, err)
 	}
-	if err := os.WriteFile(destination, data, 0o644); err != nil {
+	if err := fsutil.AtomicWriteFile(destination, data, 0o644); err != nil {
 		return fmt.Errorf("write bundle destination %s: %w", destination, err)
 	}
 	return nil
@@ -248,13 +252,6 @@ func copyReadinessArtifacts(runDir string, readinessRunDir string) error {
 		}
 	}
 	return nil
-}
-
-func writeLatestPilotCloseoutPointer(outputRoot string, runDir string) error {
-	if err := os.MkdirAll(outputRoot, 0o755); err != nil {
-		return fmt.Errorf("create pilot closeout output root: %w", err)
-	}
-	return os.WriteFile(filepath.Join(outputRoot, pilotCloseoutLatestRun), []byte(runDir+"\n"), 0o644)
 }
 
 func renderPilotCloseoutSummary(summary *PilotCloseoutSummary) string {

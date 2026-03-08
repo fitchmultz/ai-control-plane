@@ -249,7 +249,11 @@ func printBenchmarkSummary(out *os.File, summary *performance.Summary) {
 }
 
 func printBenchmarkHelp(out *os.File) {
-	command := mustLookupNativeCommand("benchmark")
+	command, err := lookupNativeRootCommand("benchmark")
+	if err != nil {
+		fmt.Fprintf(out, "Error: %v\n", err)
+		return
+	}
 
 	fmt.Fprint(out, `Usage: acpctl benchmark <command> [OPTIONS]
 

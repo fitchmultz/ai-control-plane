@@ -58,6 +58,10 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	if err := commandStartupError(); err != nil {
+		fmt.Fprintf(stderr, "Error: invalid command registry: %v\n", err)
+		return exitcodes.ACPExitRuntime
+	}
 	if len(args) == 0 {
 		printRootHelp(stdout)
 		return exitcodes.ACPExitUsage
@@ -69,8 +73,8 @@ func run(ctx context.Context, args []string, stdout *os.File, stderr *os.File) i
 		return exitcodes.ACPExitSuccess
 	}
 
-	command, ok := lookupRootCommand(args[0])
-	if !ok {
+	command, err := lookupRootCommand(args[0])
+	if err != nil {
 		fmt.Fprintf(stderr, "Error: Unknown command: %s\n", args[0])
 		printRootHelp(stderr)
 		return exitcodes.ACPExitUsage

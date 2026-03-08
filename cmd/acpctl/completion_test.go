@@ -622,7 +622,10 @@ func TestNativeHelpSurfacesFollowRegistry(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			content := captureHelpOutput(t, tc.renderHelp)
-			command := mustLookupNativeCommand(tc.command)
+			command, err := lookupNativeRootCommand(tc.command)
+			if err != nil {
+				t.Fatalf("lookupNativeRootCommand(%q) error = %v", tc.command, err)
+			}
 			for _, subcommand := range command.Subcommands {
 				if !strings.Contains(content, subcommand.Name) {
 					t.Fatalf("%s help missing subcommand %q", tc.name, subcommand.Name)
