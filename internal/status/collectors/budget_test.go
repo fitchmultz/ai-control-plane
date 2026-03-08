@@ -19,6 +19,12 @@
 //   - Exhausted budgets (<=0 remaining) are unhealthy.
 //   - High utilization budgets (>80% used) are warning.
 //   - Zero budgets is healthy (not an error state).
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package collectors
 
 import (

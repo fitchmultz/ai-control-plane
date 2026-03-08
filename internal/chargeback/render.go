@@ -17,6 +17,12 @@
 //   - Structured collection inputs are valid JSON arrays or empty.
 //   - Numeric counts are integral in the upstream JSON payloads.
 //   - Spreadsheet-safe escaping prefixes risky text cells with a leading apostrophe.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package chargeback
 
 import (

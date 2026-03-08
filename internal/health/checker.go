@@ -20,6 +20,12 @@
 // Invariants/Assumptions:
 //   - All checks are non-invasive (read-only operations)
 //   - Exit codes follow the repository contract (0/1/2/64)
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package health
 
 import (

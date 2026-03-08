@@ -18,6 +18,12 @@
 // Invariants/Assumptions:
 //   - Docker availability is checked via exec.LookPath.
 //   - PostgreSQL container status is checked via docker ps.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package collectors
 
 import (

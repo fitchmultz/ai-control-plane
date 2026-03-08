@@ -18,6 +18,12 @@
 // Invariants/Assumptions:
 //   - Tests use temporary files to avoid dependency on mutable repo state
 //   - Parser tests use inline fixtures for deterministic behavior
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package main
 
 import (

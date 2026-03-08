@@ -9,6 +9,15 @@
 // Non-scope:
 //   - Does not modify system state
 //   - Does not execute remediation actions
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 
@@ -103,15 +112,9 @@ func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stder
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
 	}
-
-	gatewayHost := os.Getenv("GATEWAY_HOST")
-	if gatewayHost == "" {
-		gatewayHost = config.DefaultGatewayHost
-	}
-	litellmPort := os.Getenv("LITELLM_PORT")
-	if litellmPort == "" {
-		litellmPort = strconv.Itoa(config.DefaultLiteLLMPort)
-	}
+	runtime := config.NewLoader().Gateway(true)
+	gatewayHost := runtime.Host
+	litellmPort := runtime.Port
 
 	opts := status.Options{
 		RepoRoot:    repoRoot,

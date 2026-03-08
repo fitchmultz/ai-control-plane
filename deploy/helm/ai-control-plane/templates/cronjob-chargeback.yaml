@@ -55,7 +55,7 @@ spec:
           {{- end }}
           containers:
             - name: chargeback
-              image: "{{ .Values.chargeback.image.repository }}:{{ .Values.chargeback.image.tag }}"
+              image: "{{ .Values.chargeback.image.repository }}@{{ .Values.chargeback.image.digest }}"
               imagePullPolicy: {{ .Values.chargeback.image.pullPolicy }}
               command:
                 - /bin/bash

@@ -16,6 +16,12 @@
 // Invariants/Assumptions:
 //   - Keys follow POSIX-style environment variable naming.
 //   - Values are returned literally, aside from paired quote trimming.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package envfile
 
 import (

@@ -25,8 +25,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
@@ -55,9 +53,9 @@ func (c GatewayCollector) httpClient() *http.Client {
 // Collect gathers status information from the LiteLLM gateway.
 func (c GatewayCollector) Collect(ctx context.Context) status.ComponentStatus {
 	client := c.httpClient()
-	masterKey := strings.TrimSpace(c.MasterKey)
+	masterKey := c.MasterKey
 	if masterKey == "" {
-		masterKey = strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY"))
+		masterKey = config.NewLoader().Gateway(false).MasterKey
 	}
 	if masterKey == "" {
 		return status.ComponentStatus{

@@ -18,10 +18,21 @@
 //   - Colors are empty strings when output is not a terminal (or NO_COLOR is set)
 //   - All constants are defined as string constants (not variables)
 //   - Package has no side effects on import
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package terminal
 
 import (
 	"os"
+
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
 // ANSI color and style codes.
@@ -56,7 +67,7 @@ type Colors struct {
 // NewColors returns a Colors struct with values based on terminal detection.
 // Respects NO_COLOR environment variable.
 func NewColors() Colors {
-	if os.Getenv("NO_COLOR") != "" || !IsTerminal(os.Stdout) {
+	if config.NewLoader().Tooling().NoColor || !IsTerminal(os.Stdout) {
 		return Colors{UseColor: false}
 	}
 	return Colors{

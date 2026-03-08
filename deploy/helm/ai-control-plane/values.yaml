@@ -386,7 +386,8 @@ backup:
   # Backup image configuration
   image:
     repository: postgres
-    tag: "18-alpine"
+    # Pinned digest for reproducibility (postgres:18-alpine OCI index digest)
+    digest: "sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911"
     pullPolicy: IfNotPresent
 
   # Resource limits for backup jobs
@@ -478,7 +479,8 @@ chargeback:
   # Container image configuration
   image:
     repository: postgres
-    tag: "18-alpine"
+    # Pinned digest for reproducibility (postgres:18-alpine OCI index digest)
+    digest: "sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911"
     pullPolicy: IfNotPresent
 
   # Resource limits for chargeback jobs

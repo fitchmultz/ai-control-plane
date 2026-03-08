@@ -15,6 +15,12 @@
 // Invariants/Assumptions:
 //   - Tests run against temporary files only.
 //   - Command substitution text is treated as literal data.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package envfile
 
 import (

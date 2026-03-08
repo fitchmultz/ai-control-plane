@@ -18,6 +18,12 @@
 // Invariants/Assumptions:
 //   - Embedded mode uses Docker container
 //   - External mode uses DATABASE_URL environment variable
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package db
 
 import (
@@ -25,11 +31,10 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
-	"github.com/mitchfultz/ai-control-plane/internal/envfile"
 
 	// PostgreSQL driver for external database mode
 	_ "github.com/lib/pq"
@@ -56,13 +61,13 @@ type Client struct {
 
 // NewClient creates a new database client
 func NewClient(compose *docker.Compose) *Client {
-	mode := detectDatabaseMode()
+	settings := config.NewLoader().Database(context.Background())
 	return &Client{
-		mode:      mode,
-		dbName:    getEnvOrDefault("DB_NAME", defaultDBName),
-		dbUser:    getEnvOrDefault("DB_USER", defaultDBUser),
+		mode:      settings.Mode,
+		dbName:    settings.Name,
+		dbUser:    settings.User,
 		compose:   compose,
-		configErr: detectDatabaseConfigError(mode),
+		configErr: settings.AmbiguousErr,
 	}
 }
 
@@ -112,7 +117,7 @@ func (c *Client) IsAccessible(ctx context.Context) bool {
 	}
 	if c.IsExternal() {
 		// For external, check via DATABASE_URL connectivity
-		dbURL := os.Getenv("DATABASE_URL")
+		dbURL := config.NewLoader().Database(ctx).URL
 		if dbURL == "" {
 			return false
 		}
@@ -165,7 +170,7 @@ func (c *Client) queryEmbedded(ctx context.Context, query string) (string, error
 func (c *Client) queryExternal(ctx context.Context, query string) (string, error) {
 	if c.db == nil {
 		// Lazy initialize connection
-		dbURL := os.Getenv("DATABASE_URL")
+		dbURL := config.NewLoader().Database(ctx).URL
 		if dbURL == "" {
 			return "", fmt.Errorf("DATABASE_URL not set for external database mode")
 		}
@@ -274,90 +279,10 @@ func (c *Client) Restore(ctx context.Context, sql io.Reader) error {
 	return err
 }
 
-// detectDatabaseMode detects the database mode from explicit configuration.
-// Priority: 1) ACP_DATABASE_MODE env var, 2) ACP_DATABASE_MODE in demo/.env, 3) default embedded.
-//
-// DATABASE_URL alone is not sufficient to infer external mode because the
-// default embedded demo stack also defines DATABASE_URL for LiteLLM.
 func detectDatabaseMode() string {
-	if mode, ok := explicitDatabaseMode(); ok {
-		return mode
-	}
-	return "embedded"
+	return config.NewLoader().Database(context.Background()).Mode
 }
 
-func detectDatabaseConfigError(mode string) error {
-	if mode != "embedded" {
-		return nil
-	}
-	if _, ok := explicitDatabaseMode(); ok {
-		return nil
-	}
-	dbURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if dbURL == "" {
-		if repoValue, ok := repoEnvValue("DATABASE_URL"); ok {
-			dbURL = strings.TrimSpace(repoValue)
-		}
-	}
-	if dbURL == "" || dbURL == defaultEmbeddedDatabaseURL {
-		return nil
-	}
-	return fmt.Errorf("ambiguous database configuration: DATABASE_URL is set but ACP_DATABASE_MODE is not; set ACP_DATABASE_MODE=external for external PostgreSQL or ACP_DATABASE_MODE=embedded for the local demo stack")
-}
-
-func explicitDatabaseMode() (string, bool) {
-	if mode, ok := normalizeDatabaseMode(os.Getenv("ACP_DATABASE_MODE")); ok {
-		return mode, true
-	}
-	if repoValue, ok := repoEnvValue("ACP_DATABASE_MODE"); ok {
-		return normalizeDatabaseMode(repoValue)
-	}
-	return "", false
-}
-
-func repoEnvValue(key string) (string, bool) {
-	repoRoot := resolveRepoRoot()
-	if repoRoot == "" {
-		return "", false
-	}
-	return envFileValue(repoRoot+"/demo/.env", key)
-}
-
-func envFileValue(path, key string) (string, bool) {
-	value, ok, err := envfile.LookupFile(path, key)
-	if err != nil {
-		return "", false
-	}
-	return strings.TrimSpace(value), ok
-}
-
-func normalizeDatabaseMode(value string) (string, bool) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "embedded":
-		return "embedded", true
-	case "external":
-		return "external", true
-	default:
-		return "", false
-	}
-}
-
-func resolveRepoRoot() string {
-	repoRoot := os.Getenv("ACP_REPO_ROOT")
-	if repoRoot != "" {
-		return repoRoot
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	return wd
-}
-
-// getEnvOrDefault returns the value of an environment variable or a default
 func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
+	return config.NewLoader().StringDefault(key, defaultValue)
 }

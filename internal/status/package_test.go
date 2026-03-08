@@ -18,6 +18,12 @@
 // Invariants/Assumptions:
 //   - Collectors are read-only and do not modify system state.
 //   - StatusReport is deterministic for the same collector results.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package status
 
 import (

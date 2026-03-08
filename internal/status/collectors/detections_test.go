@@ -20,6 +20,12 @@
 //   - High severity: spend > $10 in 24 hours.
 //   - Medium severity: spend > $5 and <= $10 in 24 hours.
 //   - No SpendLogs table returns healthy (no audit data yet).
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package collectors
 
 import (

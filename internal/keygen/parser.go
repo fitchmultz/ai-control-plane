@@ -10,6 +10,15 @@
 // Non-scope:
 //   - Does not validate business logic (see validator.go)
 //   - Does not generate keys
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package keygen
 
 import (

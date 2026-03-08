@@ -207,6 +207,8 @@ func buildCommandCatalog() commandCatalog {
 					{commandDescriptor: commandDescriptor{Name: "supply-chain", Description: "Run supply-chain policy and digest validation"}, NativeRun: runValidateSupplyChain},
 					{commandDescriptor: commandDescriptor{Name: "secrets-audit", Description: "Run deterministic tracked-file secrets audit"}, NativeRun: runSecretsAudit},
 					{commandDescriptor: commandDescriptor{Name: "compose-healthchecks", Description: "Validate Docker Compose healthchecks"}, NativeRun: runValidateComposeHealthchecks},
+					{commandDescriptor: commandDescriptor{Name: "headers", Description: "Validate Go source file header policy"}, NativeRun: runValidateHeaders},
+					{commandDescriptor: commandDescriptor{Name: "env-access", Description: "Fail on direct environment access outside internal/config"}, NativeRun: runValidateEnvAccess},
 					{commandDescriptor: commandDescriptor{Name: "security", Description: "Run Make-composed security gate (hygiene, secrets, license, supply chain)"}, MakeTarget: "security-gate"},
 				},
 			},

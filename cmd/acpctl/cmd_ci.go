@@ -8,6 +8,15 @@
 // Non-scope:
 //   - Does not execute runtime checks directly
 //   - Does not modify git state
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 
@@ -20,6 +29,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/ci"
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
@@ -130,7 +140,7 @@ Exit codes:
 	result, err := ci.DecideRuntimeScope(decisionCtx, ci.DecisionOptions{
 		RepoRoot: repoRoot,
 		Paths:    paths,
-		CIFull:   os.Getenv("CI_FULL"),
+		CIFull:   config.NewLoader().Tooling().CIFull,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: runtime scope decision failed: %v\n", err)

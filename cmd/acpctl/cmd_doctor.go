@@ -9,6 +9,15 @@
 // Non-scope:
 //   - Does not modify system state (unless --fix is used)
 //   - Does not replace operational monitoring
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 
@@ -95,20 +104,12 @@ func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stder
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
 	}
-
-	gatewayHost := os.Getenv("GATEWAY_HOST")
-	if gatewayHost == "" {
-		gatewayHost = config.DefaultGatewayHost
-	}
-	gatewayPort := os.Getenv("LITELLM_PORT")
-	if gatewayPort == "" {
-		gatewayPort = fmt.Sprintf("%d", config.DefaultLiteLLMPort)
-	}
+	gatewayRuntime := config.NewLoader().Gateway(true)
 
 	opts := doctor.Options{
 		RepoRoot:      repoRoot,
-		GatewayHost:   gatewayHost,
-		GatewayPort:   gatewayPort,
+		GatewayHost:   gatewayRuntime.Host,
+		GatewayPort:   gatewayRuntime.Port,
 		RequiredPorts: config.RequiredPorts(),
 		SkipChecks:    skipChecks,
 		Fix:           fix,

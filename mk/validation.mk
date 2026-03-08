@@ -95,6 +95,20 @@ validate-compose-healthchecks: ## Validate Docker Compose healthcheck syntax
 		&& echo '$(COLOR_GREEN)✓ Healthcheck validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Healthcheck validation failed$(COLOR_RESET)'; exit 1; }
 
+.PHONY: validate-headers
+validate-headers: ## Validate Go source file purpose headers
+	@echo '$(COLOR_BOLD)Validating Go file headers...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate headers \
+		&& echo '$(COLOR_GREEN)✓ Go header policy passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Go header policy failed$(COLOR_RESET)'; exit 1; }
+
+.PHONY: validate-env-access
+validate-env-access: ## Fail on direct environment access outside internal/config
+	@echo '$(COLOR_BOLD)Validating direct environment access policy...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate env-access \
+		&& echo '$(COLOR_GREEN)✓ Environment access policy passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Environment access policy failed$(COLOR_RESET)'; exit 1; }
+
 .PHONY: governance-report
 governance-report: ## Compatibility target: governance report generation not included in public snapshot
 	@echo '$(COLOR_YELLOW)⚠ Governance scorecard generation is not included in this public snapshot$(COLOR_RESET)'

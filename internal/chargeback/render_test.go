@@ -14,6 +14,12 @@
 //
 // Invariants/Assumptions:
 //   - Tests use the package-level canonical rendering entrypoints only.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package chargeback
 
 import (

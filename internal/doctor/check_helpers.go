@@ -23,11 +23,11 @@ package doctor
 import (
 	"strings"
 
-	"github.com/mitchfultz/ai-control-plane/internal/envfile"
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
 func loadEnvFromFile(path, key string) string {
-	value, ok, err := envfile.LookupFile(path, key)
+	value, ok, err := config.LookupEnvFile(path, key)
 	if err != nil || !ok {
 		return ""
 	}

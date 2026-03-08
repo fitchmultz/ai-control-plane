@@ -19,6 +19,8 @@ lint: ## Run linters (shellcheck, YAML validation, docker-compose config, SIEM s
 	@echo '$(COLOR_BOLD)Running linters...$(COLOR_RESET)'
 	@$(MAKE) --silent lint-shell
 	@$(MAKE) --silent lint-yaml
+	@$(MAKE) --silent lint-go-headers
+	@$(MAKE) --silent lint-env-access
 	@$(MAKE) --silent lint-compose
 	@$(MAKE) --silent lint-healthchecks
 	@$(MAKE) --silent lint-siem
@@ -53,6 +55,20 @@ lint-yaml: ## Run yamllint on configuration files
 		$(COMPOSE_DIR)/config/librechat/librechat.yaml \
 		&& echo '$(COLOR_GREEN)✓ YAML lint passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ YAML lint failed$(COLOR_RESET)'; exit 1; }
+
+.PHONY: lint-go-headers
+lint-go-headers: ## Validate Go source file purpose headers
+	@echo '$(COLOR_BOLD)Validating Go file headers...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate headers \
+		&& echo '$(COLOR_GREEN)✓ Go header policy passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Go header policy failed$(COLOR_RESET)'; exit 1; }
+
+.PHONY: lint-env-access
+lint-env-access: ## Fail on direct environment access outside internal/config
+	@echo '$(COLOR_BOLD)Validating direct environment access policy...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate env-access \
+		&& echo '$(COLOR_GREEN)✓ Environment access policy passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Environment access policy failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: lint-compose
 lint-compose: ## Validate Docker Compose configurations

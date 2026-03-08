@@ -58,7 +58,7 @@ spec:
           {{- end }}
           containers:
             - name: verify
-              image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
+              image: "{{ .Values.backup.image.repository }}@{{ .Values.backup.image.digest }}"
               imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
               command:
                 - /bin/bash

@@ -33,6 +33,12 @@
 //	  - cmd_chargeback.go: Chargeback rendering/payload helpers
 //	  - cmd_delegated.go: Make-delegated commands
 //	  - common.go       : Shared utilities
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package main
 
 import (

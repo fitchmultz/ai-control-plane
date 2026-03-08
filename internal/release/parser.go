@@ -10,6 +10,15 @@
 // Non-scope:
 //   - Does not execute build or verify operations
 //   - Does not interact with filesystem
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package release
 
 import (

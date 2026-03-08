@@ -8,6 +8,15 @@
 // Non-scope:
 //   - Does not perform Git operations
 //   - Does not delete extraneous files
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 

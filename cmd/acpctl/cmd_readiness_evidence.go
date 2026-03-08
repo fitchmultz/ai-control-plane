@@ -26,8 +26,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/release"
@@ -57,10 +57,7 @@ func runReadinessEvidenceCommand(ctx context.Context, args []string, stdout *os.
 func runReadinessEvidenceRun(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	out := output.New()
 	repoRoot := detectRepoRootWithContext(ctx)
-	makeBin := strings.TrimSpace(os.Getenv("ACPCTL_MAKE_BIN"))
-	if makeBin == "" {
-		makeBin = "make"
-	}
+	makeBin := config.NewLoader().Tooling().MakeBinary
 	options := release.ReadinessOptions{
 		RepoRoot:      repoRoot,
 		OutputRoot:    filepath.Join(repoRoot, "demo", "logs", "evidence"),

@@ -13,6 +13,12 @@
 // Invariants/Assumptions:
 //   - Tests use temporary env files.
 //   - Command output is written to provided stdout/stderr files.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package main
 
 import (

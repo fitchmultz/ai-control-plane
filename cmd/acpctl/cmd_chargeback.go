@@ -15,6 +15,12 @@
 // Invariants/Assumptions:
 //   - Shell orchestrators provide the required environment variables.
 //   - Output is machine-readable and deterministic for equivalent inputs.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package main
 
 import (
@@ -27,6 +33,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/chargeback"
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
@@ -152,6 +159,7 @@ Exit codes:
 }
 
 func runChargebackRenderCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	loader := config.NewLoader()
 	if len(args) == 1 && isHelpToken(args[0]) {
 		printChargebackRenderHelp(stdout)
 		return exitcodes.ACPExitSuccess
@@ -169,7 +177,7 @@ func runChargebackRenderCommand(_ context.Context, args []string, stdout *os.Fil
 		return exitcodes.ACPExitUsage
 	}
 
-	costCenters, err := chargeback.DecodeCostCenters(os.Getenv("CHARGEBACK_COST_CENTER_JSON"))
+	costCenters, err := chargeback.DecodeCostCenters(loader.String("CHARGEBACK_COST_CENTER_JSON"))
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_COST_CENTER_JSON: %v\n", err)
 		return exitcodes.ACPExitUsage
@@ -177,7 +185,7 @@ func runChargebackRenderCommand(_ context.Context, args []string, stdout *os.Fil
 
 	switch *format {
 	case "csv":
-		if err := chargeback.RenderCSV(stdout, os.Getenv("CHARGEBACK_REPORT_MONTH"), costCenters); err != nil {
+		if err := chargeback.RenderCSV(stdout, loader.String("CHARGEBACK_REPORT_MONTH"), costCenters); err != nil {
 			fmt.Fprintf(stderr, "Error: render chargeback csv: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
@@ -189,18 +197,18 @@ func runChargebackRenderCommand(_ context.Context, args []string, stdout *os.Fil
 		return exitcodes.ACPExitUsage
 	}
 
-	models, err := chargeback.DecodeModels(os.Getenv("CHARGEBACK_MODEL_JSON"))
+	models, err := chargeback.DecodeModels(loader.String("CHARGEBACK_MODEL_JSON"))
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_MODEL_JSON: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
-	anomalies, err := chargeback.DecodeAnomalies(os.Getenv("CHARGEBACK_ANOMALIES_JSON"))
+	anomalies, err := chargeback.DecodeAnomalies(loader.String("CHARGEBACK_ANOMALIES_JSON"))
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_ANOMALIES_JSON: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 
-	input, err := readRenderInput(costCenters, models, anomalies)
+	input, err := readRenderInput(loader, costCenters, models, anomalies)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitUsage
@@ -213,6 +221,7 @@ func runChargebackRenderCommand(_ context.Context, args []string, stdout *os.Fil
 }
 
 func runChargebackPayloadCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	loader := config.NewLoader()
 	if len(args) == 1 && isHelpToken(args[0]) {
 		printChargebackPayloadHelp(stdout)
 		return exitcodes.ACPExitSuccess
@@ -232,18 +241,18 @@ func runChargebackPayloadCommand(_ context.Context, args []string, stdout *os.Fi
 
 	switch *target {
 	case "generic":
-		anomalies, err := chargeback.DecodeAnomalies(os.Getenv("CHARGEBACK_ANOMALIES_JSON"))
+		anomalies, err := chargeback.DecodeAnomalies(loader.String("CHARGEBACK_ANOMALIES_JSON"))
 		if err != nil {
 			fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_ANOMALIES_JSON: %v\n", err)
 			return exitcodes.ACPExitUsage
 		}
 		payload, err := chargeback.BuildGenericWebhookPayload(chargeback.GenericWebhookInput{
-			Event:       stringDefault(os.Getenv("CHARGEBACK_PAYLOAD_EVENT"), "chargeback_report_generated"),
-			ReportMonth: os.Getenv("CHARGEBACK_REPORT_MONTH"),
-			TotalSpend:  floatEnv("CHARGEBACK_TOTAL_SPEND"),
-			Variance:    os.Getenv("CHARGEBACK_VARIANCE"),
+			Event:       stringDefault(loader.String("CHARGEBACK_PAYLOAD_EVENT"), "chargeback_report_generated"),
+			ReportMonth: loader.String("CHARGEBACK_REPORT_MONTH"),
+			TotalSpend:  floatEnv(loader, "CHARGEBACK_TOTAL_SPEND"),
+			Variance:    loader.String("CHARGEBACK_VARIANCE"),
 			Anomalies:   anomalies,
-			Timestamp:   stringDefault(os.Getenv("CHARGEBACK_PAYLOAD_TIMESTAMP"), time.Now().UTC().Format(time.RFC3339)),
+			Timestamp:   stringDefault(loader.String("CHARGEBACK_PAYLOAD_TIMESTAMP"), time.Now().UTC().Format(time.RFC3339)),
 		})
 		if err != nil {
 			fmt.Fprintf(stderr, "Error: build generic payload: %v\n", err)
@@ -256,11 +265,11 @@ func runChargebackPayloadCommand(_ context.Context, args []string, stdout *os.Fi
 		return exitcodes.ACPExitSuccess
 	case "slack":
 		payload, err := chargeback.BuildSlackWebhookPayload(chargeback.SlackWebhookInput{
-			ReportMonth: os.Getenv("CHARGEBACK_REPORT_MONTH"),
-			TotalSpend:  floatEnv("CHARGEBACK_TOTAL_SPEND"),
-			Variance:    os.Getenv("CHARGEBACK_VARIANCE"),
-			Color:       stringDefault(os.Getenv("CHARGEBACK_SLACK_COLOR"), "good"),
-			Epoch:       int64EnvDefault("CHARGEBACK_SLACK_EPOCH", time.Now().Unix()),
+			ReportMonth: loader.String("CHARGEBACK_REPORT_MONTH"),
+			TotalSpend:  floatEnv(loader, "CHARGEBACK_TOTAL_SPEND"),
+			Variance:    loader.String("CHARGEBACK_VARIANCE"),
+			Color:       stringDefault(loader.String("CHARGEBACK_SLACK_COLOR"), "good"),
+			Epoch:       int64EnvDefault(loader, "CHARGEBACK_SLACK_EPOCH", time.Now().Unix()),
 		})
 		if err != nil {
 			fmt.Fprintf(stderr, "Error: build slack payload: %v\n", err)
@@ -278,54 +287,46 @@ func runChargebackPayloadCommand(_ context.Context, args []string, stdout *os.Fi
 	}
 }
 
-func readRenderInput(costCenters []chargeback.CostCenterAllocation, models []chargeback.ModelAllocation, anomalies []chargeback.Anomaly) (chargeback.ReportInput, error) {
-	month1, month2, month3 := forecastValues(os.Getenv("CHARGEBACK_FORECAST_VALUES"))
+func readRenderInput(loader *config.Loader, costCenters []chargeback.CostCenterAllocation, models []chargeback.ModelAllocation, anomalies []chargeback.Anomaly) (chargeback.ReportInput, error) {
+	month1, month2, month3 := loader.ChargebackForecast()
 	return chargeback.ReportInput{
-		SchemaVersion:      stringDefault(os.Getenv("CHARGEBACK_SCHEMA_VERSION"), "1.0.0"),
-		GeneratedAt:        stringDefault(os.Getenv("CHARGEBACK_GENERATED_AT"), time.Now().UTC().Format(time.RFC3339)),
-		ReportMonth:        os.Getenv("CHARGEBACK_REPORT_MONTH"),
-		PeriodStart:        os.Getenv("CHARGEBACK_MONTH_START"),
-		PeriodEnd:          os.Getenv("CHARGEBACK_MONTH_END"),
-		TotalSpend:         floatEnv("CHARGEBACK_TOTAL_SPEND"),
-		TotalRequests:      int64Env("CHARGEBACK_TOTAL_REQUESTS"),
-		TotalTokens:        int64Env("CHARGEBACK_TOTAL_TOKENS"),
+		SchemaVersion:      stringDefault(loader.String("CHARGEBACK_SCHEMA_VERSION"), "1.0.0"),
+		GeneratedAt:        stringDefault(loader.String("CHARGEBACK_GENERATED_AT"), time.Now().UTC().Format(time.RFC3339)),
+		ReportMonth:        loader.String("CHARGEBACK_REPORT_MONTH"),
+		PeriodStart:        loader.String("CHARGEBACK_MONTH_START"),
+		PeriodEnd:          loader.String("CHARGEBACK_MONTH_END"),
+		TotalSpend:         floatEnv(loader, "CHARGEBACK_TOTAL_SPEND"),
+		TotalRequests:      int64Env(loader, "CHARGEBACK_TOTAL_REQUESTS"),
+		TotalTokens:        int64Env(loader, "CHARGEBACK_TOTAL_TOKENS"),
 		CostCenters:        costCenters,
 		Models:             models,
-		Variance:           os.Getenv("CHARGEBACK_VARIANCE"),
-		VarianceThreshold:  floatEnv("CHARGEBACK_VARIANCE_THRESHOLD"),
-		PreviousMonthSpend: floatEnv("CHARGEBACK_PREV_MONTH_SPEND"),
+		Variance:           loader.String("CHARGEBACK_VARIANCE"),
+		VarianceThreshold:  floatEnv(loader, "CHARGEBACK_VARIANCE_THRESHOLD"),
+		PreviousMonthSpend: floatEnv(loader, "CHARGEBACK_PREV_MONTH_SPEND"),
 		Anomalies:          anomalies,
-		ForecastEnabled:    boolEnvDefault("CHARGEBACK_FORECAST_ENABLED", true),
+		ForecastEnabled:    boolEnvDefault(loader, "CHARGEBACK_FORECAST_ENABLED", true),
 		ForecastMonth1:     month1,
 		ForecastMonth2:     month2,
 		ForecastMonth3:     month3,
-		DailyBurn:          floatEnv("CHARGEBACK_DAILY_BURN"),
-		DaysRemaining:      nullableInt64Env("CHARGEBACK_DAYS_REMAINING"),
-		ExhaustionDate:     stringDefault(os.Getenv("CHARGEBACK_EXHAUSTION_DATE"), "N/A"),
-		TotalBudget:        floatEnv("CHARGEBACK_TOTAL_BUDGET"),
+		DailyBurn:          floatEnv(loader, "CHARGEBACK_DAILY_BURN"),
+		DaysRemaining:      loader.Int64Ptr("CHARGEBACK_DAYS_REMAINING"),
+		ExhaustionDate:     stringDefault(loader.String("CHARGEBACK_EXHAUSTION_DATE"), "N/A"),
+		TotalBudget:        floatEnv(loader, "CHARGEBACK_TOTAL_BUDGET"),
 		BudgetRisk: chargeback.BudgetRisk{
-			RiskLevel:         stringDefault(os.Getenv("CHARGEBACK_BUDGET_RISK_LEVEL"), "unknown"),
-			BudgetPercent:     nullableFloatEnv("CHARGEBACK_BUDGET_RISK_PERCENT"),
-			ThresholdExceeded: boolEnvDefault("CHARGEBACK_BUDGET_RISK_THRESHOLD_EXCEEDED", false),
+			RiskLevel:         stringDefault(loader.String("CHARGEBACK_BUDGET_RISK_LEVEL"), "unknown"),
+			BudgetPercent:     loader.Float64Ptr("CHARGEBACK_BUDGET_RISK_PERCENT"),
+			ThresholdExceeded: boolEnvDefault(loader, "CHARGEBACK_BUDGET_RISK_THRESHOLD_EXCEEDED", false),
 		},
-		AnomalyThreshold: floatEnv("CHARGEBACK_ANOMALY_THRESHOLD"),
+		AnomalyThreshold: floatEnv(loader, "CHARGEBACK_ANOMALY_THRESHOLD"),
 	}, nil
 }
 
-func forecastValues(raw string) (*float64, *float64, *float64) {
-	parts := strings.Split(stringDefault(raw, "N/A,N/A,N/A"), ",")
-	for len(parts) < 3 {
-		parts = append(parts, "N/A")
-	}
-	return nullableFloat(parts[0]), nullableFloat(parts[1]), nullableFloat(parts[2])
+func floatEnv(loader *config.Loader, key string) float64 {
+	return floatEnvDefault(loader, key, 0)
 }
 
-func floatEnv(key string) float64 {
-	return floatEnvDefault(key, 0)
-}
-
-func floatEnvDefault(key string, fallback float64) float64 {
-	raw := strings.TrimSpace(os.Getenv(key))
+func floatEnvDefault(loader *config.Loader, key string, fallback float64) float64 {
+	raw := strings.TrimSpace(loader.String(key))
 	if raw == "" || strings.EqualFold(raw, "N/A") {
 		return fallback
 	}
@@ -336,12 +337,12 @@ func floatEnvDefault(key string, fallback float64) float64 {
 	return value
 }
 
-func int64Env(key string) int64 {
-	return int64EnvDefault(key, 0)
+func int64Env(loader *config.Loader, key string) int64 {
+	return int64EnvDefault(loader, key, 0)
 }
 
-func int64EnvDefault(key string, fallback int64) int64 {
-	raw := strings.TrimSpace(os.Getenv(key))
+func int64EnvDefault(loader *config.Loader, key string, fallback int64) int64 {
+	raw := strings.TrimSpace(loader.String(key))
 	if raw == "" || strings.EqualFold(raw, "N/A") {
 		return fallback
 	}
@@ -352,8 +353,8 @@ func int64EnvDefault(key string, fallback int64) int64 {
 	return value
 }
 
-func boolEnvDefault(key string, fallback bool) bool {
-	raw := strings.TrimSpace(os.Getenv(key))
+func boolEnvDefault(loader *config.Loader, key string, fallback bool) bool {
+	raw := strings.TrimSpace(loader.String(key))
 	if raw == "" {
 		return fallback
 	}
@@ -365,34 +366,6 @@ func boolEnvDefault(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
-}
-
-func nullableFloatEnv(key string) *float64 {
-	return nullableFloat(os.Getenv(key))
-}
-
-func nullableFloat(raw string) *float64 {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" || strings.EqualFold(trimmed, "N/A") || strings.EqualFold(trimmed, "null") {
-		return nil
-	}
-	value, err := strconv.ParseFloat(trimmed, 64)
-	if err != nil {
-		return nil
-	}
-	return &value
-}
-
-func nullableInt64Env(key string) *int64 {
-	trimmed := strings.TrimSpace(os.Getenv(key))
-	if trimmed == "" || strings.EqualFold(trimmed, "N/A") || strings.EqualFold(trimmed, "null") {
-		return nil
-	}
-	value, err := strconv.ParseInt(trimmed, 10, 64)
-	if err != nil {
-		return nil
-	}
-	return &value
 }
 
 func stringDefault(value string, fallback string) string {

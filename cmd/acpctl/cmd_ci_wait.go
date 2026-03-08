@@ -10,6 +10,15 @@
 // Non-scope:
 //   - Does NOT start or create containers
 //   - Does NOT run full health suite
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 
@@ -22,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
@@ -39,9 +49,10 @@ type ciWaitGateway interface {
 }
 
 var newCIWaitCompose = func(repoRoot string) (ciWaitCompose, error) {
-	projectName := strings.TrimSpace(os.Getenv("ACP_COMPOSE_PROJECT"))
+	tooling := config.NewLoader().Tooling()
+	projectName := strings.TrimSpace(tooling.ComposeProject)
 	if projectName == "" {
-		slot := strings.TrimSpace(os.Getenv("ACP_SLOT"))
+		slot := strings.TrimSpace(tooling.Slot)
 		if slot == "" {
 			slot = "active"
 		}

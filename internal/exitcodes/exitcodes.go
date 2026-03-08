@@ -15,6 +15,12 @@
 // Invariants/Assumptions:
 //   - Values are stable and intentionally aligned with existing shell scripts.
 //   - ACPExitUsage matches sysexits EX_USAGE (64).
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package exitcodes
 
 const (

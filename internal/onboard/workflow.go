@@ -34,7 +34,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/envfile"
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/keygen"
 )
@@ -427,18 +427,11 @@ func ensurePrereqs(opts Options) error {
 }
 
 func loadRequiredMasterKey(opts Options) (string, error) {
-	if value := strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY")); value != "" {
+	if value := config.NewLoader().Gateway(true).MasterKey; value != "" {
 		return value, nil
 	}
 	envPath := filepath.Join(opts.RepoRoot, "demo", ".env")
-	value, ok, err := envfile.LookupFile(envPath, "LITELLM_MASTER_KEY")
-	if err != nil {
-		return "", err
-	}
-	if !ok || strings.TrimSpace(value) == "" {
-		return "", fmt.Errorf("LITELLM_MASTER_KEY is not set (%s)", envPath)
-	}
-	return strings.TrimSpace(value), nil
+	return "", fmt.Errorf("LITELLM_MASTER_KEY is not set (%s)", envPath)
 }
 
 func buildBaseURL(host string, port string, useTLS bool) string {
@@ -495,7 +488,7 @@ func redactKey(key string) string {
 }
 
 func writeCodexConfig(opts Options, baseURL string) error {
-	configDir := filepath.Join(os.Getenv("HOME"), ".codex")
+	configDir := filepath.Join(config.NewLoader().Tooling().HomeDir, ".codex")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return err
 	}

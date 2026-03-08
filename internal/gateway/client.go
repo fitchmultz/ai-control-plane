@@ -18,6 +18,12 @@
 // Invariants/Assumptions:
 //   - Gateway follows LiteLLM API conventions
 //   - Master key is provided for authenticated endpoints
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package gateway
 
 import (
@@ -27,16 +33,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
 const (
-	defaultHost           = "127.0.0.1"
-	defaultPort           = 4000
-	defaultConnectTimeout = 5 * time.Second
+	defaultHost           = config.DefaultGatewayHost
+	defaultPort           = config.DefaultLiteLLMPort
+	defaultConnectTimeout = config.DefaultHTTPTimeout
 	defaultMaxTime        = 30 * time.Second
 )
 
@@ -83,18 +89,15 @@ func WithTimeout(timeout time.Duration) Option {
 
 // NewClient creates a new gateway client
 func NewClient(opts ...Option) *Client {
-	host := getEnvOrDefault("GATEWAY_HOST", defaultHost)
-	portStr := getEnvOrDefault("LITELLM_PORT", strconv.Itoa(defaultPort))
-	port, _ := strconv.Atoi(portStr)
-	if port == 0 {
-		port = defaultPort
-	}
+	runtime := config.NewLoader().Gateway(false)
+	host := runtime.Host
+	port := runtime.PortInt
 
 	c := &Client{
 		host:           host,
 		port:           port,
 		httpClient:     &http.Client{Timeout: defaultMaxTime},
-		masterKey:      strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY")),
+		masterKey:      runtime.MasterKey,
 		connectTimeout: defaultConnectTimeout,
 		maxTime:        defaultMaxTime,
 	}
@@ -229,12 +232,4 @@ type GenerateKeyResponse struct {
 // ExtractKey extracts the key from a response
 func (r *GenerateKeyResponse) ExtractKey() string {
 	return r.Key
-}
-
-// getEnvOrDefault returns the value of an environment variable or a default
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
