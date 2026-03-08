@@ -22,8 +22,6 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -38,7 +36,7 @@ func ValidateDeploymentSurfaces(repoRoot string) ([]string, error) {
 	}
 	issues := make([]string, 0)
 	for _, target := range targets {
-		if !hasRule(target.Rules, policy.RuleStructure) {
+		if !policy.HasRule(target.Rules, policy.RuleStructure) {
 			continue
 		}
 		targetIssues, err := validateStructureForTarget(repoRoot, target)
@@ -46,7 +44,7 @@ func ValidateDeploymentSurfaces(repoRoot string) ([]string, error) {
 			return nil, err
 		}
 		issues = append(issues, targetIssues...)
-		if hasRule(target.Rules, policy.RuleHelmContracts) {
+		if policy.HasRule(target.Rules, policy.RuleHelmContracts) {
 			issues = append(issues, validateHelmContracts(repoRoot, target)...)
 		}
 	}
@@ -61,10 +59,10 @@ func ValidateComposeHealthchecks(repoRoot string) ([]string, error) {
 	}
 	issues := make([]string, 0)
 	for _, target := range targets {
-		if target.Kind != policy.SurfaceCompose || !hasRule(target.Rules, policy.RuleHealthchecks) {
+		if target.Kind != policy.SurfaceCompose || !policy.HasRule(target.Rules, policy.RuleHealthchecks) {
 			continue
 		}
-		targetIssues, err := validateComposeHealthchecksForTarget(filepath.Join(repoRoot, filepath.FromSlash(target.Path)), target.Path)
+		targetIssues, err := validateComposeHealthchecksForTarget(repoRoot, target)
 		if err != nil {
 			return nil, err
 		}
@@ -75,17 +73,20 @@ func ValidateComposeHealthchecks(repoRoot string) ([]string, error) {
 }
 
 func validateStructureForTarget(repoRoot string, target policy.SurfaceTarget) ([]string, error) {
-	absPath := filepath.Join(repoRoot, filepath.FromSlash(target.Path))
-	if _, err := os.Stat(absPath); err != nil {
+	exists, err := policy.TargetExists(repoRoot, target)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
 		return []string{fmt.Sprintf("%s: missing required file", target.Path)}, nil
 	}
 	switch target.Kind {
-	case policy.SurfaceCompose, policy.SurfaceHelmValues, policy.SurfaceAnsibleYML, policy.SurfaceYAML:
-		if _, err := loadYAMLRoot(absPath); err != nil {
+	case policy.SurfaceCompose, policy.SurfaceHelmChart, policy.SurfaceHelmValues, policy.SurfaceAnsibleYML, policy.SurfaceYAML:
+		if _, err := policy.LoadYAMLTarget(repoRoot, target); err != nil {
 			return []string{fmt.Sprintf("%s: invalid YAML: %v", target.Path, err)}, nil
 		}
-	case policy.SurfaceJSON:
-		data, err := os.ReadFile(absPath)
+	case policy.SurfaceJSON, policy.SurfaceHelmSchema:
+		data, err := policy.ReadTarget(repoRoot, target)
 		if err != nil {
 			return nil, err
 		}
@@ -93,8 +94,10 @@ func validateStructureForTarget(repoRoot string, target policy.SurfaceTarget) ([
 		if err := json.Unmarshal(data, &decoded); err != nil {
 			return []string{fmt.Sprintf("%s: invalid JSON: %v", target.Path, err)}, nil
 		}
+	case policy.SurfaceHelmTpl:
+		return validateHelmTemplateStructure(repoRoot, target)
 	case policy.SurfaceTerraform:
-		data, err := os.ReadFile(absPath)
+		data, err := policy.ReadTarget(repoRoot, target)
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +105,7 @@ func validateStructureForTarget(repoRoot string, target policy.SurfaceTarget) ([
 			return []string{fmt.Sprintf("%s: empty Terraform source", target.Path)}, nil
 		}
 	case policy.SurfaceDockerfile:
-		data, err := os.ReadFile(absPath)
+		data, err := policy.ReadTarget(repoRoot, target)
 		if err != nil {
 			return nil, err
 		}
@@ -113,55 +116,70 @@ func validateStructureForTarget(repoRoot string, target policy.SurfaceTarget) ([
 	return nil, nil
 }
 
-func validateComposeHealthchecksForTarget(path string, relPath string) ([]string, error) {
-	root, err := loadYAMLRoot(path)
+func validateHelmTemplateStructure(repoRoot string, target policy.SurfaceTarget) ([]string, error) {
+	data, err := policy.ReadTarget(repoRoot, target)
 	if err != nil {
-		return []string{fmt.Sprintf("%s: invalid YAML: %v", relPath, err)}, nil
+		return nil, err
 	}
-	servicesNode := mappingValue(root, "services")
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return []string{fmt.Sprintf("%s: Helm template must not be empty", target.Path)}, nil
+	}
+	if !strings.Contains(trimmed, "apiVersion:") || !strings.Contains(trimmed, "kind:") {
+		return []string{fmt.Sprintf("%s: Helm template must declare apiVersion and kind", target.Path)}, nil
+	}
+	return nil, nil
+}
+
+func validateComposeHealthchecksForTarget(repoRoot string, target policy.SurfaceTarget) ([]string, error) {
+	root, err := policy.LoadYAMLTarget(repoRoot, target)
+	if err != nil {
+		return []string{fmt.Sprintf("%s: invalid YAML: %v", target.Path, err)}, nil
+	}
+	servicesNode := policy.MappingValue(root, "services")
 	if servicesNode == nil || servicesNode.Kind != yaml.MappingNode {
-		return []string{fmt.Sprintf("%s: compose file must define services", relPath)}, nil
+		return []string{fmt.Sprintf("%s: compose file must define services", target.Path)}, nil
 	}
 	issues := make([]string, 0)
 	for i := 0; i < len(servicesNode.Content); i += 2 {
 		serviceName := servicesNode.Content[i].Value
 		serviceNode := servicesNode.Content[i+1]
-		if mappingValue(serviceNode, "image") == nil && mappingValue(serviceNode, "build") == nil {
+		if policy.MappingValue(serviceNode, "image") == nil && policy.MappingValue(serviceNode, "build") == nil {
 			continue
 		}
-		healthcheck := mappingValue(serviceNode, "healthcheck")
+		healthcheck := policy.MappingValue(serviceNode, "healthcheck")
 		if healthcheck == nil || healthcheck.Kind != yaml.MappingNode {
-			issues = append(issues, fmt.Sprintf("%s: service %q must define a healthcheck mapping", relPath, serviceName))
+			issues = append(issues, fmt.Sprintf("%s: service %q must define a healthcheck mapping", target.Path, serviceName))
 			continue
 		}
-		testNode := mappingValue(healthcheck, "test")
+		testNode := policy.MappingValue(healthcheck, "test")
 		if testNode == nil {
-			issues = append(issues, fmt.Sprintf("%s: service %q healthcheck must define test", relPath, serviceName))
+			issues = append(issues, fmt.Sprintf("%s: service %q healthcheck must define test", target.Path, serviceName))
 			continue
 		}
 		switch testNode.Kind {
 		case yaml.SequenceNode:
 			if len(testNode.Content) == 0 {
-				issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must not be empty", relPath, serviceName))
+				issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must not be empty", target.Path, serviceName))
 			}
 		case yaml.ScalarNode:
 			if strings.TrimSpace(testNode.Value) == "" {
-				issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must not be empty", relPath, serviceName))
+				issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must not be empty", target.Path, serviceName))
 			}
 		default:
-			issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must be a string or sequence", relPath, serviceName))
+			issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must be a string or sequence", target.Path, serviceName))
 		}
 	}
 	return issues, nil
 }
 
 func validateHelmContracts(repoRoot string, target policy.SurfaceTarget) []string {
-	root, err := loadYAMLRoot(filepath.Join(repoRoot, filepath.FromSlash(target.Path)))
+	root, err := policy.LoadYAMLTarget(repoRoot, target)
 	if err != nil {
 		return []string{fmt.Sprintf("%s: invalid YAML: %v", target.Path, err)}
 	}
-	profile := scalarValue(mappingValue(root, "profile"))
-	demoEnabled := scalarValue(mappingValue(mappingValue(root, "demo"), "enabled"))
+	profile := policy.ScalarValue(policy.MappingValue(root, "profile"))
+	demoEnabled := policy.ScalarValue(policy.MappingValue(policy.MappingValue(root, "demo"), "enabled"))
 	issues := make([]string, 0)
 	switch target.Path {
 	case "deploy/helm/ai-control-plane/values.yaml":
@@ -182,47 +200,4 @@ func validateHelmContracts(repoRoot string, target policy.SurfaceTarget) []strin
 		}
 	}
 	return issues
-}
-
-func loadYAMLRoot(path string) (*yaml.Node, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, err
-	}
-	if len(root.Content) == 0 {
-		return nil, fmt.Errorf("empty YAML document")
-	}
-	return root.Content[0], nil
-}
-
-func mappingValue(node *yaml.Node, key string) *yaml.Node {
-	if node == nil || node.Kind != yaml.MappingNode {
-		return nil
-	}
-	for i := 0; i < len(node.Content); i += 2 {
-		if node.Content[i].Value == key {
-			return node.Content[i+1]
-		}
-	}
-	return nil
-}
-
-func scalarValue(node *yaml.Node) string {
-	if node == nil {
-		return ""
-	}
-	return strings.TrimSpace(node.Value)
-}
-
-func hasRule(rules []policy.SurfaceRule, target policy.SurfaceRule) bool {
-	for _, rule := range rules {
-		if rule == target {
-			return true
-		}
-	}
-	return false
 }

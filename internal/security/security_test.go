@@ -42,7 +42,7 @@ func TestValidateSupplyChainPolicyFlagsHelmDigestDrift(t *testing.T) {
 func TestValidateSupplyChainPolicyFlagsDockerfileBaseImageDrift(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","severity_policy":{"fail_on":["CRITICAL"]}}`)
-	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "mock_upstream", "Dockerfile"), "FROM python:3.14-alpine\n")
+	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM python:3.14-alpine\n")
 
 	issues, err := ValidateSupplyChainPolicy(repoRoot)
 	if err != nil {
@@ -50,6 +50,25 @@ func TestValidateSupplyChainPolicyFlagsDockerfileBaseImageDrift(t *testing.T) {
 	}
 	if len(issues) == 0 || !strings.Contains(strings.Join(issues, "\n"), "base image must be digest pinned") {
 		t.Fatalf("expected Dockerfile digest issue, got %v", issues)
+	}
+}
+
+func TestValidateSupplyChainPolicyFlagsNestedDockerfileCoverage(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","severity_policy":{"fail_on":["CRITICAL"]}}`)
+	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM python:3.14-alpine\n")
+	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "librechat-hardened", "Dockerfile"), "FROM node:22-alpine\n")
+
+	issues, err := ValidateSupplyChainPolicy(repoRoot)
+	if err != nil {
+		t.Fatalf("ValidateSupplyChainPolicy returned error: %v", err)
+	}
+	joined := strings.Join(issues, "\n")
+	if !strings.Contains(joined, "demo/images/litellm-hardened/Dockerfile") {
+		t.Fatalf("expected litellm hardened Dockerfile issue, got %v", issues)
+	}
+	if !strings.Contains(joined, "demo/images/librechat-hardened/Dockerfile") {
+		t.Fatalf("expected librechat hardened Dockerfile issue, got %v", issues)
 	}
 }
 

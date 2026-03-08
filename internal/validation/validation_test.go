@@ -46,7 +46,8 @@ func TestValidateDeploymentSurfacesFlagsHelmContractDrift(t *testing.T) {
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","severity_policy":{"fail_on":["CRITICAL"]}}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
 
@@ -57,6 +58,40 @@ func TestValidateDeploymentSurfacesFlagsHelmContractDrift(t *testing.T) {
 	joined := strings.Join(issues, "\n")
 	if !strings.Contains(joined, "values.yaml: profile must be production") {
 		t.Fatalf("expected helm profile drift issue, got %v", issues)
+	}
+}
+
+func TestValidateDeploymentSurfacesFlagsNestedCanonicalTargets(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers: [\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nmetadata:\n  name: litellm\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "tasks: [\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "terraform", "examples", "aws-complete", "main.tf"), "   \n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "RUN echo missing-base-image\n")
+
+	issues, err := ValidateDeploymentSurfaces(repoRoot)
+	if err != nil {
+		t.Fatalf("ValidateDeploymentSurfaces returned error: %v", err)
+	}
+	joined := strings.Join(issues, "\n")
+	for _, expected := range []string{
+		"demo/config/otel-collector/config.production.yaml: invalid YAML",
+		"deploy/helm/ai-control-plane/templates/deployment-litellm.yaml: Helm template must declare apiVersion and kind",
+		"deploy/ansible/playbooks/gateway_host.yml: invalid YAML",
+		"deploy/terraform/examples/aws-complete/main.tf: empty Terraform source",
+		"demo/images/litellm-hardened/Dockerfile: Dockerfile must declare at least one FROM instruction",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected issue %q, got %v", expected, issues)
+		}
 	}
 }
 

@@ -5,11 +5,11 @@
 //
 // Responsibilities:
 //   - Enumerate supported deployment surfaces and applicable validators.
-//   - Expand path globs into deterministic file inventories.
-//   - Provide one shared policy used by security and validation engines.
+//   - Resolve exact files and recursive path scopes into deterministic targets.
+//   - Provide shared rule metadata consumed by security and validation engines.
 //
 // Scope:
-//   - Repository-relative surface definitions only.
+//   - Repository-relative deployment/config policy only.
 //
 // Usage:
 //   - Call `ExpandDeploymentSurfaces(repoRoot)` from validators and gates.
@@ -20,10 +20,8 @@
 package policy
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 )
 
 type SurfaceKind string
@@ -31,6 +29,9 @@ type SurfaceKind string
 const (
 	SurfaceCompose    SurfaceKind = "compose"
 	SurfaceHelmValues SurfaceKind = "helm-values"
+	SurfaceHelmChart  SurfaceKind = "helm-chart"
+	SurfaceHelmSchema SurfaceKind = "helm-schema"
+	SurfaceHelmTpl    SurfaceKind = "helm-template"
 	SurfaceAnsibleYML SurfaceKind = "ansible-yaml"
 	SurfaceTerraform  SurfaceKind = "terraform"
 	SurfaceDockerfile SurfaceKind = "dockerfile"
@@ -51,8 +52,8 @@ const (
 type SurfaceSpec struct {
 	ID    string
 	Kind  SurfaceKind
-	Path  string
-	Glob  string
+	Paths []string
+	Globs []string
 	Rules []SurfaceRule
 }
 
@@ -66,17 +67,84 @@ type SurfaceTarget struct {
 
 // DeploymentSurfacePolicy is the canonical scan/config enforcement scope.
 var DeploymentSurfacePolicy = []SurfaceSpec{
-	{ID: "compose-main", Kind: SurfaceCompose, Path: "demo/docker-compose.yml", Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning}},
-	{ID: "compose-offline", Kind: SurfaceCompose, Path: "demo/docker-compose.offline.yml", Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning}},
-	{ID: "compose-tls", Kind: SurfaceCompose, Path: "demo/docker-compose.tls.yml", Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning}},
-	{ID: "demo-config-yaml", Kind: SurfaceYAML, Glob: "demo/config/**/*.yaml", Rules: []SurfaceRule{RuleStructure}},
-	{ID: "demo-config-json", Kind: SurfaceJSON, Glob: "demo/config/**/*.json", Rules: []SurfaceRule{RuleStructure}},
-	{ID: "helm-values", Kind: SurfaceHelmValues, Path: "deploy/helm/ai-control-plane/values.yaml", Rules: []SurfaceRule{RuleStructure, RuleImagePinning, RuleHelmContracts}},
-	{ID: "helm-value-examples", Kind: SurfaceHelmValues, Glob: "deploy/helm/ai-control-plane/examples/*.yaml", Rules: []SurfaceRule{RuleStructure, RuleHelmContracts}},
-	{ID: "ansible-surface", Kind: SurfaceAnsibleYML, Glob: "deploy/ansible/**/*.yml", Rules: []SurfaceRule{RuleStructure}},
-	{ID: "ansible-surface-yaml", Kind: SurfaceAnsibleYML, Glob: "deploy/ansible/**/*.yaml", Rules: []SurfaceRule{RuleStructure}},
-	{ID: "terraform-surface", Kind: SurfaceTerraform, Glob: "deploy/terraform/**/*.tf", Rules: []SurfaceRule{RuleStructure}},
-	{ID: "dockerfiles", Kind: SurfaceDockerfile, Glob: "demo/**/Dockerfile*", Rules: []SurfaceRule{RuleStructure, RuleImagePinning}},
+	{
+		ID:    "compose-main",
+		Kind:  SurfaceCompose,
+		Paths: []string{"demo/docker-compose.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
+	},
+	{
+		ID:    "compose-offline",
+		Kind:  SurfaceCompose,
+		Paths: []string{"demo/docker-compose.offline.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
+	},
+	{
+		ID:    "compose-tls",
+		Kind:  SurfaceCompose,
+		Paths: []string{"demo/docker-compose.tls.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
+	},
+	{
+		ID:    "demo-config-yaml",
+		Kind:  SurfaceYAML,
+		Globs: []string{"demo/config/**/*.yaml", "demo/config/**/*.yml"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "demo-config-json",
+		Kind:  SurfaceJSON,
+		Globs: []string{"demo/config/**/*.json"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "helm-chart",
+		Kind:  SurfaceHelmChart,
+		Paths: []string{"deploy/helm/ai-control-plane/Chart.yaml"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "helm-schema",
+		Kind:  SurfaceHelmSchema,
+		Paths: []string{"deploy/helm/ai-control-plane/values.schema.json"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "helm-values",
+		Kind:  SurfaceHelmValues,
+		Paths: []string{"deploy/helm/ai-control-plane/values.yaml"},
+		Rules: []SurfaceRule{RuleStructure, RuleImagePinning, RuleHelmContracts},
+	},
+	{
+		ID:    "helm-value-examples",
+		Kind:  SurfaceHelmValues,
+		Globs: []string{"deploy/helm/ai-control-plane/examples/**/*.yaml", "deploy/helm/ai-control-plane/examples/**/*.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHelmContracts},
+	},
+	{
+		ID:    "helm-templates",
+		Kind:  SurfaceHelmTpl,
+		Globs: []string{"deploy/helm/ai-control-plane/templates/**/*.yaml", "deploy/helm/ai-control-plane/templates/**/*.yml"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "ansible-surface",
+		Kind:  SurfaceAnsibleYML,
+		Globs: []string{"deploy/ansible/**/*.yml", "deploy/ansible/**/*.yaml"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "terraform-surface",
+		Kind:  SurfaceTerraform,
+		Globs: []string{"deploy/terraform/**/*.tf"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "dockerfiles",
+		Kind:  SurfaceDockerfile,
+		Globs: []string{"demo/**/Dockerfile*"},
+		Rules: []SurfaceRule{RuleStructure, RuleImagePinning},
+	},
 }
 
 // ExpandDeploymentSurfaces resolves the canonical policy to concrete files.
@@ -101,39 +169,45 @@ func ExpandDeploymentSurfaces(repoRoot string) ([]SurfaceTarget, error) {
 }
 
 func expandSpec(repoRoot string, spec SurfaceSpec) ([]string, error) {
-	if spec.Path != "" {
-		return []string{spec.Path}, nil
+	paths := make([]string, 0, len(spec.Paths))
+	for _, path := range spec.Paths {
+		if path == "" {
+			continue
+		}
+		paths = append(paths, filepath.ToSlash(filepath.Clean(path)))
 	}
-	pattern := filepath.Join(repoRoot, filepath.FromSlash(spec.Glob))
-	matches, err := filepath.Glob(pattern)
+	if len(spec.Globs) == 0 {
+		sort.Strings(paths)
+		return uniqStrings(paths), nil
+	}
+	matches, err := WalkScopeFiles(repoRoot, PathScope{Include: spec.Globs})
 	if err != nil {
 		return nil, err
 	}
-	paths := make([]string, 0, len(matches))
-	for _, match := range matches {
-		info, err := os.Stat(match)
-		if err != nil || info.IsDir() {
-			continue
-		}
-		relPath, err := filepath.Rel(repoRoot, match)
-		if err != nil {
-			return nil, err
-		}
-		paths = append(paths, filepath.ToSlash(relPath))
-	}
+	paths = append(paths, matches...)
 	sort.Strings(paths)
 	return uniqStrings(paths), nil
+}
+
+func HasRule(rules []SurfaceRule, target SurfaceRule) bool {
+	for _, rule := range rules {
+		if rule == target {
+			return true
+		}
+	}
+	return false
 }
 
 func uniqStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	out := make([]string, 0, len(values))
 	for _, value := range values {
+		value = filepath.ToSlash(filepath.Clean(value))
 		if _, ok := seen[value]; ok {
 			continue
 		}
 		seen[value] = struct{}{}
-		out = append(out, strings.TrimSpace(value))
+		out = append(out, value)
 	}
 	return out
 }

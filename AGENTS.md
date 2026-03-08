@@ -85,6 +85,7 @@ make health      # Verify services
 - **Evidence over opinion:** Tests, data constraints, and benchmarks settle debates
 - **Fix root cause:** If the same issue appears elsewhere, fix all occurrences
 - **Canonical subprocess execution:** Operator-facing subprocesses should use `internal/proc` with caller context propagation and bounded deadlines; avoid bare `exec.Command` in CLI/internal execution paths
+- **Canonical deployment scan scope:** `internal/policy` owns recursive deployment/config surface traversal plus shared target/YAML helpers; expand scope there and reuse those helpers from `internal/security` and `internal/validation` instead of reimplementing walkers or YAML access
 - **Runtime health contract:** route gateway and database health through the typed `internal/gateway` and `internal/db` services, then adapt operator output in `internal/status` / `internal/doctor`; do not reintroduce collector-local HTTP probes or `docker exec psql` helpers
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
