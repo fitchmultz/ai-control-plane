@@ -79,13 +79,13 @@ func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, std
 	}
 
 	// Setup database client
-	compose, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot))
-	if err != nil {
+	if _, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot)); err != nil {
 		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 
-	dbClient := db.NewClient(compose)
+	dbClient := db.NewClient(repoRoot)
+	defer dbClient.Close()
 	if dbClient.IsExternal() {
 		fmt.Fprintln(stderr, out.Fail("Backup not supported for external database mode"))
 		return exitcodes.ACPExitPrereq
@@ -197,13 +197,13 @@ func runDBRestoreCommand(ctx context.Context, args []string, stdout *os.File, st
 	}
 
 	repoRoot := detectRepoRootWithContext(ctx)
-	compose, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot))
-	if err != nil {
+	if _, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot)); err != nil {
 		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 
-	dbClient := db.NewClient(compose)
+	dbClient := db.NewClient(repoRoot)
+	defer dbClient.Close()
 	if dbClient.IsExternal() {
 		fmt.Fprintln(stderr, out.Fail("Restore not supported for external database mode"))
 		return exitcodes.ACPExitPrereq

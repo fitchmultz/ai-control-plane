@@ -60,3 +60,15 @@ func sanitizeOutput(output string) string {
 	}
 	return strings.Join(result, "\n")
 }
+
+func loadGatewayConfig(repoRoot string) config.GatewaySettings {
+	loader := config.NewLoader()
+	settings := loader.Gateway(false)
+	if strings.TrimSpace(repoRoot) == "" {
+		return settings
+	}
+	if settings.MasterKey == "" {
+		settings.MasterKey = loadEnvFromFile(repoRoot+"/demo/.env", "LITELLM_MASTER_KEY")
+	}
+	return settings
+}

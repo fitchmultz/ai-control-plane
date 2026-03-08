@@ -30,11 +30,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/docker"
+	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
-	"github.com/mitchfultz/ai-control-plane/internal/health"
+	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
+	"github.com/mitchfultz/ai-control-plane/internal/status"
+	"github.com/mitchfultz/ai-control-plane/internal/status/collectors"
 )
 
 const healthCommandTimeout = 30 * time.Second
@@ -61,21 +63,29 @@ func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stder
 		return exitcodes.ACPExitPrereq
 	}
 
-	// Detect Docker Compose
-	compose, err := docker.NewCompose(docker.DefaultProjectDir(detectRepoRootWithContext(ctx)))
-	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
-		return exitcodes.ACPExitPrereq
+	repoRoot := detectRepoRootWithContext(ctx)
+	if repoRoot == "" {
+		fmt.Fprintln(stderr, out.Fail("Failed to detect repository root"))
+		return exitcodes.ACPExitRuntime
 	}
 
-	// Run health checks
+	dbClient := db.NewClient(repoRoot)
+	defer dbClient.Close()
+	gatewayClient := gateway.NewClient()
+
 	ctx, cancel := context.WithTimeout(ctx, healthCommandTimeout)
 	defer cancel()
-	checker := health.NewChecker(compose, verbose)
-	result := checker.Run(ctx)
-
-	// Print summary
-	checker.PrintSummary(result)
+	report := status.CollectAll(ctx, []status.Collector{
+		collectors.NewGatewayCollector(gatewayClient),
+		collectors.NewDatabaseCollector(dbClient),
+		collectors.NewKeysCollector(dbClient),
+		collectors.NewBudgetCollector(dbClient),
+		collectors.NewDetectionsCollector(repoRoot, dbClient),
+	}, status.Options{RepoRoot: repoRoot, Wide: verbose})
+	if err := report.WriteHuman(stdout, verbose); err != nil {
+		fmt.Fprintf(stderr, out.Fail("Failed to render health output: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
 
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		fmt.Fprintln(stderr, out.Fail("Health check timed out"))
@@ -87,10 +97,10 @@ func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stder
 	}
 
 	// Return appropriate exit code
-	switch result.Overall {
-	case health.StatusHealthy:
+	switch report.Overall {
+	case status.HealthLevelHealthy:
 		return exitcodes.ACPExitSuccess
-	case health.StatusUnhealthy:
+	case status.HealthLevelWarning, status.HealthLevelUnhealthy:
 		return exitcodes.ACPExitDomain
 	default:
 		return exitcodes.ACPExitRuntime

@@ -170,9 +170,9 @@ func writeDoctorHuman(w *os.File, report doctor.Report, wide bool) error {
 			fmt.Fprintf(w, "                     %s %s\n", sf.OK(), result.FixMessage)
 		}
 
-		if wide && result.Details != nil && len(result.Details) > 0 {
-			for k, v := range result.Details {
-				fmt.Fprintf(w, "                     %s: %v\n", k, v)
+		if wide && !result.Details.IsZero() {
+			for _, line := range result.Details.Lines() {
+				fmt.Fprintf(w, "                     %s\n", line)
 			}
 		}
 	}

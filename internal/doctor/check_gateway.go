@@ -2,29 +2,32 @@
 //
 // Purpose:
 //
-//	Implement gateway health diagnostics as a focused module.
+//	Implement gateway health diagnostics through the shared typed gateway
+//	service so doctor and status evaluate the same runtime model.
 //
 // Responsibilities:
-//   - Perform an authorized gateway health probe.
+//   - Perform an authorized gateway probe.
 //   - Report actionable remediation when the gateway is unavailable.
+//
+// Non-scope:
+//   - Does not attempt gateway remediation or mutation.
+//
+// Invariants/Assumptions:
+//   - Gateway diagnostics use the shared typed gateway service.
 //
 // Scope:
 //   - LiteLLM gateway diagnostics only.
 //
 // Usage:
 //   - Used through its package exports and CLI entrypoints as applicable.
-//
-// Invariants/Assumptions:
-//   - Behavior must remain deterministic for equivalent inputs.
 package doctor
 
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"path/filepath"
+	"strconv"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
+	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -33,14 +36,26 @@ type gatewayHealthyCheck struct{}
 func (c gatewayHealthyCheck) ID() string { return "gateway_healthy" }
 
 func (c gatewayHealthyCheck) Run(ctx context.Context, opts Options) CheckResult {
-	masterKey := loadGatewayMasterKey(opts)
-	if masterKey == "" {
+	client := doctorGatewayClient(opts)
+	state := client.Status(ctx)
+	details := status.ComponentDetails{
+		BaseURL:             state.BaseURL,
+		HTTPStatus:          state.Health.HTTPStatus,
+		ModelsHTTPStatus:    state.Models.HTTPStatus,
+		MasterKeyConfigured: state.MasterKeyConfigured,
+		Reachable:           state.Health.Reachable || state.Models.Reachable,
+		Authorized:          state.Health.Authorized && state.Models.Authorized,
+		Error:               state.Health.Error,
+	}
+
+	if !state.MasterKeyConfigured {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Gateway Healthy",
 			Level:    status.HealthLevelUnhealthy,
 			Severity: SeverityPrereq,
 			Message:  "LITELLM_MASTER_KEY not set; cannot run authorized gateway check",
+			Details:  details,
 			Suggestions: []string{
 				"Set LITELLM_MASTER_KEY in demo/.env",
 				"Or export it in your shell environment",
@@ -48,59 +63,44 @@ func (c gatewayHealthyCheck) Run(ctx context.Context, opts Options) CheckResult 
 		}
 	}
 
-	host, port := gatewayLocation(opts)
-	client := &http.Client{Timeout: config.DefaultHTTPTimeout}
-	url := fmt.Sprintf("http://%s:%s/health", host, port)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return CheckResult{
-			ID:          c.ID(),
-			Name:        "Gateway Healthy",
-			Level:       status.HealthLevelUnhealthy,
-			Severity:    SeverityRuntime,
-			Message:     fmt.Sprintf("Failed to create request: %v", err),
-			Suggestions: []string{"Check if services are running: make ps", "View gateway logs: make logs"},
-		}
-	}
-	req.Header.Set("Authorization", "Bearer "+masterKey)
-	resp, err := client.Do(req)
-	if err != nil {
+	if state.Health.Error != "" {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Gateway Healthy",
 			Level:    status.HealthLevelUnhealthy,
 			Severity: SeverityDomain,
-			Message:  fmt.Sprintf("Gateway unreachable: %v", err),
+			Message:  fmt.Sprintf("Gateway unreachable: %s", state.Health.Error),
+			Details:  details,
 			Suggestions: []string{
 				"Check if services are running: make ps",
 				"View gateway logs: make logs",
 				"Start services: make up",
 			},
-			Details: map[string]any{"host": host, "port": port},
 		}
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
+
+	if !state.Health.Healthy {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Gateway Healthy",
-			Level:    status.HealthLevelHealthy,
+			Level:    status.HealthLevelUnhealthy,
 			Severity: SeverityDomain,
-			Message:  "Gateway is responding",
-			Details:  map[string]any{"host": host, "port": port, "health_status": resp.StatusCode},
+			Message:  fmt.Sprintf("Gateway returned status %d", state.Health.HTTPStatus),
+			Details:  details,
+			Suggestions: []string{
+				"Check gateway logs: make logs",
+				"Restart services: make restart",
+			},
 		}
 	}
+
 	return CheckResult{
 		ID:       c.ID(),
 		Name:     "Gateway Healthy",
-		Level:    status.HealthLevelUnhealthy,
+		Level:    status.HealthLevelHealthy,
 		Severity: SeverityDomain,
-		Message:  fmt.Sprintf("Gateway returned status %d", resp.StatusCode),
-		Suggestions: []string{
-			"Check gateway logs: make logs",
-			"Restart services: make restart",
-		},
-		Details: map[string]any{"host": host, "port": port, "health_status": resp.StatusCode},
+		Message:  "Gateway is responding",
+		Details:  details,
 	}
 }
 
@@ -108,21 +108,34 @@ func (c gatewayHealthyCheck) Fix(ctx context.Context, opts Options) (bool, strin
 	return false, "", nil
 }
 
-func loadGatewayMasterKey(opts Options) string {
-	if value := config.NewLoader().Gateway(false).MasterKey; value != "" {
-		return value
+func doctorGatewayClient(opts Options) *gateway.Client {
+	host, port := gatewayLocation(opts)
+	clientOptions := []gateway.Option{gateway.WithHost(host), gateway.WithPort(port)}
+	if masterKey := loadGatewayMasterKey(opts); masterKey != "" {
+		clientOptions = append(clientOptions, gateway.WithMasterKey(masterKey))
 	}
-	return loadEnvFromFile(filepath.Join(opts.RepoRoot, "demo", ".env"), "LITELLM_MASTER_KEY")
+	return gateway.NewClient(clientOptions...)
 }
 
-func gatewayLocation(opts Options) (string, string) {
-	host := opts.GatewayHost
-	if host == "" {
-		host = config.DefaultGatewayHost
+func loadGatewayMasterKey(opts Options) string {
+	return loadGatewayMasterKeyFromRepo(opts.RepoRoot)
+}
+
+func loadGatewayMasterKeyFromRepo(repoRoot string) string {
+	return loadGatewayConfig(repoRoot).MasterKey
+}
+
+func gatewayLocation(opts Options) (string, int) {
+	cfg := loadGatewayConfig(opts.RepoRoot)
+	host := cfg.Host
+	if opts.GatewayHost != "" {
+		host = opts.GatewayHost
 	}
-	port := opts.GatewayPort
-	if port == "" {
-		port = fmt.Sprintf("%d", config.DefaultLiteLLMPort)
+	port := cfg.PortInt
+	if opts.GatewayPort != "" {
+		if parsed, err := strconv.Atoi(opts.GatewayPort); err == nil && parsed > 0 {
+			port = parsed
+		}
 	}
 	return host, port
 }

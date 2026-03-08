@@ -57,9 +57,8 @@ func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 				"Or manually set: export LITELLM_MASTER_KEY=sk-...",
 				"Copy .env.example to demo/.env and configure",
 			},
-			Details: map[string]any{
-				"missing_vars": missing,
-				"found_vars":   len(found),
+			Details: status.ComponentDetails{
+				MissingVars: missing,
 			},
 		}
 	}
@@ -69,7 +68,7 @@ func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 		Level:    status.HealthLevelHealthy,
 		Severity: SeverityDomain,
 		Message:  fmt.Sprintf("All required environment variables set (%d found)", len(found)),
-		Details:  map[string]any{"found_vars": len(found)},
+		Details:  status.ComponentDetails{},
 	}
 }
 

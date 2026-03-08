@@ -49,7 +49,7 @@ func (c configValidCheck) Run(ctx context.Context, opts Options) CheckResult {
 				"Ensure repository is complete",
 				"Run: make install",
 			},
-			Details: map[string]any{"missing_files": missingFiles},
+			Details: status.ComponentDetails{MissingFiles: missingFiles},
 		}
 	}
 	if _, err := os.Stat(filepath.Join(opts.RepoRoot, "demo", ".env")); err != nil {
