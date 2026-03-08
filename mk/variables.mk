@@ -69,7 +69,7 @@ HOST_COMPOSE_ENV_FILE ?= $(COMPOSE_DIR)/.env
 SECRETS_FETCH_HOOK ?=
 
 # Shellcheck files (tracked shell scripts; BSD/GNU portable)
-SHELLCHECK_FILES := $(shell git ls-files '*.sh' 2>/dev/null || true)
+SHELLCHECK_FILES := $(shell git ls-files '*.sh' 2>/dev/null | while IFS= read -r path; do [ -f "$$path" ] && printf '%s\n' "$$path"; done)
 
 # Supply chain configuration
 SUPPLY_CHAIN_ALLOWLIST_WARN_DAYS ?= 45

@@ -108,16 +108,6 @@ func buildCommandCatalog() commandCatalog {
 			},
 			{
 				commandDescriptor: commandDescriptor{
-					Name:        "files",
-					Description: "Typed local file synchronization helpers",
-				},
-				NativeRun: runFilesSubcommand,
-				Subcommands: []subcommandDefinition{
-					{commandDescriptor: commandDescriptor{Name: "sync-helm", Description: "Synchronize canonical repository files into Helm chart files/"}},
-				},
-			},
-			{
-				commandDescriptor: commandDescriptor{
 					Name:        "env",
 					Description: "Strict .env access helpers",
 				},
@@ -133,6 +123,7 @@ func buildCommandCatalog() commandCatalog {
 				},
 				NativeRun: runChargebackCommand,
 				Subcommands: []subcommandDefinition{
+					{commandDescriptor: commandDescriptor{Name: "report", Description: "Generate canonical chargeback report artifacts"}},
 					{commandDescriptor: commandDescriptor{Name: "render", Description: "Render canonical chargeback JSON or CSV"}},
 					{commandDescriptor: commandDescriptor{Name: "payload", Description: "Render canonical chargeback webhook payload JSON"}},
 				},

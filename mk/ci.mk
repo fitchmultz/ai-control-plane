@@ -11,10 +11,10 @@
 #   - Does not handle deployment automation
 
 .PHONY: ci
-ci: ## Local full CI gate (format, lint, static/security checks, runtime-aware tests via pinned offline images)
+ci: ## Local full CI gate (format drift check, lint, static/security checks, runtime-aware tests via pinned offline images)
 	@echo '$(COLOR_BOLD)Running local CI gate...$(COLOR_RESET)'
 	@$(MAKE) --silent install-ci
-	@$(MAKE) --silent format
+	@$(MAKE) --silent format-check
 	@$(MAKE) --silent ci-pr
 	@set -euo pipefail; \
 	if ! command -v docker >/dev/null 2>&1; then \
@@ -36,6 +36,7 @@ ci-pr: ## PR-required checks (fast/deterministic: lint, static checks, unit + po
 	@echo '$(COLOR_BOLD)Running PR-required CI checks...$(COLOR_RESET)'
 	@$(MAKE) --silent install-ci
 	@$(MAKE) --silent public-hygiene-check
+	@$(MAKE) --silent format-check
 	@$(MAKE) --silent lint-shell
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
@@ -76,6 +77,7 @@ ci-manual-heavy: ## Manual heavy checks (nightly checks + local hardened image b
 ci-fast: ## Fast CI gate (skip runtime tests; keep static/security checks)
 	@echo '$(COLOR_BOLD)Running fast CI gate...$(COLOR_RESET)'
 	@$(MAKE) --silent install-ci
+	@$(MAKE) --silent format-check
 	@$(MAKE) --silent lint-shell
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
@@ -127,8 +129,7 @@ build: ## Build artifacts (recreate Docker containers)
 	@echo '$(COLOR_GREEN)✓ Build complete$(COLOR_RESET)'
 
 .PHONY: generate
-generate: install-binary ## Generate derived files (Helm file sync + shell completions)
+generate: install-binary ## Generate derived files (shell completions)
 	@echo '$(COLOR_BOLD)Generating derived files...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) files sync-helm
 	@$(MAKE) --silent completions
 	@echo '$(COLOR_GREEN)✓ Derived files generated$(COLOR_RESET)'

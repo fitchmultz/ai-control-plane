@@ -53,6 +53,20 @@ func TestValidateSupplyChainPolicyFlagsDockerfileBaseImageDrift(t *testing.T) {
 	}
 }
 
+func TestValidateSupplyChainPolicyAllowsLocalACPHelmImageTag(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","severity_policy":{"fail_on":["CRITICAL"]}}`)
+	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\nchargeback:\n  image:\n    repository: ai-control-plane/acpctl\n    tag: local\n")
+
+	issues, err := ValidateSupplyChainPolicy(repoRoot)
+	if err != nil {
+		t.Fatalf("ValidateSupplyChainPolicy returned error: %v", err)
+	}
+	if len(issues) != 0 {
+		t.Fatalf("expected local ACP image override to pass, got %v", issues)
+	}
+}
+
 func writeSecurityFixtureFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

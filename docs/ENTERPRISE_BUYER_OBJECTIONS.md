@@ -152,7 +152,7 @@ Primary references:
 
 Primary references:
 - `docs/policy/FINANCIAL_GOVERNANCE_AND_CHARGEBACK.md`
-- `demo/scripts/chargeback_report.sh`
+- `./scripts/acpctl.sh chargeback report --format all`
 
 ---
 

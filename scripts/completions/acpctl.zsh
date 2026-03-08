@@ -12,9 +12,6 @@ _acpctl() {
         ci)
             _acpctl_ci
             ;;
-        files)
-            _acpctl_files
-            ;;
         env)
             _acpctl_env
             ;;
@@ -63,7 +60,6 @@ _acpctl() {
 _acpctl_commands() {
     local commands=(
         "ci:CI and local gate helpers"
-        "files:Typed local file synchronization helpers"
         "env:Strict .env access helpers"
         "chargeback:Typed chargeback rendering helpers"
         "status:Aggregated system health overview"
@@ -94,13 +90,6 @@ _acpctl_ci() {
     _describe -t commands 'ci subcommands' subcmds "$@"
 }
 
-_acpctl_files() {
-    local subcmds=(
-        "sync-helm:Synchronize canonical repository files into Helm chart files/"
-    )
-    _describe -t commands 'files subcommands' subcmds "$@"
-}
-
 _acpctl_env() {
     local subcmds=(
         "get:Read a single env key without shell execution"
@@ -110,6 +99,7 @@ _acpctl_env() {
 
 _acpctl_chargeback() {
     local subcmds=(
+        "report:Generate canonical chargeback report artifacts"
         "render:Render canonical chargeback JSON or CSV"
         "payload:Render canonical chargeback webhook payload JSON"
     )
@@ -169,6 +159,8 @@ _acpctl_validate() {
         "supply-chain:Run supply-chain policy and digest validation"
         "secrets-audit:Run deterministic tracked-file secrets audit"
         "compose-healthchecks:Validate Docker Compose healthchecks"
+        "headers:Validate Go source file header policy"
+        "env-access:Fail on direct environment access outside internal/config"
         "security:Run Make-composed security gate (hygiene, secrets, license, supply chain)"
     )
     _describe -t commands 'validate subcommands' subcmds "$@"

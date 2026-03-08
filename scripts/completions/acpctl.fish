@@ -5,7 +5,6 @@ end
 complete -c acpctl -f
 
 complete -c acpctl -n '__fish_use_subcommand' -a 'ci' -d 'CI and local gate helpers'
-complete -c acpctl -n '__fish_use_subcommand' -a 'files' -d 'Typed local file synchronization helpers'
 complete -c acpctl -n '__fish_use_subcommand' -a 'env' -d 'Strict .env access helpers'
 complete -c acpctl -n '__fish_use_subcommand' -a 'chargeback' -d 'Typed chargeback rendering helpers'
 complete -c acpctl -n '__fish_use_subcommand' -a 'status' -d 'Aggregated system health overview'
@@ -27,8 +26,8 @@ complete -c acpctl -n '__fish_use_subcommand' -a 'help' -d 'Show this help messa
 
 complete -c acpctl -n '__fish_seen_subcommand_from ci' -a 'should-run-runtime' -d 'Decide whether runtime checks should run'
 complete -c acpctl -n '__fish_seen_subcommand_from ci' -a 'wait' -d 'Wait for services to become healthy'
-complete -c acpctl -n '__fish_seen_subcommand_from files' -a 'sync-helm' -d 'Synchronize canonical repository files into Helm chart files/'
 complete -c acpctl -n '__fish_seen_subcommand_from env' -a 'get' -d 'Read a single env key without shell execution'
+complete -c acpctl -n '__fish_seen_subcommand_from chargeback' -a 'report' -d 'Generate canonical chargeback report artifacts'
 complete -c acpctl -n '__fish_seen_subcommand_from chargeback' -a 'render' -d 'Render canonical chargeback JSON or CSV'
 complete -c acpctl -n '__fish_seen_subcommand_from chargeback' -a 'payload' -d 'Render canonical chargeback webhook payload JSON'
 complete -c acpctl -n '__fish_seen_subcommand_from benchmark' -a 'baseline' -d 'Run the local gateway performance baseline'
@@ -64,6 +63,8 @@ complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'license' -d 'Va
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'supply-chain' -d 'Run supply-chain policy and digest validation'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'secrets-audit' -d 'Run deterministic tracked-file secrets audit'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'compose-healthchecks' -d 'Validate Docker Compose healthchecks'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'headers' -d 'Validate Go source file header policy'
+complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'env-access' -d 'Fail on direct environment access outside internal/config'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'security' -d 'Run Make-composed security gate (hygiene, secrets, license, supply chain)'
 complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'status' -d 'Show database status and statistics'
 complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'backup' -d 'Create database backup'

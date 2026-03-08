@@ -316,12 +316,23 @@ func validateHelmImages(path string, relPath string) ([]string, error) {
 		if repository == nil || strings.TrimSpace(repository.Value) == "" {
 			return
 		}
+		if isLocalImageOverride(node, strings.TrimSpace(repository.Value)) {
+			return
+		}
 		digest := mapValue(node, "digest")
 		if digest == nil || strings.TrimSpace(digest.Value) == "" {
 			issues = append(issues, fmt.Sprintf("%s: %s must declare a non-empty image digest for repository %q", relPath, currentPath, strings.TrimSpace(repository.Value)))
 		}
 	})
 	return issues, nil
+}
+
+func isLocalImageOverride(node *yaml.Node, repository string) bool {
+	tag := mapValue(node, "tag")
+	if tag == nil {
+		return false
+	}
+	return strings.HasPrefix(repository, "ai-control-plane/") && strings.TrimSpace(tag.Value) == "local"
 }
 
 func validateDockerfileBaseImages(path string, relPath string) ([]string, error) {

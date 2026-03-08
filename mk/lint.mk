@@ -138,6 +138,18 @@ format: ## Format shell scripts with shfmt
 		echo '$(COLOR_YELLOW)  Install shfmt: https://github.com/mvdan/sh$(COLOR_RESET)'; \
 	fi
 
+.PHONY: format-check
+format-check: ## Fail when shell scripts are not formatted with shfmt
+	@echo '$(COLOR_BOLD)Checking shell script formatting...$(COLOR_RESET)'
+	@if command -v shfmt >/dev/null 2>&1; then \
+		shfmt -d -i 4 $(SHELLCHECK_FILES) >/dev/null \
+			&& echo '$(COLOR_GREEN)✓ Shell formatting is current$(COLOR_RESET)' \
+			|| { echo '$(COLOR_RED)✗ Shell formatting drift detected; run make format$(COLOR_RESET)'; exit 1; }; \
+	else \
+		echo '$(COLOR_YELLOW)⚠ shfmt not installed - skipping format check$(COLOR_RESET)'; \
+		echo '$(COLOR_YELLOW)  Install shfmt: https://github.com/mvdan/sh$(COLOR_RESET)'; \
+	fi
+
 .PHONY: type-check
 type-check: ## Run Go static/type checks via go test
 	@echo '$(COLOR_BOLD)Running Go type checks...$(COLOR_RESET)'
