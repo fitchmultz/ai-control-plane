@@ -155,10 +155,10 @@ make up-offline
 make health-offline
 
 # 3. Run quick smoke test
-make demo-offline-test
+make health-offline
 
 # 4. Run comprehensive demo scenarios
-make demo-offline
+make demo-all
 
 # 5. Stop services when done
 make down-offline
@@ -653,10 +653,10 @@ make key-gen-lead ALIAS=my-lead-key
 make key-revoke ALIAS=<alias>
 
 # acpctl equivalents
-./scripts/acpctl.sh key gen ALIAS=my-key BUDGET=10.00
-./scripts/acpctl.sh key gen-dev ALIAS=my-dev-key
-./scripts/acpctl.sh key gen-lead ALIAS=my-lead-key
-./scripts/acpctl.sh key revoke ALIAS=<alias>
+./scripts/acpctl.sh key gen my-key --budget 10.00
+./scripts/acpctl.sh key gen-dev my-dev-key
+./scripts/acpctl.sh key gen-lead my-lead-key
+./scripts/acpctl.sh key revoke <alias>
 ```
 
 > The approval-queue/request workflow from older private iterations is not part of this public snapshot command surface.
@@ -843,14 +843,8 @@ make demo-snapshot NAME=debug-state WITH_LOGS=1
 # Restore from a snapshot
 make demo-restore NAME=baseline
 
-# Quick reset to baseline (clean logs + restore)
-make demo-reset
-
-# Check current state (services, DB, logs, snapshots)
-make demo-status
-
-# List available snapshots
-make demo-snapshots
+# Restore the baseline snapshot
+make demo-restore NAME=baseline
 ```
 
 ### Snapshot Workflow for Demos
@@ -878,11 +872,11 @@ make demo-snapshots
 
 **Before each demo presentation:**
 
-4. Reset to known clean state:
+4. Restore the known clean baseline:
    ```bash
-   make demo-reset
+   make demo-restore NAME=baseline
    ```
-   If no baseline exists, you'll be prompted to create one from the current state.
+   If no baseline exists yet, create one first with `make demo-snapshot NAME=baseline`.
 
 **After demos that modify state:**
 
@@ -930,8 +924,8 @@ make demo-scenario SCENARIO=1
 # Inspect state
 make db-status
 
-# Reset to clean baseline when finished
-make demo-reset
+# Restore the clean baseline when finished
+make demo-restore NAME=baseline
 ```
 
 When cleanup is disabled, keys remain in the database and can be inspected:
@@ -943,8 +937,8 @@ make db-status
 # Manually revoke a specific key
 make key-revoke ALIAS=<alias>
 
-# Reset to clean state
-make demo-reset
+# Restore the clean baseline
+make demo-restore NAME=baseline
 ```
 
 ### Manual Cleanup Commands
@@ -967,7 +961,7 @@ make demo-restore NAME=baseline
 
 **"No baseline snapshot found"**
 - Create one first: `make demo-snapshot NAME=baseline`
-- Or let `make demo-reset` create it interactively from current state
+- Create it from the current state with `make demo-snapshot NAME=baseline`
 
 **"Database connection failed during restore"**
 - Ensure services are running: `make health`

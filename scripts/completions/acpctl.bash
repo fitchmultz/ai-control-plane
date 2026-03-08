@@ -36,7 +36,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         validate)
-            local subcmds="lint config detections siem-queries network-contract public-hygiene license supply-chain secrets-audit compose-healthchecks headers env-access security"
+            local subcmds="lint config detections siem-queries public-hygiene license supply-chain secrets-audit compose-healthchecks headers env-access security"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         db)

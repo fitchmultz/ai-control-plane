@@ -46,11 +46,3 @@ health-offline: ## Run offline mode health checks
 	@GATEWAY_HOST=localhost LITELLM_PORT=$(LITELLM_PORT) $(ACPCTL_BIN) health \
 		&& echo '$(COLOR_GREEN)✓ Offline health checks passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Offline health checks failed$(COLOR_RESET)'; exit 1; }
-
-.PHONY: demo-offline
-demo-offline: ## Run offline demo scenarios (delegated)
-	@$(ACPCTL_BIN) demo offline
-
-.PHONY: demo-offline-test
-demo-offline-test: ## Run quick offline demo checks (delegated)
-	@$(ACPCTL_BIN) demo offline-test

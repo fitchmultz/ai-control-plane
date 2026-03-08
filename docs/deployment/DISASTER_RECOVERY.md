@@ -224,10 +224,8 @@ make dr-drill
 #### Kubernetes/Helm Mode
 
 **Monthly Drill in Staging/DR Namespace (Recommended):**
-```bash
-# Run drill in staging namespace
-make helm-dr-drill NAMESPACE=acp-dr RELEASE=acp
-```
+
+Run the staged restore drill directly with the Kubernetes workflow documented in this runbook. The public snapshot no longer ships a dedicated Helm DR Make wrapper.
 
 Threshold tuning flags from older private iterations are not part of the current public-snapshot target surface.
 
@@ -248,11 +246,6 @@ kubectl create job --from=cronjob/acp-ai-control-plane-backup-verify backup-test
 
 # Check results
 kubectl logs -n acp job/backup-test-...
-```
-
-Or use the Makefile target:
-```bash
-make helm-db-backup-verify NAMESPACE=acp RELEASE=acp
 ```
 
 **Note:** This only verifies file integrity (checksums, gzip). For full restore validation with RTO/RPO measurement, use the restore drill commands above.

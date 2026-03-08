@@ -154,7 +154,6 @@ _acpctl_validate() {
         "config:Validate deployment configuration (use --production for host contract checks)"
         "detections:Validate detection rule output"
         "siem-queries:Validate SIEM query sync"
-        "network-contract:Render network contract artifacts"
         "public-hygiene:Fail when local-only files are tracked by git"
         "license:Validate license policy structure and restricted references"
         "supply-chain:Run supply-chain policy and digest validation"

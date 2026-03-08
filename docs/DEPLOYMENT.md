@@ -878,7 +878,7 @@ monitoring:
 
 ### Network Firewall Contract
 
-The canonical network firewall contract defines all network flows for the AI Control Plane and serves as the source of truth for firewall configuration. The contract is version-controlled and generates multiple artifact formats for different consumption patterns.
+The canonical network firewall contract defines all network flows for the AI Control Plane and serves as the source of truth for firewall configuration. The contract is version-controlled and published in multiple artifact formats for different consumption patterns.
 
 **Generated Artifacts:**
 
@@ -897,22 +897,9 @@ The contract is defined in `demo/config/network_firewall_contract.yaml`. This YA
 - Manifest references and operational justifications per flow
 - Description and justification for each rule
 
-**Make Commands:**
+**Artifact ownership:**
 
-```bash
-# Generate/regenerate all contract artifacts
-make network-contract
-
-# Verify artifacts are up to date (CI check)
-make network-contract-check
-
-# Validate contract against deployment manifests
-make validate-network-contract
-```
-
-**Usage in CI/CD:**
-
-Add `make network-contract-check` to your pipeline to ensure artifacts remain synchronized with the canonical YAML source. The check exits with code 1 if any artifact is stale, preventing drift between configuration and documentation.
+The public snapshot publishes the canonical YAML source together with the checked-in Markdown, CSV, and JSON artifacts under `docs/deployment/`. There is no public `make` or `acpctl` regeneration wrapper for these files; update the YAML source and regenerated artifacts together in the same change when the contract changes.
 
 ---
 

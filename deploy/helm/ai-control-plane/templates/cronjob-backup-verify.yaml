@@ -12,8 +12,8 @@ Non-scope:
 
 Note on Full Restore Validation:
   - This CronJob performs file integrity verification only (checksums, gzip)
-  - For automated restore drills with RTO/RPO evidence, use the drill script:
-    make helm-dr-drill NAMESPACE=<ns> RELEASE=<release>
+  - For automated restore drills with RTO/RPO evidence, follow the staged
+    Kubernetes restore drill documented in docs/deployment/DISASTER_RECOVERY.md
   - The drill script performs full restore simulation into temp databases
   - See docs/deployment/DISASTER_RECOVERY.md for restore drill procedures
 */}}

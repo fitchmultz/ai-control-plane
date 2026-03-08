@@ -7,7 +7,7 @@
 #
 # Usage:
 #   make up-offline     # Start services in offline mode
-#   make demo-offline   # Run offline demo scenarios
+#   make demo-all       # Run offline-ready demo scenarios
 #
 # IMPORTANT: This is for demo/testing purposes only.
 # Production deployments must use real providers with actual API keys.

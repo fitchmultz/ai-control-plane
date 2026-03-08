@@ -53,10 +53,10 @@ make key-gen-lead ALIAS=my-lead-key
 make key-revoke ALIAS=<alias>
 
 # acpctl equivalents
-./scripts/acpctl.sh key gen ALIAS=my-key BUDGET=10.00
-./scripts/acpctl.sh key gen-dev ALIAS=my-dev-key
-./scripts/acpctl.sh key gen-lead ALIAS=my-lead-key
-./scripts/acpctl.sh key revoke ALIAS=my-key
+./scripts/acpctl.sh key gen my-key --budget 10.00
+./scripts/acpctl.sh key gen-dev my-dev-key
+./scripts/acpctl.sh key gen-lead my-lead-key
+./scripts/acpctl.sh key revoke my-key
 ```
 
 ## Monitoring and Validation

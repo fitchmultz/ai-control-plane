@@ -279,23 +279,23 @@ else
 fi
 echo ""
 
-echo "Test: validate unknown subcommand exits 64 without make delegation..."
+echo "Test: retired validate subcommand exits 64 without make delegation..."
 : >"$CAPTURE_FILE"
 UNKNOWN_VALIDATE_RC=0
 ACPCTL_BIN="$GO_SHIM" \
     ACPCTL_MAKE_BIN="$MAKE_STUB" \
     ACPCTL_TEST_CAPTURE_FILE="$CAPTURE_FILE" \
     ACP_REPO_ROOT="$REPO_ROOT" \
-    "$SCRIPT_UNDER_TEST" validate network-contract-check >/dev/null 2>&1 || UNKNOWN_VALIDATE_RC=$?
+    "$SCRIPT_UNDER_TEST" validate network-contract >/dev/null 2>&1 || UNKNOWN_VALIDATE_RC=$?
 if [[ "$UNKNOWN_VALIDATE_RC" -eq 64 ]]; then
-    pass "validate network-contract-check exits 64 (unknown subcommand)"
+    pass "validate network-contract exits 64 (retired subcommand)"
 else
-    fail "validate network-contract-check should exit 64 (got $UNKNOWN_VALIDATE_RC)"
+    fail "validate network-contract should exit 64 (got $UNKNOWN_VALIDATE_RC)"
 fi
 if [[ ! -s "$CAPTURE_FILE" ]]; then
-    pass "unknown validate subcommand does not invoke make delegation"
+    pass "retired validate subcommand does not invoke make delegation"
 else
-    fail "unknown validate subcommand should not invoke make delegation"
+    fail "retired validate subcommand should not invoke make delegation"
 fi
 echo ""
 

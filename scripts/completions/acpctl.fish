@@ -58,7 +58,6 @@ complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'lint' -d 'Run s
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'config' -d 'Validate deployment configuration (use --production for host contract checks)'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'detections' -d 'Validate detection rule output'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'siem-queries' -d 'Validate SIEM query sync'
-complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'network-contract' -d 'Render network contract artifacts'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'public-hygiene' -d 'Fail when local-only files are tracked by git'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'license' -d 'Validate license policy structure and restricted references'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'supply-chain' -d 'Run supply-chain policy and digest validation'

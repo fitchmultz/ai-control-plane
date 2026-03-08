@@ -43,7 +43,7 @@ Operator interface order in this runbook:
     - Database port (5432) accessible from gateway host only (split-host mode)
     - Gateway port (4000) bound to localhost unless TLS-enabled
     - Caddy ports (80/443) exposed for TLS mode
-  - **Generate Latest**: Run `make network-contract` to regenerate contract artifacts from `demo/config/network_firewall_contract.yaml`
+  - **Artifact Set**: Treat `demo/config/network_firewall_contract.yaml` plus `docs/deployment/network_firewall_contract.*` as the tracked source bundle for firewall reviews
 
 ### Environment Setup
 
@@ -441,12 +441,7 @@ kubectl exec -n <namespace> <postgres-pod> -- \
 ```
 
 **Automated Restore Drill (RTO/RPO Evidence)**:
-```bash
-# Run restore drill in staging/DR namespace
-make helm-dr-drill NAMESPACE=acp-dr RELEASE=acp
-
-# Evidence reports generated in demo/logs/drills/
-```
+Run the staged restore drill using the Kubernetes procedure in [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md). The public snapshot no longer ships a dedicated Helm DR Make wrapper.
 
 **Safety Notes:**
 - Drill uses temporary database only (never touches production tables)

@@ -37,8 +37,8 @@ Top-level commands:
 - `bridge` - compatibility execution of `scripts/libexec/*_impl.sh` workflows
 - `deploy` - service lifecycle, TLS/offline, Helm, readiness-evidence, and release-bundle flows (delegates to Make targets)
 - `validate` - configuration and policy validation flows (typed core checks + selective Make delegation)
-- `db` - database + DR + Kubernetes DB workflow flows (delegates to Make targets)
-- `key` - virtual key lifecycle and RBAC flows (typed core implementation)
+- `db` - database backup, restore, inspection, and DR drill flows
+- `key` - virtual key lifecycle flows
 - `host` - host preflight, declarative deploy, secrets sync, and systemd lifecycle operations
 - `demo` - demo scenario/state flows (delegates to Make targets)
 - `terraform` - Terraform provisioning workflow flows (delegates to Make targets)
@@ -155,20 +155,20 @@ Each operator flow maps subcommands to existing `make` targets:
 ./scripts/acpctl.sh validate lint
 ./scripts/acpctl.sh validate config
 ./scripts/acpctl.sh validate detections
-./scripts/acpctl.sh validate network-contract-validate
 ./scripts/acpctl.sh validate supply-chain
 
 # DB
 ./scripts/acpctl.sh db status
+./scripts/acpctl.sh db backup
 ./scripts/acpctl.sh db restore
 ./scripts/acpctl.sh db restore demo/backups/litellm-backup-20240128-143052.sql.gz
 ./scripts/acpctl.sh db dr-drill
-./scripts/acpctl.sh db k8s-backup
 
 # Key (typed)
 ./scripts/acpctl.sh key gen alice --budget 10.00
+./scripts/acpctl.sh key gen-dev alice
+./scripts/acpctl.sh key gen-lead alice
 ./scripts/acpctl.sh key revoke alice
-./scripts/acpctl.sh key rbac-whoami
 
 # Host
 ./scripts/acpctl.sh host preflight --secrets-env-file /etc/ai-control-plane/secrets.env
@@ -189,13 +189,6 @@ Each operator flow maps subcommands to existing `make` targets:
 ./scripts/acpctl.sh terraform destroy
 ./scripts/acpctl.sh terraform fmt
 ./scripts/acpctl.sh terraform validate
-./scripts/acpctl.sh terraform validate-modules
-./scripts/acpctl.sh terraform clean
-./scripts/acpctl.sh terraform output
-./scripts/acpctl.sh terraform aws
-./scripts/acpctl.sh terraform azure
-./scripts/acpctl.sh terraform gcp
-./scripts/acpctl.sh terraform docs
 ```
 
 Subcommand-level help is available:

@@ -186,7 +186,6 @@ func validateCommandSpec() *commandSpec {
 			{Name: "config", Summary: "Validate deployment configuration (use --production for host contract checks)", Description: "Validate deployment configuration, including production host contract checks when --production is set.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateConfig)},
 			{Name: "detections", Summary: "Validate detection rule output", Description: "Validate detection rule output.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateDetections)},
 			{Name: "siem-queries", Summary: "Validate SIEM query sync", Description: "Validate SIEM query sync.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateSiemQueries)},
-			makeLeafSpec("network-contract", "Render network contract artifacts", "network-contract"),
 			{Name: "public-hygiene", Summary: "Fail when local-only files are tracked by git", Description: "Fail when local-only files are tracked by git.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidatePublicHygiene)},
 			{Name: "license", Summary: "Validate license policy structure and restricted references", Description: "Validate license policy structure and restricted references.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateLicense)},
 			{Name: "supply-chain", Summary: "Run supply-chain policy and digest validation", Description: "Run supply-chain policy and digest validation.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateSupplyChain)},
