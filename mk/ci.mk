@@ -41,6 +41,7 @@ ci-pr: ## PR-required checks (fast/deterministic: lint, static checks, unit + po
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
 	@$(MAKE) --silent lint-env-access
+	@$(MAKE) --silent validate-acpctl-parity
 	@$(MAKE) --silent lint-compose
 	@$(MAKE) --silent lint-healthchecks
 	@$(MAKE) --silent lint-siem
@@ -82,6 +83,7 @@ ci-fast: ## Fast CI gate (skip runtime tests; keep static/security checks)
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
 	@$(MAKE) --silent lint-env-access
+	@$(MAKE) --silent validate-acpctl-parity
 	@$(MAKE) --silent license-check
 	@$(MAKE) --silent supply-chain-gate
 	@$(MAKE) --silent type-check

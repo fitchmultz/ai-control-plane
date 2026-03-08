@@ -7,7 +7,7 @@
 # Usage:
 #   make up-offline     # Start services in offline mode
 #   make down-offline   # Stop offline services
-#   make demo-offline   # Run offline demo scenarios
+#   make demo-all       # Run offline-ready demo scenarios
 #
 # Services:
 #   - mock-upstream: OpenAI-compatible mock LLM service (port 8080 internal)

@@ -21,6 +21,7 @@ lint: ## Run linters (shellcheck, YAML validation, docker-compose config, SIEM s
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
 	@$(MAKE) --silent lint-env-access
+	@$(MAKE) --silent validate-acpctl-parity
 	@$(MAKE) --silent lint-compose
 	@$(MAKE) --silent lint-healthchecks
 	@$(MAKE) --silent lint-siem

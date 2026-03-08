@@ -324,10 +324,10 @@ Run the AI Control Plane without provider API keys using mock LLM responses. Thi
 make up-offline
 
 # Verify offline mode is working
-make demo-offline-test
+make health-offline
 
 # Run full offline demo scenarios
-make demo-offline
+make demo-all
 
 # Stop offline services
 make down-offline
@@ -488,8 +488,8 @@ make ci
 | `make down-offline` | Stop offline mode services |
 | `make health-offline` | Health check offline services |
 | `make logs-offline` | View offline mode logs |
-| `make demo-offline` | Run comprehensive offline demo scenarios |
-| `make demo-offline-test` | Quick test of offline mode |
+| `make demo-all` | Run the offline-ready demo scenario suite against the current stack |
+| `make health-offline` | Quick health check for offline mode |
 
 ## Security Notice
 

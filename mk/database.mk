@@ -53,24 +53,3 @@ dr-drill: ## Run database DR restore drill
 	@$(ACPCTL_BIN) db dr-drill \
 		&& echo '$(COLOR_GREEN)✓ DR drill completed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ DR drill failed$(COLOR_RESET)'; exit 1; }
-
-# Kubernetes/Helm Database Targets
-.PHONY: helm-db-backup-exec
-helm-db-backup-exec: ## Run Kubernetes DB backup job
-	@echo '$(COLOR_BOLD)Running Kubernetes DB backup job...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) db k8s-backup
-
-.PHONY: helm-db-backup-verify
-helm-db-backup-verify: ## Verify latest Kubernetes DB backup
-	@echo '$(COLOR_BOLD)Verifying latest Kubernetes DB backup...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) db k8s-backup-verify
-
-.PHONY: helm-dr-test
-helm-dr-test: ## Run Kubernetes DB restore test
-	@echo '$(COLOR_BOLD)Running Kubernetes DR test...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) db k8s-dr-test
-
-.PHONY: helm-dr-drill
-helm-dr-drill: ## Run Kubernetes DR drill
-	@echo '$(COLOR_BOLD)Running Kubernetes DR drill...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) db k8s-dr-drill

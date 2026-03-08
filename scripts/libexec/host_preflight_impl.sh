@@ -54,34 +54,46 @@ compose_env_file="demo/.env"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --profile)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --profile\n' >&2; exit 2; }
-            profile="$2"
-            shift 2
-            ;;
-        --secrets-env-file)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --secrets-env-file\n' >&2; exit 2; }
-            secrets_env_file="$2"
-            shift 2
-            ;;
-        --compose-env-file)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --compose-env-file\n' >&2; exit 2; }
-            compose_env_file="$2"
-            shift 2
-            ;;
-        --help|-h)
-            show_help
-            exit 0
-            ;;
-        *)
-            printf 'ERROR: unknown argument: %s\n' "$1" >&2
-            show_help >&2
+    --profile)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --profile\n' >&2
             exit 2
-            ;;
+        }
+        profile="$2"
+        shift 2
+        ;;
+    --secrets-env-file)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --secrets-env-file\n' >&2
+            exit 2
+        }
+        secrets_env_file="$2"
+        shift 2
+        ;;
+    --compose-env-file)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --compose-env-file\n' >&2
+            exit 2
+        }
+        compose_env_file="$2"
+        shift 2
+        ;;
+    --help | -h)
+        show_help
+        exit 0
+        ;;
+    *)
+        printf 'ERROR: unknown argument: %s\n' "$1" >&2
+        show_help >&2
+        exit 2
+        ;;
     esac
 done
 
-[[ "${profile}" == "production" ]] || { printf 'ERROR: unsupported profile: %s\n' "${profile}" >&2; exit 2; }
+[[ "${profile}" == "production" ]] || {
+    printf 'ERROR: unsupported profile: %s\n' "${profile}" >&2
+    exit 2
+}
 
 repo_root="$(bridge_repo_root)"
 acpctl_bin="$(bridge_acpctl_bin)" || exit $?

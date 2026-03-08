@@ -5,7 +5,6 @@
 #   - Host preflight checks
 #   - Host deployment (check/apply)
 #   - Systemd service management
-#   - Host upgrade operations
 #
 # Non-scope:
 #   - Does not manage Docker containers

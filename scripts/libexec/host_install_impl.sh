@@ -58,22 +58,24 @@ Exit Codes:
 EOF
 }
 
-[[ $# -ge 1 ]] || { show_help >&2; exit 2; }
+[[ $# -ge 1 ]] || {
+    show_help >&2
+    exit 2
+}
 subcommand="$1"
 shift
 
 case "${subcommand}" in
-    install|uninstall|service-status|service-start|service-stop|service-restart)
-        ;;
-    --help|-h)
-        show_help
-        exit 0
-        ;;
-    *)
-        printf 'ERROR: unknown host install command: %s\n' "${subcommand}" >&2
-        show_help >&2
-        exit 2
-        ;;
+install | uninstall | service-status | service-start | service-stop | service-restart) ;;
+--help | -h)
+    show_help
+    exit 0
+    ;;
+*)
+    printf 'ERROR: unknown host install command: %s\n' "${subcommand}" >&2
+    show_help >&2
+    exit 2
+    ;;
 esac
 
 repo_root="$(bridge_repo_root)"
@@ -91,73 +93,103 @@ start_service="true"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --service-name)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --service-name\n' >&2; exit 2; }
-            service_name="$2"
-            shift 2
-            ;;
-        --service-user)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --service-user\n' >&2; exit 2; }
-            service_user="$2"
-            shift 2
-            ;;
-        --service-group)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --service-group\n' >&2; exit 2; }
-            service_group="$2"
-            shift 2
-            ;;
-        --repo-root)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --repo-root\n' >&2; exit 2; }
-            repo_root="$(bridge_abspath "$2")"
-            shift 2
-            ;;
-        --unit-dir)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --unit-dir\n' >&2; exit 2; }
-            unit_dir="$2"
-            shift 2
-            ;;
-        --env-file)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --env-file\n' >&2; exit 2; }
-            env_file="$2"
-            shift 2
-            ;;
-        --compose-env-file)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --compose-env-file\n' >&2; exit 2; }
-            compose_env_file="$2"
-            shift 2
-            ;;
-        --compose-file)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --compose-file\n' >&2; exit 2; }
-            compose_file="$2"
-            shift 2
-            ;;
-        --compose-bin)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --compose-bin\n' >&2; exit 2; }
-            compose_bin="$2"
-            shift 2
-            ;;
-        --fetch-hook)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --fetch-hook\n' >&2; exit 2; }
-            fetch_hook="$2"
-            shift 2
-            ;;
-        --no-enable)
-            enable_service="false"
-            shift
-            ;;
-        --no-start)
-            start_service="false"
-            shift
-            ;;
-        --help|-h)
-            show_help
-            exit 0
-            ;;
-        *)
-            printf 'ERROR: unknown argument: %s\n' "$1" >&2
-            show_help >&2
+    --service-name)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --service-name\n' >&2
             exit 2
-            ;;
+        }
+        service_name="$2"
+        shift 2
+        ;;
+    --service-user)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --service-user\n' >&2
+            exit 2
+        }
+        service_user="$2"
+        shift 2
+        ;;
+    --service-group)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --service-group\n' >&2
+            exit 2
+        }
+        service_group="$2"
+        shift 2
+        ;;
+    --repo-root)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --repo-root\n' >&2
+            exit 2
+        }
+        repo_root="$(bridge_abspath "$2")"
+        shift 2
+        ;;
+    --unit-dir)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --unit-dir\n' >&2
+            exit 2
+        }
+        unit_dir="$2"
+        shift 2
+        ;;
+    --env-file)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --env-file\n' >&2
+            exit 2
+        }
+        env_file="$2"
+        shift 2
+        ;;
+    --compose-env-file)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --compose-env-file\n' >&2
+            exit 2
+        }
+        compose_env_file="$2"
+        shift 2
+        ;;
+    --compose-file)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --compose-file\n' >&2
+            exit 2
+        }
+        compose_file="$2"
+        shift 2
+        ;;
+    --compose-bin)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --compose-bin\n' >&2
+            exit 2
+        }
+        compose_bin="$2"
+        shift 2
+        ;;
+    --fetch-hook)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --fetch-hook\n' >&2
+            exit 2
+        }
+        fetch_hook="$2"
+        shift 2
+        ;;
+    --no-enable)
+        enable_service="false"
+        shift
+        ;;
+    --no-start)
+        start_service="false"
+        shift
+        ;;
+    --help | -h)
+        show_help
+        exit 0
+        ;;
+    *)
+        printf 'ERROR: unknown argument: %s\n' "$1" >&2
+        show_help >&2
+        exit 2
+        ;;
     esac
 done
 
@@ -202,77 +234,83 @@ render_unit() {
 }
 
 case "${subcommand}" in
-    install)
-        [[ -f "${template_path}" ]] || { printf 'ERROR: systemd template not found: %s\n' "${template_path}" >&2; exit 3; }
-        [[ -x "${prepare_script}" ]] || { printf 'ERROR: secrets refresh script not executable: %s\n' "${prepare_script}" >&2; exit 3; }
-        mkdir -p "${unit_dir}"
-        prepare_args=(
-            --secrets-file "${env_file}"
-            --compose-env-file "${compose_env_file}"
-            --service-user "${service_user}"
-        )
-        if [[ -n "${fetch_hook}" ]]; then
-            prepare_args+=(--fetch-hook "${fetch_hook}")
+install)
+    [[ -f "${template_path}" ]] || {
+        printf 'ERROR: systemd template not found: %s\n' "${template_path}" >&2
+        exit 3
+    }
+    [[ -x "${prepare_script}" ]] || {
+        printf 'ERROR: secrets refresh script not executable: %s\n' "${prepare_script}" >&2
+        exit 3
+    }
+    mkdir -p "${unit_dir}"
+    prepare_args=(
+        --secrets-file "${env_file}"
+        --compose-env-file "${compose_env_file}"
+        --service-user "${service_user}"
+    )
+    if [[ -n "${fetch_hook}" ]]; then
+        prepare_args+=(--fetch-hook "${fetch_hook}")
+    fi
+    "${prepare_script}" "${prepare_args[@]}"
+    temp_unit="$(mktemp "${unit_dir}/${service_name}.service.tmp.XXXXXX")"
+    trap 'rm -f "${temp_unit:-}"' EXIT
+    render_unit >"${temp_unit}"
+    chmod 0644 "${temp_unit}"
+    mv "${temp_unit}" "${unit_path}"
+    trap - EXIT
+    systemctl daemon-reload
+    if command -v systemd-analyze >/dev/null 2>&1; then
+        systemd-analyze verify "${unit_path}" >/dev/null
+    fi
+    if [[ "${enable_service}" == "true" ]]; then
+        service_action enable
+    fi
+    if [[ "${start_service}" == "true" ]]; then
+        if systemctl is-active --quiet "${service_name}.service" >/dev/null 2>&1; then
+            service_action restart
+        else
+            service_action start
         fi
-        "${prepare_script}" "${prepare_args[@]}"
-        temp_unit="$(mktemp "${unit_dir}/${service_name}.service.tmp.XXXXXX")"
-        trap 'rm -f "${temp_unit:-}"' EXIT
-        render_unit >"${temp_unit}"
-        chmod 0644 "${temp_unit}"
-        mv "${temp_unit}" "${unit_path}"
-        trap - EXIT
-        systemctl daemon-reload
-        if command -v systemd-analyze >/dev/null 2>&1; then
-            systemd-analyze verify "${unit_path}" >/dev/null
-        fi
-        if [[ "${enable_service}" == "true" ]]; then
-            service_action enable
-        fi
-        if [[ "${start_service}" == "true" ]]; then
-            if systemctl is-active --quiet "${service_name}.service" >/dev/null 2>&1; then
-                service_action restart
-            else
-                service_action start
-            fi
-        fi
-        printf 'Installed %s\n' "${unit_path}"
-        ;;
-    uninstall)
-        service_action stop >/dev/null 2>&1 || true
-        service_action disable >/dev/null 2>&1 || true
-        rm -f "${unit_path}"
-        systemctl daemon-reload
-        systemctl reset-failed "${service_name}.service" >/dev/null 2>&1 || true
-        printf 'Removed %s\n' "${unit_path}"
-        ;;
-    service-status)
-        service_action status --no-pager
-        ;;
-    service-start)
-        prepare_args=(
-            --secrets-file "${env_file}"
-            --compose-env-file "${compose_env_file}"
-            --service-user "${service_user}"
-        )
-        if [[ -n "${fetch_hook}" ]]; then
-            prepare_args+=(--fetch-hook "${fetch_hook}")
-        fi
-        "${prepare_script}" "${prepare_args[@]}"
-        service_action start
-        ;;
-    service-stop)
-        service_action stop
-        ;;
-    service-restart)
-        prepare_args=(
-            --secrets-file "${env_file}"
-            --compose-env-file "${compose_env_file}"
-            --service-user "${service_user}"
-        )
-        if [[ -n "${fetch_hook}" ]]; then
-            prepare_args+=(--fetch-hook "${fetch_hook}")
-        fi
-        "${prepare_script}" "${prepare_args[@]}"
-        service_action restart
-        ;;
+    fi
+    printf 'Installed %s\n' "${unit_path}"
+    ;;
+uninstall)
+    service_action stop >/dev/null 2>&1 || true
+    service_action disable >/dev/null 2>&1 || true
+    rm -f "${unit_path}"
+    systemctl daemon-reload
+    systemctl reset-failed "${service_name}.service" >/dev/null 2>&1 || true
+    printf 'Removed %s\n' "${unit_path}"
+    ;;
+service-status)
+    service_action status --no-pager
+    ;;
+service-start)
+    prepare_args=(
+        --secrets-file "${env_file}"
+        --compose-env-file "${compose_env_file}"
+        --service-user "${service_user}"
+    )
+    if [[ -n "${fetch_hook}" ]]; then
+        prepare_args+=(--fetch-hook "${fetch_hook}")
+    fi
+    "${prepare_script}" "${prepare_args[@]}"
+    service_action start
+    ;;
+service-stop)
+    service_action stop
+    ;;
+service-restart)
+    prepare_args=(
+        --secrets-file "${env_file}"
+        --compose-env-file "${compose_env_file}"
+        --service-user "${service_user}"
+    )
+    if [[ -n "${fetch_hook}" ]]; then
+        prepare_args+=(--fetch-hook "${fetch_hook}")
+    fi
+    "${prepare_script}" "${prepare_args[@]}"
+    service_action restart
+    ;;
 esac

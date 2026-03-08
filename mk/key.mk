@@ -4,7 +4,6 @@
 # Responsibilities:
 #   - Generate virtual keys
 #   - Revoke virtual keys
-#   - RBAC operations
 #
 # Non-scope:
 #   - Does not manage master keys
@@ -25,19 +24,3 @@ key-gen-dev: ## Generate a developer key
 .PHONY: key-gen-lead
 key-gen-lead: ## Generate a team-lead key
 	@$(ACPCTL_BIN) key gen-lead $(if $(ALIAS),$(ALIAS),)
-
-.PHONY: rbac-whoami
-rbac-whoami: ## Show current RBAC role
-	@$(ACPCTL_BIN) key rbac-whoami
-
-.PHONY: rbac-roles
-rbac-roles: ## List RBAC roles
-	@$(ACPCTL_BIN) key rbac-roles
-
-.PHONY: rbac-models
-rbac-models: ## List models allowed for role
-	@$(ACPCTL_BIN) key rbac-models ROLE=$(ROLE)
-
-.PHONY: rbac-check
-rbac-check: ## Check current role permissions
-	@$(ACPCTL_BIN) key rbac-check

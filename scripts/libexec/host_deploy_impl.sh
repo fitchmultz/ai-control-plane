@@ -56,22 +56,24 @@ Exit Codes:
 EOF
 }
 
-[[ $# -ge 1 ]] || { show_help >&2; exit 2; }
+[[ $# -ge 1 ]] || {
+    show_help >&2
+    exit 2
+}
 subcommand="$1"
 shift
 
 case "${subcommand}" in
-    check|apply)
-        ;;
-    --help|-h)
-        show_help
-        exit 0
-        ;;
-    *)
-        printf 'ERROR: unknown host deploy command: %s\n' "${subcommand}" >&2
-        show_help >&2
-        exit 2
-        ;;
+check | apply) ;;
+--help | -h)
+    show_help
+    exit 0
+    ;;
+*)
+    printf 'ERROR: unknown host deploy command: %s\n' "${subcommand}" >&2
+    show_help >&2
+    exit 2
+    ;;
 esac
 
 inventory="deploy/ansible/inventory/hosts.yml"
@@ -87,63 +89,87 @@ declare -a extra_vars=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --inventory)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --inventory\n' >&2; exit 2; }
-            inventory="$2"
-            shift 2
-            ;;
-        --limit)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --limit\n' >&2; exit 2; }
-            limit_target="$2"
-            shift 2
-            ;;
-        --repo-path)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --repo-path\n' >&2; exit 2; }
-            repo_path="$2"
-            shift 2
-            ;;
-        --env-file)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --env-file\n' >&2; exit 2; }
-            env_file="$2"
-            shift 2
-            ;;
-        --tls-mode)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --tls-mode\n' >&2; exit 2; }
-            tls_mode="$2"
-            shift 2
-            ;;
-        --public-url)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --public-url\n' >&2; exit 2; }
-            public_url="$2"
-            shift 2
-            ;;
-        --no-wait)
-            wait_for_stabilization="false"
-            shift
-            ;;
-        --skip-smoke-tests)
-            run_smoke_tests="false"
-            shift
-            ;;
-        --stabilization-seconds)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --stabilization-seconds\n' >&2; exit 2; }
-            stabilization_seconds="$2"
-            shift 2
-            ;;
-        --extra-var)
-            [[ $# -ge 2 ]] || { printf 'ERROR: missing value for --extra-var\n' >&2; exit 2; }
-            extra_vars+=("$2")
-            shift 2
-            ;;
-        --help|-h)
-            show_help
-            exit 0
-            ;;
-        *)
-            printf 'ERROR: unknown argument: %s\n' "$1" >&2
-            show_help >&2
+    --inventory)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --inventory\n' >&2
             exit 2
-            ;;
+        }
+        inventory="$2"
+        shift 2
+        ;;
+    --limit)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --limit\n' >&2
+            exit 2
+        }
+        limit_target="$2"
+        shift 2
+        ;;
+    --repo-path)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --repo-path\n' >&2
+            exit 2
+        }
+        repo_path="$2"
+        shift 2
+        ;;
+    --env-file)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --env-file\n' >&2
+            exit 2
+        }
+        env_file="$2"
+        shift 2
+        ;;
+    --tls-mode)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --tls-mode\n' >&2
+            exit 2
+        }
+        tls_mode="$2"
+        shift 2
+        ;;
+    --public-url)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --public-url\n' >&2
+            exit 2
+        }
+        public_url="$2"
+        shift 2
+        ;;
+    --no-wait)
+        wait_for_stabilization="false"
+        shift
+        ;;
+    --skip-smoke-tests)
+        run_smoke_tests="false"
+        shift
+        ;;
+    --stabilization-seconds)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --stabilization-seconds\n' >&2
+            exit 2
+        }
+        stabilization_seconds="$2"
+        shift 2
+        ;;
+    --extra-var)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --extra-var\n' >&2
+            exit 2
+        }
+        extra_vars+=("$2")
+        shift 2
+        ;;
+    --help | -h)
+        show_help
+        exit 0
+        ;;
+    *)
+        printf 'ERROR: unknown argument: %s\n' "$1" >&2
+        show_help >&2
+        exit 2
+        ;;
     esac
 done
 
@@ -158,9 +184,18 @@ inventory="$(bridge_abspath "${inventory}")"
 playbook_path="${repo_root}/deploy/ansible/playbooks/gateway_host.yml"
 ansible_cfg="${repo_root}/deploy/ansible/ansible.cfg"
 
-[[ -f "${inventory}" ]] || { printf 'ERROR: inventory file not found: %s\n' "${inventory}" >&2; exit 2; }
-[[ -f "${playbook_path}" ]] || { printf 'ERROR: playbook not found: %s\n' "${playbook_path}" >&2; exit 3; }
-[[ -f "${ansible_cfg}" ]] || { printf 'ERROR: ansible config not found: %s\n' "${ansible_cfg}" >&2; exit 3; }
+[[ -f "${inventory}" ]] || {
+    printf 'ERROR: inventory file not found: %s\n' "${inventory}" >&2
+    exit 2
+}
+[[ -f "${playbook_path}" ]] || {
+    printf 'ERROR: playbook not found: %s\n' "${playbook_path}" >&2
+    exit 3
+}
+[[ -f "${ansible_cfg}" ]] || {
+    printf 'ERROR: ansible config not found: %s\n' "${ansible_cfg}" >&2
+    exit 3
+}
 
 declare -a ansible_args=("-i" "${inventory}" "${playbook_path}")
 if [[ -n "${limit_target}" ]]; then

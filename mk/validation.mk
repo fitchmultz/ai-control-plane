@@ -4,7 +4,6 @@
 # Responsibilities:
 #   - Validate detection rules
 #   - Validate SIEM queries
-#   - Validate network contracts
 #   - Validate supply chain
 #
 # Non-scope:
@@ -67,33 +66,23 @@ validate-siem-schema: ## Validate SIEM schema mappings
 		&& echo '$(COLOR_GREEN)✓ SIEM schema validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ SIEM schema validation failed$(COLOR_RESET)'; exit 1; }
 
-.PHONY: network-contract
-network-contract: ## Render network contract artifacts
-	@echo '$(COLOR_BOLD)Rendering network contract...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) render network-contract \
-		&& echo '$(COLOR_GREEN)✓ Network contract rendered$(COLOR_RESET)' \
-		|| { echo '$(COLOR_RED)✗ Network contract rendering failed$(COLOR_RESET)'; exit 1; }
-
-.PHONY: network-contract-check
-network-contract-check: ## Check network contract freshness
-	@echo '$(COLOR_BOLD)Checking network contract freshness...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) render network-contract --check-freshness \
-		&& echo '$(COLOR_GREEN)✓ Network contract is fresh$(COLOR_RESET)' \
-		|| { echo '$(COLOR_RED)✗ Network contract is stale$(COLOR_RESET)'; exit 1; }
-
-.PHONY: validate-network-contract
-validate-network-contract: ## Validate network contract
-	@echo '$(COLOR_BOLD)Validating network contract...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) validate network-contract \
-		&& echo '$(COLOR_GREEN)✓ Network contract validation passed$(COLOR_RESET)' \
-		|| { echo '$(COLOR_RED)✗ Network contract validation failed$(COLOR_RESET)'; exit 1; }
-
 .PHONY: validate-compose-healthchecks
 validate-compose-healthchecks: ## Validate Docker Compose healthcheck syntax
 	@echo '$(COLOR_BOLD)Validating Docker Compose healthchecks...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) validate compose-healthchecks \
 		&& echo '$(COLOR_GREEN)✓ Healthcheck validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Healthcheck validation failed$(COLOR_RESET)'; exit 1; }
+
+.PHONY: validate-acpctl-parity
+validate-acpctl-parity: ## Fail when published Make/acpctl surfaces drift from the typed command registry
+	@echo '$(COLOR_BOLD)Validating acpctl command surface parity...$(COLOR_RESET)'
+	@if ! command -v $(GO) >/dev/null 2>&1; then \
+		echo '$(COLOR_RED)✗ go not installed - required for validate-acpctl-parity$(COLOR_RESET)'; \
+		exit 2; \
+	fi
+	@$(GO) test ./cmd/acpctl -run 'TestCommandSpec_ApprovedCommandInventory|TestPublishedMakeTargetsResolve|TestPublishedACPCTLCommandsResolve|TestGeneratedCompletionArtifactsAreCurrent|TestRetiredCommandReferencesStayRemoved' -count=1 \
+		&& echo '$(COLOR_GREEN)✓ acpctl command surface parity passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ acpctl command surface parity failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: validate-headers
 validate-headers: ## Validate Go source file purpose headers

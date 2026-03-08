@@ -93,6 +93,7 @@ make health      # Verify services
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
 - **Host surface contract:** Supported host workflows are `host preflight`, `host check/apply`, `host secrets-refresh`, `host install/uninstall`, and `host service-*`; do not reintroduce slot-upgrade host commands without a fully implemented end-to-end backend
 - **acpctl command platform:** `cmd/acpctl/command_spec.go` owns parsing/help/completion/dispatch; `cmd/acpctl/command_registry.go` only composes per-domain command specs into the root tree
+- **CLI surface parity:** treat `cmd/acpctl` as the source of truth for published command paths; keep `make validate-acpctl-parity` and regenerated shell completions green whenever wrappers/docs/examples change
 - **Config ownership:** `internal/config` is the only Go package that may touch process env or repo-local `.env`; other packages must consume typed config from it
 - **Database service boundaries:** `internal/db` is split by responsibility: connector/runtime discovery, readonly metrics/reporting readers, and admin backup/restore workflows; do not reintroduce generic raw SQL execution on operator-facing surfaces
 - **Chargeback domain boundaries:** `internal/chargeback/input.go` owns CLI/env decoding and defaults, `workflow.go` coordinates store/render/archive/notify collaborators, `report_store.go` stays DB-only, and archive writes must use `internal/fsutil`
