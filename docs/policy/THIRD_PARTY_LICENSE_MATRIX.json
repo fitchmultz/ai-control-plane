@@ -13,7 +13,17 @@
       "internal/**/*.go",
       "demo/docker-compose*.yml",
       "demo/config/**/*.yaml",
-      "deploy/**/*"
+      "demo/config/**/*.json",
+      "demo/**/Dockerfile*",
+      "deploy/helm/ai-control-plane/Chart.yaml",
+      "deploy/helm/ai-control-plane/values.yaml",
+      "deploy/helm/ai-control-plane/values.schema.json",
+      "deploy/helm/ai-control-plane/examples/**/*.yaml",
+      "deploy/helm/ai-control-plane/templates/**/*.yaml",
+      "deploy/helm/ai-control-plane/templates/**/*.yml",
+      "deploy/ansible/**/*.yml",
+      "deploy/ansible/**/*.yaml",
+      "deploy/terraform/**/*.tf"
     ],
     "exclude": [
       ".ralph/**",
