@@ -196,9 +196,13 @@ help-host:
 	@echo '  $(COLOR_GREEN)host-preflight$(COLOR_RESET)     Run preflight checks'
 	@echo '  $(COLOR_GREEN)host-check$(COLOR_RESET)         Check mode'
 	@echo '  $(COLOR_GREEN)host-apply$(COLOR_RESET)         Apply mode'
+	@echo '  $(COLOR_GREEN)host-secrets-refresh$(COLOR_RESET) Sync canonical secrets to the Compose runtime env file'
 	@echo '  $(COLOR_GREEN)host-install$(COLOR_RESET)       Install systemd service'
-	@echo '  $(COLOR_GREEN)host-upgrade-prepare$(COLOR_RESET) Prepare upgrade'
-	@echo '  $(COLOR_GREEN)host-upgrade-cutover$(COLOR_RESET) Cut over to standby'
+	@echo '  $(COLOR_GREEN)host-uninstall$(COLOR_RESET)     Remove systemd service'
+	@echo '  $(COLOR_GREEN)host-service-status$(COLOR_RESET) Show service status'
+	@echo '  $(COLOR_GREEN)host-service-start$(COLOR_RESET) Start service'
+	@echo '  $(COLOR_GREEN)host-service-stop$(COLOR_RESET)  Stop service'
+	@echo '  $(COLOR_GREEN)host-service-restart$(COLOR_RESET) Restart service'
 
 .PHONY: help-key
 help-key:

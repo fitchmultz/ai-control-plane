@@ -16,27 +16,34 @@ INVENTORY ?= deploy/ansible/inventory/hosts.yml
 .PHONY: host-preflight
 host-preflight: ## Validate host readiness
 	@echo '$(COLOR_BOLD)Running host preflight checks...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) host preflight
+	@$(ACPCTL_BIN) host preflight \
+		--secrets-env-file "$(SECRETS_ENV_FILE)" \
+		--compose-env-file "$(HOST_COMPOSE_ENV_FILE)"
 
 .PHONY: host-check
 host-check: ## Run declarative host preflight/check mode
 	@echo '$(COLOR_BOLD)Running host check mode...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) host check INVENTORY="$(INVENTORY)"
+	@$(ACPCTL_BIN) host check --inventory "$(INVENTORY)"
 
 .PHONY: host-apply
 host-apply: ## Run declarative host apply/converge
 	@echo '$(COLOR_BOLD)Running host apply mode...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) host apply INVENTORY="$(INVENTORY)"
+	@$(ACPCTL_BIN) host apply --inventory "$(INVENTORY)"
 
 .PHONY: host-install
 host-install: ## Install systemd service
 	@echo '$(COLOR_BOLD)Installing systemd service...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) host install
+	@$(ACPCTL_BIN) host install \
+		--env-file "$(SECRETS_ENV_FILE)" \
+		--compose-env-file "$(HOST_COMPOSE_ENV_FILE)"
 
 .PHONY: host-secrets-refresh
 host-secrets-refresh: ## Refresh host secrets contract
 	@echo '$(COLOR_BOLD)Refreshing host secrets...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) host secrets-refresh
+	@$(ACPCTL_BIN) host secrets-refresh \
+		--secrets-file "$(SECRETS_ENV_FILE)" \
+		--compose-env-file "$(HOST_COMPOSE_ENV_FILE)" \
+		$(if $(SECRETS_FETCH_HOOK),--fetch-hook "$(SECRETS_FETCH_HOOK)",)
 
 .PHONY: host-uninstall
 host-uninstall: ## Uninstall systemd service
@@ -49,7 +56,9 @@ host-service-status: ## Show service status
 
 .PHONY: host-service-start
 host-service-start: ## Start service
-	@$(ACPCTL_BIN) host service-start
+	@$(ACPCTL_BIN) host service-start \
+		--env-file "$(SECRETS_ENV_FILE)" \
+		--compose-env-file "$(HOST_COMPOSE_ENV_FILE)"
 
 .PHONY: host-service-stop
 host-service-stop: ## Stop service
@@ -57,29 +66,6 @@ host-service-stop: ## Stop service
 
 .PHONY: host-service-restart
 host-service-restart: ## Restart service
-	@$(ACPCTL_BIN) host service-restart
-
-# Host Upgrade Targets
-.PHONY: host-upgrade-prepare
-host-upgrade-prepare: ## Prepare standby slot
-	@$(ACPCTL_BIN) host upgrade-prepare
-
-.PHONY: host-upgrade-smoke-standby
-host-upgrade-smoke-standby: ## Smoke test standby slot
-	@$(ACPCTL_BIN) host upgrade-smoke-standby
-
-.PHONY: host-upgrade-cutover
-host-upgrade-cutover: ## Cut over to standby slot
-	@$(ACPCTL_BIN) host upgrade-cutover
-
-.PHONY: host-upgrade-rollback
-host-upgrade-rollback: ## Rollback traffic to active slot
-	@$(ACPCTL_BIN) host upgrade-rollback
-
-.PHONY: host-upgrade-status
-host-upgrade-status: ## Show slot upgrade status
-	@$(ACPCTL_BIN) host upgrade-status
-
-.PHONY: host-upgrade-rehearse
-host-upgrade-rehearse: ## Run full upgrade rehearsal
-	@$(ACPCTL_BIN) host upgrade-rehearse
+	@$(ACPCTL_BIN) host service-restart \
+		--env-file "$(SECRETS_ENV_FILE)" \
+		--compose-env-file "$(HOST_COMPOSE_ENV_FILE)"

@@ -1,11 +1,11 @@
 # AI Control Plane - Gateway Host Convergence Playbook
 #
 # Purpose: Idempotently converge a single ACP gateway host to desired state
-#          using existing validated scripts for configuration and health checks.
+#          using the tracked typed command surface and host-first Make/runtime flows.
 #
 # Responsibilities:
 #   - Validate prerequisites (variables, binaries, paths)
-#   - Validate deployment configuration
+#   - Validate deployment configuration and sync the Compose env contract
 #   - Converge Docker Compose services
 #   - Run post-apply health and smoke validation
 #
@@ -16,7 +16,7 @@
 #
 # Invariants:
 #   - Safe to run multiple times (idempotent)
-#   - Uses existing validated scripts (no duplicate logic)
+#   - Uses tracked acpctl and Make entrypoints (no duplicate deployment logic)
 #   - Fails fast on validation errors
 #
 # Usage:
@@ -143,22 +143,22 @@
       ansible.builtin.set_fact:
         acp_compose_env_file: "{{ acp_repo_path }}/demo/.env"
 
-    - name: Sync compose env file when acp_env_file override is used
-      ansible.builtin.copy:
-        src: "{{ acp_env_file }}"
-        dest: "{{ acp_compose_env_file }}"
-        remote_src: true
-        mode: "0600"
-      when: acp_env_file != acp_compose_env_file
+    - name: Sync canonical secrets into the Compose runtime env file
+      ansible.builtin.command:
+        cmd: >
+          ./scripts/acpctl.sh host secrets-refresh
+          --secrets-file {{ acp_env_file }}
+          --compose-env-file {{ acp_compose_env_file }}
+        chdir: "{{ acp_repo_path }}"
+      changed_when: true
       no_log: true
 
     - name: Run deployment configuration validation
       ansible.builtin.command:
         cmd: >
-          demo/scripts/validate_deployment_config.sh
-          --env-file {{ acp_env_file }}
-          --profile production
-          {{ '--tls-required' if acp_tls_mode == 'tls' else '' }}
+          ./scripts/acpctl.sh validate config
+          --production
+          --secrets-env-file {{ acp_env_file }}
         chdir: "{{ acp_repo_path }}"
       changed_when: false
       register: config_validation

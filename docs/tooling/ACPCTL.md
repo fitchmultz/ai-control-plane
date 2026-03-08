@@ -33,12 +33,13 @@ Top-level commands:
 - `status` - aggregated system health overview
 - `doctor` - environment preflight diagnostics
 - `benchmark` - local reference-host performance baseline
+- `smoke` - runtime production smoke checks
 - `bridge` - compatibility execution of `scripts/libexec/*_impl.sh` workflows
 - `deploy` - service lifecycle, TLS/offline, Helm, readiness-evidence, and release-bundle flows (delegates to Make targets)
 - `validate` - configuration and policy validation flows (typed core checks + selective Make delegation)
 - `db` - database + DR + Kubernetes DB workflow flows (delegates to Make targets)
 - `key` - virtual key lifecycle and RBAC flows (typed core implementation)
-- `host` - host deployment/operations and upgrade-slot flows (delegates to Make targets)
+- `host` - host preflight, declarative deploy, secrets sync, and systemd lifecycle operations
 - `demo` - demo scenario/state flows (delegates to Make targets)
 - `terraform` - Terraform provisioning workflow flows (delegates to Make targets)
 
@@ -104,7 +105,7 @@ Examples:
 ./scripts/acpctl.sh bridge --help
 ```
 
-Bridge currently exists only for remaining compatibility workflows. Onboarding is now a native root command, with `bridge onboard` retained as a shim for older entrypoints. Use command help for the authoritative surface:
+Bridge currently exists only for a narrow set of compatibility workflows whose implementation still lives under `scripts/libexec/`. Onboarding is now a native root command, with `bridge onboard` retained as a shim for older entrypoints. Use command help for the authoritative surface:
 
 ```bash
 ./scripts/acpctl.sh bridge --help
@@ -142,6 +143,10 @@ Each operator flow maps subcommands to existing `make` targets:
 ./scripts/acpctl.sh benchmark baseline --requests 40 --concurrency 4 --json
 ./scripts/acpctl.sh benchmark baseline --profile interactive --json
 
+# Smoke
+./scripts/acpctl.sh smoke
+./scripts/acpctl.sh smoke --help
+
 # Pilot closeout bundle
 ./scripts/acpctl.sh deploy pilot-closeout-bundle build --customer "Example Customer" --pilot-name "Example Pilot" --charter docs/templates/PILOT_CHARTER.md --acceptance-memo docs/templates/PILOT_ACCEPTANCE_MEMO.md --validation-checklist docs/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md --operator-checklist docs/templates/PILOT_OPERATOR_HANDOFF_CHECKLIST.md
 ./scripts/acpctl.sh deploy pilot-closeout-bundle verify
@@ -166,9 +171,11 @@ Each operator flow maps subcommands to existing `make` targets:
 ./scripts/acpctl.sh key rbac-whoami
 
 # Host
-./scripts/acpctl.sh host preflight
-./scripts/acpctl.sh host check INVENTORY=deploy/ansible/inventory/hosts.yml
-./scripts/acpctl.sh host upgrade-status
+./scripts/acpctl.sh host preflight --secrets-env-file /etc/ai-control-plane/secrets.env
+./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.yml
+./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml
+./scripts/acpctl.sh host secrets-refresh --secrets-file /etc/ai-control-plane/secrets.env --compose-env-file demo/.env
+./scripts/acpctl.sh host install --env-file /etc/ai-control-plane/secrets.env --compose-env-file demo/.env
 
 # Demo
 ./scripts/acpctl.sh demo scenario SCENARIO=1
@@ -197,8 +204,9 @@ Subcommand-level help is available:
 ./scripts/acpctl.sh chargeback --help
 ./scripts/acpctl.sh chargeback report --help
 ./scripts/acpctl.sh doctor --help
+./scripts/acpctl.sh smoke --help
 ./scripts/acpctl.sh validate --help
-./scripts/acpctl.sh host upgrade-status --help
+./scripts/acpctl.sh host install --help
 ```
 
 ### Testability override

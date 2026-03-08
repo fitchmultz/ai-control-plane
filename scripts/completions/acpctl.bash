@@ -3,7 +3,7 @@ _acpctl_complete() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
 
-    local commands="ci env chargeback status health doctor benchmark completion onboard deploy validate db key host demo terraform helm bridge help"
+    local commands="ci env chargeback status health doctor benchmark smoke completion onboard deploy validate db key host demo terraform helm bridge help"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
@@ -48,7 +48,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         host)
-            local subcmds="preflight check apply install service-status"
+            local subcmds="preflight check apply install uninstall service-status service-start service-stop service-restart secrets-refresh"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         demo)
@@ -64,7 +64,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         bridge)
-            local subcmds="host_deploy host_install host_preflight host_upgrade_slots onboard prepare_secrets_env prod_smoke_helm prod_smoke_test release_bundle switch_claude_mode"
+            local subcmds="host_deploy host_install host_preflight onboard prepare_secrets_env prod_smoke_helm prod_smoke_test release_bundle"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         *)

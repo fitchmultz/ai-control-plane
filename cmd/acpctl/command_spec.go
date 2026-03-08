@@ -87,6 +87,7 @@ type commandBackend struct {
 	NativeRun          func(context.Context, commandRunContext, any) int
 	MakeTarget         string
 	BridgeRelativePath string
+	BridgeArgs         []string
 }
 
 type commandSpec struct {
@@ -564,7 +565,15 @@ func executeInvocation(ctx context.Context, invocation commandInvocation, stdout
 	case commandBackendMake:
 		return runMakeTarget(ctx, invocation.Spec.Backend.MakeTarget, invocation.Input.Trailing(), stdout, stderr)
 	case commandBackendBridge:
-		return runBridgeScript(ctx, invocation.Spec.Backend.BridgeRelativePath, invocation.Spec.Name, invocation.Input.Trailing(), stdout, stderr)
+		return runBridgeScript(
+			ctx,
+			invocation.Spec.Backend.BridgeRelativePath,
+			invocation.Spec.Name,
+			invocation.Spec.Backend.BridgeArgs,
+			invocation.Input.Trailing(),
+			stdout,
+			stderr,
+		)
 	default:
 		fmt.Fprintln(stderr, "Error: invalid command backend")
 		return exitcodes.ACPExitRuntime

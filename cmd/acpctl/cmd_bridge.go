@@ -33,7 +33,15 @@ import (
 
 const bridgeScriptTimeout = 10 * time.Minute
 
-func runBridgeScript(ctx context.Context, relativePath string, commandName string, scriptArgs []string, stdout *os.File, stderr *os.File) int {
+func runBridgeScript(
+	ctx context.Context,
+	relativePath string,
+	commandName string,
+	scriptPrefixArgs []string,
+	scriptArgs []string,
+	stdout *os.File,
+	stderr *os.File,
+) int {
 	repoRoot := detectRepoRootWithContext(ctx)
 	if repoRoot == "" {
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
@@ -61,7 +69,7 @@ func runBridgeScript(ctx context.Context, relativePath string, commandName strin
 
 	res := proc.Run(ctx, proc.Request{
 		Name:    "/bin/bash",
-		Args:    append([]string{scriptPath}, scriptArgs...),
+		Args:    append(append([]string{scriptPath}, scriptPrefixArgs...), scriptArgs...),
 		Dir:     repoRoot,
 		Env:     []string{"ACP_REPO_ROOT=" + repoRoot},
 		Stdin:   os.Stdin,

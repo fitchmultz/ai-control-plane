@@ -91,19 +91,6 @@ Configuration files are stored in `~/.claude/` (your home directory) to avoid co
 
 ## Switching Between Modes
 
-### Using the Mode Switcher Script
-
-```bash
-# Check current mode
-./scripts/acpctl.sh bridge switch_claude_mode status
-
-# Switch to API key mode
-./scripts/acpctl.sh bridge switch_claude_mode api-key
-
-# Switch to MAX subscription mode
-./scripts/acpctl.sh bridge switch_claude_mode max
-```
-
 ### Manual Mode Switching
 
 #### To use API Key Mode:
@@ -197,12 +184,9 @@ make up
 # 2. Verify services are healthy
 make health
 
-# 3. Show current mode (starts in API Key mode)
-./scripts/acpctl.sh bridge switch_claude_mode status
-
-# 4. Demo API Key Mode (Full Enforcement)
+# 3. Demo API Key Mode (Full Enforcement)
 echo "=== API Key Mode: Full Gateway Enforcement ==="
-./scripts/acpctl.sh bridge switch_claude_mode api-key
+cp ~/.claude/settings.local.json ~/.claude/settings.json
 claude
 # In Claude: /model haiku, then "Hello from API key mode"
 # Press Ctrl+D to exit
@@ -215,7 +199,7 @@ make db-status
 
 # 7. Switch to MAX Subscription Mode (Gateway Enforcement + Subscription Billing)
 echo "=== MAX Subscription Mode: OAuth + Gateway Enforcement ==="
-./scripts/acpctl.sh bridge switch_claude_mode max
+cp ~/.claude/settings.max.json ~/.claude/settings.json
 claude
 # In Claude: Select "Claude account with subscription", complete OAuth
 # Then: /model haiku, then "Hello from MAX subscription mode"

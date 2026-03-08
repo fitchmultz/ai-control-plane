@@ -465,14 +465,7 @@ Override inventory variables without editing the file:
   --public-url https://gateway.example.com
 ```
 
-#### Containerized Ansible (No Local Install)
-
-If Ansible is not installed locally, the script automatically uses a containerized version:
-
-```bash
-# Requires Docker but no local Ansible
-./scripts/acpctl.sh bridge host_deploy apply --inventory deploy/ansible/inventory/hosts.yml
-```
+The direct script path is a compatibility bridge to the tracked Ansible workflow. It still requires a real local `ansible-playbook` installation.
 
 ### 4.4 Systemd Host Service Management (Production Recommended)
 
@@ -563,14 +556,15 @@ For advanced use cases or integration with automation, use the deployment script
 # Install with default options
 ./scripts/acpctl.sh bridge host_install install
 
-# Dry-run via script
-./scripts/acpctl.sh bridge host_install install --dry-run
+# Install with explicit secrets/runtime paths
+./scripts/acpctl.sh bridge host_install install \
+  --env-file /etc/ai-control-plane/secrets.env \
+  --compose-env-file demo/.env
 
-# Custom unit directory (e.g., for user units)
-./scripts/acpctl.sh bridge host_install install --unit-dir ~/.config/systemd/user
-
-# Specify custom repository path
-./scripts/acpctl.sh bridge host_install install --repo-root /custom/path/to/repo
+# Start the service after refreshing secrets
+./scripts/acpctl.sh bridge host_install service-start \
+  --env-file /etc/ai-control-plane/secrets.env \
+  --compose-env-file demo/.env
 
 # Uninstall the service
 ./scripts/acpctl.sh bridge host_install uninstall
