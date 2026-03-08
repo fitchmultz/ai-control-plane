@@ -14,6 +14,12 @@
 // Invariants/Assumptions:
 //   - Tests use temporary directories for file operations
 //   - Tests verify error handling without requiring live services
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package main
 
 import (

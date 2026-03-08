@@ -14,6 +14,12 @@
 // Invariants/Assumptions:
 //   - Tests use temporary directories and environment variable manipulation
 //   - Tests restore original environment after completion
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package db
 
 import (

@@ -31,9 +31,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/performance"
@@ -60,9 +60,10 @@ func runBenchmarkCommand(ctx context.Context, args []string, stdout *os.File, st
 }
 
 func runBenchmarkBaseline(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	gatewayRuntime := config.NewLoader().Gateway(true)
 	opts := performance.BaselineOptions{
 		GatewayURL:     "http://127.0.0.1:4000",
-		MasterKey:      strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY")),
+		MasterKey:      gatewayRuntime.MasterKey,
 		Model:          "mock-gpt",
 		Prompt:         "Provide a short response for performance baseline verification.",
 		WarmupRequests: 0,

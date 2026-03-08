@@ -61,7 +61,7 @@ PERFORMANCE_PROFILE ?=
 GO ?= go
 ACPCTL_BIN ?= .bin/acpctl
 GO_PACKAGES ?= ./...
-GO_SOURCES := $(shell find cmd internal -name '*.go' 2>/dev/null)
+GO_SOURCES := $(shell find cmd internal pkg -name '*.go' 2>/dev/null)
 
 # Secrets Contract Configuration (RQ-0172)
 SECRETS_ENV_FILE ?= /etc/ai-control-plane/secrets.env

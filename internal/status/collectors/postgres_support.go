@@ -18,6 +18,12 @@
 //   - Collectors operate against the repo-local demo Compose project by default
 //   - Compose lookup is preferred; docker ps is the compatibility fallback
 //   - Query execution should always honor a deadline
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package collectors
 
 import (

@@ -1,6 +1,18 @@
 // release_test.go - Tests for release bundle modules
 //
 // Purpose: Test parser, planner, builder, and verifier modules
+//
+// Responsibilities:
+//   - Keep this file's behavior focused and deterministic.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package release
 
 import (

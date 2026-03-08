@@ -17,6 +17,12 @@
 // Invariants/Assumptions:
 //   - Colors are disabled when stdout is not a terminal (unless forced)
 //   - Symbols are consistent across all CLI output
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package output
 
 import (

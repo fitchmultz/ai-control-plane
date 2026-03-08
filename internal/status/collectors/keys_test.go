@@ -18,6 +18,12 @@
 //   - Zero keys triggers a warning (configuration incomplete).
 //   - Expired keys trigger a warning.
 //   - Active keys only returns healthy status.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package collectors
 
 import (

@@ -19,6 +19,12 @@
 //   - All collectors are read-only operations
 //   - Collector failures do not prevent other collectors from running
 //   - Overall status is HEALTHY only if all required collectors report healthy
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package status
 
 import (

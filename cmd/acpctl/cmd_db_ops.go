@@ -10,6 +10,15 @@
 // Non-scope:
 //   - Does not manage schema migrations
 //   - Does not handle external database connections
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 
@@ -22,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
@@ -31,7 +41,7 @@ import (
 
 func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	customName := ""
-	backupDir := os.Getenv("BACKUP_DIR")
+	backupDir := config.NewLoader().Tooling().BackupDir
 
 	for i := range args {
 		switch args[i] {

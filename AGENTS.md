@@ -89,6 +89,8 @@ make health      # Verify services
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
 - **acpctl command metadata:** `cmd/acpctl/command_registry.go` is the canonical source for root commands, grouped subcommands, completion ordering, and bridge compatibility entries
+- **Config ownership:** `internal/config` is the only Go package that may touch process env or repo-local `.env`; other packages must consume typed config from it
+- **Validation/security ownership:** canonical deployment/config scan scope lives in `internal/policy`; structural validators live in `internal/validation`; security policy enforcement lives in `internal/security`
 - **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/release/readiness_plan.go` materializes it
 - **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; `scripts/libexec/onboard_impl.sh` is a compatibility shim only
 - **Helm deployment contract:** `deploy/helm/ai-control-plane/values.yaml` is production-only; demo paths must opt in via `examples/values.demo.yaml` or `examples/values.offline.yaml` with `profile=demo` and `demo.enabled=true`
@@ -104,6 +106,7 @@ make health      # Verify services
 - Caddy TLS configs must stay compatible with pinned Caddy image behavior: use `lb_retries` (not `lb_retry_count`) and scope JSON `Content-Type` enforcement to body methods (`POST|PUT|PATCH`) so GET endpoints like `/v1/models` are not blocked.
 - `make`-driven runtime flows now default `LITELLM_IMAGE`/`LIBRECHAT_IMAGE` to locally built hardened images (`ai-control-plane/*:local`); direct `docker compose` still falls back to the pinned registry images declared in compose files.
 - `make ci` and `make ci-nightly` intentionally start the offline runtime with compose-pinned fallback images; local hardened image build/scan remains scoped to `make ci-manual-heavy` and local dev targets such as `make up-offline`.
+- `make ci-pr` / `make ci-fast` now enforce `validate headers` and `validate env-access`; keep Go file headers compliant and never add direct `os.Getenv` / `envfile.LookupFile` calls outside `internal/config`
 - Never commit secrets (API keys, tokens, OAuth tokens)
 - Runtime artifacts and internal workflow state are local-only; do not track `demo/logs/`, `handoff-packet/`, `.ralph/`, `docs/presentation/slides-internal/`, or generated `docs/presentation/slides-external/*.png` exports (see `docs/ARTIFACTS.md`)
 - All executable scripts: `set -euo pipefail`, terminal-aware colors, `--help` menu

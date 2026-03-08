@@ -10,6 +10,12 @@
 //
 // Scope:
 //   - TCP port diagnostics only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package doctor
 
 import (
@@ -17,7 +23,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -126,7 +131,7 @@ func occupiedPortsBelongToRunningACP(ctx context.Context, occupied []int, opts O
 		gatewayHost = config.DefaultGatewayHost
 	}
 
-	masterKey := strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY"))
+	masterKey := config.NewLoader().Gateway(false).MasterKey
 	if masterKey == "" && strings.TrimSpace(opts.RepoRoot) != "" {
 		masterKey = loadEnvFromFile(filepath.Join(opts.RepoRoot, "demo", ".env"), "LITELLM_MASTER_KEY")
 	}

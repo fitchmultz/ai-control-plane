@@ -17,6 +17,12 @@
 // Invariants/Assumptions:
 //   - Tests run against httptest servers for deterministic responses
 //   - Status endpoint checks are read-only GET requests
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package gateway
 
 import (

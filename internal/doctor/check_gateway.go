@@ -10,16 +10,19 @@
 //
 // Scope:
 //   - LiteLLM gateway diagnostics only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package doctor
 
 import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
@@ -30,7 +33,7 @@ type gatewayHealthyCheck struct{}
 func (c gatewayHealthyCheck) ID() string { return "gateway_healthy" }
 
 func (c gatewayHealthyCheck) Run(ctx context.Context, opts Options) CheckResult {
-	masterKey := strings.TrimSpace(loadGatewayMasterKey(opts))
+	masterKey := loadGatewayMasterKey(opts)
 	if masterKey == "" {
 		return CheckResult{
 			ID:       c.ID(),
@@ -106,7 +109,7 @@ func (c gatewayHealthyCheck) Fix(ctx context.Context, opts Options) (bool, strin
 }
 
 func loadGatewayMasterKey(opts Options) string {
-	if value := strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY")); value != "" {
+	if value := config.NewLoader().Gateway(false).MasterKey; value != "" {
 		return value
 	}
 	return loadEnvFromFile(filepath.Join(opts.RepoRoot, "demo", ".env"), "LITELLM_MASTER_KEY")
@@ -119,7 +122,7 @@ func gatewayLocation(opts Options) (string, string) {
 	}
 	port := opts.GatewayPort
 	if port == "" {
-		port = strconv.Itoa(config.DefaultLiteLLMPort)
+		port = fmt.Sprintf("%d", config.DefaultLiteLLMPort)
 	}
 	return host, port
 }

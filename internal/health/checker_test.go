@@ -15,6 +15,12 @@
 // Invariants/Assumptions:
 //   - Tests use injected fake dependencies to avoid external service requirements
 //   - Tests verify behavior, not implementation details
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package health
 
 import (

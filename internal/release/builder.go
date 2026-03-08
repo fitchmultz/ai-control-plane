@@ -11,6 +11,15 @@
 // Non-scope:
 //   - Does not verify bundles (see verifier.go)
 //   - Does not parse arguments (see parser.go)
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package release
 
 import (
@@ -25,6 +34,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
 // Builder handles bundle construction
@@ -274,7 +285,7 @@ func HumanReadableSize(bytes int64) string {
 func reproducibleArchiveTime() time.Time {
 	const fallbackEpoch = int64(0)
 
-	sourceDateEpoch := strings.TrimSpace(os.Getenv("SOURCE_DATE_EPOCH"))
+	sourceDateEpoch := config.NewLoader().Tooling().SourceDateEpoch
 	if sourceDateEpoch == "" {
 		return time.Unix(fallbackEpoch, 0).UTC()
 	}

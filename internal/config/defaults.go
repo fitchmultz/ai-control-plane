@@ -19,6 +19,15 @@
 //   - All constants are defined as const (not variables)
 //   - Constants follow naming convention: Default* for user-overridable values
 //   - Time-related constants use time.Duration type
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package config
 
 import "time"

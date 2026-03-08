@@ -17,6 +17,12 @@
 // Invariants/Assumptions:
 //   - Mapping paths are repository-relative POSIX-style paths.
 //   - Caller provides a valid repository root path.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package filesync
 
 import (

@@ -10,6 +10,15 @@
 // Non-scope:
 //   - Argument parsing logic (see internal/keygen/parser.go)
 //   - Validation logic (see internal/keygen/validator.go)
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 
@@ -18,6 +27,7 @@ import (
 	"fmt"
 	"os"
 
+	acpconfig "github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/keygen"
@@ -120,7 +130,7 @@ func runDryRun(config *keygen.Config, role string, models []string, stdout *os.F
 }
 
 func generateKey(ctx context.Context, config *keygen.Config, req *gateway.GenerateKeyRequest, stdout *os.File, stderr *os.File, out *output.Output) int {
-	masterKey := os.Getenv("LITELLM_MASTER_KEY")
+	masterKey := acpconfig.NewLoader().Gateway(true).MasterKey
 	client := gateway.NewClient(gateway.WithMasterKey(masterKey))
 
 	role := keygen.ResolveRole(config.Role)

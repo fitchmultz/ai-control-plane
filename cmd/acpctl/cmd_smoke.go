@@ -1,6 +1,18 @@
 // cmd_smoke.go - Smoke test command implementation
 //
 // Purpose: Run production smoke tests
+//
+// Responsibilities:
+//   - Keep this file's behavior focused and deterministic.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 

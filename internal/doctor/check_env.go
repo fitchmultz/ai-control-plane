@@ -10,6 +10,12 @@
 //
 // Scope:
 //   - Environment configuration diagnostics only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package doctor
 
 import (
@@ -18,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -29,14 +36,11 @@ func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 	requiredVars := []string{"LITELLM_MASTER_KEY", "LITELLM_SALT_KEY", "DATABASE_URL"}
 	missing := []string{}
 	found := []string{}
+	loader := config.NewLoader()
+	envPath := filepath.Join(opts.RepoRoot, "demo", ".env")
 	for _, key := range requiredVars {
-		if os.Getenv(key) == "" {
-			envPath := filepath.Join(opts.RepoRoot, "demo", ".env")
-			if val := loadEnvFromFile(envPath, key); val == "" {
-				missing = append(missing, key)
-			} else {
-				found = append(found, key)
-			}
+		if loader.String(key) == "" && loadEnvFromFile(envPath, key) == "" {
+			missing = append(missing, key)
 			continue
 		}
 		found = append(found, key)

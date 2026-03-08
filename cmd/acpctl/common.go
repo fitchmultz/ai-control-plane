@@ -9,6 +9,15 @@
 // Non-scope:
 //   - Does not implement command logic
 //   - Does not handle I/O directly
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 
@@ -16,12 +25,11 @@ import (
 	"context"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/proc"
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
-const repoRootDetectTimeout = 5 * time.Second
+const repoRootDetectTimeout = config.DefaultConnectTimeout
 
 // repeatedStringFlag is a flag that can be specified multiple times
 type repeatedStringFlag []string
@@ -51,22 +59,12 @@ func detectRepoRoot() string {
 }
 
 func detectRepoRootWithContext(ctx context.Context) string {
-	if explicit := strings.TrimSpace(os.Getenv("ACP_REPO_ROOT")); explicit != "" {
-		return explicit
+	loader := config.NewLoader()
+	repoRoot, err := loader.RepoRoot(ctx)
+	if err != nil {
+		return ""
 	}
-	res := proc.Run(ctx, proc.Request{
-		Name:    "git",
-		Args:    []string{"rev-parse", "--show-toplevel"},
-		Timeout: repoRootDetectTimeout,
-	})
-	if res.Err != nil {
-		wd, wdErr := os.Getwd()
-		if wdErr != nil {
-			return ""
-		}
-		return wd
-	}
-	return strings.TrimSpace(res.Stdout)
+	return strings.TrimSpace(repoRoot)
 }
 
 // isTerminal checks if stdout is a terminal

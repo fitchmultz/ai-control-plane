@@ -15,6 +15,12 @@
 //
 // Invariants/Assumptions:
 //   - Tests run on temporary filesystem state only.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package filesync
 
 import (

@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
@@ -124,10 +125,7 @@ func printGroupedSubcommandHelp(out *os.File, root rootCommandDefinition, subcom
 }
 
 func runMakeTarget(ctx context.Context, target string, makeArgs []string, stdout *os.File, stderr *os.File) int {
-	makeBin := strings.TrimSpace(os.Getenv("ACPCTL_MAKE_BIN"))
-	if makeBin == "" {
-		makeBin = "make"
-	}
+	makeBin := config.NewLoader().Tooling().MakeBinary
 	if err := ensureExecutable(makeBin); err != nil {
 		fmt.Fprintf(stderr, "Error: make executable not found or not executable: %s\n", makeBin)
 		return exitcodes.ACPExitPrereq

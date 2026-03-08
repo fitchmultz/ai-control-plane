@@ -17,6 +17,12 @@
 // Invariants/Assumptions:
 //   - Prefers Docker Compose V2 (docker compose) over V1 (docker-compose)
 //   - All commands require Docker to be running
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package docker
 
 import (

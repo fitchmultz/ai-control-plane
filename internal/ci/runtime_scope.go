@@ -17,6 +17,12 @@
 // Invariants/Assumptions:
 //   - Conservative default: unknown states result in ShouldRun=true.
 //   - Exit code mapping is handled by caller.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package ci
 
 import (

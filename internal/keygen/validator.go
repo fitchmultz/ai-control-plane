@@ -11,14 +11,24 @@
 // Non-scope:
 //   - Does not parse arguments (see parser.go)
 //   - Does not generate keys
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package keygen
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
 // ValidationError represents a validation failure
@@ -78,7 +88,7 @@ func ResolveRole(explicitRole string) string {
 	if explicitRole != "" {
 		return explicitRole
 	}
-	role := os.Getenv("ACP_USER_ROLE")
+	role := config.NewLoader().Tooling().Role
 	if role != "" {
 		return role
 	}
@@ -88,7 +98,7 @@ func ResolveRole(explicitRole string) string {
 // CheckPrerequisites verifies required environment and tools
 func CheckPrerequisites(requireMasterKey bool) error {
 	if requireMasterKey {
-		masterKey := os.Getenv("LITELLM_MASTER_KEY")
+		masterKey := config.NewLoader().Gateway(false).MasterKey
 		if masterKey == "" {
 			return &ValidationError{
 				Field:   "LITELLM_MASTER_KEY",

@@ -15,6 +15,12 @@
 // Invariants/Assumptions:
 //   - `.env` content is treated as data only.
 //   - Command output is the raw requested value on stdout.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package main
 
 import (
@@ -25,7 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mitchfultz/ai-control-plane/internal/envfile"
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
@@ -121,7 +127,7 @@ func runEnvGetCommand(ctx context.Context, args []string, stdout *os.File, stder
 		return exitcodes.ACPExitUsage
 	}
 
-	value, ok, err := envfile.LookupFile(*envPath, key)
+	value, ok, err := config.LookupEnvFile(*envPath, key)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: failed to read env file: %v\n", err)
 		return exitcodes.ACPExitPrereq

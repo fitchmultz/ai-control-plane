@@ -10,6 +10,15 @@
 //   - Actual bundle building (see internal/release/builder.go)
 //   - Bundle verification logic (see internal/release/verifier.go)
 //   - Argument parsing logic (see internal/release/parser.go)
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 
 package main
 

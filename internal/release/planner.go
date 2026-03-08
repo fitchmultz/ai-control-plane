@@ -10,6 +10,15 @@
 // Non-scope:
 //   - Does not copy files or create bundles
 //   - Does not compute checksums
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package release
 
 import (

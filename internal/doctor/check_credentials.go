@@ -10,15 +10,19 @@
 //
 // Scope:
 //   - Credential diagnostics only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
+//
+// Invariants/Assumptions:
+//   - Behavior must remain deterministic for equivalent inputs.
 package doctor
 
 import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
@@ -29,7 +33,7 @@ type credentialsValidCheck struct{}
 func (c credentialsValidCheck) ID() string { return "credentials_valid" }
 
 func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResult {
-	masterKey := strings.TrimSpace(os.Getenv("LITELLM_MASTER_KEY"))
+	masterKey := config.NewLoader().Gateway(false).MasterKey
 	if masterKey == "" {
 		masterKey = loadEnvFromFile(filepath.Join(opts.RepoRoot, "demo", ".env"), "LITELLM_MASTER_KEY")
 	}

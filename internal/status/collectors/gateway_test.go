@@ -17,6 +17,12 @@
 // Invariants/Assumptions:
 //   - HTTP client respects the 5-second timeout.
 //   - Authorization header must be present for gateway checks.
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package collectors
 
 import (

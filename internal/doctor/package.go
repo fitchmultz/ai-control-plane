@@ -20,6 +20,12 @@
 //   - Checks are read-only unless Fix() is explicitly called
 //   - Secrets are never logged in Details or Message
 //   - Exit codes follow precedence: runtime > prereq > domain > success
+//
+// Scope:
+//   - File-local implementation and interfaces only.
+//
+// Usage:
+//   - Used through its package exports and CLI entrypoints as applicable.
 package doctor
 
 import (
