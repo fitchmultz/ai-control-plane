@@ -3,7 +3,7 @@
 #
 # Purpose:
 #   Define the canonical readiness evidence gate membership used by
-#   internal/release and related verification workflows.
+#   internal/readiness and related verification workflows.
 # Responsibilities:
 #   - Declare gate identity, command vectors, and log file names.
 #   - Mark production-only gates without duplicating CLI orchestration logic.
@@ -12,7 +12,7 @@
 #   - Does not execute gates directly.
 #   - Does not replace Make targets or command implementations.
 # Usage:
-#   - Loaded by internal/release/readiness_plan.go.
+#   - Loaded by internal/readiness/plan.go.
 # Invariants/Assumptions:
 #   - Commands are Make argument vectors run from the repository root.
 #   - ${BUNDLE_VERSION} and ${SECRETS_ENV_FILE} placeholders are expanded at runtime.

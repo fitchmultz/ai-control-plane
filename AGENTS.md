@@ -95,8 +95,9 @@ make health      # Verify services
 - **Config ownership:** `internal/config` is the only Go package that may touch process env or repo-local `.env`; other packages must consume typed config from it
 - **Database service boundaries:** `internal/db` is split by responsibility: connector/runtime discovery, readonly metrics/reporting readers, and admin backup/restore workflows; do not reintroduce generic raw SQL execution on operator-facing surfaces
 - **Validation/security ownership:** canonical deployment/config scan scope lives in `internal/policy`; structural validators live in `internal/validation`; security policy enforcement lives in `internal/security`
-- **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/release/readiness_plan.go` materializes it
-- **Artifact-run ownership:** generated readiness and closeout runs must use the shared `internal/release` artifact-run helpers for inventories, latest pointers, and run-directory verification; avoid bespoke run-dir lifecycle code
+- **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/readiness/plan.go` materializes it
+- **Artifact-run ownership:** `internal/artifactrun` owns generated readiness and closeout run lifecycle, inventories, latest pointers, and run-directory verification; avoid bespoke run-dir lifecycle code elsewhere
+- **Release artifact domains:** `internal/bundle` owns release tarball planning/build/verify, `internal/readiness` owns readiness evidence workflows, and `internal/closeout` owns pilot closeout bundle assembly
 - **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; `scripts/libexec/onboard_impl.sh` is a compatibility shim only
 - **User config safety:** home-directory tool config writes must be ACP-managed, atomic, private (`0600` files / `0700` dirs), and conflict-aware; never overwrite unmanaged user config or emit world-readable backups
 - **Helm deployment contract:** `deploy/helm/ai-control-plane/values.yaml` is production-only; demo paths must opt in via `examples/values.demo.yaml` or `examples/values.offline.yaml` with `profile=demo` and `demo.enabled=true`

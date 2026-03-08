@@ -8,7 +8,7 @@
 ## Rollout and release confidence
 
 - **Claim:** Release workflow is reproducible and verifiable.
-- **Evidence:** `make release-bundle`, `make release-bundle-verify`, `internal/release/*`, `docs/release/PRESENTATION_READINESS_TRACKER.md`, `docs/release/go_no_go_decision.md`.
+- **Evidence:** `make release-bundle`, `make release-bundle-verify`, `internal/bundle/*`, `internal/readiness/*`, `internal/closeout/*`, `internal/artifactrun/*`, `docs/release/PRESENTATION_READINESS_TRACKER.md`, `docs/release/go_no_go_decision.md`.
 
 ## Reliability and determinism
 

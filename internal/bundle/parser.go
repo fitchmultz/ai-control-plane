@@ -1,4 +1,4 @@
-// parser.go - Release bundle command-line argument parser
+// parser.go - Release bundle command-line argument parser.
 //
 // Purpose: Parse and validate release bundle command arguments
 //
@@ -19,7 +19,7 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-package release
+package bundle
 
 import (
 	"fmt"

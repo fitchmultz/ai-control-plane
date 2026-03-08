@@ -1,4 +1,4 @@
-// verifier.go - Release bundle verifier
+// verifier.go - Release bundle verifier.
 //
 // Purpose: Verify release bundle integrity
 //
@@ -19,7 +19,7 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-package release
+package bundle
 
 import (
 	"archive/tar"

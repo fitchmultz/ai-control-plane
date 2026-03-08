@@ -1,26 +1,23 @@
-// builder.go - Release bundle builder
+// builder.go - Release bundle builder.
 //
-// Purpose: Build release bundles with checksums and manifests
+// Purpose:
+//
+//	Build reproducible release bundles with checksums and manifests.
 //
 // Responsibilities:
-//   - Copy files to staging area
-//   - Create install manifest and checksums
-//   - Create reproducible tarballs
-//   - Generate checksum sidecars
-//
-// Non-scope:
-//   - Does not verify bundles (see verifier.go)
-//   - Does not parse arguments (see parser.go)
+//   - Copy canonical files to a staging payload.
+//   - Create install manifests and payload checksums.
+//   - Create reproducible tarballs and checksum sidecars.
 //
 // Scope:
-//   - File-local implementation and interfaces only.
+//   - Release tarball construction only.
 //
 // Usage:
-//   - Used through its package exports and CLI entrypoints as applicable.
+//   - Called by `acpctl deploy release-bundle build`.
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-package release
+package bundle
 
 import (
 	"archive/tar"
@@ -39,13 +36,13 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 )
 
-// Builder handles bundle construction
+// Builder handles bundle construction.
 type Builder struct {
 	repoRoot string
 	verbose  bool
 }
 
-// NewBuilder creates a new bundle builder
+// NewBuilder creates a new bundle builder.
 func NewBuilder(repoRoot string, verbose bool) *Builder {
 	return &Builder{
 		repoRoot: repoRoot,
@@ -53,14 +50,12 @@ func NewBuilder(repoRoot string, verbose bool) *Builder {
 	}
 }
 
-// Build creates a release bundle from the plan
+// Build creates a release bundle from the plan.
 func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
-	// Create output directory
-	if err := os.MkdirAll(plan.OutputDir, 0755); err != nil {
+	if err := os.MkdirAll(plan.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Create staging area
 	stageDir, err := os.MkdirTemp("", "release-bundle-*")
 	if err != nil {
 		return fmt.Errorf("failed to create staging directory: %w", err)
@@ -68,7 +63,7 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 	defer os.RemoveAll(stageDir)
 
 	payloadDir := filepath.Join(stageDir, "payload")
-	if err := os.MkdirAll(payloadDir, 0755); err != nil {
+	if err := os.MkdirAll(payloadDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create payload directory: %w", err)
 	}
 
@@ -76,12 +71,10 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 		fmt.Fprintf(stdout, "Staging directory: %s\n", stageDir)
 	}
 
-	// Copy canonical files to payload
 	if err := b.copyPayloadFiles(payloadDir, stdout); err != nil {
 		return err
 	}
 
-	// Build install manifest
 	installManifest := filepath.Join(stageDir, "install-manifest.txt")
 	manifestPaths := append([]string(nil), CanonicalPaths...)
 	sort.Strings(manifestPaths)
@@ -90,18 +83,15 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 		return fmt.Errorf("failed to create install manifest: %w", err)
 	}
 
-	// Build checksums for payload files
 	sha256sumsPath := filepath.Join(stageDir, "sha256sums.txt")
 	if err := b.buildChecksums(payloadDir, sha256sumsPath); err != nil {
 		return fmt.Errorf("failed to build checksums: %w", err)
 	}
 
-	// Create tarball
 	if err := b.createReproducibleTarball(stageDir, plan.BundlePath); err != nil {
 		return fmt.Errorf("failed to create tarball: %w", err)
 	}
 
-	// Create checksum sidecar
 	if err := b.createChecksumSidecar(plan.BundlePath); err != nil {
 		return fmt.Errorf("failed to create checksum: %w", err)
 	}
@@ -113,7 +103,7 @@ func (b *Builder) copyPayloadFiles(payloadDir string, stdout io.Writer) error {
 	for _, relPath := range CanonicalPaths {
 		src := filepath.Join(b.repoRoot, relPath)
 		dst := filepath.Join(payloadDir, relPath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
 		}
 		if err := copyFile(src, dst); err != nil {
@@ -126,27 +116,20 @@ func (b *Builder) copyPayloadFiles(payloadDir string, stdout io.Writer) error {
 	return nil
 }
 
-func (b *Builder) buildChecksums(payloadDir, outputPath string) error {
-	var checksums []string
-
-	err := filepath.Walk(payloadDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		relPath, _ := filepath.Rel(payloadDir, path)
-		relPath = filepath.ToSlash(relPath)
-		hash, err := ComputeFileHash(path)
-		if err != nil {
-			return err
-		}
-		checksums = append(checksums, fmt.Sprintf("%s  ./%s", hash, relPath))
-		return nil
-	})
+func (b *Builder) buildChecksums(payloadDir string, outputPath string) error {
+	payloadFiles, err := collectRegularFiles(payloadDir)
 	if err != nil {
 		return err
+	}
+
+	checksums := make([]string, 0, len(payloadFiles))
+	for _, relPath := range payloadFiles {
+		fullPath := filepath.Join(payloadDir, filepath.FromSlash(relPath))
+		hash, err := ComputeFileHash(fullPath)
+		if err != nil {
+			return fmt.Errorf("hash payload file %s: %w", relPath, err)
+		}
+		checksums = append(checksums, fmt.Sprintf("%s  ./%s", hash, relPath))
 	}
 
 	sort.Strings(checksums)
@@ -154,7 +137,7 @@ func (b *Builder) buildChecksums(payloadDir, outputPath string) error {
 	return fsutil.AtomicWriteFile(outputPath, []byte(content), 0o644)
 }
 
-func (b *Builder) createReproducibleTarball(stageDir, outputPath string) error {
+func (b *Builder) createReproducibleTarball(stageDir string, outputPath string) error {
 	file, err := os.Create(outputPath)
 	if err != nil {
 		return err
@@ -170,26 +153,19 @@ func (b *Builder) createReproducibleTarball(stageDir, outputPath string) error {
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
-	// Files to include (in order)
 	files := []string{
 		"install-manifest.txt",
 		"sha256sums.txt",
 	}
 
-	// Add payload files
 	payloadDir := filepath.Join(stageDir, "payload")
-	var payloadFiles []string
-	filepath.Walk(payloadDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		relPath, _ := filepath.Rel(stageDir, path)
-		relPath = filepath.ToSlash(relPath)
-		payloadFiles = append(payloadFiles, relPath)
-		return nil
-	})
-	sort.Strings(payloadFiles)
-	files = append(files, payloadFiles...)
+	payloadFiles, err := collectRegularFiles(payloadDir)
+	if err != nil {
+		return err
+	}
+	for _, relPath := range payloadFiles {
+		files = append(files, filepath.ToSlash(filepath.Join("payload", relPath)))
+	}
 
 	for _, relPath := range files {
 		fullPath := filepath.Join(stageDir, filepath.FromSlash(relPath))
@@ -203,7 +179,6 @@ func (b *Builder) createReproducibleTarball(stageDir, outputPath string) error {
 			return err
 		}
 		header.Name = filepath.ToSlash(relPath)
-		// Normalize for reproducibility
 		header.ModTime = archiveTime
 		header.AccessTime = archiveTime
 		header.ChangeTime = archiveTime
@@ -216,14 +191,12 @@ func (b *Builder) createReproducibleTarball(stageDir, outputPath string) error {
 			return err
 		}
 
-		if !info.IsDir() {
-			data, err := os.ReadFile(fullPath)
-			if err != nil {
-				return err
-			}
-			if _, err := tarWriter.Write(data); err != nil {
-				return err
-			}
+		data, err := os.ReadFile(fullPath)
+		if err != nil {
+			return err
+		}
+		if _, err := tarWriter.Write(data); err != nil {
+			return err
 		}
 	}
 
@@ -239,8 +212,30 @@ func (b *Builder) createChecksumSidecar(bundlePath string) error {
 	return fsutil.AtomicWriteFile(bundlePath+".sha256", []byte(content), 0o644)
 }
 
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
+func collectRegularFiles(root string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
+			return nil
+		}
+		relPath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepath.ToSlash(relPath))
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("collect files under %s: %w", root, err)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func copyFile(src string, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -248,7 +243,7 @@ func copyFile(src, dst string) error {
 	return fsutil.AtomicWriteFile(dst, data, 0o644)
 }
 
-// ComputeFileHash computes SHA256 hash of a file
+// ComputeFileHash computes the SHA256 hash of a file.
 func ComputeFileHash(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -263,7 +258,7 @@ func ComputeFileHash(path string) (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
-// HumanReadableSize converts bytes to human readable format
+// HumanReadableSize converts bytes to human readable format.
 func HumanReadableSize(bytes int64) string {
 	const (
 		KB = 1024

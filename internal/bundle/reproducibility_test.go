@@ -1,4 +1,4 @@
-// reproducibility_test.go - Tests for release reproducibility and extraction safety
+// reproducibility_test.go - Tests for release reproducibility and extraction safety.
 //
 // Purpose: Verify deterministic release bundle output and secure extraction behavior.
 // Responsibilities:
@@ -10,11 +10,11 @@
 //   - Focuses on builder/verifier behavior only
 //
 // Usage:
-//   - Run via `go test ./internal/release`
+//   - Run via `go test ./internal/bundle`
 //
 // Invariants/Assumptions:
 //   - CanonicalPaths can be temporarily overridden in tests and restored with defer
-package release
+package bundle
 
 import (
 	"archive/tar"
@@ -205,5 +205,15 @@ func TestBuilderBuild_InstallManifestSorted(t *testing.T) {
 	want := []string{"a-file.txt", "z-file.txt"}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("manifest order = %v, want %v", lines, want)
+	}
+}
+
+func TestCollectRegularFiles_PropagatesWalkErrors(t *testing.T) {
+	_, err := collectRegularFiles(filepath.Join(t.TempDir(), "missing-root"))
+	if err == nil {
+		t.Fatal("expected collectRegularFiles to return walk error")
+	}
+	if !strings.Contains(err.Error(), "collect files under") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
