@@ -530,7 +530,7 @@ make release-bundle
 make release-bundle-verify
 
 # Legacy scorecard compatibility stub (expected exit code 2)
-FORECAST_ENABLED=false BUDGET_ALERT_THRESHOLD=75 make chargeback-report
+NO_FORECAST=1 BUDGET_ALERT_THRESHOLD=75 make chargeback-report
 ```
 
 > Forecasting-specific CLI automation from private iterations is not included in this open-source release.

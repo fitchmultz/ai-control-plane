@@ -8,7 +8,7 @@
 // Responsibilities:
 //   - Parse command-line arguments and flags.
 //   - Execute deterministic CI runtime-scope decisions.
-//   - Execute typed local filesystem workflows.
+//   - Execute typed chargeback, status, and onboarding workflows.
 //   - Delegate operator workflows to stable Make targets.
 //   - Emit stable exit codes aligned with the repository contract.
 //
@@ -25,7 +25,6 @@
 //
 //	This file is a thin orchestrator. Command implementations are in:
 //	  - cmd_ci.go       : CI subcommands
-//	  - cmd_files.go    : File synchronization
 //	  - cmd_bridge.go   : Bridge to legacy scripts
 //	  - cmd_status.go   : System status collection
 //	  - cmd_doctor.go   : Environment diagnostics
@@ -105,8 +104,8 @@ Examples:
   acpctl ci should-run-runtime --quiet
   acpctl ci wait --timeout 120
   acpctl env get LITELLM_MASTER_KEY
+  acpctl chargeback report --format all
   acpctl chargeback render --format json
-  acpctl files sync-helm
   acpctl doctor
   acpctl benchmark baseline --requests 20 --concurrency 2
   acpctl onboard codex --mode subscription --verify

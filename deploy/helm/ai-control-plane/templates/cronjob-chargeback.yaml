@@ -3,7 +3,7 @@ Chargeback Report Generation CronJob
 
 Responsibilities:
   - Monthly automated chargeback report generation
-  - Generate JSON, CSV, and Markdown reports
+  - Execute the typed acpctl chargeback workflow
   - Archive reports to persistent storage
   - Send notifications to cost center owners
   - Detect variances and anomalies
@@ -55,29 +55,32 @@ spec:
           {{- end }}
           containers:
             - name: chargeback
-              image: "{{ .Values.chargeback.image.repository }}@{{ .Values.chargeback.image.digest }}"
+              image: "{{ .Values.chargeback.image.repository }}:{{ .Values.chargeback.image.tag }}"
               imagePullPolicy: {{ .Values.chargeback.image.pullPolicy }}
               command:
                 - /bin/bash
                 - -c
                 - |
                   set -euo pipefail
-                  
+
                   echo "=== Starting Chargeback Report Generation ==="
                   echo "Report Month: $(date -d 'last month' +%Y-%m 2>/dev/null || date -v-1m +%Y-%m)"
                   echo "Generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
                   echo ""
-                  
-                  # Generate reports in all formats
-                  /scripts/chargeback_report.sh \
+
+                  export ACP_DATABASE_MODE=external
+                  export DATABASE_URL="postgresql://${DB_USER}:${PGPASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable"
+
+                  acpctl chargeback report \
                     --format all \
                     --archive-dir /reports \
                     --variance-threshold {{ .Values.chargeback.varianceThreshold }} \
+                    --anomaly-threshold {{ .Values.chargeback.anomalyThreshold }} \
                     {{- if .Values.chargeback.notifications.enabled }}
                     --notify \
                     {{- end }}
                     --verbose
-                  
+
                   echo ""
                   echo "=== Chargeback Report Generation Complete ==="
                   echo "Reports archived to: /reports/"
@@ -97,6 +100,8 @@ spec:
                   {{- else }}
                   value: {{ .Values.chargeback.externalDatabase.username | default "litellm" | quote }}
                   {{- end }}
+                - name: DB_PORT
+                  value: "5432"
                 - name: DB_NAME
                   {{- if .Values.postgres.enabled }}
                   value: {{ .Values.postgres.auth.database | default "litellm" }}
@@ -140,8 +145,6 @@ spec:
               volumeMounts:
                 - name: reports
                   mountPath: /reports
-                - name: scripts
-                  mountPath: /scripts
               resources:
                 {{- toYaml .Values.chargeback.resources | nindent 16 }}
               securityContext:
@@ -162,8 +165,4 @@ spec:
               {{- else }}
               emptyDir: {}
               {{- end }}
-            - name: scripts
-              configMap:
-                name: {{ include "acp.fullname" . }}-chargeback-scripts
-                defaultMode: 0755
 {{- end }}

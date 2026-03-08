@@ -33,6 +33,7 @@ PORT="${LITELLM_PORT:-4000}"
 MODEL="chatgpt-gpt5.3-codex"
 USE_TLS="false"
 ACPCTL_BIN=""
+CONTAINER=""
 
 show_help() {
     cat <<'EOF'
@@ -95,6 +96,29 @@ resolve_compose_cmd() {
     printf ''
 }
 
+resolve_litellm_container() {
+    local compose_cmd
+    compose_cmd="$(resolve_compose_cmd)"
+    if [ -n "${compose_cmd}" ]; then
+        local container_id
+        container_id="$(
+            cd "${REPO_ROOT}/demo" &&
+                ${compose_cmd} -f docker-compose.yml -f docker-compose.chatgpt.yml ps -q litellm 2>/dev/null | head -n 1
+        )"
+        if [ -n "${container_id}" ]; then
+            printf '%s\n' "${container_id}"
+            return 0
+        fi
+    fi
+
+    if [ -n "${CONTAINER}" ]; then
+        printf '%s\n' "${CONTAINER}"
+        return 0
+    fi
+
+    printf 'demo-litellm-1\n'
+}
+
 ensure_chatgpt_overlay_running() {
     if ! command -v docker >/dev/null 2>&1; then
         log_error "docker is required"
@@ -110,8 +134,10 @@ ensure_chatgpt_overlay_running() {
 
     mkdir -p "${REPO_ROOT}/demo/auth/chatgpt"
 
+    local container_id
+    container_id="$(resolve_litellm_container)"
     local mounts
-    mounts="$(docker inspect demo-litellm-1 --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}' 2>/dev/null || true)"
+    mounts="$(docker inspect "${container_id}" --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}' 2>/dev/null || true)"
     if printf '%s' "${mounts}" | grep -q 'litellm-chatgpt.yaml'; then
         log_info "ChatGPT compose overlay already active"
         return 0
@@ -130,7 +156,9 @@ print_device_prompt_from_logs() {
     fi
 
     local logs
-    logs="$(docker logs --tail 400 demo-litellm-1 2>&1 || true)"
+    local container_id
+    container_id="$(resolve_litellm_container)"
+    logs="$(docker logs --tail 400 "${container_id}" 2>&1 || true)"
     if ! printf '%s' "${logs}" | grep -q "Sign in with ChatGPT using device code"; then
         return 1
     fi

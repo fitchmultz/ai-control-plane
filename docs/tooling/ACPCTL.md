@@ -29,7 +29,7 @@ Primary entrypoints:
 
 Top-level commands:
 - `ci` - CI and local gate helpers
-- `files` - typed local file synchronization helpers
+- `chargeback` - typed chargeback reporting, rendering, and payload helpers
 - `status` - aggregated system health overview
 - `doctor` - environment preflight diagnostics
 - `benchmark` - local reference-host performance baseline
@@ -52,14 +52,14 @@ Primary shell invocation:
 ./scripts/acpctl.sh ci should-run-runtime
 ```
 
-### Files Command (typed business logic)
+### Chargeback Command (typed business logic)
 ```bash
-./scripts/acpctl.sh files sync-helm --help
+./scripts/acpctl.sh chargeback report --help
 ```
 
 Primary shell invocation:
 ```bash
-./scripts/acpctl.sh files sync-helm
+./scripts/acpctl.sh chargeback report --format all
 ```
 
 ### Doctor Command (environment preflight diagnostics)
@@ -127,8 +127,10 @@ Each operator flow maps subcommands to existing `make` targets:
 ./scripts/acpctl.sh deploy readiness-evidence run
 ./scripts/acpctl.sh deploy readiness-evidence verify
 
-# Files (typed, no Make delegation)
-./scripts/acpctl.sh files sync-helm
+# Chargeback (typed, no Make delegation)
+./scripts/acpctl.sh chargeback report
+./scripts/acpctl.sh chargeback report --format all
+./scripts/acpctl.sh chargeback render --format json
 
 # Doctor (environment preflight)
 ./scripts/acpctl.sh doctor
@@ -192,8 +194,8 @@ Each operator flow maps subcommands to existing `make` targets:
 Subcommand-level help is available:
 ```bash
 ./scripts/acpctl.sh deploy --help
-./scripts/acpctl.sh files --help
-./scripts/acpctl.sh files sync-helm --help
+./scripts/acpctl.sh chargeback --help
+./scripts/acpctl.sh chargeback report --help
 ./scripts/acpctl.sh doctor --help
 ./scripts/acpctl.sh validate --help
 ./scripts/acpctl.sh host upgrade-status --help

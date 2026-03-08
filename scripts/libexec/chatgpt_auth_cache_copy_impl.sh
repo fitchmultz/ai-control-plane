@@ -30,7 +30,7 @@ ACP_EXIT_RUNTIME=3
 ACP_EXIT_USAGE=64
 
 AUTH_FILE="${HOME}/.codex/auth.json"
-CONTAINER="demo-litellm-1"
+CONTAINER=""
 DEST_FILE="${REPO_ROOT}/demo/auth/chatgpt/auth.json"
 
 show_help() {
@@ -41,7 +41,7 @@ Normalize local Codex auth cache for LiteLLM ChatGPT provider.
 
 Options:
   --auth-file <path>   Source auth cache file (default: ~/.codex/auth.json)
-  --container <name>   Target container for best-effort live sync (default: demo-litellm-1)
+  --container <name>   Target container for live sync (default: resolved via docker compose)
   --dest-file <path>   Destination auth cache file (default: demo/auth/chatgpt/auth.json)
   --help, -h           Show help
 
@@ -61,6 +61,41 @@ EOF
 
 log_info() { printf 'INFO: %s\n' "$*"; }
 log_error() { printf 'ERROR: %s\n' "$*" >&2; }
+
+resolve_compose_cmd() {
+    if docker compose version >/dev/null 2>&1; then
+        printf 'docker compose'
+        return
+    fi
+    if command -v docker-compose >/dev/null 2>&1; then
+        printf 'docker-compose'
+        return
+    fi
+    printf ''
+}
+
+resolve_target_container() {
+    if [ -n "${CONTAINER}" ]; then
+        printf '%s\n' "${CONTAINER}"
+        return 0
+    fi
+
+    local compose_cmd
+    compose_cmd="$(resolve_compose_cmd)"
+    if [ -n "${compose_cmd}" ]; then
+        local container_id
+        container_id="$(
+            cd "${REPO_ROOT}/demo" &&
+                ${compose_cmd} -f docker-compose.yml -f docker-compose.chatgpt.yml ps -q litellm 2>/dev/null | head -n 1
+        )"
+        if [ -n "${container_id}" ]; then
+            printf '%s\n' "${container_id}"
+            return 0
+        fi
+    fi
+
+    printf ''
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -105,7 +140,7 @@ fi
 
 dest_dir="$(dirname "${DEST_FILE}")"
 mkdir -p "${dest_dir}"
-chmod 700 "${dest_dir}" || true
+chmod 700 "${dest_dir}"
 
 normalized_auth_file="$(mktemp)"
 trap 'rm -f "${normalized_auth_file}"' EXIT
@@ -128,25 +163,42 @@ fi
 
 if [ -f "${DEST_FILE}" ]; then
     backup_file="${DEST_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-    cp "${DEST_FILE}" "${backup_file}" || true
+    cp "${DEST_FILE}" "${backup_file}"
     log_info "Backed up existing cache to ${backup_file}"
 fi
 
 cp "${normalized_auth_file}" "${DEST_FILE}"
-chmod 600 "${DEST_FILE}" || true
+chmod 600 "${DEST_FILE}"
 log_info "Wrote normalized auth cache to ${DEST_FILE}"
 
 if command -v docker >/dev/null 2>&1; then
-    container_state="$(docker inspect -f '{{.State.Running}}' "${CONTAINER}" 2>/dev/null || true)"
+    target_container="$(resolve_target_container)"
+    if [ -n "${target_container}" ]; then
+        container_state="$(docker inspect -f '{{.State.Running}}' "${target_container}" 2>/dev/null || true)"
+    else
+        container_state="false"
+    fi
     if [ "${container_state}" = "true" ]; then
-        container_home="$(docker exec "${CONTAINER}" sh -lc 'printf "%s" "${HOME:-/root}"' 2>/dev/null || true)"
+        container_home="$(docker exec "${target_container}" sh -lc 'printf "%s" "${HOME:-/root}"' 2>/dev/null)" || {
+            log_error "Failed to resolve home directory in running LiteLLM container"
+            exit "${ACP_EXIT_RUNTIME}"
+        }
         if [ -n "${container_home}" ]; then
             live_dest_dir="${container_home}/.config/litellm/chatgpt"
             live_dest_file="${live_dest_dir}/auth.json"
-            docker exec "${CONTAINER}" sh -lc "mkdir -p '${live_dest_dir}'" >/dev/null 2>&1 || true
-            docker exec -i "${CONTAINER}" sh -lc "cat > '${live_dest_file}'" <"${normalized_auth_file}" || true
-            docker exec "${CONTAINER}" sh -lc "chmod 600 '${live_dest_file}'" >/dev/null 2>&1 || true
-            log_info "Best-effort live sync complete for ${CONTAINER}:${live_dest_file}"
+            docker exec "${target_container}" sh -lc "mkdir -p '${live_dest_dir}'" >/dev/null 2>&1 || {
+                log_error "Failed to create live auth cache directory in ${target_container}"
+                exit "${ACP_EXIT_RUNTIME}"
+            }
+            docker exec -i "${target_container}" sh -lc "cat > '${live_dest_file}'" <"${normalized_auth_file}" || {
+                log_error "Failed to copy live auth cache into ${target_container}"
+                exit "${ACP_EXIT_RUNTIME}"
+            }
+            docker exec "${target_container}" sh -lc "chmod 600 '${live_dest_file}'" >/dev/null 2>&1 || {
+                log_error "Failed to set live auth cache permissions in ${target_container}"
+                exit "${ACP_EXIT_RUNTIME}"
+            }
+            log_info "Live sync complete for ${target_container}:${live_dest_file}"
         fi
     fi
 fi

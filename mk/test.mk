@@ -38,12 +38,12 @@ test-go: ## Run Go unit tests
 .PHONY: script-tests
 script-tests: ## Run all shell script tests
 	@echo '$(COLOR_BOLD)Running shell script tests...$(COLOR_RESET)'
+	@bash scripts/tests/acpctl_first_migration_gate_test.sh
 	@bash scripts/tests/acpctl_cli_contract_test.sh
 	@bash scripts/tests/onboard_test.sh
 	@bash scripts/tests/chatgpt_login_test.sh
+	@bash scripts/tests/chatgpt_auth_cache_copy_test.sh
 	@bash scripts/tests/compose_slot_config_test.sh
-	@bash scripts/tests/chargeback_db_test.sh
-	@bash scripts/tests/chargeback_render_test.sh
 	@bash scripts/tests/supply_chain_allowlist_expiry_check_test.sh
 	@echo '$(COLOR_GREEN)✓ Shell script tests passed$(COLOR_RESET)'
 

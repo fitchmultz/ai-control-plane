@@ -34,6 +34,7 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/chargeback"
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
@@ -51,6 +52,8 @@ func runChargebackCommand(ctx context.Context, args []string, stdout *os.File, s
 		return runChargebackRenderCommand(ctx, args[1:], stdout, stderr)
 	case "payload":
 		return runChargebackPayloadCommand(ctx, args[1:], stdout, stderr)
+	case "report":
+		return runChargebackReportCommand(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Error: Unknown chargeback subcommand: %s\n", args[0])
 		printChargebackHelp(stderr)
@@ -77,6 +80,7 @@ Subcommands:
 	fmt.Fprint(out, `
 
 Examples:
+  acpctl chargeback report
   acpctl chargeback render --format json
   acpctl chargeback render --format csv
   acpctl chargeback payload --target generic
@@ -134,6 +138,47 @@ Exit codes:
 `)
 }
 
+func printChargebackReportHelp(out *os.File) {
+	fmt.Fprint(out, `Usage: acpctl chargeback report [options]
+
+Generate monthly chargeback artifacts from the typed database/report workflow.
+
+Options:
+  --month YYYY-MM                Target report month (default: previous calendar month)
+  --format <markdown|json|csv|all>
+                                 Output format to print (default: markdown)
+  --archive-dir DIR              Archive directory (default: demo/backups/chargeback)
+  --variance-threshold FLOAT     Variance threshold percent (default: 15)
+  --anomaly-threshold FLOAT      Cost-center anomaly spike threshold percent (default: 200)
+  --forecast                     Enable spend forecasting (default: enabled)
+  --no-forecast                  Disable spend forecasting
+  --budget-alert-threshold FLOAT Budget alert percent (default: 80)
+  --notify                       Send configured webhook notifications
+  --verbose                      Print workflow progress to stderr
+  --help, -h                     Show this help message
+
+Environment:
+  ACP_DATABASE_MODE
+  DATABASE_URL
+  DB_NAME
+  DB_USER
+  GENERIC_WEBHOOK_URL
+  SLACK_WEBHOOK_URL
+
+Examples:
+  acpctl chargeback report
+  acpctl chargeback report --format all
+  acpctl chargeback report --month 2026-02 --no-forecast
+
+Exit codes:
+  0   Success
+  1   Domain non-success (variance threshold exceeded or anomalies detected)
+  2   Prerequisites not ready
+  3   Runtime/internal error
+  64  Usage error
+`)
+}
+
 func printChargebackPayloadHelp(out *os.File) {
 	fmt.Fprint(out, `Usage: acpctl chargeback payload --target <generic|slack>
 
@@ -160,6 +205,87 @@ Exit codes:
   3   Runtime/internal error
   64  Usage error
 `)
+}
+
+func runChargebackReportCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	if len(args) == 1 && isHelpToken(args[0]) {
+		printChargebackReportHelp(stdout)
+		return exitcodes.ACPExitSuccess
+	}
+
+	flags := flag.NewFlagSet("chargeback report", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	reportMonth := flags.String("month", "", "Target report month (YYYY-MM)")
+	format := flags.String("format", "markdown", "Output format: markdown, json, csv, or all")
+	archiveDir := flags.String("archive-dir", "demo/backups/chargeback", "Archive directory")
+	varianceThreshold := flags.Float64("variance-threshold", 15, "Variance threshold percent")
+	anomalyThreshold := flags.Float64("anomaly-threshold", 200, "Anomaly threshold percent")
+	forecast := flags.Bool("forecast", true, "Enable spend forecasting")
+	noForecast := flags.Bool("no-forecast", false, "Disable spend forecasting")
+	budgetAlertThreshold := flags.Float64("budget-alert-threshold", 80, "Budget alert threshold percent")
+	notify := flags.Bool("notify", false, "Send webhook notifications")
+	verbose := flags.Bool("verbose", false, "Print workflow progress to stderr")
+	if err := flags.Parse(args); err != nil {
+		return exitcodes.ACPExitUsage
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "Error: unexpected argument(s): %s\n", strings.Join(flags.Args(), " "))
+		printChargebackReportHelp(stderr)
+		return exitcodes.ACPExitUsage
+	}
+
+	switch *format {
+	case "markdown", "json", "csv", "all":
+	default:
+		fmt.Fprintln(stderr, "Error: --format must be one of: markdown, json, csv, all")
+		printChargebackReportHelp(stderr)
+		return exitcodes.ACPExitUsage
+	}
+	if *noForecast {
+		*forecast = false
+	}
+
+	repoRoot := detectRepoRootWithContext(ctx)
+	client := db.NewClient(repoRoot)
+	defer func() { _ = client.Close() }()
+	if err := client.ConfigError(); err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitUsage
+	}
+
+	if *verbose {
+		fmt.Fprintln(stderr, "INFO: Generating typed chargeback report")
+	}
+	result, err := chargeback.GenerateReport(ctx, chargeback.NewDBStore(client), chargeback.ReportOptions{
+		ReportMonth:          *reportMonth,
+		Format:               *format,
+		ArchiveDir:           *archiveDir,
+		VarianceThreshold:    *varianceThreshold,
+		AnomalyThreshold:     *anomalyThreshold,
+		ForecastEnabled:      *forecast,
+		BudgetAlertThreshold: *budgetAlertThreshold,
+		Notify:               *notify,
+		GenericWebhookURL:    config.NewLoader().String("GENERIC_WEBHOOK_URL"),
+		SlackWebhookURL:      config.NewLoader().String("SLACK_WEBHOOK_URL"),
+		RepoRoot:             repoRoot,
+		Stdout:               stdout,
+		Stderr:               stderr,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitRuntime
+	}
+	if err := chargeback.WriteSelectedOutput(result, chargeback.ReportOptions{Format: *format, Stdout: stdout}); err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitRuntime
+	}
+	if *verbose {
+		fmt.Fprintf(stderr, "INFO: Archived artifacts under %s\n", result.Outputs.Archived["md"])
+	}
+	if result.Data.VarianceExceeded || result.Data.HasAnomalies {
+		return exitcodes.ACPExitDomain
+	}
+	return exitcodes.ACPExitSuccess
 }
 
 func runChargebackRenderCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {

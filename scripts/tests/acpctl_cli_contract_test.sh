@@ -166,15 +166,15 @@ if echo "$HELP_OUTPUT" | grep -q "Examples:"; then
 else
     fail "--help missing Examples section"
 fi
-if echo "$HELP_OUTPUT" | grep -q "files"; then
-    pass "--help lists files command"
-else
-    fail "--help missing files command"
-fi
 if echo "$HELP_OUTPUT" | grep -q "env"; then
     pass "--help lists env command"
 else
     fail "--help missing env command"
+fi
+if echo "$HELP_OUTPUT" | grep -q "chargeback"; then
+    pass "--help lists chargeback command"
+else
+    fail "--help missing chargeback command"
 fi
 if echo "$HELP_OUTPUT" | grep -q "deploy"; then
     pass "--help lists deploy command"
@@ -238,80 +238,6 @@ else
 fi
 echo ""
 
-echo "Test: files sync-helm is typed (no make delegation) and syncs mapped files..."
-SYNC_REPO="$TMP_DIR/sync-repo"
-mkdir -p "$SYNC_REPO/demo/scripts/lib"
-cat >"$SYNC_REPO/demo/scripts/chargeback_report.sh" <<'EOF'
-#!/usr/bin/env bash
-echo report
-EOF
-cat >"$SYNC_REPO/demo/scripts/lib/chargeback_db.sh" <<'EOF'
-#!/usr/bin/env bash
-echo db
-EOF
-cat >"$SYNC_REPO/demo/scripts/lib/chargeback_analysis.sh" <<'EOF'
-#!/usr/bin/env bash
-echo analysis
-EOF
-cat >"$SYNC_REPO/demo/scripts/lib/chargeback_render.sh" <<'EOF'
-#!/usr/bin/env bash
-echo render
-EOF
-cat >"$SYNC_REPO/demo/scripts/lib/chargeback_io.sh" <<'EOF'
-#!/usr/bin/env bash
-echo io
-EOF
-
-: >"$CAPTURE_FILE"
-FILES_RC=0
-ACPCTL_BIN="$GO_SHIM" \
-    ACPCTL_MAKE_BIN="$MAKE_STUB" \
-    ACPCTL_TEST_CAPTURE_FILE="$CAPTURE_FILE" \
-    ACP_REPO_ROOT="$SYNC_REPO" \
-    "$SCRIPT_UNDER_TEST" files sync-helm >/dev/null 2>&1 || FILES_RC=$?
-
-if [[ "$FILES_RC" -eq 0 ]]; then
-    pass "files sync-helm returns success"
-else
-    fail "files sync-helm should exit 0 (got $FILES_RC)"
-fi
-
-if [[ ! -s "$CAPTURE_FILE" ]]; then
-    pass "files sync-helm does not invoke make delegation"
-else
-    fail "files sync-helm should not invoke make delegation"
-fi
-
-declare -a SYNC_MAPS=(
-    "demo/scripts/chargeback_report.sh:deploy/helm/ai-control-plane/files/chargeback_report.sh"
-    "demo/scripts/lib/chargeback_db.sh:deploy/helm/ai-control-plane/files/lib/chargeback_db.sh"
-    "demo/scripts/lib/chargeback_analysis.sh:deploy/helm/ai-control-plane/files/lib/chargeback_analysis.sh"
-    "demo/scripts/lib/chargeback_render.sh:deploy/helm/ai-control-plane/files/lib/chargeback_render.sh"
-    "demo/scripts/lib/chargeback_io.sh:deploy/helm/ai-control-plane/files/lib/chargeback_io.sh"
-)
-
-SYNC_VERIFY_FAILED=0
-for map in "${SYNC_MAPS[@]}"; do
-    src="${map%%:*}"
-    dst="${map#*:}"
-    if [[ ! -f "$SYNC_REPO/$dst" ]]; then
-        echo "  detail: missing destination file $dst"
-        SYNC_VERIFY_FAILED=1
-        continue
-    fi
-    if ! cmp -s "$SYNC_REPO/$src" "$SYNC_REPO/$dst"; then
-        echo "  detail: destination mismatch for $dst"
-        SYNC_VERIFY_FAILED=1
-    fi
-done
-
-if [[ "$SYNC_VERIFY_FAILED" -eq 0 ]]; then
-    pass "files sync-helm copies all mapped files"
-else
-    fail "files sync-helm should copy all mapped files exactly"
-fi
-echo ""
-
 echo "Test: flow commands delegate to expected make targets..."
 assert_make_target "up" "deploy up delegates to make up" deploy up
 assert_make_target "db-status" "db status delegates to make db-status" db status
@@ -323,6 +249,7 @@ echo ""
 
 echo "Test: typed command paths do not delegate to make..."
 assert_typed_no_delegation "validate config runs via typed path" validate config
+assert_typed_no_delegation "chargeback report help stays make-independent" chargeback report --help
 
 : >"$CAPTURE_FILE"
 KEY_DRY_RUN_RC=0

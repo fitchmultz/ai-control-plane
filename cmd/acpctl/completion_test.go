@@ -158,7 +158,7 @@ func TestRunCompletionSubcommand_Fish(t *testing.T) {
 
 func TestResolveSuggestions_RootCommands(t *testing.T) {
 	catalog := completionCatalog{
-		rootCommands: []string{"ci", "files", "status", "deploy"},
+		rootCommands: []string{"ci", "chargeback", "status", "deploy"},
 		groupSubcommands: map[string][]string{
 			"deploy": {"up", "down", "health"},
 		},
@@ -614,7 +614,7 @@ func TestNativeHelpSurfacesFollowRegistry(t *testing.T) {
 		renderHelp func(*os.File)
 	}{
 		{name: "ci", command: "ci", renderHelp: printCIHelp},
-		{name: "files", command: "files", renderHelp: printFilesHelp},
+		{name: "chargeback", command: "chargeback", renderHelp: printChargebackHelp},
 		{name: "benchmark", command: "benchmark", renderHelp: printBenchmarkHelp},
 		{name: "completion", command: "completion", renderHelp: printCompletionHelp},
 	}

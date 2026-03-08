@@ -16,12 +16,13 @@ db-status: ## Show database status and statistics
 
 .PHONY: chargeback-report
 chargeback-report: install-binary ## Generate chargeback/showback report artifacts
-	@demo/scripts/chargeback_report.sh \
+	@$(ACPCTL_BIN) chargeback report \
 		$(if $(REPORT_MONTH),--month $(REPORT_MONTH),) \
 		$(if $(OUTPUT_FORMAT),--format $(OUTPUT_FORMAT),) \
 		$(if $(ARCHIVE_DIR),--archive-dir $(ARCHIVE_DIR),) \
 		$(if $(VARIANCE_THRESHOLD),--variance-threshold $(VARIANCE_THRESHOLD),) \
 		$(if $(ANOMALY_THRESHOLD),--anomaly-threshold $(ANOMALY_THRESHOLD),) \
+		$(if $(filter 1 true TRUE yes YES,$(FORECAST)),--forecast,) \
 		$(if $(filter 1 true TRUE yes YES,$(NO_FORECAST)),--no-forecast,) \
 		$(if $(BUDGET_ALERT_THRESHOLD),--budget-alert-threshold $(BUDGET_ALERT_THRESHOLD),) \
 		$(if $(filter 1 true TRUE yes YES,$(NOTIFY)),--notify,) \
