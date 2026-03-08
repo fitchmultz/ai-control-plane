@@ -29,9 +29,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mitchfultz/ai-control-plane/internal/closeout"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
-	"github.com/mitchfultz/ai-control-plane/internal/release"
 )
 
 func runPilotCloseoutBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
@@ -58,7 +58,7 @@ func runPilotCloseoutBundleCommand(ctx context.Context, args []string, stdout *o
 func runPilotCloseoutBundleBuild(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
 	out := output.New()
 	repoRoot := detectRepoRootWithContext(ctx)
-	options := release.PilotCloseoutOptions{
+	options := closeout.Options{
 		RepoRoot:   repoRoot,
 		OutputRoot: filepath.Join(repoRoot, "demo", "logs", "pilot-closeout"),
 	}
@@ -138,7 +138,7 @@ func runPilotCloseoutBundleBuild(ctx context.Context, args []string, stdout *os.
 	}
 
 	fmt.Fprint(stdout, out.Bold("Building pilot closeout bundle")+"\n")
-	summary, err := release.BuildPilotCloseoutBundle(ctx, options)
+	summary, err := closeout.Build(ctx, options)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
@@ -147,8 +147,8 @@ func runPilotCloseoutBundleBuild(ctx context.Context, args []string, stdout *os.
 	fmt.Fprintln(stdout, "")
 	fmt.Fprint(stdout, out.Green(out.Bold("Pilot closeout bundle complete"))+"\n")
 	fmt.Fprintf(stdout, "  Run directory: %s\n", summary.RunDirectory)
-	fmt.Fprintf(stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, "closeout-summary.md"))
-	fmt.Fprintf(stdout, "  Inventory: %s\n", filepath.Join(summary.RunDirectory, "bundle-inventory.txt"))
+	fmt.Fprintf(stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, closeout.SummaryMarkdown))
+	fmt.Fprintf(stdout, "  Inventory: %s\n", filepath.Join(summary.RunDirectory, closeout.InventoryFileName))
 	return exitcodes.ACPExitSuccess
 }
 
@@ -176,17 +176,17 @@ func runPilotCloseoutBundleVerify(ctx context.Context, args []string, stdout *os
 	}
 
 	if strings.TrimSpace(runDir) == "" {
-		data, err := os.ReadFile(filepath.Join(repoRoot, "demo", "logs", "pilot-closeout", "latest-run.txt"))
+		resolvedRunDir, err := closeout.ResolveLatestRun(filepath.Join(repoRoot, "demo", "logs", "pilot-closeout"))
 		if err != nil {
 			fmt.Fprintln(stderr, "Error: no pilot closeout bundle available; use --run-dir or generate one first")
 			return exitcodes.ACPExitUsage
 		}
-		runDir = strings.TrimSpace(string(data))
+		runDir = resolvedRunDir
 	}
 
 	fmt.Fprint(stdout, out.Bold("Verifying pilot closeout bundle")+"\n")
 	fmt.Fprintf(stdout, "  Run directory: %s\n", runDir)
-	summary, err := release.NewPilotCloseoutVerifier().VerifyPilotCloseoutBundle(runDir)
+	summary, err := closeout.NewVerifier().VerifyRun(runDir)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain

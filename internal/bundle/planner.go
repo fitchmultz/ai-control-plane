@@ -1,4 +1,4 @@
-// planner.go - Release bundle planning logic
+// planner.go - Release bundle planning logic.
 //
 // Purpose: Plan release bundle structure and content
 //
@@ -19,7 +19,7 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-package release
+package bundle
 
 import (
 	"fmt"

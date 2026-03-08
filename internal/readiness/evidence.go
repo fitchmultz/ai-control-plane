@@ -1,4 +1,4 @@
-// readiness_evidence.go - Readiness evidence generation and verification.
+// evidence.go - Readiness evidence generation and verification.
 //
 // Purpose:
 //
@@ -16,19 +16,18 @@
 // Scope:
 //   - Covers local proof-pack generation for the repository's validated command
 //     surface.
-//   - Does not mutate tracked documentation or deploy to customer
-//     environments.
+//   - Does not mutate tracked documentation or deploy to customer environments.
 //
 // Usage:
-//   - Called from `acpctl deploy readiness-evidence run`
-//   - Called from `acpctl deploy readiness-evidence verify`
+//   - Called from `acpctl deploy readiness-evidence run`.
+//   - Called from `acpctl deploy readiness-evidence verify`.
 //
 // Invariants/Assumptions:
 //   - Evidence runs live under `demo/logs/evidence/readiness-<TIMESTAMP>/`.
 //   - Commands are executed from the repository root using the current make
 //     binary.
 //   - Generated evidence is local-only and intentionally untracked.
-package release
+package readiness
 
 import (
 	"context"
@@ -40,27 +39,29 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/artifactrun"
+	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
 const (
-	readinessSummaryJSONName    = "summary.json"
-	readinessSummaryMarkdown    = "readiness-summary.md"
-	readinessTrackerMarkdown    = "presentation-readiness-tracker.md"
-	readinessDecisionMarkdown   = "go-no-go-decision.md"
-	readinessInventoryText      = "evidence-inventory.txt"
-	readinessLatestSuccess      = "latest-success.txt"
-	readinessLatestRun          = "latest-run.txt"
-	productionSecretsEnvDefault = "/etc/ai-control-plane/secrets.env"
+	SummaryJSONName          = "summary.json"
+	SummaryMarkdownName      = "readiness-summary.md"
+	TrackerMarkdownName      = "presentation-readiness-tracker.md"
+	DecisionMarkdownName     = "go-no-go-decision.md"
+	InventoryFileName        = "evidence-inventory.txt"
+	LatestSuccessPointerName = "latest-success.txt"
+	LatestRunPointerName     = "latest-run.txt"
+	productionSecretsDefault = "/etc/ai-control-plane/secrets.env"
 )
 
 var (
-	readinessNow          = func() time.Time { return time.Now().UTC() }
-	readinessGateExecutor = executeReadinessGateContext
+	nowUTC       = func() time.Time { return time.Now().UTC() }
+	gateExecutor = executeGate
 )
 
-// ReadinessOptions describes how to build a readiness evidence run.
-type ReadinessOptions struct {
+// Options describes how to build a readiness evidence run.
+type Options struct {
 	RepoRoot          string
 	OutputRoot        string
 	MakeBin           string
@@ -70,8 +71,8 @@ type ReadinessOptions struct {
 	Verbose           bool
 }
 
-// ReadinessGateResult captures one gate execution in a readiness run.
-type ReadinessGateResult struct {
+// GateResult captures one gate execution in a readiness run.
+type GateResult struct {
 	ID            string   `json:"id"`
 	Title         string   `json:"title"`
 	Command       string   `json:"command"`
@@ -85,79 +86,79 @@ type ReadinessGateResult struct {
 	Notes         string   `json:"notes,omitempty"`
 }
 
-// ReadinessSummary is the canonical machine-readable result for a run.
-type ReadinessSummary struct {
-	RunID              string                `json:"run_id"`
-	GeneratedAtUTC     string                `json:"generated_at_utc"`
-	RepoRoot           string                `json:"repo_root"`
-	RunDirectory       string                `json:"run_directory"`
-	BundleVersion      string                `json:"bundle_version"`
-	BundlePath         string                `json:"bundle_path,omitempty"`
-	BundleChecksumPath string                `json:"bundle_checksum_path,omitempty"`
-	IncludeProduction  bool                  `json:"include_production"`
-	ProductionEnabled  bool                  `json:"production_enabled"`
-	SecretsEnvFile     string                `json:"secrets_env_file,omitempty"`
-	OverallStatus      string                `json:"overall_status"`
-	FailingGateCount   int                   `json:"failing_gate_count"`
-	SkippedGateCount   int                   `json:"skipped_gate_count"`
-	GateResults        []ReadinessGateResult `json:"gate_results"`
-	GeneratedFiles     []string              `json:"generated_files"`
+// Summary is the canonical machine-readable result for a readiness run.
+type Summary struct {
+	RunID              string       `json:"run_id"`
+	GeneratedAtUTC     string       `json:"generated_at_utc"`
+	RepoRoot           string       `json:"repo_root"`
+	RunDirectory       string       `json:"run_directory"`
+	BundleVersion      string       `json:"bundle_version"`
+	BundlePath         string       `json:"bundle_path,omitempty"`
+	BundleChecksumPath string       `json:"bundle_checksum_path,omitempty"`
+	IncludeProduction  bool         `json:"include_production"`
+	ProductionEnabled  bool         `json:"production_enabled"`
+	SecretsEnvFile     string       `json:"secrets_env_file,omitempty"`
+	OverallStatus      string       `json:"overall_status"`
+	FailingGateCount   int          `json:"failing_gate_count"`
+	SkippedGateCount   int          `json:"skipped_gate_count"`
+	GateResults        []GateResult `json:"gate_results"`
+	GeneratedFiles     []string     `json:"generated_files"`
 }
 
-type readinessGateSpec struct {
-	ID             string   `json:"id"`
-	Title          string   `json:"title"`
-	Required       bool     `json:"required"`
-	LogName        string   `json:"log_name"`
-	Command        []string `json:"command"`
-	Notes          string   `json:"notes"`
-	ProductionOnly bool     `json:"production_only,omitempty"`
+type gateSpec struct {
+	ID             string
+	Title          string
+	Required       bool
+	LogName        string
+	Command        []string
+	Notes          string
+	ProductionOnly bool
 }
 
-// ReadinessVerifier checks consistency of a generated readiness run.
-type ReadinessVerifier struct{}
+// Verifier checks consistency of a generated readiness run.
+type Verifier struct{}
 
-// NewReadinessVerifier creates a readiness verifier.
-func NewReadinessVerifier() *ReadinessVerifier {
-	return &ReadinessVerifier{}
+// NewVerifier creates a readiness verifier.
+func NewVerifier() *Verifier {
+	return &Verifier{}
 }
 
-// RunReadinessEvidenceContext executes the configured readiness gates and writes artifacts.
-func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, stdout io.Writer, stderr io.Writer) (*ReadinessSummary, error) {
-	if opts.RepoRoot == "" {
+// RunContext executes the configured readiness gates and writes artifacts.
+func RunContext(ctx context.Context, opts Options, stdout io.Writer, stderr io.Writer) (*Summary, error) {
+	if strings.TrimSpace(opts.RepoRoot) == "" {
 		return nil, fmt.Errorf("repo root is required")
 	}
-	if opts.OutputRoot == "" {
+	if strings.TrimSpace(opts.OutputRoot) == "" {
 		opts.OutputRoot = filepath.Join(opts.RepoRoot, "demo", "logs", "evidence")
 	}
-	if opts.MakeBin == "" {
+	if strings.TrimSpace(opts.MakeBin) == "" {
 		opts.MakeBin = "make"
 	}
-	if opts.BundleVersion == "" {
-		opts.BundleVersion = GetDefaultVersion(opts.RepoRoot)
+	if strings.TrimSpace(opts.BundleVersion) == "" {
+		opts.BundleVersion = bundle.GetDefaultVersion(opts.RepoRoot)
 	}
-	if opts.SecretsEnvFile == "" {
-		opts.SecretsEnvFile = productionSecretsEnvDefault
+	if strings.TrimSpace(opts.SecretsEnvFile) == "" {
+		opts.SecretsEnvFile = productionSecretsDefault
 	}
 
-	run, err := createArtifactRun(opts.OutputRoot, "readiness", readinessNow())
+	run, err := artifactrun.Create(opts.OutputRoot, "readiness", nowUTC())
 	if err != nil {
 		return nil, err
 	}
-	productionEnabled := opts.IncludeProduction && fileExists(opts.SecretsEnvFile)
-	gates, err := materializeReadinessGates(opts, productionEnabled)
+	productionEnabled := opts.IncludeProduction && artifactrun.FileExists(opts.SecretsEnvFile)
+	gates, err := materializeGates(opts, productionEnabled)
 	if err != nil {
 		return nil, err
 	}
 
-	summary := &ReadinessSummary{
-		RunID:              run.RunID,
-		GeneratedAtUTC:     readinessNow().Format(time.RFC3339),
+	summary := &Summary{
+		RunID:              run.ID,
+		GeneratedAtUTC:     nowUTC().Format(time.RFC3339),
 		RepoRoot:           opts.RepoRoot,
-		RunDirectory:       run.RunDirectory,
+		RunDirectory:       run.Directory,
 		BundleVersion:      opts.BundleVersion,
-		BundlePath:         filepath.Join(opts.RepoRoot, "demo", "logs", "release-bundles", GetBundleName(opts.BundleVersion)),
-		BundleChecksumPath: filepath.Join(opts.RepoRoot, "demo", "logs", "release-bundles", GetBundleName(opts.BundleVersion)+".sha256"),
+		BundlePath:         filepath.Join(opts.RepoRoot, "demo", "logs", "release-bundles", bundle.GetBundleName(opts.BundleVersion)),
+		BundleChecksumPath: filepath.Join(opts.RepoRoot, "demo", "logs", "release-bundles", bundle.GetBundleName(opts.BundleVersion)+".sha256"),
 		IncludeProduction:  opts.IncludeProduction,
 		ProductionEnabled:  productionEnabled,
 		SecretsEnvFile:     opts.SecretsEnvFile,
@@ -168,27 +169,27 @@ func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, std
 	}
 
 	for index, gate := range gates {
-		result := ReadinessGateResult{
+		result := GateResult{
 			ID:          gate.ID,
 			Title:       gate.Title,
 			Command:     strings.Join(gate.Command, " "),
 			CommandArgs: append([]string(nil), gate.Command...),
 			Required:    gate.Required,
 			Status:      "PENDING",
-			LogPath:     filepath.Join(run.RunDirectory, gate.LogName),
+			LogPath:     filepath.Join(run.Directory, gate.LogName),
 			Notes:       gate.Notes,
 		}
 
 		if summary.OverallStatus == "FAIL" {
 			result.Status = "SKIPPED"
-			result.Notes = appendReadinessNote(result.Notes, "Earlier required gate failed; this gate was not executed.")
+			result.Notes = appendNote(result.Notes, "Earlier required gate failed; this gate was not executed.")
 			summary.SkippedGateCount++
 			summary.GateResults = append(summary.GateResults, result)
 			continue
 		}
 		if !gate.Required && !productionEnabled && gate.ID == "production_ci" {
 			result.Status = "SKIPPED"
-			result.Notes = appendReadinessNote(result.Notes, fmt.Sprintf("Production gate skipped because secrets file is unavailable: %s", opts.SecretsEnvFile))
+			result.Notes = appendNote(result.Notes, fmt.Sprintf("Production gate skipped because secrets file is unavailable: %s", opts.SecretsEnvFile))
 			summary.SkippedGateCount++
 			summary.GateResults = append(summary.GateResults, result)
 			continue
@@ -197,14 +198,14 @@ func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, std
 			fmt.Fprintln(stdout, "")
 		}
 		fmt.Fprintf(stdout, "[%s] %s\n", gate.ID, gate.Title)
-		startedAt := readinessNow()
+		startedAt := nowUTC()
 		result.StartedAtUTC = startedAt.Format(time.RFC3339)
-		status, finishedAt, runErr := readinessGateExecutor(ctx, opts.RepoRoot, opts.MakeBin, gate, result.LogPath, stdout, stderr)
+		status, finishedAt, runErr := gateExecutor(ctx, opts.RepoRoot, opts.MakeBin, gate, result.LogPath, stdout, stderr)
 		result.Status = status
 		result.FinishedAtUTC = finishedAt.Format(time.RFC3339)
 		result.Duration = finishedAt.Sub(startedAt).Round(time.Second).String()
 		if runErr != nil {
-			result.Notes = appendReadinessNote(result.Notes, runErr.Error())
+			result.Notes = appendNote(result.Notes, runErr.Error())
 		}
 		if result.Status == "FAIL" {
 			summary.FailingGateCount++
@@ -213,41 +214,38 @@ func RunReadinessEvidenceContext(ctx context.Context, opts ReadinessOptions, std
 		summary.GateResults = append(summary.GateResults, result)
 	}
 
-	if err := persistReadinessRun(opts.OutputRoot, summary); err != nil {
+	if err := persistRun(opts.OutputRoot, summary); err != nil {
 		return nil, err
 	}
 	return summary, nil
 }
 
-func persistReadinessRun(outputRoot string, summary *ReadinessSummary) error {
-	if err := writeReadinessArtifacts(summary.RunDirectory, summary); err != nil {
+// ResolveLatestRun resolves the most recent readiness run pointer.
+func ResolveLatestRun(outputRoot string) (string, error) {
+	return artifactrun.ResolveLatest(outputRoot, LatestRunPointerName)
+}
+
+func persistRun(outputRoot string, summary *Summary) error {
+	if err := writeArtifacts(summary.RunDirectory, summary); err != nil {
 		return err
 	}
-	files, err := finalizeRunInventory(summary.RunDirectory, readinessInventoryText)
+
+	latestPointers := []string{LatestRunPointerName}
+	if summary.OverallStatus == "PASS" {
+		latestPointers = append(latestPointers, LatestSuccessPointerName)
+	}
+	files, err := artifactrun.Finalize(summary.RunDirectory, outputRoot, artifactrun.FinalizeOptions{
+		InventoryName:  InventoryFileName,
+		LatestPointers: latestPointers,
+	})
 	if err != nil {
 		return err
 	}
 	summary.GeneratedFiles = files
-	if err := writeReadinessArtifacts(summary.RunDirectory, summary); err != nil {
-		return err
-	}
-	if err := writeLatestRunPointer(outputRoot, readinessLatestRun, summary.RunDirectory); err != nil {
-		return fmt.Errorf("write latest run pointer: %w", err)
-	}
-	if summary.OverallStatus == "PASS" {
-		if err := writeLatestRunPointer(outputRoot, readinessLatestSuccess, summary.RunDirectory); err != nil {
-			return fmt.Errorf("write latest success pointer: %w", err)
-		}
-	}
-	return nil
+	return writeArtifacts(summary.RunDirectory, summary)
 }
 
-// ResolveLatestReadinessRun resolves the most recent readiness run pointer.
-func ResolveLatestReadinessRun(outputRoot string) (string, error) {
-	return resolveLatestRunPointer(outputRoot, readinessLatestRun)
-}
-
-func executeReadinessGateContext(ctx context.Context, repoRoot string, makeBin string, gate readinessGateSpec, logPath string, stdout io.Writer, stderr io.Writer) (string, time.Time, error) {
+func executeGate(ctx context.Context, repoRoot string, makeBin string, gate gateSpec, logPath string, stdout io.Writer, stderr io.Writer) (string, time.Time, error) {
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		return "FAIL", time.Now().UTC(), fmt.Errorf("create log file: %w", err)
@@ -281,29 +279,25 @@ func executeReadinessGateContext(ctx context.Context, repoRoot string, makeBin s
 	return "FAIL", finishedAt, fmt.Errorf("command execution failed: %w", res.Err)
 }
 
-func writeReadinessArtifacts(runDir string, summary *ReadinessSummary) error {
-	if err := writeJSONArtifact(filepath.Join(runDir, readinessSummaryJSONName), summary); err != nil {
+func writeArtifacts(runDir string, summary *Summary) error {
+	if err := artifactrun.WriteJSON(filepath.Join(runDir, SummaryJSONName), summary); err != nil {
 		return fmt.Errorf("write readiness summary json: %w", err)
 	}
-	artifacts := []generatedArtifact{
-		{Path: readinessSummaryMarkdown, Body: []byte(renderReadinessSummaryMarkdown(summary)), Perm: 0o644},
-		{Path: readinessTrackerMarkdown, Body: []byte(renderReadinessTrackerMarkdown(summary)), Perm: 0o644},
-		{Path: readinessDecisionMarkdown, Body: []byte(renderReadinessDecisionMarkdown(summary)), Perm: 0o644},
-	}
-	if err := writeGeneratedArtifacts(runDir, artifacts); err != nil {
-		return err
-	}
-	return nil
+	return artifactrun.WriteArtifacts(runDir, []artifactrun.Artifact{
+		{Path: SummaryMarkdownName, Body: []byte(renderSummaryMarkdown(summary)), Perm: 0o644},
+		{Path: TrackerMarkdownName, Body: []byte(renderTrackerMarkdown(summary)), Perm: 0o644},
+		{Path: DecisionMarkdownName, Body: []byte(renderDecisionMarkdown(summary)), Perm: 0o644},
+	})
 }
 
-// VerifyReadinessRun validates the generated readiness evidence directory.
-func (v *ReadinessVerifier) VerifyReadinessRun(runDir string) (*ReadinessSummary, error) {
-	summaryPath := filepath.Join(runDir, readinessSummaryJSONName)
+// VerifyRun validates the generated readiness evidence directory.
+func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
+	summaryPath := filepath.Join(runDir, SummaryJSONName)
 	data, err := os.ReadFile(summaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("read readiness summary json: %w", err)
 	}
-	var summary ReadinessSummary
+	var summary Summary
 	if err := json.Unmarshal(data, &summary); err != nil {
 		return nil, fmt.Errorf("parse readiness summary json: %w", err)
 	}
@@ -313,34 +307,38 @@ func (v *ReadinessVerifier) VerifyReadinessRun(runDir string) (*ReadinessSummary
 	if summary.RunDirectory != runDir {
 		return nil, fmt.Errorf("summary run_directory %q does not match requested directory %q", summary.RunDirectory, runDir)
 	}
-	for _, name := range []string{readinessSummaryMarkdown, readinessTrackerMarkdown, readinessDecisionMarkdown, readinessInventoryText} {
-		if !fileExists(filepath.Join(runDir, name)) {
-			return nil, fmt.Errorf("missing generated artifact: %s", name)
-		}
-	}
-	if err := verifyRunInventory(runDir, readinessInventoryText); err != nil {
+	if err := artifactrun.Verify(runDir, artifactrun.VerifyOptions{
+		InventoryName: InventoryFileName,
+		RequiredFiles: []string{
+			SummaryJSONName,
+			SummaryMarkdownName,
+			TrackerMarkdownName,
+			DecisionMarkdownName,
+			InventoryFileName,
+		},
+	}); err != nil {
 		return nil, err
 	}
 	for _, gate := range summary.GateResults {
 		if gate.LogPath == "" || gate.Status == "SKIPPED" {
 			continue
 		}
-		if !fileExists(gate.LogPath) {
+		if !artifactrun.FileExists(gate.LogPath) {
 			return nil, fmt.Errorf("missing gate log: %s", gate.LogPath)
 		}
 	}
 	if summary.OverallStatus == "PASS" {
-		if !fileExists(summary.BundlePath) {
+		if !artifactrun.FileExists(summary.BundlePath) {
 			return nil, fmt.Errorf("missing release bundle referenced by readiness summary: %s", summary.BundlePath)
 		}
-		if !fileExists(summary.BundleChecksumPath) {
+		if !artifactrun.FileExists(summary.BundleChecksumPath) {
 			return nil, fmt.Errorf("missing release bundle checksum referenced by readiness summary: %s", summary.BundleChecksumPath)
 		}
 	}
 	return &summary, nil
 }
 
-func renderReadinessSummaryMarkdown(summary *ReadinessSummary) string {
+func renderSummaryMarkdown(summary *Summary) string {
 	var builder strings.Builder
 	builder.WriteString("# Readiness Evidence Summary\n\n")
 	builder.WriteString(fmt.Sprintf("- Run ID: `%s`\n", summary.RunID))
@@ -361,7 +359,7 @@ func renderReadinessSummaryMarkdown(summary *ReadinessSummary) string {
 	return builder.String()
 }
 
-func renderReadinessTrackerMarkdown(summary *ReadinessSummary) string {
+func renderTrackerMarkdown(summary *Summary) string {
 	var builder strings.Builder
 	builder.WriteString("# Presentation Readiness Tracker\n\n")
 	builder.WriteString("> Generated from `make readiness-evidence`. This file is local evidence, not a committed certification snapshot.\n\n")
@@ -378,7 +376,7 @@ func renderReadinessTrackerMarkdown(summary *ReadinessSummary) string {
 	return builder.String()
 }
 
-func renderReadinessDecisionMarkdown(summary *ReadinessSummary) string {
+func renderDecisionMarkdown(summary *Summary) string {
 	decision := "GO"
 	confidence := "HIGH"
 	if summary.OverallStatus != "PASS" {
@@ -404,30 +402,7 @@ func renderReadinessDecisionMarkdown(summary *ReadinessSummary) string {
 	return builder.String()
 }
 
-func filterNonEmpty(items []string) []string {
-	filtered := make([]string, 0, len(items))
-	for _, item := range items {
-		trimmed := strings.TrimSpace(item)
-		if trimmed != "" {
-			filtered = append(filtered, trimmed)
-		}
-	}
-	return filtered
-}
-
-func stringSlicesEqual(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
-func appendReadinessNote(existing string, note string) string {
+func appendNote(existing string, note string) string {
 	note = strings.TrimSpace(note)
 	if note == "" {
 		return existing

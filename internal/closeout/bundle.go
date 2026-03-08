@@ -1,10 +1,9 @@
-// pilot_closeout_bundle.go - Pilot closeout bundle generation and verification.
+// bundle.go - Pilot closeout bundle generation and verification.
 //
 // Purpose:
 //
 //	Assemble a single local evidence bundle for pilot closeout review from the
-//	customer memo, validation records, and latest readiness evidence using the
-//	shared artifact-run model.
+//	customer memo, validation records, and readiness evidence.
 //
 // Responsibilities:
 //   - Copy closeout source documents into a timestamped bundle directory.
@@ -17,13 +16,13 @@
 //   - Does not mutate tracked pilot documents.
 //
 // Usage:
-//   - Called from `acpctl deploy pilot-closeout-bundle build`
-//   - Called from `acpctl deploy pilot-closeout-bundle verify`
+//   - Called from `acpctl deploy pilot-closeout-bundle build`.
+//   - Called from `acpctl deploy pilot-closeout-bundle verify`.
 //
 // Invariants/Assumptions:
 //   - Bundles live under `demo/logs/pilot-closeout/`.
 //   - Input documents already exist and remain the source of truth.
-package release
+package closeout
 
 import (
 	"context"
@@ -34,18 +33,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/artifactrun"
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
+	"github.com/mitchfultz/ai-control-plane/internal/readiness"
 )
 
 const (
-	pilotCloseoutSummaryJSON = "summary.json"
-	pilotCloseoutSummaryMD   = "closeout-summary.md"
-	pilotCloseoutInventory   = "bundle-inventory.txt"
-	pilotCloseoutLatestRun   = "latest-run.txt"
+	SummaryJSONName   = "summary.json"
+	SummaryMarkdown   = "closeout-summary.md"
+	InventoryFileName = "bundle-inventory.txt"
+	LatestRunPointer  = "latest-run.txt"
 )
 
-// PilotCloseoutOptions describes the source inputs for a pilot closeout bundle.
-type PilotCloseoutOptions struct {
+var nowUTC = func() time.Time { return time.Now().UTC() }
+
+// Options describes the source inputs for a pilot closeout bundle.
+type Options struct {
 	RepoRoot            string
 	OutputRoot          string
 	Customer            string
@@ -58,8 +61,8 @@ type PilotCloseoutOptions struct {
 	ReadinessRunDir     string
 }
 
-// PilotCloseoutSummary describes one generated closeout bundle.
-type PilotCloseoutSummary struct {
+// Summary describes one generated closeout bundle.
+type Summary struct {
 	RunID               string   `json:"run_id"`
 	GeneratedAtUTC      string   `json:"generated_at_utc"`
 	RepoRoot            string   `json:"repo_root"`
@@ -68,6 +71,7 @@ type PilotCloseoutSummary struct {
 	PilotName           string   `json:"pilot_name"`
 	Decision            string   `json:"decision"`
 	ReadinessRunDir     string   `json:"readiness_run_dir"`
+	ReadinessArtifacts  []string `json:"readiness_artifacts"`
 	CharterPath         string   `json:"charter_path"`
 	AcceptanceMemoPath  string   `json:"acceptance_memo_path"`
 	ValidationChecklist string   `json:"validation_checklist_path"`
@@ -75,16 +79,16 @@ type PilotCloseoutSummary struct {
 	GeneratedFiles      []string `json:"generated_files"`
 }
 
-// PilotCloseoutVerifier validates the generated closeout bundle directory.
-type PilotCloseoutVerifier struct{}
+// Verifier validates the generated closeout bundle directory.
+type Verifier struct{}
 
-// NewPilotCloseoutVerifier creates a bundle verifier.
-func NewPilotCloseoutVerifier() *PilotCloseoutVerifier {
-	return &PilotCloseoutVerifier{}
+// NewVerifier creates a closeout bundle verifier.
+func NewVerifier() *Verifier {
+	return &Verifier{}
 }
 
-// BuildPilotCloseoutBundle assembles a timestamped pilot closeout bundle.
-func BuildPilotCloseoutBundle(_ context.Context, opts PilotCloseoutOptions) (*PilotCloseoutSummary, error) {
+// Build assembles a timestamped pilot closeout bundle.
+func Build(_ context.Context, opts Options) (*Summary, error) {
 	if strings.TrimSpace(opts.RepoRoot) == "" {
 		return nil, fmt.Errorf("repo root is required")
 	}
@@ -110,96 +114,99 @@ func BuildPilotCloseoutBundle(_ context.Context, opts PilotCloseoutOptions) (*Pi
 		return nil, fmt.Errorf("validation checklist path is required")
 	}
 	if strings.TrimSpace(opts.ReadinessRunDir) == "" {
-		readinessRunDir, err := ResolveLatestReadinessRun(filepath.Join(opts.RepoRoot, "demo", "logs", "evidence"))
+		readinessRunDir, err := readiness.ResolveLatestRun(filepath.Join(opts.RepoRoot, "demo", "logs", "evidence"))
 		if err != nil {
 			return nil, fmt.Errorf("resolve latest readiness run: %w", err)
 		}
 		opts.ReadinessRunDir = readinessRunDir
 	}
 
-	if _, err := NewReadinessVerifier().VerifyReadinessRun(opts.ReadinessRunDir); err != nil {
+	if _, err := readiness.NewVerifier().VerifyRun(opts.ReadinessRunDir); err != nil {
 		return nil, fmt.Errorf("verify readiness run for bundle: %w", err)
 	}
 
-	nowUTC := readinessNow()
-	run, err := createArtifactRun(opts.OutputRoot, "pilot-closeout", nowUTC)
+	run, err := artifactrun.Create(opts.OutputRoot, "pilot-closeout", nowUTC())
 	if err != nil {
 		return nil, err
 	}
-	summary := &PilotCloseoutSummary{
-		RunID:               run.RunID,
-		GeneratedAtUTC:      nowUTC.Format(time.RFC3339),
+	readinessArtifacts, err := copyReadinessArtifacts(run.Directory, opts.ReadinessRunDir)
+	if err != nil {
+		return nil, err
+	}
+	summary := &Summary{
+		RunID:               run.ID,
+		GeneratedAtUTC:      nowUTC().Format(time.RFC3339),
 		RepoRoot:            opts.RepoRoot,
-		RunDirectory:        run.RunDirectory,
+		RunDirectory:        run.Directory,
 		Customer:            opts.Customer,
 		PilotName:           opts.PilotName,
 		Decision:            opts.Decision,
 		ReadinessRunDir:     opts.ReadinessRunDir,
+		ReadinessArtifacts:  readinessArtifacts,
 		CharterPath:         opts.CharterPath,
 		AcceptanceMemoPath:  opts.AcceptanceMemoPath,
 		ValidationChecklist: opts.ValidationChecklist,
 		OperatorChecklist:   opts.OperatorChecklist,
 	}
 
-	if err := copyBundleInput(run.RunDirectory, "documents/pilot-charter.md", opts.CharterPath); err != nil {
+	if err := copyBundleInput(run.Directory, "documents/pilot-charter.md", opts.CharterPath); err != nil {
 		return nil, err
 	}
-	if err := copyBundleInput(run.RunDirectory, "documents/pilot-acceptance-memo.md", opts.AcceptanceMemoPath); err != nil {
+	if err := copyBundleInput(run.Directory, "documents/pilot-acceptance-memo.md", opts.AcceptanceMemoPath); err != nil {
 		return nil, err
 	}
-	if err := copyBundleInput(run.RunDirectory, "documents/pilot-customer-validation-checklist.md", opts.ValidationChecklist); err != nil {
+	if err := copyBundleInput(run.Directory, "documents/pilot-customer-validation-checklist.md", opts.ValidationChecklist); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(opts.OperatorChecklist) != "" {
-		if err := copyBundleInput(run.RunDirectory, "documents/pilot-operator-handoff-checklist.md", opts.OperatorChecklist); err != nil {
+		if err := copyBundleInput(run.Directory, "documents/pilot-operator-handoff-checklist.md", opts.OperatorChecklist); err != nil {
 			return nil, err
 		}
 	}
-	if err := copyReadinessArtifacts(run.RunDirectory, opts.ReadinessRunDir); err != nil {
-		return nil, err
-	}
-	if err := persistPilotCloseoutRun(summary); err != nil {
+	if err := persistRun(opts.OutputRoot, summary); err != nil {
 		return nil, err
 	}
 	return summary, nil
 }
 
-func persistPilotCloseoutRun(summary *PilotCloseoutSummary) error {
-	if err := writePilotCloseoutArtifacts(summary.RunDirectory, summary); err != nil {
+// ResolveLatestRun resolves the most recent pilot closeout bundle pointer.
+func ResolveLatestRun(outputRoot string) (string, error) {
+	return artifactrun.ResolveLatest(outputRoot, LatestRunPointer)
+}
+
+func persistRun(outputRoot string, summary *Summary) error {
+	if err := writeArtifacts(summary.RunDirectory, summary); err != nil {
 		return err
 	}
-	files, err := finalizeRunInventory(summary.RunDirectory, pilotCloseoutInventory)
+	files, err := artifactrun.Finalize(summary.RunDirectory, outputRoot, artifactrun.FinalizeOptions{
+		InventoryName:  InventoryFileName,
+		LatestPointers: []string{LatestRunPointer},
+	})
 	if err != nil {
 		return err
 	}
 	summary.GeneratedFiles = files
-	if err := writePilotCloseoutArtifacts(summary.RunDirectory, summary); err != nil {
-		return err
-	}
-	if err := writeLatestRunPointer(filepath.Dir(summary.RunDirectory), pilotCloseoutLatestRun, summary.RunDirectory); err != nil {
-		return fmt.Errorf("write latest pilot closeout pointer: %w", err)
-	}
-	return nil
+	return writeArtifacts(summary.RunDirectory, summary)
 }
 
-func writePilotCloseoutArtifacts(runDir string, summary *PilotCloseoutSummary) error {
-	if err := writeJSONArtifact(filepath.Join(runDir, pilotCloseoutSummaryJSON), summary); err != nil {
+func writeArtifacts(runDir string, summary *Summary) error {
+	if err := artifactrun.WriteJSON(filepath.Join(runDir, SummaryJSONName), summary); err != nil {
 		return fmt.Errorf("write closeout summary json: %w", err)
 	}
-	return writeGeneratedArtifacts(runDir, []generatedArtifact{{
-		Path: pilotCloseoutSummaryMD,
-		Body: []byte(renderPilotCloseoutSummary(summary)),
+	return artifactrun.WriteArtifacts(runDir, []artifactrun.Artifact{{
+		Path: SummaryMarkdown,
+		Body: []byte(renderSummary(summary)),
 		Perm: 0o644,
 	}})
 }
 
-// VerifyPilotCloseoutBundle validates the generated bundle.
-func (v *PilotCloseoutVerifier) VerifyPilotCloseoutBundle(runDir string) (*PilotCloseoutSummary, error) {
-	data, err := os.ReadFile(filepath.Join(runDir, pilotCloseoutSummaryJSON))
+// VerifyRun validates the generated bundle.
+func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
+	data, err := os.ReadFile(filepath.Join(runDir, SummaryJSONName))
 	if err != nil {
 		return nil, fmt.Errorf("read pilot closeout summary: %w", err)
 	}
-	var summary PilotCloseoutSummary
+	var summary Summary
 	if err := json.Unmarshal(data, &summary); err != nil {
 		return nil, fmt.Errorf("parse pilot closeout summary: %w", err)
 	}
@@ -209,19 +216,17 @@ func (v *PilotCloseoutVerifier) VerifyPilotCloseoutBundle(runDir string) (*Pilot
 	if summary.RunDirectory != runDir {
 		return nil, fmt.Errorf("summary run_directory %q does not match requested directory %q", summary.RunDirectory, runDir)
 	}
-	for _, name := range []string{pilotCloseoutSummaryMD, pilotCloseoutInventory} {
-		if !fileExists(filepath.Join(runDir, name)) {
-			return nil, fmt.Errorf("missing closeout artifact: %s", name)
-		}
-	}
-	if err := verifyRunInventory(runDir, pilotCloseoutInventory); err != nil {
+	if err := artifactrun.Verify(runDir, artifactrun.VerifyOptions{
+		InventoryName: InventoryFileName,
+		RequiredFiles: []string{SummaryJSONName, SummaryMarkdown, InventoryFileName},
+	}); err != nil {
 		return nil, err
 	}
 	return &summary, nil
 }
 
 func copyBundleInput(runDir string, relativeDestination string, sourcePath string) error {
-	if !fileExists(sourcePath) {
+	if !artifactrun.FileExists(sourcePath) {
 		return fmt.Errorf("bundle source file does not exist: %s", sourcePath)
 	}
 	destination := filepath.Join(runDir, filepath.FromSlash(relativeDestination))
@@ -238,23 +243,27 @@ func copyBundleInput(runDir string, relativeDestination string, sourcePath strin
 	return nil
 }
 
-func copyReadinessArtifacts(runDir string, readinessRunDir string) error {
-	artifacts := []string{
-		readinessSummaryJSONName,
-		readinessSummaryMarkdown,
-		readinessTrackerMarkdown,
-		readinessDecisionMarkdown,
-		readinessInventoryText,
+func copyReadinessArtifacts(runDir string, readinessRunDir string) ([]string, error) {
+	artifacts, err := artifactrun.ReadInventory(readinessRunDir, readiness.InventoryFileName)
+	if err != nil {
+		return nil, fmt.Errorf("read readiness inventory: %w", err)
 	}
+	copied := make([]string, 0, len(artifacts))
 	for _, name := range artifacts {
-		if err := copyBundleInput(runDir, filepath.ToSlash(filepath.Join("evidence", name)), filepath.Join(readinessRunDir, name)); err != nil {
-			return err
+		sourcePath := filepath.Join(readinessRunDir, filepath.FromSlash(name))
+		if !artifactrun.FileExists(sourcePath) {
+			return nil, fmt.Errorf("missing readiness artifact: %s", sourcePath)
 		}
+		relativeDestination := filepath.ToSlash(filepath.Join("evidence", name))
+		if err := copyBundleInput(runDir, relativeDestination, sourcePath); err != nil {
+			return nil, err
+		}
+		copied = append(copied, relativeDestination)
 	}
-	return nil
+	return copied, nil
 }
 
-func renderPilotCloseoutSummary(summary *PilotCloseoutSummary) string {
+func renderSummary(summary *Summary) string {
 	var builder strings.Builder
 	builder.WriteString("# Pilot Closeout Bundle Summary\n\n")
 	builder.WriteString(fmt.Sprintf("- Customer: `%s`\n", summary.Customer))
@@ -270,9 +279,9 @@ func renderPilotCloseoutSummary(summary *PilotCloseoutSummary) string {
 	if strings.TrimSpace(summary.OperatorChecklist) != "" {
 		builder.WriteString("- `documents/pilot-operator-handoff-checklist.md`\n")
 	}
-	builder.WriteString("- `evidence/readiness-summary.md`\n")
-	builder.WriteString("- `evidence/presentation-readiness-tracker.md`\n")
-	builder.WriteString("- `evidence/go-no-go-decision.md`\n")
-	builder.WriteString("- `evidence/evidence-inventory.txt`\n")
+	builder.WriteString("\n## Included Readiness Evidence\n\n")
+	for _, name := range summary.ReadinessArtifacts {
+		builder.WriteString(fmt.Sprintf("- `%s`\n", name))
+	}
 	return builder.String()
 }

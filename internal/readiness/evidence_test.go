@@ -1,24 +1,25 @@
-// readiness_evidence_test.go - Tests for readiness evidence generation and verification.
+// evidence_test.go - Tests for readiness evidence generation and verification.
 //
 // Purpose:
 //
-//	Verify readiness evidence artifact generation, summary rendering, and verifier checks.
+//	Verify readiness evidence artifact generation, summary rendering, and
+//	verifier checks.
 //
 // Responsibilities:
 //   - Exercise successful readiness runs with a fake make binary.
 //   - Validate production-gate skip behavior when secrets are unavailable.
-//   - Confirm verifier catches inventory drift.
+//   - Confirm embedded placeholder expansion and inventory drift detection.
 //
 // Scope:
-//   - Focuses on internal/release readiness evidence behavior only.
+//   - Focuses on internal/readiness behavior only.
 //
 // Usage:
-//   - Run via `go test ./internal/release`
+//   - Run via `go test ./internal/readiness`.
 //
 // Invariants/Assumptions:
 //   - Tests use a temporary fake make executable instead of the real build tool.
 //   - Evidence artifacts remain fully local to the test temp directory.
-package release
+package readiness
 
 import (
 	"context"
@@ -27,11 +28,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 )
 
-func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) {
+func TestRunContextGeneratesArtifactsAndVerifierPasses(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeReadinessPlanFixture(t, repoRoot)
+	writePlanFixture(t, repoRoot)
 	outputRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
 	bundleDir := filepath.Join(repoRoot, "demo", "logs", "release-bundles")
 	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
@@ -39,7 +42,7 @@ func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) 
 	}
 	makeBin := writeFakeMake(t, repoRoot)
 	bundleVersion := "testrun"
-	bundlePath := filepath.Join(bundleDir, GetBundleName(bundleVersion))
+	bundlePath := filepath.Join(bundleDir, bundle.GetBundleName(bundleVersion))
 	if err := os.WriteFile(bundlePath, []byte("bundle"), 0o644); err != nil {
 		t.Fatalf("write bundle: %v", err)
 	}
@@ -47,14 +50,14 @@ func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) 
 		t.Fatalf("write bundle checksum: %v", err)
 	}
 
-	summary, err := RunReadinessEvidenceContext(context.Background(), ReadinessOptions{
+	summary, err := RunContext(context.Background(), Options{
 		RepoRoot:      repoRoot,
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,
 		BundleVersion: bundleVersion,
 	}, io.Discard, io.Discard)
 	if err != nil {
-		t.Fatalf("RunReadinessEvidence() error = %v", err)
+		t.Fatalf("RunContext() error = %v", err)
 	}
 	if summary.OverallStatus != "PASS" {
 		t.Fatalf("overall status = %s, want PASS", summary.OverallStatus)
@@ -62,24 +65,23 @@ func TestRunReadinessEvidence_GeneratesArtifactsAndVerifierPasses(t *testing.T) 
 	if len(summary.GateResults) != 3 {
 		t.Fatalf("gate count = %d, want 3", len(summary.GateResults))
 	}
-	for _, name := range []string{readinessSummaryJSONName, readinessSummaryMarkdown, readinessTrackerMarkdown, readinessDecisionMarkdown, readinessInventoryText} {
+	for _, name := range []string{SummaryJSONName, SummaryMarkdownName, TrackerMarkdownName, DecisionMarkdownName, InventoryFileName} {
 		if _, err := os.Stat(filepath.Join(summary.RunDirectory, name)); err != nil {
 			t.Fatalf("missing generated file %s: %v", name, err)
 		}
 	}
-	verifier := NewReadinessVerifier()
-	verified, err := verifier.VerifyReadinessRun(summary.RunDirectory)
+	verified, err := NewVerifier().VerifyRun(summary.RunDirectory)
 	if err != nil {
-		t.Fatalf("VerifyReadinessRun() error = %v", err)
+		t.Fatalf("VerifyRun() error = %v", err)
 	}
 	if verified.RunID != summary.RunID {
 		t.Fatalf("verified run id = %s, want %s", verified.RunID, summary.RunID)
 	}
 }
 
-func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
+func TestRunContextSkipsProductionWithoutSecrets(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeReadinessPlanFixture(t, repoRoot)
+	writePlanFixture(t, repoRoot)
 	outputRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
 	bundleDir := filepath.Join(repoRoot, "demo", "logs", "release-bundles")
 	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
@@ -87,7 +89,7 @@ func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
 	}
 	makeBin := writeFakeMake(t, repoRoot)
 	bundleVersion := "testrun"
-	bundlePath := filepath.Join(bundleDir, GetBundleName(bundleVersion))
+	bundlePath := filepath.Join(bundleDir, bundle.GetBundleName(bundleVersion))
 	if err := os.WriteFile(bundlePath, []byte("bundle"), 0o644); err != nil {
 		t.Fatalf("write bundle: %v", err)
 	}
@@ -95,7 +97,7 @@ func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
 		t.Fatalf("write bundle checksum: %v", err)
 	}
 
-	summary, err := RunReadinessEvidenceContext(context.Background(), ReadinessOptions{
+	summary, err := RunContext(context.Background(), Options{
 		RepoRoot:          repoRoot,
 		OutputRoot:        outputRoot,
 		MakeBin:           makeBin,
@@ -104,7 +106,7 @@ func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
 		SecretsEnvFile:    filepath.Join(repoRoot, "missing.env"),
 	}, io.Discard, io.Discard)
 	if err != nil {
-		t.Fatalf("RunReadinessEvidence() error = %v", err)
+		t.Fatalf("RunContext() error = %v", err)
 	}
 	if !summary.IncludeProduction {
 		t.Fatal("IncludeProduction = false, want true")
@@ -126,9 +128,9 @@ func TestRunReadinessEvidence_SkipsProductionWithoutSecrets(t *testing.T) {
 	}
 }
 
-func TestVerifyReadinessRun_DetectsInventoryMismatch(t *testing.T) {
+func TestVerifyRunDetectsInventoryMismatch(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeReadinessPlanFixture(t, repoRoot)
+	writePlanFixture(t, repoRoot)
 	outputRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
 	bundleDir := filepath.Join(repoRoot, "demo", "logs", "release-bundles")
 	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
@@ -136,7 +138,7 @@ func TestVerifyReadinessRun_DetectsInventoryMismatch(t *testing.T) {
 	}
 	makeBin := writeFakeMake(t, repoRoot)
 	bundleVersion := "testrun"
-	bundlePath := filepath.Join(bundleDir, GetBundleName(bundleVersion))
+	bundlePath := filepath.Join(bundleDir, bundle.GetBundleName(bundleVersion))
 	if err := os.WriteFile(bundlePath, []byte("bundle"), 0o644); err != nil {
 		t.Fatalf("write bundle: %v", err)
 	}
@@ -144,26 +146,44 @@ func TestVerifyReadinessRun_DetectsInventoryMismatch(t *testing.T) {
 		t.Fatalf("write bundle checksum: %v", err)
 	}
 
-	summary, err := RunReadinessEvidenceContext(context.Background(), ReadinessOptions{
+	summary, err := RunContext(context.Background(), Options{
 		RepoRoot:      repoRoot,
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,
 		BundleVersion: bundleVersion,
 	}, io.Discard, io.Discard)
 	if err != nil {
-		t.Fatalf("RunReadinessEvidence() error = %v", err)
+		t.Fatalf("RunContext() error = %v", err)
 	}
 
-	inventoryPath := filepath.Join(summary.RunDirectory, readinessInventoryText)
+	inventoryPath := filepath.Join(summary.RunDirectory, InventoryFileName)
 	if err := os.WriteFile(inventoryPath, []byte("wrong-file.txt\n"), 0o644); err != nil {
 		t.Fatalf("overwrite inventory: %v", err)
 	}
-	_, err = NewReadinessVerifier().VerifyReadinessRun(summary.RunDirectory)
+	_, err = NewVerifier().VerifyRun(summary.RunDirectory)
 	if err == nil {
 		t.Fatal("expected verifier to detect inventory mismatch")
 	}
 	if !strings.Contains(err.Error(), "inventory mismatch") {
 		t.Fatalf("unexpected verifier error: %v", err)
+	}
+}
+
+func TestExpandCommandArgsReplacesEmbeddedPlaceholders(t *testing.T) {
+	args := []string{
+		"release-bundle",
+		"RELEASE_BUNDLE_VERSION=${BUNDLE_VERSION}",
+		"SECRETS_ENV_FILE=${SECRETS_ENV_FILE}",
+	}
+	got := expandCommandArgs(args, Options{
+		BundleVersion:  "v2026.03.08",
+		SecretsEnvFile: "/tmp/secrets.env",
+	})
+	if got[1] != "RELEASE_BUNDLE_VERSION=v2026.03.08" {
+		t.Fatalf("bundle version expansion = %q", got[1])
+	}
+	if got[2] != "SECRETS_ENV_FILE=/tmp/secrets.env" {
+		t.Fatalf("secrets env expansion = %q", got[2])
 	}
 }
 
@@ -193,9 +213,9 @@ esac
 	return path
 }
 
-func writeReadinessPlanFixture(t *testing.T, repoRoot string) {
+func writePlanFixture(t *testing.T, repoRoot string) {
 	t.Helper()
-	path := filepath.Join(repoRoot, readinessPlanRelativePath)
+	path := filepath.Join(repoRoot, planRelativePath)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("create readiness plan dir: %v", err)
 	}

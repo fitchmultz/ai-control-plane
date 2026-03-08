@@ -1,4 +1,4 @@
-// release_test.go - Tests for release bundle modules
+// bundle_test.go - Tests for release bundle modules.
 //
 // Purpose: Test parser, planner, builder, and verifier modules
 //
@@ -13,7 +13,7 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-package release
+package bundle
 
 import (
 	"os"
@@ -426,5 +426,12 @@ func TestVerifier_Verify_MissingSidecar(t *testing.T) {
 	_, err = verifier.Verify(bundlePath, &output)
 	if err == nil {
 		t.Error("Verifier.Verify() should error for missing sidecar")
+	}
+}
+
+func TestCollectRegularFilesPropagatesWalkErrors(t *testing.T) {
+	_, err := collectRegularFiles(filepath.Join(t.TempDir(), "missing"))
+	if err == nil {
+		t.Fatal("expected collectRegularFiles to propagate walk error")
 	}
 }

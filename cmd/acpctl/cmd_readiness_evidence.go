@@ -6,7 +6,7 @@
 //
 // Responsibilities:
 //   - Parse readiness-evidence command arguments.
-//   - Execute internal/release readiness workflows.
+//   - Execute internal/readiness workflows.
 //   - Print operator-facing summaries with stable exit codes.
 //
 // Scope:
@@ -27,10 +27,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
-	"github.com/mitchfultz/ai-control-plane/internal/release"
+	"github.com/mitchfultz/ai-control-plane/internal/readiness"
 )
 
 func runReadinessEvidenceCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
@@ -58,11 +59,11 @@ func runReadinessEvidenceRun(ctx context.Context, args []string, stdout *os.File
 	out := output.New()
 	repoRoot := detectRepoRootWithContext(ctx)
 	makeBin := config.NewLoader().Tooling().MakeBinary
-	options := release.ReadinessOptions{
+	options := readiness.Options{
 		RepoRoot:      repoRoot,
 		OutputRoot:    filepath.Join(repoRoot, "demo", "logs", "evidence"),
 		MakeBin:       makeBin,
-		BundleVersion: release.GetDefaultVersion(repoRoot),
+		BundleVersion: bundle.GetDefaultVersion(repoRoot),
 	}
 
 	for index := 0; index < len(args); index++ {
@@ -102,7 +103,7 @@ func runReadinessEvidenceRun(ctx context.Context, args []string, stdout *os.File
 	}
 
 	fmt.Fprint(stdout, out.Bold("Generating readiness evidence")+"\n")
-	summary, err := release.RunReadinessEvidenceContext(ctx, options, stdout, stderr)
+	summary, err := readiness.RunContext(ctx, options, stdout, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
@@ -111,9 +112,9 @@ func runReadinessEvidenceRun(ctx context.Context, args []string, stdout *os.File
 	fmt.Fprintln(stdout, "")
 	fmt.Fprint(stdout, out.Green(out.Bold("Readiness evidence complete"))+"\n")
 	fmt.Fprintf(stdout, "  Run directory: %s\n", summary.RunDirectory)
-	fmt.Fprintf(stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, "readiness-summary.md"))
-	fmt.Fprintf(stdout, "  Tracker: %s\n", filepath.Join(summary.RunDirectory, "presentation-readiness-tracker.md"))
-	fmt.Fprintf(stdout, "  Decision: %s\n", filepath.Join(summary.RunDirectory, "go-no-go-decision.md"))
+	fmt.Fprintf(stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, readiness.SummaryMarkdownName))
+	fmt.Fprintf(stdout, "  Tracker: %s\n", filepath.Join(summary.RunDirectory, readiness.TrackerMarkdownName))
+	fmt.Fprintf(stdout, "  Decision: %s\n", filepath.Join(summary.RunDirectory, readiness.DecisionMarkdownName))
 	fmt.Fprintf(stdout, "  Overall status: %s\n", summary.OverallStatus)
 	if summary.OverallStatus != "PASS" {
 		return exitcodes.ACPExitDomain
@@ -145,7 +146,7 @@ func runReadinessEvidenceVerify(ctx context.Context, args []string, stdout *os.F
 	}
 
 	if runDir == "" {
-		resolvedRunDir, err := release.ResolveLatestReadinessRun(filepath.Join(repoRoot, "demo", "logs", "evidence"))
+		resolvedRunDir, err := readiness.ResolveLatestRun(filepath.Join(repoRoot, "demo", "logs", "evidence"))
 		if err != nil {
 			fmt.Fprintln(stderr, "Error: no readiness run available; use --run-dir or generate one first")
 			return exitcodes.ACPExitUsage
@@ -156,7 +157,7 @@ func runReadinessEvidenceVerify(ctx context.Context, args []string, stdout *os.F
 	fmt.Fprint(stdout, out.Bold("Verifying readiness evidence")+"\n")
 	fmt.Fprintf(stdout, "  Run directory: %s\n", runDir)
 
-	summary, err := release.NewReadinessVerifier().VerifyReadinessRun(runDir)
+	summary, err := readiness.NewVerifier().VerifyRun(runDir)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain
@@ -166,7 +167,7 @@ func runReadinessEvidenceVerify(ctx context.Context, args []string, stdout *os.F
 	fmt.Fprint(stdout, out.Green(out.Bold("Readiness evidence verified"))+"\n")
 	fmt.Fprintf(stdout, "  Run ID: %s\n", summary.RunID)
 	fmt.Fprintf(stdout, "  Overall status: %s\n", summary.OverallStatus)
-	fmt.Fprintf(stdout, "  Inventory: %s\n", filepath.Join(runDir, "evidence-inventory.txt"))
+	fmt.Fprintf(stdout, "  Inventory: %s\n", filepath.Join(runDir, readiness.InventoryFileName))
 	return exitcodes.ACPExitSuccess
 }
 

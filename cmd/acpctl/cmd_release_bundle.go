@@ -3,13 +3,13 @@
 // Purpose: Build and verify versioned deployment handoff bundles
 //
 // Responsibilities:
-//   - Parse command arguments and dispatch to internal/release modules
+//   - Parse command arguments and dispatch to internal/bundle modules
 //   - Display output and handle exit codes
 //
 // Non-scope:
-//   - Actual bundle building (see internal/release/builder.go)
-//   - Bundle verification logic (see internal/release/verifier.go)
-//   - Argument parsing logic (see internal/release/parser.go)
+//   - Actual bundle building (see internal/bundle/builder.go)
+//   - Bundle verification logic (see internal/bundle/verifier.go)
+//   - Argument parsing logic (see internal/bundle/parser.go)
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -28,16 +28,19 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
-	"github.com/mitchfultz/ai-control-plane/internal/release"
 )
 
 func runReleaseBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 {
+	if len(args) == 0 || isHelpToken(args[0]) {
 		printReleaseBundleHelp(stdout)
-		return exitcodes.ACPExitUsage
+		if len(args) == 0 {
+			return exitcodes.ACPExitUsage
+		}
+		return exitcodes.ACPExitSuccess
 	}
 
 	// Handle help for specific commands
@@ -58,7 +61,7 @@ func runReleaseBundleCommand(ctx context.Context, args []string, stdout *os.File
 	repoRoot := detectRepoRootWithContext(ctx)
 
 	// Parse arguments using the parser module
-	config, err := release.ParseArgs(args, repoRoot, release.GetDefaultVersion)
+	config, err := bundle.ParseArgs(args, repoRoot, bundle.GetDefaultVersion)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitUsage
@@ -77,18 +80,18 @@ func runReleaseBundleCommand(ctx context.Context, args []string, stdout *os.File
 	}
 }
 
-func runReleaseBundleBuild(ctx context.Context, config *release.Config, stdout *os.File, stderr *os.File) int {
+func runReleaseBundleBuild(ctx context.Context, config *bundle.Config, stdout *os.File, stderr *os.File) int {
 	out := output.New()
 	repoRoot := detectRepoRootWithContext(ctx)
 
 	// Validate version
-	if err := release.ValidateVersion(config.Version); err != nil {
+	if err := bundle.ValidateVersion(config.Version); err != nil {
 		fmt.Fprintln(stderr, err)
 		return exitcodes.ACPExitUsage
 	}
 
 	// Create plan using the planner module
-	plan, err := release.CreatePlan(config, repoRoot)
+	plan, err := bundle.CreatePlan(config, repoRoot)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Failed to create plan: %v\n"), err)
 		return exitcodes.ACPExitRuntime
@@ -106,7 +109,7 @@ func runReleaseBundleBuild(ctx context.Context, config *release.Config, stdout *
 
 	// Validate source files exist
 	fmt.Fprint(stdout, out.Bold("Validating source files...")+"\n")
-	_, err = release.ValidateSourceFiles(repoRoot, config.Verbose)
+	_, err = bundle.ValidateSourceFiles(repoRoot, config.Verbose)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain
@@ -114,8 +117,8 @@ func runReleaseBundleBuild(ctx context.Context, config *release.Config, stdout *
 
 	// Build the bundle using the builder module
 	fmt.Fprint(stdout, out.Bold("Assembling payload...")+"\n")
-	builder := release.NewBuilder(repoRoot, config.Verbose)
-	if err := builder.Build(plan, stdout); err != nil {
+	builderInstance := bundle.NewBuilder(repoRoot, config.Verbose)
+	if err := builderInstance.Build(plan, stdout); err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
@@ -124,14 +127,14 @@ func runReleaseBundleBuild(ctx context.Context, config *release.Config, stdout *
 	info, err := os.Stat(plan.BundlePath)
 	var sizeStr string
 	if err == nil {
-		sizeStr = release.HumanReadableSize(info.Size())
+		sizeStr = bundle.HumanReadableSize(info.Size())
 	}
 
 	fmt.Fprintln(stdout, "")
 	fmt.Fprint(stdout, out.Green(out.Bold("Bundle build complete"))+"\n")
 	fmt.Fprintf(stdout, "  Bundle: %s\n", plan.BundlePath)
 	fmt.Fprintf(stdout, "  Size: %s\n", sizeStr)
-	fmt.Fprintf(stdout, "  Files: %d\n", len(release.CanonicalPaths))
+	fmt.Fprintf(stdout, "  Files: %d\n", len(bundle.CanonicalPaths))
 	fmt.Fprintln(stdout, "")
 	fmt.Fprintln(stdout, "To verify this bundle:")
 	fmt.Fprintf(stdout, "  acpctl deploy release-bundle verify --bundle %s\n", plan.BundlePath)
@@ -139,7 +142,7 @@ func runReleaseBundleBuild(ctx context.Context, config *release.Config, stdout *
 	return exitcodes.ACPExitSuccess
 }
 
-func runReleaseBundleVerify(_ context.Context, config *release.Config, stdout *os.File, stderr *os.File) int {
+func runReleaseBundleVerify(_ context.Context, config *bundle.Config, stdout *os.File, stderr *os.File) int {
 	out := output.New()
 
 	if config.Bundle == "" {
@@ -158,7 +161,7 @@ func runReleaseBundleVerify(_ context.Context, config *release.Config, stdout *o
 	fmt.Fprintf(stdout, "  Bundle: %s\n", bundlePath)
 
 	// Verify using the verifier module
-	verifier := release.NewVerifier(config.Verbose)
+	verifier := bundle.NewVerifier(config.Verbose)
 	result, err := verifier.Verify(bundlePath, stdout)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
@@ -190,7 +193,7 @@ func runReleaseBundleVerify(_ context.Context, config *release.Config, stdout *o
 
 	fmt.Fprintln(stdout, "")
 	fmt.Fprint(stdout, out.Green(out.Bold("Bundle verification complete"))+"\n")
-	fmt.Fprintf(stdout, "  Files in manifest: %d\n", len(release.CanonicalPaths))
+	fmt.Fprintf(stdout, "  Files in manifest: %d\n", len(bundle.CanonicalPaths))
 	fmt.Fprintln(stdout, "  Tarball validated: yes")
 	fmt.Fprintln(stdout, "  Payload integrity: verified")
 
