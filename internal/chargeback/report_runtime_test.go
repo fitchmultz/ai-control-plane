@@ -1,7 +1,8 @@
 // report_runtime_test.go - Tests for typed chargeback report generation.
 //
 // Purpose:
-//   - Verify the typed report workflow replaces the legacy shell orchestration.
+//   - Verify the chargeback workflow composes store, render, archive, and
+//     notification layers correctly.
 //
 // Responsibilities:
 //   - Cover report rendering, archival, analytics, and notification outcomes.
@@ -10,7 +11,7 @@
 //   - Chargeback report workflow behavior only.
 //
 // Usage:
-//   - Used through its package exports and CLI entrypoints as applicable.
+//   - Used through package exports and CLI entrypoints as applicable.
 //
 // Invariants/Assumptions:
 //   - Tests remain deterministic through fake stores and fixed clocks.
@@ -73,7 +74,7 @@ func (f fakeStore) TotalBudget(context.Context) (float64, error) {
 	return f.totalBudget, nil
 }
 
-func TestGenerateReportBuildsOutputsAndArchives(t *testing.T) {
+func TestReportWorkflowBuildsOutputsAndArchives(t *testing.T) {
 	t.Parallel()
 
 	store := fakeStore{
@@ -98,18 +99,22 @@ func TestGenerateReportBuildsOutputsAndArchives(t *testing.T) {
 	}
 
 	repoRoot := t.TempDir()
-	result, err := GenerateReport(context.Background(), store, ReportOptions{
-		Format:           "all",
-		RepoRoot:         repoRoot,
-		ArchiveDir:       "demo/backups/chargeback",
-		ForecastEnabled:  true,
-		AnomalyThreshold: 100,
+	result, err := NewReportWorkflow(store).Run(context.Background(), ReportWorkflowInput{
+		Request: ReportRequest{
+			Format:               ReportFormatAll,
+			ArchiveDir:           "demo/backups/chargeback",
+			ForecastEnabled:      true,
+			VarianceThreshold:    defaultVarianceThreshold,
+			AnomalyThreshold:     100,
+			BudgetAlertThreshold: defaultBudgetAlertThreshold,
+		},
+		RepoRoot: repoRoot,
 		Now: func() time.Time {
 			return time.Date(2026, time.February, 7, 12, 0, 0, 0, time.FixedZone("MST", -7*60*60))
 		},
 	})
 	if err != nil {
-		t.Fatalf("GenerateReport returned error: %v", err)
+		t.Fatalf("Run returned error: %v", err)
 	}
 
 	if !strings.Contains(result.Outputs.Markdown, "# Financial Chargeback Report") {
@@ -139,7 +144,7 @@ func TestGenerateReportBuildsOutputsAndArchives(t *testing.T) {
 	}
 }
 
-func TestGenerateReportSendsNotifications(t *testing.T) {
+func TestReportWorkflowSendsNotifications(t *testing.T) {
 	t.Parallel()
 
 	var genericSeen bool
@@ -174,17 +179,27 @@ func TestGenerateReportSendsNotifications(t *testing.T) {
 		metrics:             Metrics{TotalRequests: 10, TotalTokens: 1000},
 	}
 
-	_, err := GenerateReport(context.Background(), store, ReportOptions{
-		Notify:            true,
-		GenericWebhookURL: server.URL + "/generic",
-		SlackWebhookURL:   server.URL + "/slack",
-		RepoRoot:          t.TempDir(),
+	_, err := NewReportWorkflow(store).Run(context.Background(), ReportWorkflowInput{
+		Request: ReportRequest{
+			Format:               ReportFormatMarkdown,
+			ArchiveDir:           defaultArchiveDir,
+			VarianceThreshold:    defaultVarianceThreshold,
+			AnomalyThreshold:     defaultAnomalyThreshold,
+			ForecastEnabled:      true,
+			BudgetAlertThreshold: defaultBudgetAlertThreshold,
+			Notify:               true,
+		},
+		RepoRoot: t.TempDir(),
+		Notification: NotificationConfig{
+			GenericWebhookURL: server.URL + "/generic",
+			SlackWebhookURL:   server.URL + "/slack",
+		},
 		Now: func() time.Time {
 			return time.Date(2026, time.February, 7, 12, 0, 0, 0, time.UTC)
 		},
 	})
 	if err != nil {
-		t.Fatalf("GenerateReport returned error: %v", err)
+		t.Fatalf("Run returned error: %v", err)
 	}
 	if !genericSeen || !slackSeen {
 		t.Fatalf("expected both notification endpoints, generic=%t slack=%t", genericSeen, slackSeen)

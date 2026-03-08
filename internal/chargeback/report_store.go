@@ -47,7 +47,7 @@ func (s *DBStore) CostCenterAllocations(ctx context.Context, monthStart string, 
 	if err != nil {
 		return nil, err
 	}
-	return DecodeCostCenters(raw)
+	return decodeCostCenters(raw)
 }
 
 func (s *DBStore) ModelAllocations(ctx context.Context, monthStart string, monthEnd string) ([]ModelAllocation, error) {
@@ -59,7 +59,7 @@ func (s *DBStore) ModelAllocations(ctx context.Context, monthStart string, month
 	if err != nil {
 		return nil, err
 	}
-	return DecodeModels(raw)
+	return decodeModels(raw)
 }
 
 func (s *DBStore) TopPrincipals(ctx context.Context, monthStart string, monthEnd string, limit int) ([]PrincipalSpend, error) {

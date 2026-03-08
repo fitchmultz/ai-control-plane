@@ -94,6 +94,7 @@ make health      # Verify services
 - **acpctl command platform:** `cmd/acpctl/command_spec.go` owns parsing/help/completion/dispatch; `cmd/acpctl/command_registry.go` only composes per-domain command specs into the root tree
 - **Config ownership:** `internal/config` is the only Go package that may touch process env or repo-local `.env`; other packages must consume typed config from it
 - **Database service boundaries:** `internal/db` is split by responsibility: connector/runtime discovery, readonly metrics/reporting readers, and admin backup/restore workflows; do not reintroduce generic raw SQL execution on operator-facing surfaces
+- **Chargeback domain boundaries:** `internal/chargeback/input.go` owns CLI/env decoding and defaults, `workflow.go` coordinates store/render/archive/notify collaborators, `report_store.go` stays DB-only, and archive writes must use `internal/fsutil`
 - **Validation/security ownership:** canonical deployment/config scan scope lives in `internal/policy`; structural validators live in `internal/validation`; security policy enforcement lives in `internal/security`
 - **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/readiness/plan.go` materializes it
 - **Artifact-run ownership:** `internal/artifactrun` owns generated readiness and closeout run lifecycle, inventories, latest pointers, and run-directory verification; avoid bespoke run-dir lifecycle code elsewhere

@@ -1,31 +1,31 @@
-// Package chargeback provides canonical report rendering helpers.
+// Package chargeback defines the typed chargeback reporting domain.
 //
 // Purpose:
-//   - Centralize machine-safe chargeback JSON, CSV, and webhook payload generation.
+//   - Render canonical chargeback report outputs.
 //
 // Responsibilities:
-//   - Decode structured chargeback allocation/anomaly inputs from JSON.
-//   - Render the chargeback report JSON schema with deterministic formatting.
-//   - Emit RFC 4180-compliant, spreadsheet-safe CSV output.
-//   - Build generic and Slack webhook payloads without shell string interpolation.
+//   - Serialize the report JSON schema with deterministic formatting.
+//   - Emit RFC 4180-compliant spreadsheet-safe CSV output.
+//   - Fan out the full report output set for workflow archival and routing.
 //
 // Non-scope:
-//   - Does not execute database queries.
-//   - Does not calculate spend analytics or forecasting inputs.
+//   - Does not decode environment variables.
+//   - Does not deliver notifications.
 //
 // Invariants/Assumptions:
-//   - Structured collection inputs are valid JSON arrays or empty.
-//   - Numeric counts are integral in the upstream JSON payloads.
-//   - Spreadsheet-safe escaping prefixes risky text cells with a leading apostrophe.
+//   - Rendered values are deterministic for equivalent typed inputs.
+//   - Spreadsheet-safe escaping prefixes risky text cells with a leading
+//     apostrophe.
 //
 // Scope:
-//   - File-local implementation and interfaces only.
+//   - Chargeback report rendering only.
 //
 // Usage:
-//   - Used through its package exports and CLI entrypoints as applicable.
+//   - Used by the report workflow and render-focused tests.
 package chargeback
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -35,116 +35,44 @@ import (
 	"strings"
 )
 
-type CostCenterAllocation struct {
-	CostCenter     string  `json:"cost_center"`
-	Team           string  `json:"team"`
-	RequestCount   int64   `json:"request_count"`
-	TokenCount     int64   `json:"token_count"`
-	SpendAmount    float64 `json:"spend_amount"`
-	PercentOfTotal float64 `json:"percent_of_total"`
-}
+type DefaultRenderer struct{}
 
-type ModelAllocation struct {
-	Model        string  `json:"model"`
-	RequestCount int64   `json:"request_count"`
-	TokenCount   int64   `json:"token_count"`
-	SpendAmount  float64 `json:"spend_amount"`
-}
-
-type Anomaly struct {
-	CostCenter    string  `json:"cost_center"`
-	Team          string  `json:"team"`
-	CurrentSpend  float64 `json:"current_spend"`
-	PreviousSpend float64 `json:"previous_spend"`
-	SpikePercent  float64 `json:"spike_percent"`
-	Type          string  `json:"type"`
-}
-
-type BudgetRisk struct {
-	RiskLevel         string   `json:"risk_level"`
-	BudgetPercent     *float64 `json:"budget_percent"`
-	ThresholdExceeded bool     `json:"threshold_exceeded"`
-}
-
-type ReportInput struct {
-	SchemaVersion      string
-	GeneratedAt        string
-	ReportMonth        string
-	PeriodStart        string
-	PeriodEnd          string
-	TotalSpend         float64
-	TotalRequests      int64
-	TotalTokens        int64
-	CostCenters        []CostCenterAllocation
-	Models             []ModelAllocation
-	Variance           string
-	VarianceThreshold  float64
-	PreviousMonthSpend float64
-	Anomalies          []Anomaly
-	ForecastEnabled    bool
-	ForecastMonth1     *float64
-	ForecastMonth2     *float64
-	ForecastMonth3     *float64
-	DailyBurn          float64
-	DaysRemaining      *int64
-	ExhaustionDate     string
-	TotalBudget        float64
-	BudgetRisk         BudgetRisk
-	AnomalyThreshold   float64
-}
-
-type GenericWebhookInput struct {
-	Event       string
-	ReportMonth string
-	TotalSpend  float64
-	Variance    string
-	Anomalies   []Anomaly
-	Timestamp   string
-}
-
-type SlackWebhookInput struct {
-	ReportMonth string
-	TotalSpend  float64
-	Variance    string
-	Color       string
-	Epoch       int64
-}
-
-func DecodeCostCenters(raw string) ([]CostCenterAllocation, error) {
-	var values []CostCenterAllocation
-	if err := decodeJSONArray(raw, &values); err != nil {
-		return nil, fmt.Errorf("decode cost centers: %w", err)
+func (DefaultRenderer) Render(data ReportData) (ReportOutputs, error) {
+	jsonPayload, err := renderJSONBytes(data.Input)
+	if err != nil {
+		return ReportOutputs{}, fmt.Errorf("render json: %w", err)
 	}
-	return values, nil
-}
-
-func DecodeModels(raw string) ([]ModelAllocation, error) {
-	var values []ModelAllocation
-	if err := decodeJSONArray(raw, &values); err != nil {
-		return nil, fmt.Errorf("decode models: %w", err)
+	csvPayload, err := renderCSVBytes(data.Input.ReportMonth, data.Input.CostCenters)
+	if err != nil {
+		return ReportOutputs{}, fmt.Errorf("render csv: %w", err)
 	}
-	return values, nil
-}
-
-func DecodeAnomalies(raw string) ([]Anomaly, error) {
-	var values []Anomaly
-	if err := decodeJSONArray(raw, &values); err != nil {
-		return nil, fmt.Errorf("decode anomalies: %w", err)
-	}
-	return values, nil
-}
-
-func decodeJSONArray(raw string, target any) error {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		trimmed = "[]"
-	}
-	decoder := json.NewDecoder(strings.NewReader(trimmed))
-	decoder.DisallowUnknownFields()
-	return decoder.Decode(target)
+	return ReportOutputs{
+		Markdown: RenderMarkdown(data),
+		JSON:     string(jsonPayload),
+		CSV:      string(csvPayload),
+		Archived: map[string]string{},
+	}, nil
 }
 
 func RenderJSON(w io.Writer, input ReportInput) error {
+	payload, err := renderJSONBytes(input)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(payload)
+	return err
+}
+
+func RenderCSV(w io.Writer, reportMonth string, rows []CostCenterAllocation) error {
+	payload, err := renderCSVBytes(reportMonth, rows)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(payload)
+	return err
+}
+
+func renderJSONBytes(input ReportInput) ([]byte, error) {
 	payload := reportPayload{
 		SchemaVersion: input.SchemaVersion,
 		ReportMetadata: reportMetadata{
@@ -194,13 +122,18 @@ func RenderJSON(w io.Writer, input ReportInput) error {
 		},
 	}
 
-	encoder := json.NewEncoder(w)
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(payload)
+	if err := encoder.Encode(payload); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
 }
 
-func RenderCSV(w io.Writer, reportMonth string, rows []CostCenterAllocation) error {
-	writer := csv.NewWriter(w)
+func renderCSVBytes(reportMonth string, rows []CostCenterAllocation) ([]byte, error) {
+	var output bytes.Buffer
+	writer := csv.NewWriter(&output)
 	records := [][]string{{
 		"CostCenter",
 		"Team",
@@ -224,75 +157,13 @@ func RenderCSV(w io.Writer, reportMonth string, rows []CostCenterAllocation) err
 	}
 
 	if err := writer.WriteAll(records); err != nil {
-		return fmt.Errorf("write csv: %w", err)
+		return nil, fmt.Errorf("write csv: %w", err)
 	}
 	writer.Flush()
-	return writer.Error()
-}
-
-func BuildGenericWebhookPayload(input GenericWebhookInput) ([]byte, error) {
-	payload := struct {
-		Event       string    `json:"event"`
-		ReportMonth string    `json:"report_month"`
-		TotalSpend  float64   `json:"total_spend"`
-		Variance    string    `json:"variance_percent"`
-		Anomalies   []Anomaly `json:"anomalies"`
-		Timestamp   string    `json:"timestamp"`
-	}{
-		Event:       input.Event,
-		ReportMonth: input.ReportMonth,
-		TotalSpend:  input.TotalSpend,
-		Variance:    input.Variance,
-		Anomalies:   input.Anomalies,
-		Timestamp:   input.Timestamp,
+	if err := writer.Error(); err != nil {
+		return nil, err
 	}
-	return json.Marshal(payload)
-}
-
-func BuildSlackWebhookPayload(input SlackWebhookInput) ([]byte, error) {
-	payload := struct {
-		Text        string `json:"text"`
-		Attachments []struct {
-			Color  string `json:"color"`
-			Title  string `json:"title"`
-			Fields []struct {
-				Title string `json:"title"`
-				Value string `json:"value"`
-				Short bool   `json:"short"`
-			} `json:"fields"`
-			Footer string `json:"footer"`
-			TS     int64  `json:"ts"`
-		} `json:"attachments"`
-	}{
-		Text: "📊 Monthly Chargeback Report Generated",
-	}
-
-	attachment := struct {
-		Color  string `json:"color"`
-		Title  string `json:"title"`
-		Fields []struct {
-			Title string `json:"title"`
-			Value string `json:"value"`
-			Short bool   `json:"short"`
-		} `json:"fields"`
-		Footer string `json:"footer"`
-		TS     int64  `json:"ts"`
-	}{
-		Color:  input.Color,
-		Title:  "Report for " + input.ReportMonth,
-		Footer: "AI Control Plane",
-		TS:     input.Epoch,
-	}
-	attachment.Fields = []struct {
-		Title string `json:"title"`
-		Value string `json:"value"`
-		Short bool   `json:"short"`
-	}{
-		{Title: "Total Spend", Value: fmt.Sprintf("$%.2f", input.TotalSpend), Short: true},
-		{Title: "Variance", Value: input.Variance + "%", Short: true},
-	}
-	payload.Attachments = append(payload.Attachments, attachment)
-	return json.Marshal(payload)
+	return output.Bytes(), nil
 }
 
 type reportPayload struct {
