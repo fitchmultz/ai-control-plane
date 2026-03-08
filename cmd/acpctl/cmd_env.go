@@ -75,6 +75,7 @@ Subcommands:
 Examples:
   acpctl env get LITELLM_MASTER_KEY
   acpctl env get --file demo/.env DATABASE_URL
+  acpctl env get --file /etc/ai-control-plane/secrets.env LITELLM_MASTER_KEY
 
 Exit codes:
   0   Success
@@ -89,10 +90,12 @@ func printEnvGetHelp(out *os.File) {
 	fmt.Fprint(out, `Usage: acpctl env get [--file path] KEY
 
 Read a single KEY from an env file as data only.
+Prefer this over sourcing env files or grepping secrets from them.
 
 Examples:
   acpctl env get LITELLM_MASTER_KEY
   acpctl env get --file demo/.env DATABASE_URL
+  acpctl env get --file /etc/ai-control-plane/secrets.env LITELLM_MASTER_KEY
 
 Exit codes:
   0   Success

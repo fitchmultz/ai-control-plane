@@ -31,6 +31,18 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
+func TestPrintEnvGetHelpStatesNonExecutingContract(t *testing.T) {
+	t.Parallel()
+
+	stdout, stdoutPath := tempOutputFile(t)
+	printEnvGetHelp(stdout)
+
+	output := readOutputFile(t, stdoutPath)
+	if !strings.Contains(output, "Prefer this over sourcing env files or grepping secrets from them.") {
+		t.Fatalf("help output missing non-executing contract guidance: %q", output)
+	}
+}
+
 func TestRunEnvGetCommandReturnsLiteralValue(t *testing.T) {
 	t.Parallel()
 

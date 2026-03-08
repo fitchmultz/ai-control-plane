@@ -228,8 +228,9 @@ docker compose -f demo/docker-compose.yml logs litellm | grep -i "authorization"
 View all virtual keys:
 
 ```bash
-cd demo && source .env && curl -s -X GET "http://127.0.0.1:4000/key/list" \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" | python3 -m json.tool
+MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)" && \
+curl -s -X GET "http://127.0.0.1:4000/key/list" \
+  -H "Authorization: Bearer ${MASTER_KEY}" | python3 -m json.tool
 ```
 
 Current keys:
@@ -272,15 +273,17 @@ docker compose -f demo/docker-compose.yml logs litellm --tail 100 | grep ERROR
 ### Check Budget Usage
 
 ```bash
-cd demo && source .env && curl -s -X GET "http://127.0.0.1:4000/budget/usage" \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" | python3 -m json.tool
+MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)" && \
+curl -s -X GET "http://127.0.0.1:4000/budget/usage" \
+  -H "Authorization: Bearer ${MASTER_KEY}" | python3 -m json.tool
 ```
 
 ### View Virtual Key Details
 
 ```bash
-cd demo && source .env && curl -s -X GET "http://127.0.0.1:4000/key/info" \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" | python3 -m json.tool
+MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)" && \
+curl -s -X GET "http://127.0.0.1:4000/key/info" \
+  -H "Authorization: Bearer ${MASTER_KEY}" | python3 -m json.tool
 ```
 
 ### Access LiteLLM WebUI

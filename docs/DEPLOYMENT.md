@@ -77,7 +77,7 @@ All services run on a Linux host using Docker Compose. This is the **default and
 
 Find your master key:
 ```bash
-cat demo/.env | grep LITELLM_MASTER_KEY
+./scripts/acpctl.sh env get LITELLM_MASTER_KEY
 ```
 
 **Remote Gateway Host Mode:**
@@ -1254,14 +1254,11 @@ netstat -tulpn | grep -E '4000|5432'
 
 **Diagnosis:**
 ```bash
-# Check your master key is set
-echo $LITELLM_MASTER_KEY
-
-# Verify .env file contains the key
-grep LITELLM_MASTER_KEY demo/.env
+# Read the current master key without sourcing demo/.env
+./scripts/acpctl.sh env get LITELLM_MASTER_KEY
 
 # Check key length (should be >= 32 chars)
-key=$(grep LITELLM_MASTER_KEY demo/.env | cut -d'=' -f2-)
+key="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
 echo "Key length: ${#key} chars"
 ```
 
