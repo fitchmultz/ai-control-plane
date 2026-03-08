@@ -23,9 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
@@ -56,9 +54,9 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 				Level:    status.HealthLevelHealthy,
 				Severity: SeverityDomain,
 				Message:  fmt.Sprintf("Required ports are bound by running AI Control Plane services: %v", occupied),
-				Details: map[string]any{
-					"required_ports": ports,
-					"occupied_ports": occupied,
+				Details: status.ComponentDetails{
+					RequiredPorts: ports,
+					OccupiedPorts: occupied,
 				},
 			}
 		}
@@ -74,9 +72,9 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 				"If these ports belong to AI Control Plane services, this is expected after startup",
 				"Otherwise stop conflicting services or choose different ports",
 			},
-			Details: map[string]any{
-				"required_ports": ports,
-				"occupied_ports": occupied,
+			Details: status.ComponentDetails{
+				RequiredPorts: ports,
+				OccupiedPorts: occupied,
 			},
 		}
 	}
@@ -87,8 +85,8 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 		Level:    status.HealthLevelHealthy,
 		Severity: SeverityDomain,
 		Message:  fmt.Sprintf("All required ports available: %v", ports),
-		Details: map[string]any{
-			"checked_ports": ports,
+		Details: status.ComponentDetails{
+			RequiredPorts: ports,
 		},
 	}
 }
@@ -116,25 +114,13 @@ func joinPorts(ports []int) string {
 }
 
 func occupiedPortsBelongToRunningACP(ctx context.Context, occupied []int, opts Options) bool {
-	gatewayPort := config.DefaultLiteLLMPort
-	if rawPort := strings.TrimSpace(opts.GatewayPort); rawPort != "" {
-		if parsedPort, err := strconv.Atoi(rawPort); err == nil && parsedPort > 0 {
-			gatewayPort = parsedPort
-		}
-	}
+	_, gatewayPort := gatewayLocation(opts)
 	if !slices.Contains(occupied, gatewayPort) {
 		return false
 	}
 
-	gatewayHost := opts.GatewayHost
-	if strings.TrimSpace(gatewayHost) == "" {
-		gatewayHost = config.DefaultGatewayHost
-	}
-
-	masterKey := config.NewLoader().Gateway(false).MasterKey
-	if masterKey == "" && strings.TrimSpace(opts.RepoRoot) != "" {
-		masterKey = loadEnvFromFile(filepath.Join(opts.RepoRoot, "demo", ".env"), "LITELLM_MASTER_KEY")
-	}
+	gatewayHost, _ := gatewayLocation(opts)
+	masterKey := loadGatewayMasterKeyFromRepo(opts.RepoRoot)
 
 	healthURL := fmt.Sprintf("http://%s:%d/health", gatewayHost, gatewayPort)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)

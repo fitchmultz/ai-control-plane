@@ -27,9 +27,32 @@ import (
 
 const defaultEmbeddedDatabaseURL = "postgresql://litellm:litellm@postgres:5432/litellm"
 
+// DatabaseMode identifies the effective database runtime mode.
+type DatabaseMode string
+
+const (
+	DatabaseModeEmbedded DatabaseMode = "embedded"
+	DatabaseModeExternal DatabaseMode = "external"
+)
+
+// String returns the serialized database mode value.
+func (m DatabaseMode) String() string {
+	return string(m)
+}
+
+// IsEmbedded reports whether the mode uses the repo-local PostgreSQL container.
+func (m DatabaseMode) IsEmbedded() bool {
+	return m == DatabaseModeEmbedded
+}
+
+// IsExternal reports whether the mode uses an external PostgreSQL instance.
+func (m DatabaseMode) IsExternal() bool {
+	return m == DatabaseModeExternal
+}
+
 // DatabaseSettings captures typed database runtime configuration.
 type DatabaseSettings struct {
-	Mode         string
+	Mode         DatabaseMode
 	Name         string
 	User         string
 	URL          string
@@ -42,7 +65,7 @@ type DatabaseSettings struct {
 func (l *Loader) Database(ctx context.Context) DatabaseSettings {
 	repoRoot, _ := l.RepoRoot(ctx)
 	settings := DatabaseSettings{
-		Mode:        "embedded",
+		Mode:        DatabaseModeEmbedded,
 		Name:        l.StringDefault("DB_NAME", "litellm"),
 		User:        l.StringDefault("DB_USER", "litellm"),
 		URL:         l.RepoAwareString("DATABASE_URL"),
@@ -54,7 +77,7 @@ func (l *Loader) Database(ctx context.Context) DatabaseSettings {
 	} else if mode, ok := normalizeDatabaseMode(l.RepoAwareString("ACP_DATABASE_MODE")); ok {
 		settings.Mode = mode
 	}
-	if settings.Mode == "embedded" && strings.TrimSpace(settings.URL) != "" && settings.URL != defaultEmbeddedDatabaseURL {
+	if settings.Mode.IsEmbedded() && strings.TrimSpace(settings.URL) != "" && settings.URL != defaultEmbeddedDatabaseURL {
 		explicitMode := l.String("ACP_DATABASE_MODE")
 		if explicitMode == "" {
 			explicitMode = l.RepoAwareString("ACP_DATABASE_MODE")
@@ -66,12 +89,12 @@ func (l *Loader) Database(ctx context.Context) DatabaseSettings {
 	return settings
 }
 
-func normalizeDatabaseMode(value string) (string, bool) {
+func normalizeDatabaseMode(value string) (DatabaseMode, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "embedded":
-		return "embedded", true
+		return DatabaseModeEmbedded, true
 	case "external":
-		return "external", true
+		return DatabaseModeExternal, true
 	default:
 		return "", false
 	}

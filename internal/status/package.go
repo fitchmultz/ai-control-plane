@@ -2,26 +2,26 @@
 //
 // Purpose:
 //
-//	Collect and aggregate health status from multiple system domains
-//	(gateway, database, keys, budgets, detections) into a unified report.
+//	Collect and aggregate typed runtime health status from ACP subsystems into
+//	one report model shared by status, doctor, and health workflows.
 //
 // Responsibilities:
-//   - Define Collector interface for domain-specific status collection
-//   - Aggregate results from all collectors into StatusReport
-//   - Support JSON and human-readable output formats
-//   - Provide color-coded status indicators (green/yellow/red)
+//   - Define canonical collector and report types.
+//   - Aggregate concurrent component collection into StatusReport.
+//   - Provide JSON and human-readable report rendering.
+//   - Centralize typed detail rendering for wide output.
 //
 // Non-scope:
-//   - Does not execute remediation actions
-//   - Does not modify system state
+//   - Does not execute remediation actions.
+//   - Does not modify system state.
 //
 // Invariants/Assumptions:
-//   - All collectors are read-only operations
-//   - Collector failures do not prevent other collectors from running
-//   - Overall status is HEALTHY only if all required collectors report healthy
+//   - All collectors are read-only operations.
+//   - Collector failures do not prevent other collectors from running.
+//   - Wide output renders a stable detail field order.
 //
 // Scope:
-//   - File-local implementation and interfaces only.
+//   - File-local implementation and report types only.
 //
 // Usage:
 //   - Used through its package exports and CLI entrypoints as applicable.
@@ -32,6 +32,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,19 +44,137 @@ import (
 type HealthLevel string
 
 const (
-	HealthLevelHealthy   HealthLevel = "healthy"   // Green - all good
-	HealthLevelWarning   HealthLevel = "warning"   // Yellow - attention needed
-	HealthLevelUnhealthy HealthLevel = "unhealthy" // Red - action required
-	HealthLevelUnknown   HealthLevel = "unknown"   // Grey - unable to determine
+	HealthLevelHealthy   HealthLevel = "healthy"
+	HealthLevelWarning   HealthLevel = "warning"
+	HealthLevelUnhealthy HealthLevel = "unhealthy"
+	HealthLevelUnknown   HealthLevel = "unknown"
 )
+
+// ComponentDetails captures typed supplemental runtime details.
+type ComponentDetails struct {
+	Mode                   string   `json:"mode,omitempty"`
+	BaseURL                string   `json:"base_url,omitempty"`
+	DatabaseName           string   `json:"database_name,omitempty"`
+	DatabaseUser           string   `json:"database_user,omitempty"`
+	ContainerID            string   `json:"container_id,omitempty"`
+	HTTPStatus             int      `json:"http_status,omitempty"`
+	ModelsHTTPStatus       int      `json:"models_http_status,omitempty"`
+	MasterKeyConfigured    bool     `json:"master_key_configured,omitempty"`
+	Reachable              bool     `json:"reachable,omitempty"`
+	Authorized             bool     `json:"authorized,omitempty"`
+	ExpectedTables         int      `json:"expected_tables,omitempty"`
+	Version                string   `json:"version,omitempty"`
+	Size                   string   `json:"size,omitempty"`
+	Connections            int      `json:"connections,omitempty"`
+	TotalKeys              int      `json:"total_keys,omitempty"`
+	ActiveKeys             int      `json:"active_keys,omitempty"`
+	ExpiredKeys            int      `json:"expired_keys,omitempty"`
+	TotalBudgets           int      `json:"total_budgets,omitempty"`
+	HighUtilizationBudgets int      `json:"high_utilization_budgets,omitempty"`
+	ExhaustedBudgets       int      `json:"exhausted_budgets,omitempty"`
+	SpendLogsTableExists   bool     `json:"spend_logs_table_exists,omitempty"`
+	HighSeverityFindings   int      `json:"high_severity_findings,omitempty"`
+	MediumSeverityFindings int      `json:"medium_severity_findings,omitempty"`
+	UniqueModels24h        int      `json:"unique_models_24h,omitempty"`
+	TotalEntries24h        int      `json:"total_entries_24h,omitempty"`
+	RequiredPorts          []int    `json:"required_ports,omitempty"`
+	OccupiedPorts          []int    `json:"occupied_ports,omitempty"`
+	MissingVars            []string `json:"missing_vars,omitempty"`
+	MissingFiles           []string `json:"missing_files,omitempty"`
+	AuthStatus             string   `json:"auth_status,omitempty"`
+	LookupError            string   `json:"lookup_error,omitempty"`
+	Response               string   `json:"response,omitempty"`
+	Error                  string   `json:"error,omitempty"`
+}
+
+// IsZero reports whether the details struct contains no meaningful values.
+func (d ComponentDetails) IsZero() bool {
+	return len(d.lines()) == 0
+}
+
+// Lines returns stable human-readable detail lines for wide output.
+func (d ComponentDetails) Lines() []string {
+	return d.lines()
+}
+
+func (d ComponentDetails) lines() []string {
+	lines := make([]string, 0, 24)
+	appendText := func(label, value string) {
+		if strings.TrimSpace(value) != "" {
+			lines = append(lines, fmt.Sprintf("%s: %s", label, value))
+		}
+	}
+	appendBool := func(label string, value bool) {
+		if value {
+			lines = append(lines, fmt.Sprintf("%s: %t", label, value))
+		}
+	}
+	appendInt := func(label string, value int) {
+		if value != 0 {
+			lines = append(lines, fmt.Sprintf("%s: %d", label, value))
+		}
+	}
+	appendPorts := func(label string, ports []int) {
+		if len(ports) == 0 {
+			return
+		}
+		parts := make([]string, len(ports))
+		for i, port := range ports {
+			parts[i] = strconv.Itoa(port)
+		}
+		lines = append(lines, fmt.Sprintf("%s: %s", label, strings.Join(parts, ", ")))
+	}
+	appendList := func(label string, values []string) {
+		if len(values) == 0 {
+			return
+		}
+		lines = append(lines, fmt.Sprintf("%s: %s", label, strings.Join(values, ", ")))
+	}
+
+	appendText("mode", d.Mode)
+	appendText("base_url", d.BaseURL)
+	appendText("database_name", d.DatabaseName)
+	appendText("database_user", d.DatabaseUser)
+	appendText("container_id", d.ContainerID)
+	appendInt("http_status", d.HTTPStatus)
+	appendInt("models_http_status", d.ModelsHTTPStatus)
+	appendBool("master_key_configured", d.MasterKeyConfigured)
+	appendBool("reachable", d.Reachable)
+	appendBool("authorized", d.Authorized)
+	appendInt("expected_tables", d.ExpectedTables)
+	appendText("version", d.Version)
+	appendText("size", d.Size)
+	appendInt("connections", d.Connections)
+	appendInt("total_keys", d.TotalKeys)
+	appendInt("active_keys", d.ActiveKeys)
+	appendInt("expired_keys", d.ExpiredKeys)
+	appendInt("total_budgets", d.TotalBudgets)
+	appendInt("high_utilization_budgets", d.HighUtilizationBudgets)
+	appendInt("exhausted_budgets", d.ExhaustedBudgets)
+	appendBool("spend_logs_table_exists", d.SpendLogsTableExists)
+	appendInt("high_severity_findings", d.HighSeverityFindings)
+	appendInt("medium_severity_findings", d.MediumSeverityFindings)
+	appendInt("unique_models_24h", d.UniqueModels24h)
+	appendInt("total_entries_24h", d.TotalEntries24h)
+	appendPorts("required_ports", d.RequiredPorts)
+	appendPorts("occupied_ports", d.OccupiedPorts)
+	appendList("missing_vars", d.MissingVars)
+	appendList("missing_files", d.MissingFiles)
+	appendText("auth_status", d.AuthStatus)
+	appendText("lookup_error", d.LookupError)
+	appendText("response", d.Response)
+	appendText("error", d.Error)
+
+	return lines
+}
 
 // ComponentStatus represents the status of a single component.
 type ComponentStatus struct {
-	Name        string      `json:"name"`
-	Level       HealthLevel `json:"level"`
-	Message     string      `json:"message"`
-	Details     any         `json:"details,omitempty"`
-	Suggestions []string    `json:"suggestions,omitempty"`
+	Name        string           `json:"name"`
+	Level       HealthLevel      `json:"level"`
+	Message     string           `json:"message"`
+	Details     ComponentDetails `json:"details,omitempty"`
+	Suggestions []string         `json:"suggestions,omitempty"`
 }
 
 // StatusReport is the aggregated status from all collectors.
@@ -68,27 +187,19 @@ type StatusReport struct {
 
 // Collector gathers status for a specific domain.
 type Collector interface {
-	// Name returns the collector's domain name (e.g., "gateway", "database").
 	Name() string
-
-	// Collect gathers status information from the domain.
-	// Returns a ComponentStatus; errors should be captured in the status level/message.
 	Collect(ctx context.Context) ComponentStatus
 }
 
 // Options configures status collection behavior.
 type Options struct {
-	RepoRoot    string
-	GatewayHost string
-	LITELLMPort string
-	Wide        bool // Include extended details
+	RepoRoot string
+	Wide     bool
 }
 
 // CollectAll runs all collectors and returns an aggregated report.
 func CollectAll(ctx context.Context, collectors []Collector, opts Options) StatusReport {
 	start := time.Now()
-
-	// Use a wait group to run collectors concurrently
 	var wg sync.WaitGroup
 	results := make(map[string]ComponentStatus)
 	var mu sync.Mutex
@@ -97,9 +208,9 @@ func CollectAll(ctx context.Context, collectors []Collector, opts Options) Statu
 		wg.Add(1)
 		go func(c Collector) {
 			defer wg.Done()
-			status := c.Collect(ctx)
+			component := c.Collect(ctx)
 			mu.Lock()
-			results[c.Name()] = status
+			results[c.Name()] = component
 			mu.Unlock()
 		}(collector)
 	}
@@ -107,10 +218,9 @@ func CollectAll(ctx context.Context, collectors []Collector, opts Options) Statu
 	wg.Wait()
 	duration := time.Since(start)
 
-	// Determine overall status
 	overall := HealthLevelHealthy
-	for _, status := range results {
-		switch status.Level {
+	for _, component := range results {
+		switch component.Level {
 		case HealthLevelUnhealthy:
 			overall = HealthLevelUnhealthy
 		case HealthLevelWarning:
@@ -133,7 +243,6 @@ func (r StatusReport) WriteHuman(w io.Writer, wide bool) error {
 	colors := terminal.NewColors()
 	sf := terminal.NewStatusFormatter()
 
-	// Helper to format status using symbols
 	formatStatus := func(level HealthLevel) string {
 		switch level {
 		case HealthLevelHealthy:
@@ -147,57 +256,42 @@ func (r StatusReport) WriteHuman(w io.Writer, wide bool) error {
 		}
 	}
 
-	// Print header
 	fmt.Fprintln(w, colors.Bold+"=== AI Control Plane Status ==="+colors.Reset)
-	fmt.Fprintln(w, "")
+	fmt.Fprintln(w)
 
-	// Define component order
 	order := []string{"gateway", "database", "keys", "budget", "detections"}
-
-	// Print each component
 	for _, name := range order {
-		status, ok := r.Components[name]
+		component, ok := r.Components[name]
 		if !ok {
 			continue
 		}
-
-		// Pad name to align columns
 		paddedName := fmt.Sprintf("%-11s", strings.ToUpper(name[:1])+name[1:])
-		fmt.Fprintf(w, "%s %s %s\n", paddedName, formatStatus(status.Level), status.Message)
+		fmt.Fprintf(w, "%s %s %s\n", paddedName, formatStatus(component.Level), component.Message)
 
-		// Show suggestions if unhealthy or warning
-		if len(status.Suggestions) > 0 && (status.Level == HealthLevelUnhealthy || status.Level == HealthLevelWarning) {
-			for _, suggestion := range status.Suggestions {
+		if len(component.Suggestions) > 0 && (component.Level == HealthLevelUnhealthy || component.Level == HealthLevelWarning) {
+			for _, suggestion := range component.Suggestions {
 				fmt.Fprintf(w, "             %s\n", suggestion)
 			}
 		}
 
-		// Show details in wide mode
-		if wide && status.Details != nil {
-			switch details := status.Details.(type) {
-			case map[string]any:
-				for k, v := range details {
-					fmt.Fprintf(w, "             %s: %v\n", k, v)
-				}
+		if wide && !component.Details.IsZero() {
+			for _, line := range component.Details.lines() {
+				fmt.Fprintf(w, "             %s\n", line)
 			}
 		}
 	}
 
-	// Print overall status
-	fmt.Fprintln(w, "")
-	var overallStr string
+	fmt.Fprintln(w)
+	overall := "UNKNOWN"
 	switch r.Overall {
 	case HealthLevelHealthy:
-		overallStr = sf.Healthy()
+		overall = sf.Healthy()
 	case HealthLevelWarning:
-		overallStr = sf.Warning()
+		overall = sf.Warning()
 	case HealthLevelUnhealthy:
-		overallStr = sf.Unhealthy()
-	default:
-		overallStr = "UNKNOWN"
+		overall = sf.Unhealthy()
 	}
-	fmt.Fprintf(w, "Overall: %s (%s)\n", overallStr, r.Duration)
-
+	fmt.Fprintf(w, "Overall: %s (%s)\n", overall, r.Duration)
 	return nil
 }
 

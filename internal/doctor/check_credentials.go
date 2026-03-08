@@ -2,29 +2,30 @@
 //
 // Purpose:
 //
-//	Implement credential validation diagnostics as a focused module.
+//	Implement credential validation diagnostics through the shared typed
+//	gateway service so auth checks follow the same runtime model as status.
 //
 // Responsibilities:
 //   - Verify the configured master key is present.
 //   - Check whether the gateway authorizes that master key.
+//
+// Non-scope:
+//   - Does not mutate gateway credentials or configuration.
+//
+// Invariants/Assumptions:
+//   - Credential validation uses the same typed gateway probes as status.
 //
 // Scope:
 //   - Credential diagnostics only.
 //
 // Usage:
 //   - Used through its package exports and CLI entrypoints as applicable.
-//
-// Invariants/Assumptions:
-//   - Behavior must remain deterministic for equivalent inputs.
 package doctor
 
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"path/filepath"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -33,17 +34,24 @@ type credentialsValidCheck struct{}
 func (c credentialsValidCheck) ID() string { return "credentials_valid" }
 
 func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResult {
-	masterKey := config.NewLoader().Gateway(false).MasterKey
-	if masterKey == "" {
-		masterKey = loadEnvFromFile(filepath.Join(opts.RepoRoot, "demo", ".env"), "LITELLM_MASTER_KEY")
+	client := doctorGatewayClient(opts)
+	state := client.Status(ctx)
+	details := status.ComponentDetails{
+		BaseURL:             state.BaseURL,
+		HTTPStatus:          state.Models.HTTPStatus,
+		MasterKeyConfigured: state.MasterKeyConfigured,
+		Authorized:          state.Models.Authorized,
+		Error:               state.Models.Error,
 	}
-	if masterKey == "" {
+
+	if !state.MasterKeyConfigured {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Credentials Valid",
 			Level:    status.HealthLevelUnhealthy,
 			Severity: SeverityPrereq,
 			Message:  "LITELLM_MASTER_KEY not set",
+			Details:  details,
 			Suggestions: []string{
 				"Run: make install",
 				"Set LITELLM_MASTER_KEY environment variable",
@@ -51,72 +59,59 @@ func (c credentialsValidCheck) Run(ctx context.Context, opts Options) CheckResul
 		}
 	}
 
-	host, port := gatewayLocation(opts)
-	client := &http.Client{Timeout: config.DefaultHTTPTimeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s:%s/v1/models", host, port), nil)
-	if err != nil {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Credentials Valid",
-			Level:    status.HealthLevelUnhealthy,
-			Severity: SeverityRuntime,
-			Message:  fmt.Sprintf("Failed to create request: %v", err),
-		}
-	}
-	req.Header.Set("Authorization", "Bearer "+masterKey)
-	resp, err := client.Do(req)
-	if err != nil {
+	if state.Models.Error != "" {
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Credentials Valid",
 			Level:    status.HealthLevelWarning,
 			Severity: SeverityDomain,
 			Message:  "Gateway unreachable; cannot validate credentials",
+			Details:  details,
 			Suggestions: []string{
 				"Ensure services are running: make up",
 				"Check network connectivity",
 			},
 		}
 	}
-	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusOK:
+
+	if state.Models.Healthy {
+		details.AuthStatus = "authorized"
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Credentials Valid",
 			Level:    status.HealthLevelHealthy,
 			Severity: SeverityDomain,
 			Message:  "Master key is valid",
-			Details: map[string]any{
-				"auth_status": "authorized",
-			},
+			Details:  details,
 		}
-	case http.StatusUnauthorized:
+	}
+
+	if !state.Models.Authorized {
+		details.AuthStatus = "unauthorized"
 		return CheckResult{
 			ID:       c.ID(),
 			Name:     "Credentials Valid",
 			Level:    status.HealthLevelUnhealthy,
 			Severity: SeverityDomain,
 			Message:  "Master key is invalid or placeholder",
+			Details:  details,
 			Suggestions: []string{
 				"Regenerate master key: make key-gen-master",
 				"Check demo/.env for correct key",
 			},
-			Details: map[string]any{
-				"auth_status": "unauthorized",
-			},
 		}
-	default:
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Credentials Valid",
-			Level:    status.HealthLevelWarning,
-			Severity: SeverityDomain,
-			Message:  fmt.Sprintf("Unexpected response: %d", resp.StatusCode),
-			Suggestions: []string{
-				"Check gateway status: make health",
-			},
-		}
+	}
+
+	return CheckResult{
+		ID:       c.ID(),
+		Name:     "Credentials Valid",
+		Level:    status.HealthLevelWarning,
+		Severity: SeverityDomain,
+		Message:  fmt.Sprintf("Unexpected response: %d", state.Models.HTTPStatus),
+		Details:  details,
+		Suggestions: []string{
+			"Check gateway status: make health",
+		},
 	}
 }
 

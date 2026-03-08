@@ -51,15 +51,15 @@ const (
 
 // CheckResult represents the outcome of a single diagnostic check.
 type CheckResult struct {
-	ID          string             `json:"id"`
-	Name        string             `json:"name"`
-	Level       status.HealthLevel `json:"level"`
-	Severity    Severity           `json:"severity,omitempty"`
-	Message     string             `json:"message"`
-	Details     map[string]any     `json:"details,omitempty"`
-	Suggestions []string           `json:"suggestions,omitempty"`
-	FixApplied  bool               `json:"fix_applied,omitempty"`
-	FixMessage  string             `json:"fix_message,omitempty"`
+	ID          string                  `json:"id"`
+	Name        string                  `json:"name"`
+	Level       status.HealthLevel      `json:"level"`
+	Severity    Severity                `json:"severity,omitempty"`
+	Message     string                  `json:"message"`
+	Details     status.ComponentDetails `json:"details,omitempty"`
+	Suggestions []string                `json:"suggestions,omitempty"`
+	FixApplied  bool                    `json:"fix_applied,omitempty"`
+	FixMessage  string                  `json:"fix_message,omitempty"`
 }
 
 // Check defines the interface for all diagnostic checks.

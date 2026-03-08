@@ -29,8 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
+	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 	"github.com/mitchfultz/ai-control-plane/internal/status/collectors"
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
@@ -112,23 +113,21 @@ func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stder
 		fmt.Fprintln(stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
 	}
-	runtime := config.NewLoader().Gateway(true)
-	gatewayHost := runtime.Host
-	litellmPort := runtime.Port
+	dbClient := db.NewClient(repoRoot)
+	defer dbClient.Close()
+	gatewayClient := gateway.NewClient()
 
 	opts := status.Options{
-		RepoRoot:    repoRoot,
-		GatewayHost: gatewayHost,
-		LITELLMPort: litellmPort,
-		Wide:        wide,
+		RepoRoot: repoRoot,
+		Wide:     wide,
 	}
 
 	collectorsList := []status.Collector{
-		collectors.GatewayCollector{Host: gatewayHost, Port: litellmPort},
-		collectors.NewDatabaseCollector(repoRoot),
-		collectors.NewKeysCollector(repoRoot),
-		collectors.NewBudgetCollector(repoRoot),
-		collectors.NewDetectionsCollector(repoRoot),
+		collectors.NewGatewayCollector(gatewayClient),
+		collectors.NewDatabaseCollector(dbClient),
+		collectors.NewKeysCollector(dbClient),
+		collectors.NewBudgetCollector(dbClient),
+		collectors.NewDetectionsCollector(repoRoot, dbClient),
 	}
 
 	if !watchMode {

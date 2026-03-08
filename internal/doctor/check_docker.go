@@ -2,27 +2,31 @@
 //
 // Purpose:
 //
-//	Implement the Docker availability check as a focused module.
+//	Implement the Docker availability check through the canonical subprocess
+//	layer so operator-facing failures and timeouts are shaped consistently.
 //
 // Responsibilities:
 //   - Verify the docker binary exists.
 //   - Verify the Docker daemon is accessible.
+//
+// Non-scope:
+//   - Does not manage Docker service lifecycle.
+//
+// Invariants/Assumptions:
+//   - All subprocess execution flows through internal/proc.
 //
 // Scope:
 //   - Docker prerequisite diagnostics only.
 //
 // Usage:
 //   - Used through its package exports and CLI entrypoints as applicable.
-//
-// Invariants/Assumptions:
-//   - Behavior must remain deterministic for equivalent inputs.
 package doctor
 
 import (
 	"context"
-	"os/exec"
 	"strings"
 
+	"github.com/mitchfultz/ai-control-plane/internal/proc"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -31,46 +35,31 @@ type dockerAvailableCheck struct{}
 func (c dockerAvailableCheck) ID() string { return "docker_available" }
 
 func (c dockerAvailableCheck) Run(ctx context.Context, opts Options) CheckResult {
-	dockerPath, err := exec.LookPath("docker")
-	if err != nil {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Docker Available",
-			Level:    status.HealthLevelUnhealthy,
-			Severity: SeverityPrereq,
-			Message:  "Docker not found in PATH",
-			Suggestions: []string{
+	result := proc.Run(ctx, proc.Request{Name: "docker", Args: []string{"info"}})
+	if result.Err != nil {
+		message := "Docker daemon not accessible"
+		suggestions := []string{
+			"Ensure Docker service is running",
+			"Add your user to the docker group if required",
+		}
+		if proc.IsNotFound(result.Err) {
+			message = "Docker not found in PATH"
+			suggestions = []string{
 				"Install Docker: https://docs.docker.com/get-docker/",
 				"Verify installation: docker --version",
-			},
-		}
-	}
-
-	cmd := exec.CommandContext(ctx, dockerPath, "info")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		msg := "Docker daemon not accessible"
-		suggestions := []string{
-			"Ensure Docker service is running: sudo systemctl start docker",
-			"Add user to docker group: sudo usermod -aG docker $USER",
-			"Re-login or run: newgrp docker",
-		}
-		if strings.Contains(string(output), "permission denied") {
-			msg = "Docker daemon requires permissions"
-			suggestions = []string{
-				"Add user to docker group: sudo usermod -aG docker $USER",
-				"Re-login or run: newgrp docker",
 			}
+		} else if strings.Contains(strings.ToLower(result.Stderr), "permission denied") {
+			message = "Docker daemon requires permissions"
 		}
 		return CheckResult{
 			ID:          c.ID(),
 			Name:        "Docker Available",
 			Level:       status.HealthLevelUnhealthy,
 			Severity:    SeverityPrereq,
-			Message:     msg,
+			Message:     message,
 			Suggestions: suggestions,
-			Details: map[string]any{
-				"docker_path": dockerPath,
+			Details: status.ComponentDetails{
+				Error: strings.TrimSpace(result.Stderr),
 			},
 		}
 	}
@@ -81,9 +70,6 @@ func (c dockerAvailableCheck) Run(ctx context.Context, opts Options) CheckResult
 		Level:    status.HealthLevelHealthy,
 		Severity: SeverityDomain,
 		Message:  "Docker is available and daemon is accessible",
-		Details: map[string]any{
-			"docker_path": dockerPath,
-		},
 	}
 }
 

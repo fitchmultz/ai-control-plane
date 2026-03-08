@@ -2,25 +2,24 @@
 //
 // Purpose:
 //
-//	Provide HTTP client operations for the LiteLLM gateway including
-//	health checks, key generation, and API interactions.
+//	Provide typed gateway probing and API operations for the ACP runtime.
 //
 // Responsibilities:
-//   - Gateway health checks
-//   - HTTP request building with proper headers
-//   - Key generation API calls
-//   - Response parsing
+//   - Resolve effective gateway endpoint and authentication settings.
+//   - Execute typed authorized probes for /health and /v1/models.
+//   - Provide shared HTTP request construction and error shaping.
+//   - Execute key generation requests against the gateway API.
 //
 // Non-scope:
-//   - Does not manage virtual key storage
-//   - Does not handle authentication beyond master key
+//   - Does not manage virtual key storage.
+//   - Does not own CLI-specific output formatting.
 //
 // Invariants/Assumptions:
-//   - Gateway follows LiteLLM API conventions
-//   - Master key is provided for authenticated endpoints
+//   - Gateway defaults stay aligned with internal/config defaults.
+//   - Authorized operator probes use the LiteLLM master key when configured.
 //
 // Scope:
-//   - File-local implementation and interfaces only.
+//   - File-local gateway probing and client implementation only.
 //
 // Usage:
 //   - Used through its package exports and CLI entrypoints as applicable.
@@ -46,7 +45,27 @@ const (
 	defaultMaxTime        = 30 * time.Second
 )
 
-// Client provides gateway HTTP operations
+// Probe captures the outcome of a single gateway endpoint probe.
+type Probe struct {
+	Path       string        `json:"path"`
+	URL        string        `json:"url"`
+	HTTPStatus int           `json:"http_status,omitempty"`
+	Reachable  bool          `json:"reachable"`
+	Authorized bool          `json:"authorized"`
+	Healthy    bool          `json:"healthy"`
+	Latency    time.Duration `json:"latency,omitempty"`
+	Error      string        `json:"error,omitempty"`
+}
+
+// Status captures typed gateway runtime health.
+type Status struct {
+	BaseURL             string `json:"base_url"`
+	MasterKeyConfigured bool   `json:"master_key_configured"`
+	Health              Probe  `json:"health"`
+	Models              Probe  `json:"models"`
+}
+
+// Client provides gateway HTTP operations.
 type Client struct {
 	host           string
 	port           int
@@ -56,38 +75,38 @@ type Client struct {
 	maxTime        time.Duration
 }
 
-// Option configures the Client
+// Option configures the Client.
 type Option func(*Client)
 
-// WithHost sets the gateway host
+// WithHost sets the gateway host.
 func WithHost(host string) Option {
 	return func(c *Client) {
 		c.host = host
 	}
 }
 
-// WithPort sets the gateway port
+// WithPort sets the gateway port.
 func WithPort(port int) Option {
 	return func(c *Client) {
 		c.port = port
 	}
 }
 
-// WithMasterKey sets the master key for authentication
+// WithMasterKey sets the master key for authentication.
 func WithMasterKey(key string) Option {
 	return func(c *Client) {
 		c.masterKey = key
 	}
 }
 
-// WithTimeout sets the request timeout
+// WithTimeout sets the request timeout.
 func WithTimeout(timeout time.Duration) Option {
 	return func(c *Client) {
 		c.httpClient.Timeout = timeout
 	}
 }
 
-// NewClient creates a new gateway client
+// NewClient creates a new gateway client.
 func NewClient(opts ...Option) *Client {
 	runtime := config.NewLoader().Gateway(false)
 	host := runtime.Host
@@ -109,7 +128,7 @@ func NewClient(opts ...Option) *Client {
 	return c
 }
 
-// BaseURL returns the gateway base URL
+// BaseURL returns the gateway base URL.
 func (c *Client) BaseURL() string {
 	return fmt.Sprintf("http://%s:%d", c.host, c.port)
 }
@@ -119,29 +138,40 @@ func (c *Client) HasMasterKey() bool {
 	return strings.TrimSpace(c.masterKey) != ""
 }
 
-// Health checks the gateway health endpoint
+// Status executes the canonical ACP gateway probes.
+func (c *Client) Status(ctx context.Context) Status {
+	status := Status{
+		BaseURL:             c.BaseURL(),
+		MasterKeyConfigured: c.HasMasterKey(),
+	}
+
+	status.Health = c.probe(ctx, "/health")
+	status.Models = c.probe(ctx, "/v1/models")
+
+	return status
+}
+
+// Health checks the gateway health endpoint.
 // Returns true if the endpoint is authorized and healthy.
 func (c *Client) Health(ctx context.Context) (bool, int, error) {
-	url := fmt.Sprintf("%s/health", c.BaseURL())
-	code, err := c.doStatusRequest(ctx, url)
-	if err != nil {
-		return false, code, err
+	probe := c.probe(ctx, "/health")
+	if probe.Error != "" {
+		return false, probe.HTTPStatus, fmt.Errorf("gateway probe %s failed: %s", probe.Path, probe.Error)
 	}
-	return code == http.StatusOK, code, nil
+	return probe.Healthy, probe.HTTPStatus, nil
 }
 
-// Models checks the gateway models endpoint
+// Models checks the gateway models endpoint.
 // Returns true if the endpoint is authorized and accessible.
 func (c *Client) Models(ctx context.Context) (bool, int, error) {
-	url := fmt.Sprintf("%s/v1/models", c.BaseURL())
-	code, err := c.doStatusRequest(ctx, url)
-	if err != nil {
-		return false, code, err
+	probe := c.probe(ctx, "/v1/models")
+	if probe.Error != "" {
+		return false, probe.HTTPStatus, fmt.Errorf("gateway probe %s failed: %s", probe.Path, probe.Error)
 	}
-	return code == http.StatusOK, code, nil
+	return probe.Healthy, probe.HTTPStatus, nil
 }
 
-// GenerateKey generates a new virtual key
+// GenerateKey generates a new virtual key.
 func (c *Client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (*GenerateKeyResponse, error) {
 	if c.masterKey == "" {
 		return nil, fmt.Errorf("master key is required for key generation")
@@ -185,32 +215,44 @@ func (c *Client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (*Gen
 	return &result, nil
 }
 
-// doStatusRequest performs a GET request and returns the status code
-func (c *Client) doStatusRequest(ctx context.Context, url string) (int, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.connectTimeout)
+func (c *Client) probe(ctx context.Context, path string) Probe {
+	url := c.BaseURL() + path
+	probe := Probe{
+		Path: path,
+		URL:  url,
+	}
+
+	start := time.Now()
+	reqCtx, cancel := context.WithTimeout(ctx, c.connectTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
 	if err != nil {
-		return 0, err
+		probe.Error = fmt.Sprintf("request creation failed: %v", err)
+		return probe
 	}
 	if c.HasMasterKey() {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.masterKey))
 	}
 
 	resp, err := c.httpClient.Do(req)
+	probe.Latency = time.Since(start).Round(time.Millisecond)
 	if err != nil {
-		return 0, err
+		probe.Error = err.Error()
+		return probe
 	}
 	defer resp.Body.Close()
-
-	// Consume body to ensure connection can be reused
 	_, _ = io.Copy(io.Discard, resp.Body)
 
-	return resp.StatusCode, nil
+	probe.Reachable = true
+	probe.HTTPStatus = resp.StatusCode
+	probe.Authorized = resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden
+	probe.Healthy = resp.StatusCode == http.StatusOK
+
+	return probe
 }
 
-// GenerateKeyRequest represents a key generation request
+// GenerateKeyRequest represents a key generation request.
 type GenerateKeyRequest struct {
 	KeyAlias            string   `json:"key_alias"`
 	MaxBudget           float64  `json:"max_budget"`
@@ -221,7 +263,7 @@ type GenerateKeyRequest struct {
 	MaxParallelRequests int      `json:"max_parallel_requests,omitempty"`
 }
 
-// GenerateKeyResponse represents a key generation response
+// GenerateKeyResponse represents a key generation response.
 type GenerateKeyResponse struct {
 	Key            string  `json:"key"`
 	KeyAlias       string  `json:"key_alias"`
@@ -229,7 +271,7 @@ type GenerateKeyResponse struct {
 	BudgetDuration string  `json:"budget_duration"`
 }
 
-// ExtractKey extracts the key from a response
+// ExtractKey extracts the key from a response.
 func (r *GenerateKeyResponse) ExtractKey() string {
 	return r.Key
 }

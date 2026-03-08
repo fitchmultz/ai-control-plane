@@ -1,60 +1,42 @@
-// database.go implements the PostgreSQL status collector.
+// Package collectors provides status collectors backed by typed ACP services.
 //
 // Purpose:
 //
-//	Inspect PostgreSQL reachability and key metadata used by the ACP runtime so
-//	operator health checks can explain database readiness.
+//	Expose a database status collector that consumes the shared typed database
+//	service for both embedded and external runtime modes.
 //
 // Responsibilities:
-//   - Resolve the PostgreSQL container for the active ACP runtime.
-//   - Execute health and metadata queries through the shared runner/runtime helpers.
-//   - Translate query outcomes into component health messages and suggestions.
+//   - Convert typed database runtime summaries into status.ComponentStatus.
+//   - Surface uniform operator guidance for configuration and connectivity failures.
 //
-// Scope:
-//   - Covers database connectivity and lightweight operational metrics only.
-//
-// Usage:
-//   - Construct `NewDatabaseCollector(repoRoot)` and call `Collect(ctx)`.
+// Non-scope:
+//   - Does not execute collector-local SQL or subprocess logic.
 //
 // Invariants/Assumptions:
-//   - PostgreSQL access is mediated through the collector runtime helpers.
-//   - Query output is sanitized before being surfaced to operators.
+//   - Database summaries come from the shared typed database service.
+//
+// Scope:
+//   - Database status collection only.
+//
+// Usage:
+//   - Construct with NewDatabaseCollector(client) and call Collect(ctx).
 package collectors
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
-	"github.com/mitchfultz/ai-control-plane/internal/status/runner"
-	"os/exec"
-	"strconv"
-	"strings"
 )
 
 // DatabaseCollector checks PostgreSQL connectivity and metrics.
 type DatabaseCollector struct {
-	RepoRoot string
-	runner   runner.Runner
-	compose  containerIDResolver
+	client *db.Client
 }
 
-// NewDatabaseCollector creates a new database collector
-func NewDatabaseCollector(repoRoot string) *DatabaseCollector {
-	return &DatabaseCollector{
-		RepoRoot: repoRoot,
-		runner:   newCollectorRunner(repoRoot),
-		compose:  newCollectorCompose(repoRoot),
-	}
-}
-
-// SetRunner sets a custom runner (for testing)
-func (c *DatabaseCollector) SetRunner(r runner.Runner) {
-	c.runner = r
-}
-
-// SetContainerResolver sets a custom container resolver (for testing)
-func (c *DatabaseCollector) SetContainerResolver(resolver containerIDResolver) {
-	c.compose = resolver
+// NewDatabaseCollector creates a new database collector.
+func NewDatabaseCollector(client *db.Client) DatabaseCollector {
+	return DatabaseCollector{client: client}
 }
 
 // Name returns the collector's domain name.
@@ -62,124 +44,60 @@ func (c DatabaseCollector) Name() string {
 	return "database"
 }
 
-func (c DatabaseCollector) resolvePostgresContainer(ctx context.Context) (string, error) {
-	return resolvePostgresContainer(ctx, resolveCollectorRuntime(c.RepoRoot, c.runner, c.compose))
-}
-
-func (c DatabaseCollector) runQuery(ctx context.Context, containerID, query string) *runner.Result {
-	return runPostgresQuery(ctx, resolveCollectorRuntime(c.RepoRoot, c.runner, c.compose), containerID, query)
-}
-
 // Collect gathers database status information.
 func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
-	// Check docker is available
-	if _, err := exec.LookPath("docker"); err != nil {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnknown,
-			Message: "Docker not available",
-			Suggestions: []string{
-				"Install Docker: https://docs.docker.com/get-docker/",
-			},
-		}
+	summary, err := c.client.Summary(ctx)
+	details := status.ComponentDetails{
+		Mode:           summary.Mode.String(),
+		DatabaseName:   summary.DatabaseName,
+		DatabaseUser:   summary.DatabaseUser,
+		ContainerID:    summary.ContainerID,
+		ExpectedTables: summary.ExpectedTables,
+		Version:        summary.Version,
+		Size:           summary.Size,
+		Connections:    summary.Connections,
+	}
+	if summary.Ping.Error != "" {
+		details.Error = summary.Ping.Error
 	}
 
-	containerID, err := c.resolvePostgresContainer(ctx)
-	if err != nil {
-		message := "PostgreSQL container not running"
-		if !strings.Contains(err.Error(), "not found") {
-			message = "Failed to locate PostgreSQL container"
-		}
-
+	if c.client.ConfigError() != nil {
 		return status.ComponentStatus{
 			Name:    c.Name(),
 			Level:   status.HealthLevelUnhealthy,
-			Message: message,
-			Details: map[string]any{
-				"lookup_error": runner.SanitizeForDisplay(err.Error()),
-			},
-			Suggestions: []string{
-				"Start services: make up",
-				"Check container status: docker ps",
-			},
-		}
-	}
-
-	// Test database connectivity with a simple query
-	testResult := c.runQuery(ctx, containerID, "SELECT 1;")
-	if testResult.Error != nil {
-		errMsg := "PostgreSQL not accepting connections"
-		details := map[string]any{
-			"exit_code": testResult.ExitCode,
-		}
-		if testResult.Stderr != "" {
-			details["stderr"] = runner.SanitizeForDisplay(testResult.Stderr)
-		}
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnhealthy,
-			Message: errMsg,
+			Message: "Database configuration is ambiguous",
 			Details: details,
 			Suggestions: []string{
-				"Check PostgreSQL logs: docker compose logs postgres",
-				"Restart services: make restart",
+				"Set ACP_DATABASE_MODE=embedded for the local demo stack",
+				"Or set ACP_DATABASE_MODE=external when using DATABASE_URL",
 			},
 		}
 	}
 
-	// Verify we got a result
-	if !strings.Contains(testResult.Stdout, "1") {
+	if err != nil {
+		return status.ComponentStatus{
+			Name:    c.Name(),
+			Level:   status.HealthLevelUnhealthy,
+			Message: "PostgreSQL is not accepting connections",
+			Details: details,
+			Suggestions: []string{
+				"Check PostgreSQL connectivity and credentials",
+				"Start or restart services: make up / make restart",
+			},
+		}
+	}
+
+	if summary.ExpectedTables < 4 {
 		return status.ComponentStatus{
 			Name:    c.Name(),
 			Level:   status.HealthLevelWarning,
-			Message: "PostgreSQL responded unexpectedly",
-			Details: map[string]any{
-				"response": testResult.Stdout,
+			Message: "Database accessible, but schema is incomplete",
+			Details: details,
+			Suggestions: []string{
+				"Run the stack long enough for LiteLLM schema initialization",
+				"Verify LiteLLM database migrations completed",
 			},
 		}
-	}
-
-	// Collect metrics
-	details := make(map[string]any)
-
-	// Get table counts
-	tableQuery := `
-		SELECT COUNT(*) FROM information_schema.tables
-		WHERE table_schema = 'public'
-		AND table_name IN ('LiteLLM_VerificationToken', 'LiteLLM_UserTable', 'LiteLLM_BudgetTable', 'LiteLLM_SpendLogs');
-	`
-	tablesResult := c.runQuery(ctx, containerID, tableQuery)
-	if tablesResult.Error == nil {
-		tableCount, _ := strconv.Atoi(strings.TrimSpace(tablesResult.Stdout))
-		details["expected_tables"] = tableCount
-	} else if tablesResult.Stderr != "" {
-		details["tables_error"] = runner.SanitizeForDisplay(tablesResult.Stderr)
-	}
-
-	// Get version
-	versionResult := c.runQuery(ctx, containerID, "SELECT version();")
-	if versionResult.Error == nil {
-		version := strings.TrimSpace(versionResult.Stdout)
-		if idx := strings.Index(version, "PostgreSQL"); idx != -1 {
-			end := min(idx+20, len(version))
-			version = strings.TrimSpace(version[idx:end])
-		}
-		details["version"] = version
-	} else if versionResult.Stderr != "" {
-		details["version_error"] = runner.SanitizeForDisplay(versionResult.Stderr)
-	}
-
-	// Get database size
-	sizeResult := c.runQuery(ctx, containerID, "SELECT pg_size_pretty(pg_database_size('litellm'));")
-	if sizeResult.Error == nil {
-		details["size"] = strings.TrimSpace(sizeResult.Stdout)
-	}
-
-	// Get active connections
-	connResult := c.runQuery(ctx, containerID, "SELECT count(*) FROM pg_stat_activity WHERE datname = 'litellm';")
-	if connResult.Error == nil {
-		connections := strings.TrimSpace(connResult.Stdout)
-		details["connections"] = connections
 	}
 
 	return status.ComponentStatus{
@@ -188,23 +106,4 @@ func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
 		Message: "Connected",
 		Details: details,
 	}
-}
-
-// dbQuery executes a SQL query against the PostgreSQL database.
-func (c DatabaseCollector) dbQuery(ctx context.Context, query string) (string, error) {
-	containerID, err := c.resolvePostgresContainer(ctx)
-	if err != nil {
-		return "", fmt.Errorf("postgres container lookup failed: %w", err)
-	}
-
-	result := c.runQuery(ctx, containerID, query)
-	if result.Error != nil {
-		errMsg := fmt.Sprintf("query failed (exit %d)", result.ExitCode)
-		if result.Stderr != "" {
-			errMsg = fmt.Sprintf("%s: %s", errMsg, runner.SanitizeForDisplay(result.Stderr))
-		}
-		return "", fmt.Errorf("%s", errMsg)
-	}
-
-	return strings.TrimSpace(result.Stdout), nil
 }
