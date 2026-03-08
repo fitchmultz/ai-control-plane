@@ -59,7 +59,11 @@ func runChargebackCommand(ctx context.Context, args []string, stdout *os.File, s
 }
 
 func printChargebackHelp(out *os.File) {
-	command := mustLookupNativeCommand("chargeback")
+	command, err := lookupNativeRootCommand("chargeback")
+	if err != nil {
+		fmt.Fprintf(out, "Error: %v\n", err)
+		return
+	}
 
 	fmt.Fprint(out, `Usage: acpctl chargeback <subcommand> [options]
 

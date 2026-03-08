@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
 type fakeKeyGenerator struct {
@@ -49,7 +51,7 @@ func TestRun_InvalidToolReturnsUsage(t *testing.T) {
 		Stderr:   stderr,
 	})
 
-	if result.ExitCode != ExitUsage {
+	if result.ExitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage exit, got %d", result.ExitCode)
 	}
 	if !strings.Contains(stderr.String(), "unsupported tool") {
@@ -79,7 +81,7 @@ func TestRun_RedactsGeneratedKeyByDefault(t *testing.T) {
 		}},
 	})
 
-	if result.ExitCode != ExitSuccess {
+	if result.ExitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected success, got %d stderr=%s", result.ExitCode, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), `export OPENAI_API_KEY="sk-test-...cdef"`) {
@@ -139,7 +141,7 @@ func TestRun_VerifyChecksGatewayEndpoints(t *testing.T) {
 		HTTPClient: server.Client(),
 	})
 
-	if result.ExitCode != ExitSuccess {
+	if result.ExitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected success, got %d stderr=%s", result.ExitCode, stderr.String())
 	}
 	if !sawHealth || !sawModels {

@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 )
 
 // Builder handles bundle construction
@@ -85,7 +86,7 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 	manifestPaths := append([]string(nil), CanonicalPaths...)
 	sort.Strings(manifestPaths)
 	manifestContent := strings.Join(manifestPaths, "\n") + "\n"
-	if err := os.WriteFile(installManifest, []byte(manifestContent), 0644); err != nil {
+	if err := fsutil.AtomicWriteFile(installManifest, []byte(manifestContent), 0o644); err != nil {
 		return fmt.Errorf("failed to create install manifest: %w", err)
 	}
 
@@ -150,7 +151,7 @@ func (b *Builder) buildChecksums(payloadDir, outputPath string) error {
 
 	sort.Strings(checksums)
 	content := strings.Join(checksums, "\n") + "\n"
-	return os.WriteFile(outputPath, []byte(content), 0644)
+	return fsutil.AtomicWriteFile(outputPath, []byte(content), 0o644)
 }
 
 func (b *Builder) createReproducibleTarball(stageDir, outputPath string) error {
@@ -235,7 +236,7 @@ func (b *Builder) createChecksumSidecar(bundlePath string) error {
 		return err
 	}
 	content := fmt.Sprintf("%s  %s\n", hash, filepath.Base(bundlePath))
-	return os.WriteFile(bundlePath+".sha256", []byte(content), 0644)
+	return fsutil.AtomicWriteFile(bundlePath+".sha256", []byte(content), 0o644)
 }
 
 // copyFile copies a file from src to dst
@@ -244,7 +245,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0644)
+	return fsutil.AtomicWriteFile(dst, data, 0o644)
 }
 
 // ComputeFileHash computes SHA256 hash of a file

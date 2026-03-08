@@ -55,7 +55,11 @@ func runCISubcommand(ctx context.Context, args []string, stdout *os.File, stderr
 }
 
 func printCIHelp(out *os.File) {
-	command := mustLookupNativeCommand("ci")
+	command, err := lookupNativeRootCommand("ci")
+	if err != nil {
+		fmt.Fprintf(out, "Error: %v\n", err)
+		return
+	}
 
 	fmt.Fprint(out, `Usage: acpctl ci <subcommand> [options]
 

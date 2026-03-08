@@ -23,7 +23,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"sync"
 )
 
 type commandRunner func(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int
@@ -57,6 +59,38 @@ type commandRegistry struct {
 	RootCommands     []commandDescriptor
 	GroupSubcommands map[string][]commandDescriptor
 }
+
+type compiledCommandState struct {
+	Catalog           commandCatalog
+	Registry          commandRegistry
+	RootByName        map[string]rootCommandDefinition
+	SubcommandsByRoot map[string]map[string]subcommandDefinition
+}
+
+type commandLookupError struct {
+	Kind string
+	Root string
+	Name string
+}
+
+func (e *commandLookupError) Error() string {
+	switch e.Kind {
+	case "root":
+		return fmt.Sprintf("unknown root command: %s", e.Name)
+	case "native-root":
+		return fmt.Sprintf("command is not a native root command: %s", e.Name)
+	case "subcommand":
+		return fmt.Sprintf("unknown subcommand %s for root %s", e.Name, e.Root)
+	default:
+		return "invalid command lookup"
+	}
+}
+
+var (
+	commandStateOnce sync.Once
+	commandState     compiledCommandState
+	commandStateErr  error
+)
 
 func buildCommandCatalog() commandCatalog {
 	return commandCatalog{
@@ -348,70 +382,114 @@ func buildCommandCatalog() commandCatalog {
 	}
 }
 
-func lookupRootCommand(name string) (rootCommandDefinition, bool) {
-	for _, command := range buildCommandCatalog().RootCommands {
-		if command.Name == name {
-			return command, true
-		}
-	}
-	return rootCommandDefinition{}, false
+func loadCommandState() (compiledCommandState, error) {
+	commandStateOnce.Do(func() {
+		commandState, commandStateErr = compileCommandState(buildCommandCatalog())
+	})
+	return commandState, commandStateErr
 }
 
-func mustLookupRootCommand(name string) rootCommandDefinition {
-	command, ok := lookupRootCommand(name)
-	if !ok {
-		panic("missing command definition: " + name)
+func compileCommandState(catalog commandCatalog) (compiledCommandState, error) {
+	state := compiledCommandState{
+		Catalog:           catalog,
+		Registry:          commandRegistry{RootCommands: make([]commandDescriptor, 0, len(catalog.RootCommands)+1), GroupSubcommands: make(map[string][]commandDescriptor, len(catalog.RootCommands))},
+		RootByName:        make(map[string]rootCommandDefinition, len(catalog.RootCommands)),
+		SubcommandsByRoot: make(map[string]map[string]subcommandDefinition, len(catalog.RootCommands)),
 	}
-	return command
-}
-
-func mustLookupNativeCommand(name string) rootCommandDefinition {
-	command := mustLookupRootCommand(name)
-	if command.NativeRun == nil {
-		panic("command is not a native root command: " + name)
-	}
-	return command
-}
-
-func lookupSubcommand(root rootCommandDefinition, name string) (subcommandDefinition, bool) {
-	for _, subcommand := range root.Subcommands {
-		if subcommand.Name == name {
-			return subcommand, true
-		}
-	}
-	return subcommandDefinition{}, false
-}
-
-func buildCommandRegistry() commandRegistry {
-	catalog := buildCommandCatalog()
-	registry := commandRegistry{
-		RootCommands:     make([]commandDescriptor, 0, len(catalog.RootCommands)+1),
-		GroupSubcommands: make(map[string][]commandDescriptor, len(catalog.RootCommands)),
-	}
-
 	for _, root := range catalog.RootCommands {
-		if root.Hidden {
-			continue
+		if _, exists := state.RootByName[root.Name]; exists {
+			return compiledCommandState{}, fmt.Errorf("duplicate root command definition: %s", root.Name)
 		}
-
-		registry.RootCommands = append(registry.RootCommands, root.commandDescriptor)
-		if len(root.Subcommands) == 0 {
-			continue
+		state.RootByName[root.Name] = root
+		if len(root.Subcommands) > 0 {
+			subcommands := make([]commandDescriptor, 0, len(root.Subcommands))
+			subByName := make(map[string]subcommandDefinition, len(root.Subcommands))
+			for _, subcommand := range root.Subcommands {
+				if _, exists := subByName[subcommand.Name]; exists {
+					return compiledCommandState{}, fmt.Errorf("duplicate subcommand definition for %s: %s", root.Name, subcommand.Name)
+				}
+				owners := 0
+				if subcommand.NativeRun != nil {
+					owners++
+				}
+				if subcommand.MakeTarget != "" {
+					owners++
+				}
+				if subcommand.ScriptRelativePath != "" {
+					owners++
+				}
+				if root.NativeRun == nil && owners != 1 {
+					return compiledCommandState{}, fmt.Errorf("%s %s must have exactly one owner", root.Name, subcommand.Name)
+				}
+				subByName[subcommand.Name] = subcommand
+				subcommands = append(subcommands, subcommand.commandDescriptor)
+			}
+			state.SubcommandsByRoot[root.Name] = subByName
+			if !root.Hidden {
+				state.Registry.GroupSubcommands[root.Name] = subcommands
+			}
 		}
-
-		subcommands := make([]commandDescriptor, 0, len(root.Subcommands))
-		for _, subcommand := range root.Subcommands {
-			subcommands = append(subcommands, subcommand.commandDescriptor)
+		if !root.Hidden {
+			state.Registry.RootCommands = append(state.Registry.RootCommands, root.commandDescriptor)
 		}
-		registry.GroupSubcommands[root.Name] = subcommands
 	}
-
-	registry.RootCommands = append(registry.RootCommands, commandDescriptor{
+	state.Registry.RootCommands = append(state.Registry.RootCommands, commandDescriptor{
 		Name:        "help",
 		Description: "Show this help message",
 	})
+	return state, nil
+}
 
-	return registry
+func commandStartupError() error {
+	_, err := loadCommandState()
+	return err
+}
+
+func buildCommandRegistry() commandRegistry {
+	state, err := loadCommandState()
+	if err != nil {
+		return commandRegistry{}
+	}
+	return state.Registry
+}
+
+func lookupRootCommand(name string) (rootCommandDefinition, error) {
+	state, err := loadCommandState()
+	if err != nil {
+		return rootCommandDefinition{}, err
+	}
+	command, ok := state.RootByName[name]
+	if !ok {
+		return rootCommandDefinition{}, &commandLookupError{Kind: "root", Name: name}
+	}
+	return command, nil
+}
+
+func lookupNativeRootCommand(name string) (rootCommandDefinition, error) {
+	command, err := lookupRootCommand(name)
+	if err != nil {
+		return rootCommandDefinition{}, err
+	}
+	if command.NativeRun == nil {
+		return rootCommandDefinition{}, &commandLookupError{Kind: "native-root", Name: name}
+	}
+	return command, nil
+}
+
+func lookupSubcommand(root rootCommandDefinition, name string) (subcommandDefinition, error) {
+	state, err := loadCommandState()
+	if err != nil {
+		return subcommandDefinition{}, err
+	}
+	subcommands, ok := state.SubcommandsByRoot[root.Name]
+	if !ok {
+		return subcommandDefinition{}, &commandLookupError{Kind: "subcommand", Root: root.Name, Name: name}
+	}
+	subcommand, ok := subcommands[name]
+	if !ok {
+		return subcommandDefinition{}, &commandLookupError{Kind: "subcommand", Root: root.Name, Name: name}
+	}
+	return subcommand, nil
 }
 
 func runDeveloperKeyGenCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
