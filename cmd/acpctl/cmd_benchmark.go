@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
@@ -43,183 +42,165 @@ var benchmarkRunner = performance.RunBaseline
 
 const benchmarkProfileConfigRelativePath = "demo/config/benchmark_thresholds.json"
 
-func runBenchmarkCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 || isHelpToken(args[0]) {
-		printBenchmarkHelp(stdout)
-		if len(args) == 0 {
-			return exitcodes.ACPExitUsage
-		}
-		return exitcodes.ACPExitSuccess
-	}
-	if args[0] != "baseline" {
-		fmt.Fprintf(stderr, "Error: unknown benchmark command: %s\n", args[0])
-		printBenchmarkHelp(stderr)
-		return exitcodes.ACPExitUsage
-	}
-	return runBenchmarkBaseline(ctx, args[1:], stdout, stderr)
+type benchmarkBaselineOptions struct {
+	GatewayURL     string
+	MasterKey      string
+	Model          string
+	Profile        string
+	Prompt         string
+	WarmupRequests int
+	Requests       int
+	Concurrency    int
+	MaxTokens      int
+	JSON           bool
+	WarmupSet      bool
+	RequestsSet    bool
+	ConcurrencySet bool
 }
 
-func runBenchmarkBaseline(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+func benchmarkCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "benchmark",
+		Summary:     "Lightweight local performance baseline",
+		Description: "Lightweight local performance baseline.",
+		Examples: []string{
+			"acpctl benchmark baseline",
+			"acpctl benchmark baseline --profile interactive",
+			"acpctl benchmark baseline --requests 40 --concurrency 4",
+			"acpctl benchmark baseline --json",
+		},
+		Children: []*commandSpec{
+			{
+				Name:        "baseline",
+				Summary:     "Run the local gateway performance baseline",
+				Description: "Run the local gateway performance baseline.",
+				Examples: []string{
+					"acpctl benchmark baseline",
+					"acpctl benchmark baseline --profile interactive",
+					"acpctl benchmark baseline --requests 40 --concurrency 4",
+					"acpctl benchmark baseline --json",
+				},
+				Options: []commandOptionSpec{
+					{Name: "gateway-url", ValueName: "URL", Summary: "Gateway base URL", Type: optionValueString, DefaultText: "http://127.0.0.1:4000"},
+					{Name: "master-key", ValueName: "VALUE", Summary: "Gateway master key", Type: optionValueString, DefaultText: "LITELLM_MASTER_KEY env var"},
+					{Name: "model", ValueName: "NAME", Summary: "Model alias to exercise", Type: optionValueString, DefaultText: "mock-gpt"},
+					{Name: "profile", ValueName: "NAME", Summary: "Benchmark profile from demo/config/benchmark_thresholds.json", Type: optionValueString},
+					{Name: "prompt", ValueName: "TEXT", Summary: "Prompt body to send", Type: optionValueString, DefaultText: "short fixed prompt"},
+					{Name: "warmup-requests", ValueName: "N", Summary: "Warmup requests excluded from measured results", Type: optionValueInt, DefaultText: "0"},
+					{Name: "requests", ValueName: "N", Summary: "Total request count", Type: optionValueInt, DefaultText: "20"},
+					{Name: "concurrency", ValueName: "N", Summary: "Number of concurrent workers", Type: optionValueInt, DefaultText: "2"},
+					{Name: "max-tokens", ValueName: "N", Summary: "max_tokens for each request", Type: optionValueInt, DefaultText: "32"},
+					{Name: "json", Summary: "Emit machine-readable JSON to stdout", Type: optionValueBool},
+				},
+				Sections: []commandHelpSection{
+					{
+						Title: "Notes",
+						Lines: []string{
+							"This command produces a local reference-host baseline, not customer-grade capacity proof.",
+							"Use offline-safe models such as mock-gpt or mock-claude for deterministic local runs.",
+							"Profile names currently include interactive, burst, and sustained.",
+						},
+					},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindBenchmarkBaselineOptions,
+					NativeRun:  runBenchmarkBaseline,
+				},
+			},
+		},
+	}
+}
+
+func bindBenchmarkBaselineOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
 	gatewayRuntime := config.NewLoader().Gateway(true)
-	opts := performance.BaselineOptions{
-		GatewayURL:     "http://127.0.0.1:4000",
-		MasterKey:      gatewayRuntime.MasterKey,
-		Model:          "mock-gpt",
-		Prompt:         "Provide a short response for performance baseline verification.",
-		WarmupRequests: 0,
-		Requests:       20,
-		Concurrency:    2,
-		MaxTokens:      32,
+	opts := benchmarkBaselineOptions{
+		GatewayURL:     stringDefault(input.String("gateway-url"), "http://127.0.0.1:4000"),
+		MasterKey:      stringDefault(input.String("master-key"), gatewayRuntime.MasterKey),
+		Model:          stringDefault(input.String("model"), "mock-gpt"),
+		Profile:        input.String("profile"),
+		Prompt:         stringDefault(input.String("prompt"), "Provide a short response for performance baseline verification."),
+		WarmupRequests: intValueDefault(input, "warmup-requests", 0),
+		Requests:       intValueDefault(input, "requests", 20),
+		Concurrency:    intValueDefault(input, "concurrency", 2),
+		MaxTokens:      intValueDefault(input, "max-tokens", 32),
+		JSON:           input.Bool("json"),
+		WarmupSet:      input.String("warmup-requests") != "",
+		RequestsSet:    input.String("requests") != "",
+		ConcurrencySet: input.String("concurrency") != "",
+	}
+	if opts.Requests <= 0 {
+		return nil, fmt.Errorf("--requests must be a positive integer")
+	}
+	if opts.Concurrency <= 0 {
+		return nil, fmt.Errorf("--concurrency must be a positive integer")
+	}
+	if opts.WarmupRequests < 0 {
+		return nil, fmt.Errorf("--warmup-requests must be zero or greater")
+	}
+	if opts.MaxTokens <= 0 {
+		return nil, fmt.Errorf("--max-tokens must be a positive integer")
+	}
+	return opts, nil
+}
+
+func runBenchmarkBaseline(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(benchmarkBaselineOptions)
+	runnerOpts := performance.BaselineOptions{
+		GatewayURL:     opts.GatewayURL,
+		MasterKey:      opts.MasterKey,
+		Model:          opts.Model,
+		Prompt:         opts.Prompt,
+		WarmupRequests: opts.WarmupRequests,
+		Requests:       opts.Requests,
+		Concurrency:    opts.Concurrency,
+		MaxTokens:      opts.MaxTokens,
 		HTTPTimeout:    30 * time.Second,
 	}
-	jsonOutput := false
-	profileName := ""
-	requestsSet := false
-	concurrencySet := false
-	warmupSet := false
-	for index := 0; index < len(args); index++ {
-		switch args[index] {
-		case "--gateway-url":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --gateway-url")
-				return exitcodes.ACPExitUsage
-			}
-			opts.GatewayURL = args[index]
-		case "--master-key":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --master-key")
-				return exitcodes.ACPExitUsage
-			}
-			opts.MasterKey = args[index]
-		case "--model":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --model")
-				return exitcodes.ACPExitUsage
-			}
-			opts.Model = args[index]
-		case "--profile":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --profile")
-				return exitcodes.ACPExitUsage
-			}
-			profileName = args[index]
-		case "--prompt":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --prompt")
-				return exitcodes.ACPExitUsage
-			}
-			opts.Prompt = args[index]
-		case "--requests":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --requests")
-				return exitcodes.ACPExitUsage
-			}
-			value, err := strconv.Atoi(args[index])
-			if err != nil {
-				fmt.Fprintf(stderr, "Error: invalid --requests value: %v\n", err)
-				return exitcodes.ACPExitUsage
-			}
-			opts.Requests = value
-			requestsSet = true
-		case "--concurrency":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --concurrency")
-				return exitcodes.ACPExitUsage
-			}
-			value, err := strconv.Atoi(args[index])
-			if err != nil {
-				fmt.Fprintf(stderr, "Error: invalid --concurrency value: %v\n", err)
-				return exitcodes.ACPExitUsage
-			}
-			opts.Concurrency = value
-			concurrencySet = true
-		case "--warmup-requests":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --warmup-requests")
-				return exitcodes.ACPExitUsage
-			}
-			value, err := strconv.Atoi(args[index])
-			if err != nil {
-				fmt.Fprintf(stderr, "Error: invalid --warmup-requests value: %v\n", err)
-				return exitcodes.ACPExitUsage
-			}
-			opts.WarmupRequests = value
-			warmupSet = true
-		case "--max-tokens":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --max-tokens")
-				return exitcodes.ACPExitUsage
-			}
-			value, err := strconv.Atoi(args[index])
-			if err != nil {
-				fmt.Fprintf(stderr, "Error: invalid --max-tokens value: %v\n", err)
-				return exitcodes.ACPExitUsage
-			}
-			opts.MaxTokens = value
-		case "--json":
-			jsonOutput = true
-		case "--help", "-h":
-			printBenchmarkBaselineHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		default:
-			fmt.Fprintf(stderr, "Error: unknown option: %s\n", args[index])
-			return exitcodes.ACPExitUsage
-		}
-	}
-
-	if profileName != "" {
-		catalog, err := performance.LoadProfileCatalog(filepath.Join(detectRepoRootWithContext(ctx), benchmarkProfileConfigRelativePath))
+	if opts.Profile != "" {
+		catalog, err := performance.LoadProfileCatalog(filepath.Join(runCtx.RepoRoot, benchmarkProfileConfigRelativePath))
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
+			fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
-		profile, err := catalog.ResolveProfile(profileName)
+		profile, err := catalog.ResolveProfile(opts.Profile)
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
+			fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 			return exitcodes.ACPExitUsage
 		}
-		opts.Profile = profileName
-		if !warmupSet {
-			opts.WarmupRequests = profile.Workload.WarmupRequests
+		runnerOpts.Profile = opts.Profile
+		if !opts.WarmupSet {
+			runnerOpts.WarmupRequests = profile.Workload.WarmupRequests
 		}
-		if !requestsSet {
-			opts.Requests = profile.Workload.MeasuredRequests
+		if !opts.RequestsSet {
+			runnerOpts.Requests = profile.Workload.MeasuredRequests
 		}
-		if !concurrencySet {
-			opts.Concurrency = profile.Workload.Concurrency
+		if !opts.ConcurrencySet {
+			runnerOpts.Concurrency = profile.Workload.Concurrency
 		}
 	}
 
-	summary, err := benchmarkRunner(ctx, opts)
+	summary, err := benchmarkRunner(ctx, runnerOpts)
 	if err != nil {
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
-			fmt.Fprintln(stderr, "Error: benchmark timed out")
+			fmt.Fprintln(runCtx.Stderr, "Error: benchmark timed out")
 		case errors.Is(err, context.Canceled):
-			fmt.Fprintln(stderr, "Error: benchmark canceled")
+			fmt.Fprintln(runCtx.Stderr, "Error: benchmark canceled")
 		default:
-			fmt.Fprintf(stderr, "Error: %v\n", err)
+			fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		}
 		return exitcodes.ACPExitRuntime
 	}
-	if jsonOutput {
+	if opts.JSON {
 		payload, err := json.MarshalIndent(summary, "", "  ")
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
+			fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
-		fmt.Fprintln(stdout, string(payload))
+		fmt.Fprintln(runCtx.Stdout, string(payload))
 	} else {
-		printBenchmarkSummary(stdout, summary)
+		printBenchmarkSummary(runCtx.Stdout, summary)
 	}
 	if summary.Failures > 0 {
 		return exitcodes.ACPExitDomain
@@ -248,56 +229,26 @@ func printBenchmarkSummary(out *os.File, summary *performance.Summary) {
 	fmt.Fprintf(out, "  Min/max latency: %.2f ms / %.2f ms\n", summary.MinLatencyMS, summary.MaxLatencyMS)
 }
 
-func printBenchmarkHelp(out *os.File) {
-	command, err := lookupNativeRootCommand("benchmark")
+func intValueDefault(input parsedCommandInput, name string, fallback int) int {
+	if input.String(name) == "" {
+		return fallback
+	}
+	value, err := input.Int(name)
 	if err != nil {
-		fmt.Fprintf(out, "Error: %v\n", err)
-		return
+		return fallback
 	}
-
-	fmt.Fprint(out, `Usage: acpctl benchmark <command> [OPTIONS]
-
-Commands:
-`)
-	for _, subcommand := range command.Subcommands {
-		fmt.Fprintf(out, "  %-10s %s\n", subcommand.Name, subcommand.Description)
-	}
-	fmt.Fprint(out, `
-
-Examples:
-  acpctl benchmark baseline
-  acpctl benchmark baseline --profile interactive
-  acpctl benchmark baseline --requests 40 --concurrency 4
-  acpctl benchmark baseline --json
-
-Exit codes:
-  0   Success
-  1   Domain non-success (one or more benchmark requests failed)
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
+	return value
 }
 
-func printBenchmarkBaselineHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl benchmark baseline [OPTIONS]
-
-Options:
-  --gateway-url URL      Gateway base URL (default: http://127.0.0.1:4000)
-  --master-key VALUE     Gateway master key (default: LITELLM_MASTER_KEY env var)
-  --model NAME           Model alias to exercise (default: mock-gpt)
-  --profile NAME         Benchmark profile from demo/config/benchmark_thresholds.json
-  --prompt TEXT          Prompt body to send (default: short fixed prompt)
-  --warmup-requests N    Warmup requests excluded from measured results (default: 0)
-  --requests N           Total request count (default: 20)
-  --concurrency N        Number of concurrent workers (default: 2)
-  --max-tokens N         max_tokens for each request (default: 32)
-  --json                 Emit machine-readable JSON to stdout
-  --help                 Show this help message
-
-Notes:
-  - This command produces a local reference-host baseline, not customer-grade capacity proof.
-  - Use offline-safe models such as mock-gpt or mock-claude for deterministic local runs.
-  - Profile names currently include interactive, burst, and sustained.
-`)
+func runBenchmarkCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	invocation, err := parseInvocation(append([]string{"benchmark"}, args...))
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitUsage
+	}
+	if len(args) == 0 {
+		printCommandHelp(stdout, invocation.Path)
+		return exitcodes.ACPExitUsage
+	}
+	return executeInvocation(ctx, invocation, stdout, stderr)
 }

@@ -1,23 +1,23 @@
-// cmd_completion.go - Completion subcommand implementation
+// cmd_completion.go - Completion subcommand implementation.
 //
-// Purpose: Generate shell completion scripts
+// Purpose:
+//
+//	Generate shell completion scripts and hidden completion suggestions from
+//	the typed acpctl command-spec tree.
+//
 // Responsibilities:
-//   - Generate bash, zsh, and fish completions
-//   - Output completion scripts to stdout
-//
-// Non-scope:
-//   - Does not install completions to system directories
-//   - Does not detect user's shell
+//   - Render bash, zsh, and fish completion scripts from command specs.
+//   - Resolve hidden `__complete` suggestions from the same spec metadata.
+//   - Surface tracked config-driven suggestions for command arguments.
 //
 // Scope:
-//   - File-local implementation and interfaces only.
+//   - Completion rendering and metadata extraction only.
 //
 // Usage:
-//   - Used through its package exports and CLI entrypoints as applicable.
+//   - Used by `acpctl completion <bash|zsh|fish>` and `acpctl __complete ...`.
 //
 // Invariants/Assumptions:
-//   - Behavior must remain deterministic for equivalent inputs.
-
+//   - Completion output remains deterministic for equivalent repo state.
 package main
 
 import (
@@ -31,82 +31,114 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
-func runCompletionSubcommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 {
-		fmt.Fprintln(stderr, "Error: Shell type required (bash, zsh, fish)")
-		fmt.Fprintln(stderr, "Usage: acpctl completion <bash|zsh|fish>")
-		return exitcodes.ACPExitUsage
+type completionShellOptions struct {
+	Shell string
+}
+
+type hiddenCompleteOptions struct {
+	Words []string
+}
+
+func completionCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "completion",
+		Summary:     "Generate shell completion scripts",
+		Description: "Generate shell completion scripts.",
+		Children: []*commandSpec{
+			completionShellSpec("bash", "Generate Bash completion script"),
+			completionShellSpec("zsh", "Generate Zsh completion script"),
+			completionShellSpec("fish", "Generate Fish completion script"),
+		},
 	}
+}
 
-	shell := strings.ToLower(args[0])
+func completionShellSpec(name string, summary string) *commandSpec {
+	return &commandSpec{
+		Name:        name,
+		Summary:     summary,
+		Description: summary + ".",
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
+				return completionShellOptions{Shell: name}, nil
+			},
+			NativeRun: runCompletionShellCommand,
+		},
+	}
+}
 
-	switch shell {
+func hiddenCompleteCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:              "__complete",
+		Summary:           "Hidden shell completion helper",
+		Description:       "Hidden shell completion helper.",
+		Hidden:            true,
+		AllowTrailingArgs: true,
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+				words := append([]string(nil), input.Arguments()...)
+				words = append(words, input.Trailing()...)
+				return hiddenCompleteOptions{Words: words}, nil
+			},
+			NativeRun: runHiddenComplete,
+		},
+	}
+}
+
+func runCompletionShellCommand(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(completionShellOptions)
+	switch opts.Shell {
 	case "bash":
-		return generateBashCompletion(ctx, stdout, stderr)
+		return generateBashCompletion(ctx, runCtx.Stdout)
 	case "zsh":
-		return generateZshCompletion(ctx, stdout, stderr)
+		return generateZshCompletion(runCtx.Stdout)
 	case "fish":
-		return generateFishCompletion(ctx, stdout, stderr)
-	case "help", "--help", "-h":
-		printCompletionHelp(stdout)
-		return exitcodes.ACPExitSuccess
+		return generateFishCompletion(runCtx.Stdout)
 	default:
-		fmt.Fprintf(stderr, "Error: Unknown shell type: %s\n", shell)
-		fmt.Fprintln(stderr, "Supported shells: bash, zsh, fish")
+		fmt.Fprintf(runCtx.Stderr, "Error: unsupported shell: %s\n", opts.Shell)
 		return exitcodes.ACPExitUsage
 	}
 }
 
-func printCompletionHelp(out *os.File) {
-	command, err := lookupNativeRootCommand("completion")
-	if err != nil {
-		fmt.Fprintf(out, "Error: %v\n", err)
-		return
+func runHiddenComplete(_ context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(hiddenCompleteOptions)
+	words := append([]string(nil), opts.Words...)
+	prefix := ""
+	if len(words) > 0 {
+		prefix = words[len(words)-1]
+		words = words[:len(words)-1]
 	}
-
-	fmt.Fprint(out, `Usage: acpctl completion <bash|zsh|fish>
-
-Generate shell completion scripts.
-
-Supported shells:
-`)
-	for _, subcommand := range command.Subcommands {
-		fmt.Fprintf(out, "  %-5s %s\n", subcommand.Name, subcommand.Description)
+	for _, suggestion := range resolveSuggestions(words, prefix, runCtx.RepoRoot) {
+		fmt.Fprintln(runCtx.Stdout, suggestion)
 	}
-	fmt.Fprint(out, `
-
-To install completions:
-
-  Bash:
-    acpctl completion bash > /usr/local/etc/bash_completion.d/acpctl
-
-  Zsh:
-    acpctl completion zsh > "${fpath[1]}/_acpctl"
-
-  Fish:
-    acpctl completion fish > ~/.config/fish/completions/acpctl.fish
-
-Exit codes:
-  0   Success
-  64  Usage error
-`)
+	return exitcodes.ACPExitSuccess
 }
 
-func generateBashCompletion(ctx context.Context, stdout *os.File, stderr *os.File) int {
-	catalog := buildCompletionCatalog(detectRepoRootWithContext(ctx))
+func generateBashCompletion(ctx context.Context, stdout *os.File) int {
+	catalog := buildCompletionCatalog()
 	var script strings.Builder
 
 	fmt.Fprintf(&script, "_acpctl_complete() {\n")
 	fmt.Fprintf(&script, "    local cur\n")
 	fmt.Fprintf(&script, "    COMPREPLY=()\n")
 	fmt.Fprintf(&script, "    cur=\"${COMP_WORDS[COMP_CWORD]}\"\n\n")
-	fmt.Fprintf(&script, "    local commands=%q\n\n", bashWordList(catalog.rootCommands))
+	fmt.Fprintf(&script, "    local commands=%q\n\n", strings.Join(catalog.RootCommands, " "))
 	fmt.Fprintf(&script, "    if [[ ${COMP_CWORD} -eq 1 ]]; then\n")
 	fmt.Fprintf(&script, "        COMPREPLY=( $(compgen -W \"${commands}\" -- \"${cur}\") )\n")
 	fmt.Fprintf(&script, "        return 0\n")
 	fmt.Fprintf(&script, "    fi\n\n")
 	fmt.Fprintf(&script, "    case \"${COMP_WORDS[1]}\" in\n")
-	script.WriteString(renderBashSubcommandCases(catalog))
+	for _, root := range catalog.RootCommands {
+		subcommands := catalog.GroupSubcommands[root]
+		if len(subcommands) == 0 {
+			continue
+		}
+		fmt.Fprintf(&script, "        %s)\n", root)
+		fmt.Fprintf(&script, "            local subcmds=%q\n", strings.Join(subcommands, " "))
+		fmt.Fprintf(&script, "            COMPREPLY=( $(compgen -W \"${subcmds}\" -- \"${cur}\") )\n")
+		fmt.Fprintf(&script, "            ;;\n")
+	}
 	fmt.Fprintf(&script, "        *)\n")
 	fmt.Fprintf(&script, "            COMPREPLY=()\n")
 	fmt.Fprintf(&script, "            ;;\n")
@@ -115,10 +147,11 @@ func generateBashCompletion(ctx context.Context, stdout *os.File, stderr *os.Fil
 	fmt.Fprintf(&script, "complete -o default -F _acpctl_complete acpctl\n")
 
 	fmt.Fprint(stdout, script.String())
+	_ = ctx
 	return exitcodes.ACPExitSuccess
 }
 
-func generateZshCompletion(_ context.Context, stdout *os.File, stderr *os.File) int {
+func generateZshCompletion(stdout *os.File) int {
 	registry := buildCommandRegistry()
 	var script strings.Builder
 
@@ -130,7 +163,15 @@ func generateZshCompletion(_ context.Context, stdout *os.File, stderr *os.File) 
 	fmt.Fprintf(&script, "        '1: :_acpctl_commands' \\\n")
 	fmt.Fprintf(&script, "        '*:: :->args'\n\n")
 	fmt.Fprintf(&script, "    case \"$line[1]\" in\n")
-	script.WriteString(renderZshSubcommandCases(registry))
+	for _, root := range registry.RootCommands {
+		subcommands := registry.GroupSubcommands[root.Name]
+		if len(subcommands) == 0 {
+			continue
+		}
+		fmt.Fprintf(&script, "        %s)\n", root.Name)
+		fmt.Fprintf(&script, "            _acpctl_%s\n", zshFunctionName(root.Name))
+		fmt.Fprintf(&script, "            ;;\n")
+	}
 	fmt.Fprintf(&script, "        *)\n")
 	fmt.Fprintf(&script, "            _files\n")
 	fmt.Fprintf(&script, "            ;;\n")
@@ -138,18 +179,33 @@ func generateZshCompletion(_ context.Context, stdout *os.File, stderr *os.File) 
 	fmt.Fprintf(&script, "}\n\n")
 	fmt.Fprintf(&script, "_acpctl_commands() {\n")
 	fmt.Fprintf(&script, "    local commands=(\n")
-	script.WriteString(renderZshDescribeEntries(registry.RootCommands))
+	for _, root := range registry.RootCommands {
+		fmt.Fprintf(&script, "        %q\n", zshDescribeEntry(root))
+	}
 	fmt.Fprintf(&script, "    )\n")
 	fmt.Fprintf(&script, "    _describe -t commands 'acpctl commands' commands \"$@\"\n")
 	fmt.Fprintf(&script, "}\n\n")
-	script.WriteString(renderZshSubcommandFunctions(registry))
+	for _, root := range registry.RootCommands {
+		subcommands := registry.GroupSubcommands[root.Name]
+		if len(subcommands) == 0 {
+			continue
+		}
+		fmt.Fprintf(&script, "_acpctl_%s() {\n", zshFunctionName(root.Name))
+		fmt.Fprintf(&script, "    local subcmds=(\n")
+		for _, subcommand := range subcommands {
+			fmt.Fprintf(&script, "        %q\n", zshDescribeEntry(subcommand))
+		}
+		fmt.Fprintf(&script, "    )\n")
+		fmt.Fprintf(&script, "    _describe -t commands '%s subcommands' subcmds \"$@\"\n", root.Name)
+		fmt.Fprintf(&script, "}\n\n")
+	}
 	fmt.Fprintf(&script, "compdef _acpctl acpctl\n")
 
 	fmt.Fprint(stdout, script.String())
 	return exitcodes.ACPExitSuccess
 }
 
-func generateFishCompletion(_ context.Context, stdout *os.File, stderr *os.File) int {
+func generateFishCompletion(stdout *os.File) int {
 	registry := buildCommandRegistry()
 	var script strings.Builder
 
@@ -157,21 +213,21 @@ func generateFishCompletion(_ context.Context, stdout *os.File, stderr *os.File)
 	fmt.Fprintf(&script, "    # Fish completion function for acpctl\n")
 	fmt.Fprintf(&script, "end\n\n")
 	fmt.Fprintf(&script, "complete -c acpctl -f\n\n")
-	for _, command := range registry.RootCommands {
+	for _, root := range registry.RootCommands {
 		fmt.Fprintf(
 			&script,
 			"complete -c acpctl -n '__fish_use_subcommand' -a %s -d %s\n",
-			shellSingleQuote(command.Name),
-			shellSingleQuote(command.Description),
+			shellSingleQuote(root.Name),
+			shellSingleQuote(root.Description),
 		)
 	}
 	fmt.Fprintf(&script, "\n")
-	for _, command := range registry.RootCommands {
-		for _, subcommand := range registry.GroupSubcommands[command.Name] {
+	for _, root := range registry.RootCommands {
+		for _, subcommand := range registry.GroupSubcommands[root.Name] {
 			fmt.Fprintf(
 				&script,
 				"complete -c acpctl -n '__fish_seen_subcommand_from %s' -a %s -d %s\n",
-				command.Name,
+				root.Name,
 				shellSingleQuote(subcommand.Name),
 				shellSingleQuote(subcommand.Description),
 			)
@@ -180,172 +236,6 @@ func generateFishCompletion(_ context.Context, stdout *os.File, stderr *os.File)
 
 	fmt.Fprint(stdout, script.String())
 	return exitcodes.ACPExitSuccess
-}
-
-func runHiddenComplete(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	// Hidden completion helper for Cobra compatibility if needed in future
-	// Currently not used but reserved for compatibility
-	return exitcodes.ACPExitSuccess
-}
-
-// =============================================================================
-// Completion Catalog and Dynamic Suggestions (for testing)
-// =============================================================================
-
-// completionCatalog holds all completion data
-type completionCatalog struct {
-	rootCommands     []string
-	groupSubcommands map[string][]string
-	bridgeNames      []string
-	modelNames       []string
-	presetNames      []string
-	scenarioIDs      []string
-	keyAliases       []string
-}
-
-// resolveSuggestions returns suggestions based on context
-func resolveSuggestions(words []string, prefix string, catalog completionCatalog) []string {
-	var suggestions []string
-
-	// Handle KEY=VALUE style prefixes
-	if strings.HasPrefix(prefix, "ALIAS=") {
-		for _, alias := range catalog.keyAliases {
-			suggestions = append(suggestions, "ALIAS="+alias)
-		}
-		return dedupeAndSort(suggestions)
-	}
-	if strings.HasPrefix(prefix, "MODEL=") {
-		for _, model := range catalog.modelNames {
-			suggestions = append(suggestions, "MODEL="+model)
-		}
-		return dedupeAndSort(suggestions)
-	}
-	if strings.HasPrefix(prefix, "SCENARIO=") {
-		for _, id := range catalog.scenarioIDs {
-			suggestions = append(suggestions, "SCENARIO="+id)
-		}
-		return dedupeAndSort(suggestions)
-	}
-
-	// If we have context words, suggest based on context
-	if len(words) > 0 {
-		lastWord := words[len(words)-1]
-		if subcmds, ok := catalog.groupSubcommands[lastWord]; ok {
-			return subcmds
-		}
-	}
-
-	// Default: return root commands
-	return catalog.rootCommands
-}
-
-// dedupeAndSort removes duplicates and sorts a slice
-func dedupeAndSort(input []string) []string {
-	seen := make(map[string]bool)
-	var result []string
-	for _, v := range input {
-		if !seen[v] {
-			seen[v] = true
-			result = append(result, v)
-		}
-	}
-	// Simple bubble sort for consistency
-	for i := 0; i < len(result); i++ {
-		for j := i + 1; j < len(result); j++ {
-			if result[i] > result[j] {
-				result[i], result[j] = result[j], result[i]
-			}
-		}
-	}
-	return result
-}
-
-// buildCompletionCatalog creates a catalog from the repository
-func buildCompletionCatalog(repoRoot string) completionCatalog {
-	registry := buildCommandRegistry()
-	catalog := completionCatalog{
-		rootCommands:     make([]string, 0, len(registry.RootCommands)),
-		groupSubcommands: make(map[string][]string, len(registry.GroupSubcommands)),
-		bridgeNames:      make([]string, 0, len(registry.GroupSubcommands["bridge"])),
-		modelNames:       extractModelNames(repoRoot),
-		presetNames:      extractPresetNames(repoRoot),
-		scenarioIDs:      extractScenarioIDs(repoRoot),
-		keyAliases:       []string{},
-	}
-
-	for _, command := range registry.RootCommands {
-		catalog.rootCommands = append(catalog.rootCommands, command.Name)
-	}
-	for groupName, subcommands := range registry.GroupSubcommands {
-		names := make([]string, 0, len(subcommands))
-		for _, subcommand := range subcommands {
-			names = append(names, subcommand.Name)
-		}
-		catalog.groupSubcommands[groupName] = names
-	}
-	for _, bridge := range registry.GroupSubcommands["bridge"] {
-		catalog.bridgeNames = append(catalog.bridgeNames, bridge.Name)
-	}
-
-	return catalog
-}
-
-func bashWordList(values []string) string {
-	return strings.Join(values, " ")
-}
-
-func renderBashSubcommandCases(catalog completionCatalog) string {
-	registry := buildCommandRegistry()
-	var script strings.Builder
-	for _, command := range registry.RootCommands {
-		subcommands := catalog.groupSubcommands[command.Name]
-		if len(subcommands) == 0 {
-			continue
-		}
-		fmt.Fprintf(&script, "        %s)\n", command.Name)
-		fmt.Fprintf(&script, "            local subcmds=%q\n", bashWordList(subcommands))
-		fmt.Fprintf(&script, "            COMPREPLY=( $(compgen -W \"${subcmds}\" -- \"${cur}\") )\n")
-		fmt.Fprintf(&script, "            ;;\n")
-	}
-	return script.String()
-}
-
-func renderZshSubcommandCases(registry commandRegistry) string {
-	var script strings.Builder
-	for _, command := range registry.RootCommands {
-		if len(registry.GroupSubcommands[command.Name]) == 0 {
-			continue
-		}
-		fmt.Fprintf(&script, "        %s)\n", command.Name)
-		fmt.Fprintf(&script, "            _acpctl_%s\n", zshFunctionName(command.Name))
-		fmt.Fprintf(&script, "            ;;\n")
-	}
-	return script.String()
-}
-
-func renderZshSubcommandFunctions(registry commandRegistry) string {
-	var script strings.Builder
-	for _, command := range registry.RootCommands {
-		subcommands := registry.GroupSubcommands[command.Name]
-		if len(subcommands) == 0 {
-			continue
-		}
-		fmt.Fprintf(&script, "_acpctl_%s() {\n", zshFunctionName(command.Name))
-		fmt.Fprintf(&script, "    local subcmds=(\n")
-		script.WriteString(renderZshDescribeEntries(subcommands))
-		fmt.Fprintf(&script, "    )\n")
-		fmt.Fprintf(&script, "    _describe -t commands '%s subcommands' subcmds \"$@\"\n", command.Name)
-		fmt.Fprintf(&script, "}\n\n")
-	}
-	return script.String()
-}
-
-func renderZshDescribeEntries(commands []commandDescriptor) string {
-	var script strings.Builder
-	for _, command := range commands {
-		fmt.Fprintf(&script, "        %q\n", zshDescribeEntry(command))
-	}
-	return script.String()
 }
 
 func zshDescribeEntry(command commandDescriptor) string {
@@ -393,11 +283,9 @@ func extractKeyAliases(string) []string {
 	return nil
 }
 
-// extractConfigKeys extracts top-level keys from config files
 func extractConfigKeys(repoRoot string) []string {
 	var keys []string
 
-	// Try to read a test config if it exists
 	configPath := filepath.Join(repoRoot, "demo", "config", "test_config.yaml")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -407,8 +295,7 @@ func extractConfigKeys(repoRoot string) []string {
 	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" && !strings.HasPrefix(line, "#") && strings.HasSuffix(line, ":") {
-			key := strings.TrimSuffix(line, ":")
-			keys = append(keys, key)
+			keys = append(keys, strings.TrimSuffix(line, ":"))
 		}
 	}
 

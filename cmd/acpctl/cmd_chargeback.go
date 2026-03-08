@@ -25,9 +25,7 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -38,249 +36,242 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
-func runChargebackCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 {
-		printChargebackHelp(stdout)
-		return exitcodes.ACPExitUsage
-	}
+type chargebackReportOptions struct {
+	ReportMonth          string
+	Format               string
+	ArchiveDir           string
+	VarianceThreshold    float64
+	AnomalyThreshold     float64
+	ForecastEnabled      bool
+	BudgetAlertThreshold float64
+	Notify               bool
+	Verbose              bool
+}
 
-	switch args[0] {
-	case "help", "--help", "-h":
-		printChargebackHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	case "render":
-		return runChargebackRenderCommand(ctx, args[1:], stdout, stderr)
-	case "payload":
-		return runChargebackPayloadCommand(ctx, args[1:], stdout, stderr)
-	case "report":
-		return runChargebackReportCommand(ctx, args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "Error: Unknown chargeback subcommand: %s\n", args[0])
-		printChargebackHelp(stderr)
-		return exitcodes.ACPExitUsage
+type chargebackRenderOptions struct {
+	Format string
+}
+
+type chargebackPayloadOptions struct {
+	Target string
+}
+
+func chargebackCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "chargeback",
+		Summary:     "Typed chargeback rendering helpers",
+		Description: "Typed chargeback serialization helpers.",
+		Examples: []string{
+			"acpctl chargeback report",
+			"acpctl chargeback render --format json",
+			"acpctl chargeback render --format csv",
+			"acpctl chargeback payload --target generic",
+		},
+		Children: []*commandSpec{
+			{
+				Name:        "report",
+				Summary:     "Generate canonical chargeback report artifacts",
+				Description: "Generate monthly chargeback artifacts from the typed database/report workflow.",
+				Examples: []string{
+					"acpctl chargeback report",
+					"acpctl chargeback report --format all",
+					"acpctl chargeback report --month 2026-02 --no-forecast",
+				},
+				Options: []commandOptionSpec{
+					{Name: "month", ValueName: "YYYY-MM", Summary: "Target report month", Type: optionValueString},
+					{Name: "format", ValueName: "FORMAT", Summary: "Output format: markdown, json, csv, or all", Type: optionValueString, DefaultText: "markdown"},
+					{Name: "archive-dir", ValueName: "DIR", Summary: "Archive directory", Type: optionValueString, DefaultText: "demo/backups/chargeback"},
+					{Name: "variance-threshold", ValueName: "FLOAT", Summary: "Variance threshold percent", Type: optionValueFloat, DefaultText: "15"},
+					{Name: "anomaly-threshold", ValueName: "FLOAT", Summary: "Cost-center anomaly spike threshold percent", Type: optionValueFloat, DefaultText: "200"},
+					{Name: "forecast", Summary: "Enable spend forecasting", Type: optionValueBool},
+					{Name: "no-forecast", Summary: "Disable spend forecasting", Type: optionValueBool},
+					{Name: "budget-alert-threshold", ValueName: "FLOAT", Summary: "Budget alert percent", Type: optionValueFloat, DefaultText: "80"},
+					{Name: "notify", Summary: "Send configured webhook notifications", Type: optionValueBool},
+					{Name: "verbose", Summary: "Print workflow progress to stderr", Type: optionValueBool},
+				},
+				Sections: []commandHelpSection{
+					{
+						Title: "Environment",
+						Lines: []string{
+							"ACP_DATABASE_MODE",
+							"DATABASE_URL",
+							"DB_NAME",
+							"DB_USER",
+							"GENERIC_WEBHOOK_URL",
+							"SLACK_WEBHOOK_URL",
+						},
+					},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindChargebackReportOptions,
+					NativeRun:  runChargebackReportCommand,
+				},
+			},
+			{
+				Name:        "render",
+				Summary:     "Render canonical chargeback JSON or CSV",
+				Description: "Render machine-safe chargeback outputs from environment-provided inputs.",
+				Examples: []string{
+					"acpctl chargeback render --format json",
+					"acpctl chargeback render --format csv",
+				},
+				Options: []commandOptionSpec{
+					{Name: "format", ValueName: "FORMAT", Summary: "Output format: json or csv", Type: optionValueString, Required: true},
+				},
+				Sections: []commandHelpSection{
+					{
+						Title: "Environment",
+						Lines: []string{
+							"CHARGEBACK_REPORT_MONTH",
+							"CHARGEBACK_COST_CENTER_JSON",
+							"CHARGEBACK_MODEL_JSON",
+							"CHARGEBACK_ANOMALIES_JSON",
+							"CHARGEBACK_GENERATED_AT",
+							"CHARGEBACK_MONTH_START",
+							"CHARGEBACK_MONTH_END",
+							"CHARGEBACK_TOTAL_SPEND",
+							"CHARGEBACK_TOTAL_REQUESTS",
+							"CHARGEBACK_TOTAL_TOKENS",
+							"CHARGEBACK_VARIANCE",
+							"CHARGEBACK_PREV_MONTH_SPEND",
+							"CHARGEBACK_FORECAST_VALUES",
+							"CHARGEBACK_DAILY_BURN",
+							"CHARGEBACK_DAYS_REMAINING",
+							"CHARGEBACK_EXHAUSTION_DATE",
+							"CHARGEBACK_TOTAL_BUDGET",
+							"CHARGEBACK_BUDGET_RISK_LEVEL",
+							"CHARGEBACK_BUDGET_RISK_PERCENT",
+							"CHARGEBACK_BUDGET_RISK_THRESHOLD_EXCEEDED",
+							"CHARGEBACK_SCHEMA_VERSION",
+							"CHARGEBACK_VARIANCE_THRESHOLD",
+							"CHARGEBACK_ANOMALY_THRESHOLD",
+							"CHARGEBACK_FORECAST_ENABLED",
+						},
+					},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindChargebackRenderOptions,
+					NativeRun:  runChargebackRenderCommand,
+				},
+			},
+			{
+				Name:        "payload",
+				Summary:     "Render canonical chargeback webhook payload JSON",
+				Description: "Render webhook payload JSON from environment-provided inputs.",
+				Examples: []string{
+					"acpctl chargeback payload --target generic",
+					"acpctl chargeback payload --target slack",
+				},
+				Options: []commandOptionSpec{
+					{Name: "target", ValueName: "TARGET", Summary: "Payload target: generic or slack", Type: optionValueString, Required: true},
+				},
+				Sections: []commandHelpSection{
+					{
+						Title: "Environment",
+						Lines: []string{
+							"CHARGEBACK_REPORT_MONTH",
+							"CHARGEBACK_TOTAL_SPEND",
+							"CHARGEBACK_VARIANCE",
+							"CHARGEBACK_ANOMALIES_JSON",
+							"CHARGEBACK_PAYLOAD_EVENT",
+							"CHARGEBACK_PAYLOAD_TIMESTAMP",
+							"CHARGEBACK_SLACK_COLOR",
+							"CHARGEBACK_SLACK_EPOCH",
+						},
+					},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindChargebackPayloadOptions,
+					NativeRun:  runChargebackPayloadCommand,
+				},
+			},
+		},
 	}
 }
 
-func printChargebackHelp(out *os.File) {
-	command, err := lookupNativeRootCommand("chargeback")
-	if err != nil {
-		fmt.Fprintf(out, "Error: %v\n", err)
-		return
+func bindChargebackReportOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	opts := chargebackReportOptions{
+		ReportMonth:          input.String("month"),
+		Format:               stringDefault(input.String("format"), "markdown"),
+		ArchiveDir:           stringDefault(input.String("archive-dir"), "demo/backups/chargeback"),
+		VarianceThreshold:    floatValueDefault(input, "variance-threshold", 15),
+		AnomalyThreshold:     floatValueDefault(input, "anomaly-threshold", 200),
+		ForecastEnabled:      !input.Bool("no-forecast"),
+		BudgetAlertThreshold: floatValueDefault(input, "budget-alert-threshold", 80),
+		Notify:               input.Bool("notify"),
+		Verbose:              input.Bool("verbose"),
 	}
-
-	fmt.Fprint(out, `Usage: acpctl chargeback <subcommand> [options]
-
-Typed chargeback serialization helpers.
-
-Subcommands:
-`)
-	for _, subcommand := range command.Subcommands {
-		fmt.Fprintf(out, "  %-12s %s\n", subcommand.Name, subcommand.Description)
+	if input.Bool("forecast") {
+		opts.ForecastEnabled = true
 	}
-	fmt.Fprint(out, `
-
-Examples:
-  acpctl chargeback report
-  acpctl chargeback render --format json
-  acpctl chargeback render --format csv
-  acpctl chargeback payload --target generic
-
-Exit codes:
-  0   Success
-  1   Domain non-success
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
-}
-
-func printChargebackRenderHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl chargeback render --format <json|csv>
-
-Render machine-safe chargeback outputs from environment-provided inputs.
-
-Environment:
-  CHARGEBACK_REPORT_MONTH
-  CHARGEBACK_COST_CENTER_JSON
-  CHARGEBACK_MODEL_JSON
-  CHARGEBACK_ANOMALIES_JSON
-  CHARGEBACK_GENERATED_AT
-  CHARGEBACK_MONTH_START
-  CHARGEBACK_MONTH_END
-  CHARGEBACK_TOTAL_SPEND
-  CHARGEBACK_TOTAL_REQUESTS
-  CHARGEBACK_TOTAL_TOKENS
-  CHARGEBACK_VARIANCE
-  CHARGEBACK_PREV_MONTH_SPEND
-  CHARGEBACK_FORECAST_VALUES
-  CHARGEBACK_DAILY_BURN
-  CHARGEBACK_DAYS_REMAINING
-  CHARGEBACK_EXHAUSTION_DATE
-  CHARGEBACK_TOTAL_BUDGET
-  CHARGEBACK_BUDGET_RISK_LEVEL
-  CHARGEBACK_BUDGET_RISK_PERCENT
-  CHARGEBACK_BUDGET_RISK_THRESHOLD_EXCEEDED
-  CHARGEBACK_SCHEMA_VERSION
-  CHARGEBACK_VARIANCE_THRESHOLD
-  CHARGEBACK_ANOMALY_THRESHOLD
-  CHARGEBACK_FORECAST_ENABLED
-
-Examples:
-  acpctl chargeback render --format json
-  acpctl chargeback render --format csv
-
-Exit codes:
-  0   Success
-  1   Domain non-success
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
-}
-
-func printChargebackReportHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl chargeback report [options]
-
-Generate monthly chargeback artifacts from the typed database/report workflow.
-
-Options:
-  --month YYYY-MM                Target report month (default: previous calendar month)
-  --format <markdown|json|csv|all>
-                                 Output format to print (default: markdown)
-  --archive-dir DIR              Archive directory (default: demo/backups/chargeback)
-  --variance-threshold FLOAT     Variance threshold percent (default: 15)
-  --anomaly-threshold FLOAT      Cost-center anomaly spike threshold percent (default: 200)
-  --forecast                     Enable spend forecasting (default: enabled)
-  --no-forecast                  Disable spend forecasting
-  --budget-alert-threshold FLOAT Budget alert percent (default: 80)
-  --notify                       Send configured webhook notifications
-  --verbose                      Print workflow progress to stderr
-  --help, -h                     Show this help message
-
-Environment:
-  ACP_DATABASE_MODE
-  DATABASE_URL
-  DB_NAME
-  DB_USER
-  GENERIC_WEBHOOK_URL
-  SLACK_WEBHOOK_URL
-
-Examples:
-  acpctl chargeback report
-  acpctl chargeback report --format all
-  acpctl chargeback report --month 2026-02 --no-forecast
-
-Exit codes:
-  0   Success
-  1   Domain non-success (variance threshold exceeded or anomalies detected)
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
-}
-
-func printChargebackPayloadHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl chargeback payload --target <generic|slack>
-
-Render webhook payload JSON from environment-provided inputs.
-
-Environment:
-  CHARGEBACK_REPORT_MONTH
-  CHARGEBACK_TOTAL_SPEND
-  CHARGEBACK_VARIANCE
-  CHARGEBACK_ANOMALIES_JSON
-  CHARGEBACK_PAYLOAD_EVENT
-  CHARGEBACK_PAYLOAD_TIMESTAMP
-  CHARGEBACK_SLACK_COLOR
-  CHARGEBACK_SLACK_EPOCH
-
-Examples:
-  acpctl chargeback payload --target generic
-  acpctl chargeback payload --target slack
-
-Exit codes:
-  0   Success
-  1   Domain non-success
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
-}
-
-func runChargebackReportCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 1 && isHelpToken(args[0]) {
-		printChargebackReportHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
-
-	flags := flag.NewFlagSet("chargeback report", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	reportMonth := flags.String("month", "", "Target report month (YYYY-MM)")
-	format := flags.String("format", "markdown", "Output format: markdown, json, csv, or all")
-	archiveDir := flags.String("archive-dir", "demo/backups/chargeback", "Archive directory")
-	varianceThreshold := flags.Float64("variance-threshold", 15, "Variance threshold percent")
-	anomalyThreshold := flags.Float64("anomaly-threshold", 200, "Anomaly threshold percent")
-	forecast := flags.Bool("forecast", true, "Enable spend forecasting")
-	noForecast := flags.Bool("no-forecast", false, "Disable spend forecasting")
-	budgetAlertThreshold := flags.Float64("budget-alert-threshold", 80, "Budget alert threshold percent")
-	notify := flags.Bool("notify", false, "Send webhook notifications")
-	verbose := flags.Bool("verbose", false, "Print workflow progress to stderr")
-	if err := flags.Parse(args); err != nil {
-		return exitcodes.ACPExitUsage
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "Error: unexpected argument(s): %s\n", strings.Join(flags.Args(), " "))
-		printChargebackReportHelp(stderr)
-		return exitcodes.ACPExitUsage
-	}
-
-	switch *format {
+	switch opts.Format {
 	case "markdown", "json", "csv", "all":
 	default:
-		fmt.Fprintln(stderr, "Error: --format must be one of: markdown, json, csv, all")
-		printChargebackReportHelp(stderr)
-		return exitcodes.ACPExitUsage
+		return nil, fmt.Errorf("--format must be one of: markdown, json, csv, all")
 	}
-	if *noForecast {
-		*forecast = false
-	}
+	return opts, nil
+}
 
-	repoRoot := detectRepoRootWithContext(ctx)
-	client := db.NewClient(repoRoot)
+func bindChargebackRenderOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	format := input.String("format")
+	switch format {
+	case "json", "csv":
+		return chargebackRenderOptions{Format: format}, nil
+	default:
+		return nil, fmt.Errorf("--format must be one of: json, csv")
+	}
+}
+
+func bindChargebackPayloadOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	target := input.String("target")
+	switch target {
+	case "generic", "slack":
+		return chargebackPayloadOptions{Target: target}, nil
+	default:
+		return nil, fmt.Errorf("--target must be one of: generic, slack")
+	}
+}
+
+func runChargebackReportCommand(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(chargebackReportOptions)
+	client := db.NewClient(runCtx.RepoRoot)
 	defer func() { _ = client.Close() }()
 	if err := client.ConfigError(); err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 
-	if *verbose {
-		fmt.Fprintln(stderr, "INFO: Generating typed chargeback report")
+	if opts.Verbose {
+		fmt.Fprintln(runCtx.Stderr, "INFO: Generating typed chargeback report")
 	}
 	result, err := chargeback.GenerateReport(ctx, chargeback.NewDBStore(client), chargeback.ReportOptions{
-		ReportMonth:          *reportMonth,
-		Format:               *format,
-		ArchiveDir:           *archiveDir,
-		VarianceThreshold:    *varianceThreshold,
-		AnomalyThreshold:     *anomalyThreshold,
-		ForecastEnabled:      *forecast,
-		BudgetAlertThreshold: *budgetAlertThreshold,
-		Notify:               *notify,
+		ReportMonth:          opts.ReportMonth,
+		Format:               opts.Format,
+		ArchiveDir:           opts.ArchiveDir,
+		VarianceThreshold:    opts.VarianceThreshold,
+		AnomalyThreshold:     opts.AnomalyThreshold,
+		ForecastEnabled:      opts.ForecastEnabled,
+		BudgetAlertThreshold: opts.BudgetAlertThreshold,
+		Notify:               opts.Notify,
 		GenericWebhookURL:    config.NewLoader().String("GENERIC_WEBHOOK_URL"),
 		SlackWebhookURL:      config.NewLoader().String("SLACK_WEBHOOK_URL"),
-		RepoRoot:             repoRoot,
-		Stdout:               stdout,
-		Stderr:               stderr,
+		RepoRoot:             runCtx.RepoRoot,
+		Stdout:               runCtx.Stdout,
+		Stderr:               runCtx.Stderr,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitRuntime
 	}
-	if err := chargeback.WriteSelectedOutput(result, chargeback.ReportOptions{Format: *format, Stdout: stdout}); err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+	if err := chargeback.WriteSelectedOutput(result, chargeback.ReportOptions{Format: opts.Format, Stdout: runCtx.Stdout}); err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitRuntime
 	}
-	if *verbose {
-		fmt.Fprintf(stderr, "INFO: Archived artifacts under %s\n", result.Outputs.Archived["md"])
+	if opts.Verbose {
+		fmt.Fprintf(runCtx.Stderr, "INFO: Archived artifacts under %s\n", result.Outputs.Archived["md"])
 	}
 	if result.Data.VarianceExceeded || result.Data.HasAnomalies {
 		return exitcodes.ACPExitDomain
@@ -288,92 +279,56 @@ func runChargebackReportCommand(ctx context.Context, args []string, stdout *os.F
 	return exitcodes.ACPExitSuccess
 }
 
-func runChargebackRenderCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
+func runChargebackRenderCommand(_ context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(chargebackRenderOptions)
 	loader := config.NewLoader()
-	if len(args) == 1 && isHelpToken(args[0]) {
-		printChargebackRenderHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
-
-	flags := flag.NewFlagSet("chargeback render", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	format := flags.String("format", "", "Output format: json or csv")
-	if err := flags.Parse(args); err != nil {
-		return exitcodes.ACPExitUsage
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "Error: unexpected argument(s): %s\n", strings.Join(flags.Args(), " "))
-		printChargebackRenderHelp(stderr)
-		return exitcodes.ACPExitUsage
-	}
-
 	costCenters, err := chargeback.DecodeCostCenters(loader.String("CHARGEBACK_COST_CENTER_JSON"))
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_COST_CENTER_JSON: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: invalid CHARGEBACK_COST_CENTER_JSON: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 
-	switch *format {
+	switch opts.Format {
 	case "csv":
-		if err := chargeback.RenderCSV(stdout, loader.String("CHARGEBACK_REPORT_MONTH"), costCenters); err != nil {
-			fmt.Fprintf(stderr, "Error: render chargeback csv: %v\n", err)
+		if err := chargeback.RenderCSV(runCtx.Stdout, loader.String("CHARGEBACK_REPORT_MONTH"), costCenters); err != nil {
+			fmt.Fprintf(runCtx.Stderr, "Error: render chargeback csv: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
 		return exitcodes.ACPExitSuccess
 	case "json":
-	default:
-		fmt.Fprintln(stderr, "Error: --format must be one of: json, csv")
-		printChargebackRenderHelp(stderr)
-		return exitcodes.ACPExitUsage
 	}
 
 	models, err := chargeback.DecodeModels(loader.String("CHARGEBACK_MODEL_JSON"))
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_MODEL_JSON: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: invalid CHARGEBACK_MODEL_JSON: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 	anomalies, err := chargeback.DecodeAnomalies(loader.String("CHARGEBACK_ANOMALIES_JSON"))
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_ANOMALIES_JSON: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: invalid CHARGEBACK_ANOMALIES_JSON: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 
 	input, err := readRenderInput(loader, costCenters, models, anomalies)
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
-	if err := chargeback.RenderJSON(stdout, input); err != nil {
-		fmt.Fprintf(stderr, "Error: render chargeback json: %v\n", err)
+	if err := chargeback.RenderJSON(runCtx.Stdout, input); err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Error: render chargeback json: %v\n", err)
 		return exitcodes.ACPExitRuntime
 	}
 	return exitcodes.ACPExitSuccess
 }
 
-func runChargebackPayloadCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
+func runChargebackPayloadCommand(_ context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(chargebackPayloadOptions)
 	loader := config.NewLoader()
-	if len(args) == 1 && isHelpToken(args[0]) {
-		printChargebackPayloadHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
-
-	flags := flag.NewFlagSet("chargeback payload", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	target := flags.String("target", "", "Payload target: generic or slack")
-	if err := flags.Parse(args); err != nil {
-		return exitcodes.ACPExitUsage
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "Error: unexpected argument(s): %s\n", strings.Join(flags.Args(), " "))
-		printChargebackPayloadHelp(stderr)
-		return exitcodes.ACPExitUsage
-	}
-
-	switch *target {
+	switch opts.Target {
 	case "generic":
 		anomalies, err := chargeback.DecodeAnomalies(loader.String("CHARGEBACK_ANOMALIES_JSON"))
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: invalid CHARGEBACK_ANOMALIES_JSON: %v\n", err)
+			fmt.Fprintf(runCtx.Stderr, "Error: invalid CHARGEBACK_ANOMALIES_JSON: %v\n", err)
 			return exitcodes.ACPExitUsage
 		}
 		payload, err := chargeback.BuildGenericWebhookPayload(chargeback.GenericWebhookInput{
@@ -385,11 +340,11 @@ func runChargebackPayloadCommand(_ context.Context, args []string, stdout *os.Fi
 			Timestamp:   stringDefault(loader.String("CHARGEBACK_PAYLOAD_TIMESTAMP"), time.Now().UTC().Format(time.RFC3339)),
 		})
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: build generic payload: %v\n", err)
+			fmt.Fprintf(runCtx.Stderr, "Error: build generic payload: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
-		if _, err := stdout.Write(payload); err != nil {
-			fmt.Fprintf(stderr, "Error: write generic payload: %v\n", err)
+		if _, err := runCtx.Stdout.Write(payload); err != nil {
+			fmt.Fprintf(runCtx.Stderr, "Error: write generic payload: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
 		return exitcodes.ACPExitSuccess
@@ -402,19 +357,16 @@ func runChargebackPayloadCommand(_ context.Context, args []string, stdout *os.Fi
 			Epoch:       int64EnvDefault(loader, "CHARGEBACK_SLACK_EPOCH", time.Now().Unix()),
 		})
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: build slack payload: %v\n", err)
+			fmt.Fprintf(runCtx.Stderr, "Error: build slack payload: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
-		if _, err := stdout.Write(payload); err != nil {
-			fmt.Fprintf(stderr, "Error: write slack payload: %v\n", err)
+		if _, err := runCtx.Stdout.Write(payload); err != nil {
+			fmt.Fprintf(runCtx.Stderr, "Error: write slack payload: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
 		return exitcodes.ACPExitSuccess
-	default:
-		fmt.Fprintln(stderr, "Error: --target must be one of: generic, slack")
-		printChargebackPayloadHelp(stderr)
-		return exitcodes.ACPExitUsage
 	}
+	return exitcodes.ACPExitUsage
 }
 
 func readRenderInput(loader *config.Loader, costCenters []chargeback.CostCenterAllocation, models []chargeback.ModelAllocation, anomalies []chargeback.Anomaly) (chargeback.ReportInput, error) {
@@ -500,6 +452,17 @@ func boolEnvDefault(loader *config.Loader, key string, fallback bool) bool {
 
 func stringDefault(value string, fallback string) string {
 	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func floatValueDefault(input parsedCommandInput, name string, fallback float64) float64 {
+	if input.String(name) == "" {
+		return fallback
+	}
+	value, err := input.Float(name)
+	if err != nil {
 		return fallback
 	}
 	return value

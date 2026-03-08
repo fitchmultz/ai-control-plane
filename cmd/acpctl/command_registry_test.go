@@ -1,29 +1,31 @@
-// command_registry_test.go - Tests for the canonical acpctl command catalog.
+// command_registry_test.go - Tests for the typed acpctl command-spec tree.
 //
 // Purpose:
 //
-//	Verify the unified command catalog remains the single source of truth for
-//	root commands, grouped subcommands, and execution ownership.
+//	Verify the compiled command tree remains the single source of truth for
+//	root commands, grouped subcommands, and backend ownership.
 //
 // Responsibilities:
-//   - Ensure expected root commands exist and hidden commands stay hidden.
-//   - Ensure grouped subcommands have exactly one execution owner.
-//   - Ensure help/completion registry output stays aligned with the catalog.
+//   - Ensure expected visible roots exist.
+//   - Ensure hidden commands stay out of the visible registry.
+//   - Ensure every leaf command resolves to exactly one backend.
 //
 // Scope:
-//   - Catalog metadata behavior only.
+//   - Command-spec structure only.
 //
 // Usage:
 //   - Run via `go test ./cmd/acpctl`.
 //
 // Invariants/Assumptions:
-//   - Each grouped subcommand is native, Make-backed, or bridge-backed, but never multiple.
-//   - The visible registry is derived from the canonical catalog.
+//   - Visible help/completion output is derived from the typed command tree.
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestCommandCatalog_ContainsExpectedRoots(t *testing.T) {
+func TestCommandSpec_ContainsExpectedVisibleRoots(t *testing.T) {
 	registry := buildCommandRegistry()
 	expected := []string{"ci", "completion", "deploy", "validate", "bridge", "onboard", "help"}
 	for _, name := range expected {
@@ -40,36 +42,34 @@ func TestCommandCatalog_ContainsExpectedRoots(t *testing.T) {
 	}
 }
 
-func TestCommandCatalog_GroupedSubcommandsHaveSingleOwner(t *testing.T) {
-	catalog := buildCommandCatalog()
-	for _, root := range catalog.RootCommands {
-		if root.NativeRun != nil {
-			continue
-		}
-		for _, subcommand := range root.Subcommands {
-			owners := 0
-			if subcommand.NativeRun != nil {
-				owners++
-			}
-			if subcommand.MakeTarget != "" {
-				owners++
-			}
-			if subcommand.ScriptRelativePath != "" {
-				owners++
-			}
-			if owners != 1 {
-				t.Fatalf("%s %s should have exactly one owner, got native=%t make=%q script=%q",
-					root.Name, subcommand.Name, subcommand.NativeRun != nil, subcommand.MakeTarget, subcommand.ScriptRelativePath)
-			}
-		}
-	}
-}
-
-func TestCommandCatalog_HiddenCommandsStayOutOfVisibleRegistry(t *testing.T) {
+func TestCommandSpec_HiddenCommandsStayOutOfVisibleRegistry(t *testing.T) {
 	registry := buildCommandRegistry()
 	for _, command := range registry.RootCommands {
 		if command.Name == "__complete" {
 			t.Fatal("hidden command __complete leaked into visible registry")
 		}
+	}
+}
+
+func TestCommandSpec_AllLeavesHaveBackends(t *testing.T) {
+	spec, err := loadCommandSpec()
+	if err != nil {
+		t.Fatalf("loadCommandSpec() error = %v", err)
+	}
+	var walk func(node *commandSpec, path []string)
+	walk = func(node *commandSpec, path []string) {
+		path = append(path, node.Name)
+		if len(node.Children) == 0 {
+			if node.Backend.Kind == "" {
+				t.Fatalf("leaf %q is missing a backend", strings.Join(path[1:], " "))
+			}
+			return
+		}
+		for _, child := range node.Children {
+			walk(child, path)
+		}
+	}
+	for _, child := range spec.Root.Children {
+		walk(child, []string{spec.Root.Name})
 	}
 }
