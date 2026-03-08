@@ -20,7 +20,7 @@ test: ## Run tests (health checks are the test suite for infrastructure project)
 .PHONY: test-health
 test-health: ## Run health checks as test suite
 	@echo 'Running health check test suite...'
-	@$(ACPCTL_BIN) health \
+	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
 		&& echo '$(COLOR_GREEN)✓ Health check test suite passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Health check test suite failed$(COLOR_RESET)'; exit 1; }
 
@@ -44,6 +44,7 @@ script-tests: ## Run all shell script tests
 	@bash scripts/tests/chatgpt_login_test.sh
 	@bash scripts/tests/chatgpt_auth_cache_copy_test.sh
 	@bash scripts/tests/compose_slot_config_test.sh
+	@bash scripts/tests/make_env_scope_test.sh
 	@bash scripts/tests/supply_chain_allowlist_expiry_check_test.sh
 	@echo '$(COLOR_GREEN)✓ Shell script tests passed$(COLOR_RESET)'
 
@@ -56,7 +57,8 @@ test-detection-rules: ## Run detection rule tests
 performance-baseline: ## Run the local gateway performance baseline against the current stack
 	@echo '$(COLOR_BOLD)Running local performance baseline...$(COLOR_RESET)'
 	@set -euo pipefail; \
-	"$(ACPCTL_BIN)" ci wait --timeout "$(PERFORMANCE_WAIT_TIMEOUT)"; \
+	key="$$( $(ACPCTL_BIN) env get --file "$(COMPOSE_ENV_FILE)" LITELLM_MASTER_KEY 2>/dev/null || true )"; \
+	LITELLM_MASTER_KEY="$$key" "$(ACPCTL_BIN)" ci wait --timeout "$(PERFORMANCE_WAIT_TIMEOUT)"; \
 	set -- "$(ACPCTL_BIN)" benchmark baseline \
 		--gateway-url "$(PERFORMANCE_GATEWAY_URL)" \
 		--model "$(PERFORMANCE_MODEL)" \
@@ -66,5 +68,5 @@ performance-baseline: ## Run the local gateway performance baseline against the 
 	else \
 		set -- "$$@" --requests "$(PERFORMANCE_REQUESTS)" --concurrency "$(PERFORMANCE_CONCURRENCY)"; \
 	fi; \
-	"$$@"
+	LITELLM_MASTER_KEY="$$key" "$$@"
 	@echo '$(COLOR_GREEN)✓ Performance baseline complete$(COLOR_RESET)'

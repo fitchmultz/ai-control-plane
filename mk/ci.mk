@@ -92,7 +92,7 @@ ci-fast: ## Fast CI gate (skip runtime tests; keep static/security checks)
 .PHONY: ci-runtime-checks
 ci-runtime-checks: ## CI runtime checks (requires running services; stateless when paired with down-offline-clean)
 	@echo '$(COLOR_BOLD)Running CI runtime checks...$(COLOR_RESET)'
-	@$(ACPCTL_BIN) ci wait --timeout $$(( $(OFFLINE_GATEWAY_READY_MAX_ATTEMPTS) * 2 ))
+	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) ci wait --timeout $$(( $(OFFLINE_GATEWAY_READY_MAX_ATTEMPTS) * 2 ))
 	@$(ACPCTL_BIN) validate detections
 	@echo '$(COLOR_GREEN)✓ CI runtime checks passed$(COLOR_RESET)'
 

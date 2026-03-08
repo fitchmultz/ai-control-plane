@@ -196,7 +196,7 @@ func writeArtifacts(runDir string, summary *Summary) error {
 	return artifactrun.WriteArtifacts(runDir, []artifactrun.Artifact{{
 		Path: SummaryMarkdown,
 		Body: []byte(renderSummary(summary)),
-		Perm: 0o644,
+		Perm: fsutil.PrivateFilePerm,
 	}})
 }
 
@@ -230,14 +230,14 @@ func copyBundleInput(runDir string, relativeDestination string, sourcePath strin
 		return fmt.Errorf("bundle source file does not exist: %s", sourcePath)
 	}
 	destination := filepath.Join(runDir, filepath.FromSlash(relativeDestination))
-	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+	if err := fsutil.EnsurePrivateDir(filepath.Dir(destination)); err != nil {
 		return fmt.Errorf("create bundle destination dir: %w", err)
 	}
 	data, err := os.ReadFile(sourcePath)
 	if err != nil {
 		return fmt.Errorf("read bundle source %s: %w", sourcePath, err)
 	}
-	if err := fsutil.AtomicWriteFile(destination, data, 0o644); err != nil {
+	if err := fsutil.AtomicWritePrivateFile(destination, data); err != nil {
 		return fmt.Errorf("write bundle destination %s: %w", destination, err)
 	}
 	return nil

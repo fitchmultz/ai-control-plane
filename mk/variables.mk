@@ -10,24 +10,19 @@
 #   - Does not define targets
 #   - Does not include other makefiles
 
-# Environment variables from demo/.env
--include demo/.env
-export ACP_SLOT
-export LITELLM_MASTER_KEY
-export LITELLM_SALT_KEY
-export ACP_DATABASE_MODE
-export DATABASE_URL
-
 # Directories
 COMPOSE_DIR := demo
 COMPOSE_FILE := $(COMPOSE_DIR)/docker-compose.yml
 COMPOSE_TLS_FILE := $(COMPOSE_DIR)/docker-compose.tls.yml
+COMPOSE_ENV_FILE ?= $(abspath $(COMPOSE_DIR)/.env)
 
 # Auto-detect Docker Compose: prefer V2 (docker compose) over V1 (docker-compose)
 DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 ACP_SLOT ?= active
+export ACP_SLOT
 ACP_COMPOSE_PROJECT ?= ai-control-plane-$(ACP_SLOT)
-DOCKER_COMPOSE_PROJECT := $(DOCKER_COMPOSE) --project-name $(ACP_COMPOSE_PROJECT)
+DOCKER_COMPOSE_PROJECT := $(DOCKER_COMPOSE) --env-file $(COMPOSE_ENV_FILE) --project-name $(ACP_COMPOSE_PROJECT)
+COMPOSE_ENV_LITELLM_MASTER_KEY = LITELLM_MASTER_KEY="$$($(ACPCTL_BIN) env get --file "$(COMPOSE_ENV_FILE)" LITELLM_MASTER_KEY 2>/dev/null || true)"
 
 # Detect local Docker socket for CI runtime
 DOCKER_LOCAL_SOCKET := $(firstword $(wildcard /var/run/docker.sock /run/docker.sock))
@@ -41,7 +36,8 @@ LIBRECHAT_PORT ?= 3080
 # Database configuration
 DB_NAME ?= litellm
 DB_USER ?= litellm
-DB_MODE ?= $(if $(ACP_DATABASE_MODE),$(ACP_DATABASE_MODE),embedded)
+ENV_FILE_DATABASE_MODE := $(strip $(shell [ -f "$(COMPOSE_ENV_FILE)" ] && awk -F= '/^[[:space:]]*ACP_DATABASE_MODE=/{gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$2); print $$2; exit}' "$(COMPOSE_ENV_FILE)"))
+DB_MODE ?= $(if $(ACP_DATABASE_MODE),$(ACP_DATABASE_MODE),$(if $(ENV_FILE_DATABASE_MODE),$(ENV_FILE_DATABASE_MODE),embedded))
 COMPOSE_DB_PROFILE := $(if $(filter embedded,$(DB_MODE)),--profile embedded-db,)
 
 # CI and testing

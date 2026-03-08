@@ -68,7 +68,7 @@ func Create(outputRoot string, prefix string, now time.Time) (*Run, error) {
 	if strings.TrimSpace(prefix) == "" {
 		return nil, fmt.Errorf("run prefix is required")
 	}
-	if err := os.MkdirAll(outputRoot, 0o755); err != nil {
+	if err := fsutil.EnsurePrivateDir(outputRoot); err != nil {
 		return nil, fmt.Errorf("create output root %s: %w", outputRoot, err)
 	}
 
@@ -80,7 +80,7 @@ func Create(outputRoot string, prefix string, now time.Time) (*Run, error) {
 		}
 		runID := fmt.Sprintf("%s-%s%s", prefix, stamp, suffix)
 		runDir := filepath.Join(outputRoot, runID)
-		err := os.Mkdir(runDir, 0o755)
+		err := os.Mkdir(runDir, fsutil.PrivateDirPerm)
 		switch {
 		case err == nil:
 			return &Run{ID: runID, Directory: runDir}, nil
@@ -98,12 +98,12 @@ func Create(outputRoot string, prefix string, now time.Time) (*Run, error) {
 func WriteArtifacts(runDir string, artifacts []Artifact) error {
 	for _, artifact := range artifacts {
 		target := filepath.Join(runDir, filepath.FromSlash(artifact.Path))
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := fsutil.EnsurePrivateDir(filepath.Dir(target)); err != nil {
 			return fmt.Errorf("create artifact parent %s: %w", target, err)
 		}
 		perm := artifact.Perm
 		if perm == 0 {
-			perm = 0o644
+			perm = fsutil.PrivateFilePerm
 		}
 		if err := fsutil.AtomicWriteFile(target, artifact.Body, perm); err != nil {
 			return fmt.Errorf("write artifact %s: %w", artifact.Path, err)
@@ -119,7 +119,7 @@ func WriteJSON(path string, value any) error {
 		return fmt.Errorf("marshal json: %w", err)
 	}
 	payload = append(payload, '\n')
-	if err := fsutil.AtomicWriteFile(path, payload, 0o644); err != nil {
+	if err := fsutil.AtomicWritePrivateFile(path, payload); err != nil {
 		return fmt.Errorf("write json %s: %w", path, err)
 	}
 	return nil
@@ -145,7 +145,7 @@ func Finalize(runDir string, outputRoot string, opts FinalizeOptions) ([]string,
 	sort.Strings(files)
 
 	inventoryPath := filepath.Join(runDir, opts.InventoryName)
-	if err := fsutil.AtomicWriteFile(inventoryPath, []byte(strings.Join(files, "\n")+"\n"), 0o644); err != nil {
+	if err := fsutil.AtomicWritePrivateFile(inventoryPath, []byte(strings.Join(files, "\n")+"\n")); err != nil {
 		return nil, fmt.Errorf("write inventory %s: %w", opts.InventoryName, err)
 	}
 
@@ -184,10 +184,10 @@ func ReadInventory(runDir string, inventoryName string) ([]string, error) {
 
 // WriteLatestPointer updates a latest-run pointer file.
 func WriteLatestPointer(outputRoot string, pointerName string, runDir string) error {
-	if err := os.MkdirAll(outputRoot, 0o755); err != nil {
+	if err := fsutil.EnsurePrivateDir(outputRoot); err != nil {
 		return fmt.Errorf("create output root %s: %w", outputRoot, err)
 	}
-	if err := fsutil.AtomicWriteFile(filepath.Join(outputRoot, pointerName), []byte(runDir+"\n"), 0o644); err != nil {
+	if err := fsutil.AtomicWritePrivateFile(filepath.Join(outputRoot, pointerName), []byte(runDir+"\n")); err != nil {
 		return fmt.Errorf("write latest run pointer %s: %w", pointerName, err)
 	}
 	return nil

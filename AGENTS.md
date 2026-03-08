@@ -104,6 +104,8 @@ make health      # Verify services
 - **Release artifact domains:** `internal/bundle` owns release tarball planning/build/verify, `internal/readiness` owns readiness evidence workflows, and `internal/closeout` owns pilot closeout bundle assembly
 - **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; `scripts/libexec/onboard_impl.sh` is a compatibility shim only
 - **User config safety:** home-directory tool config writes must be ACP-managed, atomic, private (`0600` files / `0700` dirs), and conflict-aware; never overwrite unmanaged user config or emit world-readable backups
+- **Local-only artifact privacy:** generated local-only outputs under `demo/backups/` and `demo/logs/` should default to private modes (`0600` files / `0700` dirs); use `internal/fsutil` private helpers and keep `internal/artifactrun` outputs private unless a broader mode is explicitly justified
+- **Make/env contract:** never globally include/export `demo/.env` from Make; pass Compose env files explicitly with `--env-file`, and let typed Go config load repo-local env data when non-Compose commands need it
 - **Helm deployment contract:** `deploy/helm/ai-control-plane/values.yaml` is production-only; demo paths must opt in via `examples/values.demo.yaml` or `examples/values.offline.yaml` with `profile=demo` and `demo.enabled=true`
 - **Remote OTEL ingress:** keep raw collector ports localhost-bound; remote OTLP/HTTP clients must use the TLS Caddy `/otel/*` route with `OTEL_INGEST_AUTH_TOKEN`
 
