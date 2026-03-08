@@ -98,8 +98,9 @@ Operator interface order in this runbook:
 
 - [ ] **Observability Validation**: Verify OTEL configuration for production
   ```bash
-  # Ensure required OTEL environment variables are set
-  grep -E "OTEL_EXPORTER_OTLP_ENDPOINT|OTEL_RESOURCE_ENVIRONMENT" demo/.env
+  # Ensure required OTEL environment variables are set without grepping demo/.env
+  ./scripts/acpctl.sh env get OTEL_EXPORTER_OTLP_ENDPOINT
+  ./scripts/acpctl.sh env get OTEL_RESOURCE_ENVIRONMENT
   
   # Start with production profile (includes OTEL)
   make up-production

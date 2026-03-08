@@ -627,8 +627,8 @@ make key-revoke ALIAS=<alias>
 **Required environment:**
 
 ```bash
-# Ensure LITELLM_MASTER_KEY is set
-export LITELLM_MASTER_KEY=$(grep LITELLM_MASTER_KEY demo/.env | cut -d= -f2)
+# Read LITELLM_MASTER_KEY as data only (never source or grep demo/.env)
+export LITELLM_MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
 ```
 
 > Approval-queue and dry-run key-generation script flows from older private iterations are not part of the open-source release operator interface.
@@ -1518,8 +1518,8 @@ make logs
 
 **Verify Environment:**
 ```bash
-# Check master key is set
-grep LITELLM_MASTER_KEY demo/.env
+# Check master key can be read through the typed accessor
+./scripts/acpctl.sh env get LITELLM_MASTER_KEY
 
 # Verify .env exists
 ls -la demo/.env
@@ -1540,16 +1540,18 @@ docker exec $(docker compose -f demo/docker-compose.yml ps -q postgres) \
 
 **Verify Credentials:**
 ```bash
-# Check .env configuration
-cat demo/.env | grep -E "(POSTGRES|DATABASE)"
+# Check database credentials and connection settings without grepping .env
+./scripts/acpctl.sh env get POSTGRES_USER
+./scripts/acpctl.sh env get POSTGRES_DB
+./scripts/acpctl.sh env get DATABASE_URL
 ```
 
 ### 13.3 Authentication Failures
 
 **Verify Master Key:**
 ```bash
-# Check .env matches client request
-grep LITELLM_MASTER_KEY demo/.env
+# Read the current master key without executing demo/.env
+./scripts/acpctl.sh env get LITELLM_MASTER_KEY
 ```
 
 **Restart After .env Changes:**

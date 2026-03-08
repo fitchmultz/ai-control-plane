@@ -177,12 +177,12 @@ make db-status
 For deterministic offline demos, set `ACP_OFFLINE_MODE=1` before key generation so the generated key matches the offline model aliases. If you still encounter "Invalid model name" errors, use the raw API to generate a key with the correct offline models:
 
 ```bash
-# Get master key from .env
-source demo/.env
+# Read the master key as data only (never source demo/.env)
+MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
 
 # Generate key with offline models
 curl -X POST http://localhost:4000/key/generate \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+  -H "Authorization: Bearer $MASTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key_alias": "demo-key", "max_budget": 1.00, "models": ["mock-gpt", "mock-claude"]}'
 ```

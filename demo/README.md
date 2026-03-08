@@ -89,7 +89,7 @@ The LiteLLM proxy includes a built-in admin dashboard for managing virtual keys,
 
 **Find your master key:**
 ```bash
-cat demo/.env | grep LITELLM_MASTER_KEY
+./scripts/acpctl.sh env get LITELLM_MASTER_KEY
 ```
 
 ### Remote Gateway Host Mode (Optional)
@@ -745,7 +745,7 @@ For complete database documentation, see [docs/DATABASE.md](../docs/DATABASE.md)
 
 1. **Services fail to start**: Check `docker-compose logs` for detailed error messages
 2. **Database connection errors**: Ensure the postgres service is healthy: `docker-compose ps postgres`
-3. **Authentication failures**: Verify `LITELLM_MASTER_KEY` matches between `.env` and client requests
+3. **Authentication failures**: Verify `LITELLM_MASTER_KEY` with `./scripts/acpctl.sh env get LITELLM_MASTER_KEY` and confirm the client request uses the same value
 4. **Remote host connectivity**: Ensure firewall allows port 443 to the TLS gateway from the client machine (Postgres 5432 only if you intentionally publish it)
 5. **Log files growing too large**: Logs are automatically rotated by Docker. See [LOGGING.md](LOGGING.md) for details.
 
