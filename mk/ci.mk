@@ -49,6 +49,7 @@ ci-pr: ## PR-required checks (fast/deterministic: lint, static checks, unit + po
 	@$(MAKE) --silent license-check
 	@$(MAKE) --silent supply-chain-gate
 	@$(MAKE) --silent type-check
+	@$(MAKE) --silent coverage-critical
 	@$(MAKE) --silent script-tests
 	@$(MAKE) --silent test-go
 	@echo '$(COLOR_GREEN)✓ PR-required checks passed$(COLOR_RESET)'
@@ -87,6 +88,7 @@ ci-fast: ## Fast CI gate (skip runtime tests; keep static/security checks)
 	@$(MAKE) --silent license-check
 	@$(MAKE) --silent supply-chain-gate
 	@$(MAKE) --silent type-check
+	@$(MAKE) --silent coverage-critical
 	@echo '$(COLOR_GREEN)✓ Fast CI gate passed$(COLOR_RESET)'
 
 .PHONY: ci-runtime-checks

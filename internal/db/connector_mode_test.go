@@ -1,26 +1,29 @@
-// client_test.go - Tests for the typed database connector and service split.
+// connector_mode_test.go - Mode and constructor coverage for the database connector.
 //
 // Purpose:
-//   - Verify the database connector resolves mode/configuration consistently.
+//   - Verify database mode selection and constructor guard rails.
 //
 // Responsibilities:
-//   - Assert explicit ACP_DATABASE_MODE values drive connector mode.
-//   - Assert ambiguous DATABASE_URL-only configurations are surfaced.
-//   - Assert admin service construction rejects unsupported external mode.
+//   - Assert explicit external mode is honored.
+//   - Assert ambiguous DATABASE_URL-only setups are rejected.
+//   - Assert default embedded mode and admin-service mode checks stay stable.
 //
 // Scope:
-//   - Configuration and constructor behavior only.
+//   - Constructor and mode-selection behavior only.
 //
 // Usage:
-//   - Used through its package exports and test entrypoints as applicable.
+//   - Run via `go test ./internal/db`.
 //
 // Invariants/Assumptions:
 //   - Tests do not require a live PostgreSQL runtime.
 package db
 
 import (
-	"os"
+	"context"
+	"strings"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
 func TestNewConnectorExternalMode(t *testing.T) {
@@ -54,8 +57,8 @@ func TestNewConnectorFlagsAmbiguousDatabaseURL(t *testing.T) {
 }
 
 func TestDefaultEmbeddedModeWithoutOverrides(t *testing.T) {
-	_ = os.Unsetenv("ACP_DATABASE_MODE")
-	_ = os.Unsetenv("DATABASE_URL")
+	t.Setenv("ACP_DATABASE_MODE", "")
+	t.Setenv("DATABASE_URL", "")
 
 	connector := NewConnector("")
 	defer connector.Close()
@@ -74,5 +77,27 @@ func TestNewAdminServiceRejectsExternalMode(t *testing.T) {
 
 	if _, err := NewAdminService(connector); err == nil {
 		t.Fatal("expected admin service construction to reject external mode")
+	}
+}
+
+func TestNewAdminServiceRejectsNilConnector(t *testing.T) {
+	if _, err := NewAdminService(nil); err == nil {
+		t.Fatal("expected nil connector to be rejected")
+	}
+}
+
+func TestAdminServiceBackupAndRestoreSurfaceContainerLookupErrors(t *testing.T) {
+	service, err := NewAdminService(&Connector{
+		settings: config.DatabaseSettings{Mode: config.DatabaseModeEmbedded},
+	})
+	if err != nil {
+		t.Fatalf("NewAdminService() error = %v", err)
+	}
+
+	if _, err := service.Backup(context.Background()); err == nil {
+		t.Fatal("expected backup to fail without compose-backed container")
+	}
+	if err := service.Restore(context.Background(), strings.NewReader("select 1;")); err == nil {
+		t.Fatal("expected restore to fail without compose-backed container")
 	}
 }

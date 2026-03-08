@@ -38,6 +38,7 @@ This is an infrastructure-first demo reference implementation with a typed opera
 | Shell script tests | `make script-tests` |
 | CI gate | `make ci` |
 | PR CI gate (fast deterministic) | `make ci-pr` |
+| Critical package coverage gate | `make coverage-critical` |
 | Performance baseline | `make performance-baseline` |
 | Pilot closeout bundle | `make pilot-closeout-bundle` |
 | Service health | `make health` |
@@ -114,6 +115,7 @@ make health      # Verify services
 ## Non-Negotiables
 
 - `make ci` MUST pass before claiming completion
+- `make ci-pr` / `make ci-fast` enforce `make coverage-critical` for `internal/db`, `internal/contracts`, `internal/config`, `internal/catalog`, and `internal/fsutil`; keep those thresholds green when touching those packages or shared test infrastructure
 - `ci-runtime-checks` must remain stateless in CI slot (`ACP_SLOT=ci-runtime`): always teardown CI runtime volumes to avoid stale PostgreSQL major-version data drift
 - Make-driven Docker Compose flows must use slot-scoped Compose project names (`ai-control-plane-<slot>`) so CI/runtime stacks do not collide with other local environments
 - Caddy TLS configs must stay compatible with pinned Caddy image behavior: use `lb_retries` (not `lb_retry_count`) and scope JSON `Content-Type` enforcement to body methods (`POST|PUT|PATCH`) so GET endpoints like `/v1/models` are not blocked.
