@@ -122,7 +122,8 @@ services:
     <<: *acp-security-defaults
     profiles: ["otel", "production"]
     # Used for direct/bypass client telemetry and optional correlation telemetry.
-    # Gateway-routed traffic is primarily audited via LiteLLM/PostgreSQL.
+    # Raw collector ports are localhost-only by contract; remote clients must use
+    # the TLS-authenticated Caddy `/otel/*` ingress instead of direct exposure.
     # Pinned to prevent drift (v0.147.0)
     image: otel/opentelemetry-collector-contrib:0.147.0@sha256:e7c92c715f28ff142f3bcaccd4fc5603cf4c71276ef09954a38eb4038500a5a5
     command: ["--config=/etc/otel-collector/${OTEL_COLLECTOR_CONFIG_FILE:-config.yaml}"]
@@ -131,9 +132,9 @@ services:
       - ./config/otel-collector/config.production.yaml:/etc/otel-collector/config.production.yaml:ro
       - ./logs/${ACP_SLOT:-active}/otel:/var/log/otel
     ports:
-      - "${OTEL_PUBLISH_HOST:-127.0.0.1}:${OTEL_GRPC_HOST_PORT:-4317}:4317"
-      - "${OTEL_PUBLISH_HOST:-127.0.0.1}:${OTEL_HTTP_HOST_PORT:-4318}:4318"
-      - "${OTEL_PUBLISH_HOST:-127.0.0.1}:${OTEL_HEALTH_HOST_PORT:-13133}:13133"
+      - "127.0.0.1:${OTEL_GRPC_HOST_PORT:-4317}:4317"
+      - "127.0.0.1:${OTEL_HTTP_HOST_PORT:-4318}:4318"
+      - "127.0.0.1:${OTEL_HEALTH_HOST_PORT:-13133}:13133"
     environment:
       OTEL_RESOURCE_ENVIRONMENT: ${OTEL_RESOURCE_ENVIRONMENT:-demo}
       OTEL_RESOURCE_DEPLOYMENT: ${OTEL_RESOURCE_DEPLOYMENT:-local}

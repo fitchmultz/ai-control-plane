@@ -131,10 +131,12 @@ When using an external PostgreSQL host (split-host mode):
 
 | Variable | Type | Description | Default | Notes |
 |----------|------|-------------|---------|-------|
-| `LITELLM_PUBLISH_HOST` | Non-secret | Interface to bind LiteLLM | `127.0.0.1` | Set to `0.0.0.0` **only** with TLS enabled |
+| `LITELLM_PUBLISH_HOST` | Non-secret | Interface to bind LiteLLM | `127.0.0.1` | Must remain localhost-only in production; expose traffic through Caddy |
 | `CADDY_PUBLISH_HOST` | Non-secret | Interface to bind Caddy (TLS) | `127.0.0.1` | Set to `0.0.0.0` for external TLS access |
 
-**Security Rule**: When `LITELLM_PUBLISH_HOST` or `CADDY_PUBLISH_HOST` is not `127.0.0.1`, TLS configuration is required.
+**Security Rule**: Production traffic must terminate at Caddy. `LITELLM_PUBLISH_HOST`
+must stay `127.0.0.1`; if `CADDY_PUBLISH_HOST` is exposed beyond localhost, the
+deployment must use the production TLS contract below.
 
 ### TLS Configuration (Required for External Exposure)
 
@@ -147,6 +149,40 @@ When the gateway is exposed beyond localhost, TLS is mandatory:
 | `CADDY_DOMAIN` | Non-secret | Domain name for certificates | `CADDY_ACME_CA=letsencrypt` |
 | `CADDY_EMAIL` | Non-secret | Email for cert notifications | `CADDY_ACME_CA=letsencrypt` |
 | `LITELLM_PUBLIC_URL` | Non-secret | Public HTTPS URL | TLS mode: Must start with `https://` |
+| `OTEL_INGEST_AUTH_TOKEN` | Secret | Shared secret for Caddy OTEL ingress | Required when remote OTEL clients use `/otel/*` |
+
+**TLS Exposure Contract**:
+- Exposed production ingress must use `CADDYFILE_PATH=./config/caddy/Caddyfile.prod`
+- Exposed production ingress must use `CADDY_ACME_CA=letsencrypt`
+- `LITELLM_PUBLIC_URL` must be `https://<CADDY_DOMAIN>`
+- Remote OTEL clients must use `https://<CADDY_DOMAIN>/otel` with `Authorization: Bearer ${OTEL_INGEST_AUTH_TOKEN}`
+
+### Production Secrets File Contract
+
+`SECRETS_ENV_FILE` is the canonical production input and must satisfy all of the
+following:
+
+- Path points to a regular file, not a symlink
+- File permissions deny group/other access (`0600` or stricter)
+- Parent directory is not group/other writable
+- File contains the production-only values consumed by `make validate-config-production`
+
+Example setup:
+
+```bash
+sudo install -d -m 750 /etc/ai-control-plane
+sudo install -m 600 /dev/null /etc/ai-control-plane/secrets.env
+```
+
+### OTEL Ingress Contract
+
+Production OTEL has a strict split between local bind and remote ingest:
+
+- Raw collector ports `4317`, `4318`, and `13133` are localhost-only
+- `OTEL_PUBLISH_HOST` is not part of the production contract
+- Remote clients must use the TLS Caddy `/otel/*` ingress
+- `/otel/*` must require `Authorization: Bearer ${OTEL_INGEST_AUTH_TOKEN}`
+- The production Caddyfile must proxy authorized OTEL traffic to `otel-collector:4318`
 
 ### Optional Provider Keys
 
@@ -176,7 +212,10 @@ The validation script supports two profiles:
 
 **Characteristics**:
 - Requires strong database passwords (>=16 characters)
-- Requires TLS when gateway is exposed (`LITELLM_PUBLISH_HOST != 127.0.0.1`)
+- Requires host secrets file security checks
+- Requires LiteLLM to stay localhost-bound behind Caddy
+- Requires Let's Encrypt-backed TLS when Caddy is externally exposed
+- Requires localhost-only raw OTEL collector ports with authenticated `/otel/*` ingress
 - Enforces consistency between `DATABASE_URL` and `POSTGRES_*` variables
 - Fails on any placeholder or weak configuration
 
@@ -212,13 +251,16 @@ The following invariants are enforced by validation:
 1. **No Placeholder Secrets**: `LITELLM_MASTER_KEY` and `LITELLM_SALT_KEY` cannot be the demo placeholder values
 2. **Minimum Entropy**: All secrets must be >=32 characters (except `POSTGRES_PASSWORD` which is >=16 in production)
 3. **No Whitespace**: Secrets must not contain spaces, tabs, newlines, or carriage returns
-4. **No Secret Logging**: Validation scripts must never print secret values in error messages
+4. **Secrets File Hardening**: `SECRETS_ENV_FILE` must be a non-symlink file with locked-down permissions
+5. **No Secret Logging**: Validation scripts must never print secret values in error messages
 
 ### Configuration Invariants
 
 1. **Consistency**: When using embedded PostgreSQL, `DATABASE_URL` must reference the same credentials as `POSTGRES_*` variables
-2. **TLS for Exposure**: When `LITELLM_PUBLISH_HOST` is not `127.0.0.1`, valid TLS configuration is required
-3. **Domain Matching**: `LITELLM_PUBLIC_URL` must contain `CADDY_DOMAIN` when using Let's Encrypt
+2. **Ingress Ownership**: Production LiteLLM traffic must be exposed through Caddy, not by binding LiteLLM directly beyond localhost
+3. **TLS for Exposure**: When `CADDY_PUBLISH_HOST` is not `127.0.0.1`, `CADDYFILE_PATH=./config/caddy/Caddyfile.prod`, `CADDY_ACME_CA=letsencrypt`, and a valid `https://` public URL are required
+4. **Domain Matching**: `LITELLM_PUBLIC_URL` must match `CADDY_DOMAIN` when using Let's Encrypt
+5. **OTEL Exposure**: Raw OTEL ports remain localhost-only and remote OTEL ingress must use authenticated `/otel/*`
 
 ### Runtime Invariants
 
@@ -447,7 +489,10 @@ sudo chmod 600 /etc/ai-control-plane/secrets.env
 #    - Strong LITELLM_MASTER_KEY and LITELLM_SALT_KEY
 #    - Strong POSTGRES_PASSWORD (>=16 chars)
 #    - CADDY_DOMAIN, CADDY_EMAIL for TLS
-#    - LITELLM_PUBLISH_HOST=0.0.0.0 (if exposing externally)
+#    - Keep LITELLM_PUBLISH_HOST=127.0.0.1
+#    - Set CADDY_PUBLISH_HOST=0.0.0.0 for external TLS exposure
+#    - Set CADDYFILE_PATH=./config/caddy/Caddyfile.prod
+#    - Set OTEL_INGEST_AUTH_TOKEN if remote OTEL clients will use /otel/*
 
 # 3. Run production gate (required before customer handoff)
 make ci-nightly SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
@@ -477,7 +522,10 @@ sudo chmod 600 /etc/ai-control-plane/secrets.env
 #    - DATABASE_URL=postgresql://litellm:<password>@db.example.com:5432/litellm?sslmode=require
 #    - Strong LITELLM_MASTER_KEY and LITELLM_SALT_KEY
 #    - CADDY_DOMAIN, CADDY_EMAIL for TLS
-#    - LITELLM_PUBLISH_HOST=0.0.0.0 (if exposing externally)
+#    - Keep LITELLM_PUBLISH_HOST=127.0.0.1
+#    - Set CADDY_PUBLISH_HOST=0.0.0.0 for external TLS exposure
+#    - Set CADDYFILE_PATH=./config/caddy/Caddyfile.prod
+#    - Set OTEL_INGEST_AUTH_TOKEN if remote OTEL clients will use /otel/*
 #    - POSTGRES_* variables are NOT required (external DB managed separately)
 
 # 3. Validate external database connectivity from gateway host

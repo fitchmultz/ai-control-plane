@@ -249,6 +249,7 @@ echo ""
 
 echo "Test: typed command paths do not delegate to make..."
 assert_typed_no_delegation "validate config runs via typed path" validate config
+assert_typed_no_delegation "validate config --production stays make-independent" validate config --production --secrets-env-file /tmp/secrets.env
 assert_typed_no_delegation "chargeback report help stays make-independent" chargeback report --help
 
 : >"$CAPTURE_FILE"

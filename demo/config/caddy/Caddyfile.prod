@@ -47,7 +47,8 @@
         respond "Request body too large. Maximum size is 10MB." 413
     }
 
-    # Remote OTEL ingestion is HTTPS-only and requires an explicit shared secret.
+    # Remote OTEL ingestion is HTTPS-only and requires an explicit shared
+    # secret. Raw OTEL collector ports remain localhost-only by contract.
     handle_path /otel/* {
         @authorized header Authorization "Bearer {$OTEL_INGEST_AUTH_TOKEN}"
         reverse_proxy @authorized otel-collector:4318

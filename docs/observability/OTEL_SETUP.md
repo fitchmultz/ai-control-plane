@@ -4,6 +4,13 @@
 
 The OpenTelemetry (OTEL) collector provides centralized telemetry ingestion for AI tools that are **not routed through the gateway** (e.g., Codex CLI using direct vendor OAuth) or for **correlation telemetry** when additional client-side visibility is desired.
 
+Production contract summary:
+
+- Raw OTEL collector ports (`4317`, `4318`, `13133`) remain bound to `127.0.0.1`
+- `OTEL_PUBLISH_HOST` is not a supported production escape hatch
+- Remote OTEL clients must use `https://<gateway-domain>/otel`
+- Remote OTEL ingress requires `Authorization: Bearer ${OTEL_INGEST_AUTH_TOKEN}`
+
 ## Production vs Demo Configuration
 
 The AI Control Plane provides two OTEL collector configurations:
@@ -49,6 +56,13 @@ The production configuration (`config.production.yaml`) includes:
 | `OTEL_MEMORY_LIMIT_MIB` | No | `256` | Memory limit in MiB |
 | `OTEL_BATCH_SIZE` | No | `512` | Batch size for telemetry |
 | `OTEL_TRACES_SAMPLING_PERCENT` | No | `10` | Sampling percentage (0-100) |
+
+**Production ingress rules**:
+
+- Do not expose raw OTEL ports beyond localhost
+- Do not rely on `OTEL_PUBLISH_HOST` for remote access
+- Use the TLS Caddy ingress in `demo/config/caddy/Caddyfile.prod`
+- Run `make validate-config-production` before applying production changes
 
 ### Cost and Cardinality Controls
 
@@ -144,6 +158,7 @@ OTEL_TRACES_SAMPLING_PERCENT=10
 EOF
 
 # Validate and start with production profile
+make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
 make up-production
 
 # Verify OTEL collector health
@@ -162,7 +177,7 @@ export OTEL_SERVICE_NAME="codex-cli"
 codex
 ```
 
-For remote deployment (client machine + gateway host), use the TLS-protected OTLP/HTTP ingress:
+For remote deployment (client machine + gateway host), use the TLS-protected OTLP/HTTP ingress. This is the only supported remote production path:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT="https://gateway.example.com/otel"
@@ -190,6 +205,10 @@ make logs
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | `http/protobuf` |
 | `OTEL_EXPORTER_OTLP_HEADERS` | unset | `Authorization=Bearer ${OTEL_INGEST_AUTH_TOKEN}` |
 | `OTEL_SERVICE_NAME` | `codex-cli` | `codex-cli` |
+
+Raw production collector ports stay on `127.0.0.1` even when the gateway is exposed.
+If you need remote OTEL ingest, route it through the authenticated TLS ingress
+instead of publishing `4317`, `4318`, or `13133`.
 
 ### OTEL Collector Configuration
 
@@ -512,5 +531,5 @@ OTEL provides visibility but NOT enforcement. For governance:
 
 1. **Prompt redaction:** OTEL should NOT export prompt/response content
 2. **Token safety:** Never export OAuth tokens
-3. **Network exposure:** OTEL ports should be firewalled appropriately
+3. **Network exposure:** Raw OTEL ports must stay localhost-only; remote OTEL access must use authenticated HTTPS `/otel/*`
 4. **Log retention:** Telemetry logs contain usage metadata (treat accordingly)
