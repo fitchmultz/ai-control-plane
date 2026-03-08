@@ -67,8 +67,8 @@ All services run on a Linux host using Docker Compose. This is the **default and
 
 | Service | Endpoint |
 |---------|----------|
-| LiteLLM Gateway | `http://127.0.0.1:4000` |
-| LiteLLM WebUI (optional) | `http://127.0.0.1:4000/ui` |
+| LiteLLM Gateway | `http://127.0.0.1:4000` (localhost only) |
+| LiteLLM WebUI (optional) | `http://127.0.0.1:4000/ui` (localhost only) |
 | PostgreSQL | Internal (Docker network; not published by default) |
 
 **LiteLLM WebUI Access (Optional):**
@@ -86,7 +86,7 @@ Services run on a gateway host (server/lab machine), and client machines connect
 
 | Component | Host | Endpoint |
 |-----------|------|----------|
-| Gateway Host (services) | `GATEWAY_HOST` | LiteLLM: `http://GATEWAY_HOST:4000`<br>LiteLLM WebUI (optional): `http://GATEWAY_HOST:4000/ui` |
+| Gateway Host (services) | `GATEWAY_HOST` | LiteLLM: `https://gateway.example.com`<br>LiteLLM WebUI (optional): `https://gateway.example.com/ui` |
 | Client Machine (AI tools) | `CLIENT_HOST` | Connects to `GATEWAY_HOST` |
 
 ### 2.2 Optional: Portainer Operator Layer
@@ -104,7 +104,7 @@ LibreChat provides a governed web-based chat interface for non-technical users. 
 | Service | Endpoint | Notes |
 |---------|----------|-------|
 | LibreChat UI | `http://127.0.0.1:3080` | Browser-based chat interface |
-| LiteLLM Gateway | `http://127.0.0.1:4000` | Backend API (same as base deployment) |
+| LiteLLM Gateway | `http://127.0.0.1:4000` (localhost only) | Backend API (same as base deployment) |
 
 **Quick Start:**
 ```bash
@@ -355,7 +355,7 @@ From the client machine, run these connectivity checks:
 ping -c 2 GATEWAY_HOST
 
 # Validate gateway health endpoint (200 or 401 expected)
-curl -sS -o /dev/null -w '%{http_code}\n' "http://GATEWAY_HOST:4000/health"
+curl -sS -o /dev/null -w '%{http_code}\n' "https://GATEWAY_HOST/health"
 ```
 
 > Use a short-lived **virtual key** for client-side authenticated checks.
@@ -404,8 +404,8 @@ all:
           ansible_user: ubuntu
           acp_repo_path: /opt/ai-control-plane
           acp_env_file: /opt/ai-control-plane/demo/.env
-          acp_tls_mode: plain
-          acp_public_url: http://192.168.1.122:4000
+          acp_tls_mode: tls
+          acp_public_url: https://gateway.example.com
 ```
 
 **Inventory contract:**
@@ -413,7 +413,7 @@ all:
 - `ansible_user`: SSH username
 - `acp_repo_path`: Path where repository is cloned on gateway
 - `acp_env_file`: Path to environment file on gateway
-- `acp_tls_mode`: `plain` or `tls`
+- `acp_tls_mode`: `tls`
 - `acp_public_url`: Public URL for smoke checks
 
 #### Step 2: Dry-Run (Check Mode)
@@ -714,7 +714,8 @@ Project Color Scheme:
 ║  ║  Gateway Host                 ║  ║
 ║  ║  GATEWAY_HOST                 ║  ║
 ║  ║  ───────────────────────────  ║  ║
-║  ║  LiteLLM: 0.0.0.0:4000        ║  ║
+║  ║  Caddy TLS: 0.0.0.0:443       ║  ║
+║  ║  LiteLLM: internal-only       ║  ║
 ║  ║  PostgreSQL: internal only    ║  ║
 ║  ╚═══════════════════════════════╝  ║
 ╚═════════════════════════════════════╝
@@ -726,13 +727,13 @@ Project Color Scheme:
 
 | Port | Service | When Required |
 |------|---------|---------------|
-| 4000 | LiteLLM Gateway | Remote mode only |
+| 443 | TLS gateway ingress | Remote mode only |
 | 5432 | PostgreSQL | Only if you intentionally publish DB access |
 
 **Example UFW rules:**
 ```bash
 # Allow from a specific client subnet
-sudo ufw allow from CLIENT_SUBNET to any port 4000
+sudo ufw allow from CLIENT_SUBNET to any port 443
 # Optional: only if you publish Postgres for direct access
 # sudo ufw allow from CLIENT_SUBNET to any port 5432
 ```
@@ -800,6 +801,9 @@ OTEL_EXPORTER_OTLP_ENDPOINT=https://your-otel-backend.example.com
 
 # Optional: Authentication header
 OTEL_EXPORTER_OTLP_AUTH_HEADER="Api-Key your-api-key"
+
+# Required for remote client -> gateway OTEL ingress
+OTEL_INGEST_AUTH_TOKEN=replace-with-long-random-token
 
 # Required: Resource attributes for tagging
 OTEL_RESOURCE_ENVIRONMENT=production
@@ -895,7 +899,7 @@ The canonical network firewall contract defines all network flows for the AI Con
 The contract is defined in `demo/config/network_firewall_contract.yaml`. This YAML file specifies:
 - Required network flows (service-to-service and external)
 - Port requirements and protocols
-- Exposure semantics (`localhost`, `internal_only`, `public`, `optional_public`)
+- Exposure semantics (`localhost`, `internal_only`, `public`)
 - Manifest references and operational justifications per flow
 - Description and justification for each rule
 
@@ -1077,8 +1081,8 @@ make health
 
 ```bash
 # Test LiteLLM health endpoint
-curl http://127.0.0.1:4000/health
-# Remote mode: curl http://GATEWAY_HOST:4000/health
+curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" http://127.0.0.1:4000/health
+# Remote mode: curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" https://gateway.example.com/health
 
 # Test models endpoint (requires authentication)
 curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
@@ -1320,7 +1324,7 @@ If you see errors like these when running `make key-gen`:
 ```bash
 # From client machine
 ping -c 2 GATEWAY_HOST
-curl -sS -o /dev/null -w '%{http_code}\n' "http://GATEWAY_HOST:4000/health"
+  curl -sS -o /dev/null -w '%{http_code}\n' "https://GATEWAY_HOST/health"
 ```
 
 **Step 2: Manual diagnosis (if script unavailable)**
@@ -1666,14 +1670,14 @@ Either approach ensures production resources are not affected by CI cleanup oper
 - See [deployment/TLS_SETUP.md](deployment/TLS_SETUP.md) for complete setup guide
 
 **For Demo/Development:**
-- HTTP is acceptable for local single-machine testing
-- Use self-signed certificates for remote demo environments
+- Plain HTTP remains localhost-only for single-machine troubleshooting
+- Any remote access, including demos, must terminate with TLS
 - Quick start: `make up-tls` (see [deployment/TLS_SETUP.md](deployment/TLS_SETUP.md))
 
 **Quick Reference:**
 | Mode | Command | Endpoint | Certificate |
 |------|---------|----------|-------------|
-| HTTP (default) | `make up` | http://localhost:4000 | None |
+| HTTP (localhost only) | `make up` | http://localhost:4000 | None |
 | HTTPS (local) | `make up-tls` | https://localhost | Self-signed |
 | HTTPS (prod) | `make up-tls` | https://your-domain.com | Let's Encrypt |
 

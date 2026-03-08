@@ -192,7 +192,7 @@ flows:
     direction: ingress
     protocol: tcp
     port: 80
-    exposure: optional_public
+    exposure: public
     tls_required_when_public: false
     manifests:
       - demo/docker-compose.tls.yml:services.caddy.ports
@@ -252,13 +252,13 @@ flows:
     direction: ingress
     protocol: tcp
     port: 4317
-    exposure: optional_public
+    exposure: localhost
     tls_required_when_public: false
     manifests:
       - demo/docker-compose.yml:services.otel-collector.ports
     justification: >
-      OpenTelemetry gRPC endpoint for
-      optional direct/bypass and correlation telemetry collection
+      OpenTelemetry gRPC endpoint remains localhost-only;
+      remote ingest must traverse an authenticated HTTPS proxy path
 
   - id: flow-otel-http
     source: client_host
@@ -266,13 +266,13 @@ flows:
     direction: ingress
     protocol: tcp
     port: 4318
-    exposure: optional_public
+    exposure: localhost
     tls_required_when_public: false
     manifests:
       - demo/docker-compose.yml:services.otel-collector.ports
     justification: >
-      OpenTelemetry HTTP endpoint for
-      optional direct/bypass and correlation telemetry collection
+      OpenTelemetry HTTP endpoint remains localhost-only;
+      remote ingest must traverse an authenticated HTTPS proxy path
 
   - id: flow-otel-health
     source: client_host
@@ -280,13 +280,13 @@ flows:
     direction: ingress
     protocol: tcp
     port: 13133
-    exposure: optional_public
+    exposure: localhost
     tls_required_when_public: false
     manifests:
       - demo/docker-compose.yml:services.otel-collector.ports
     justification: >
-      OTel collector health check endpoint
-      for optional direct/bypass telemetry path
+      OTel collector health check endpoint remains localhost-only
+      for local operator verification
 
   # ============================================================================
   # Presidio Services
@@ -424,7 +424,7 @@ flows:
     direction: ingress
     protocol: tcp
     port: 80
-    exposure: optional_public
+    exposure: public
     tls_required_when_public: false
     manifests:
       - deploy/helm/ai-control-plane/values.yaml:ingress
@@ -438,7 +438,7 @@ flows:
     direction: ingress
     protocol: tcp
     port: 443
-    exposure: optional_public
+    exposure: public
     tls_required_when_public: true
     manifests:
       - deploy/helm/ai-control-plane/values.yaml:ingress.tls

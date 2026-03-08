@@ -7,7 +7,7 @@ Responsibilities:
 
 Non-scope:
   - Does NOT expose PostgreSQL externally by default
-  - External access requires explicit configuration (port-forward or LoadBalancer)
+  - External access requires an explicit local operator workflow such as port-forward
 */}}
 {{- if .Values.postgres.enabled }}
 apiVersion: v1

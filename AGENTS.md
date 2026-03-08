@@ -91,6 +91,8 @@ make health      # Verify services
 - **acpctl command metadata:** `cmd/acpctl/command_registry.go` is the canonical source for root commands, grouped subcommands, completion ordering, and bridge compatibility entries
 - **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/release/readiness_plan.go` materializes it
 - **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; `scripts/libexec/onboard_impl.sh` is a compatibility shim only
+- **Helm deployment contract:** `deploy/helm/ai-control-plane/values.yaml` is production-only; demo paths must opt in via `examples/values.demo.yaml` or `examples/values.offline.yaml` with `profile=demo` and `demo.enabled=true`
+- **Remote OTEL ingress:** keep raw collector ports localhost-bound; remote OTLP/HTTP clients must use the TLS Caddy `/otel/*` route with `OTEL_INGEST_AUTH_TOKEN`
 
 ---
 

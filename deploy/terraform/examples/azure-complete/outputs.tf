@@ -174,12 +174,12 @@ output "helm_release_name" {
 
 output "helm_release_status" {
   description = "Status of the Helm release"
-  value       = module.helm_release.status
+  value       = module.helm_release.release_status
 }
 
 output "helm_release_version" {
   description = "Version of the Helm release"
-  value       = module.helm_release.version
+  value       = module.helm_release.release_version
 }
 
 #------------------------------------------------------------------------------
@@ -188,7 +188,7 @@ output "helm_release_version" {
 
 output "application_url" {
   description = "URL to access the AI Control Plane application"
-  value       = var.ingress_enabled ? (var.ingress_host != "" ? "https://${var.ingress_host}" : "http://${var.helm_release_name}.${var.location}.cloudapp.azure.com") : "Internal ClusterIP - use kubectl port-forward"
+  value       = var.ingress_enabled ? "https://${var.ingress_host}" : "Internal ClusterIP - use kubectl port-forward"
 }
 
 output "application_internal_endpoint" {
@@ -237,14 +237,14 @@ output "get_database_url" {
 #------------------------------------------------------------------------------
 
 output "litellm_master_key" {
-  description = "LiteLLM master key (auto-generated if not provided)"
-  value       = var.litellm_master_key != "" ? var.litellm_master_key : random_password.litellm_master.result
+  description = "LiteLLM master key"
+  value       = var.litellm_master_key
   sensitive   = true
 }
 
 output "litellm_salt_key" {
-  description = "LiteLLM salt key (auto-generated if not provided)"
-  value       = var.litellm_salt_key != "" ? var.litellm_salt_key : random_password.litellm_salt.result
+  description = "LiteLLM salt key"
+  value       = var.litellm_salt_key
   sensitive   = true
 }
 
@@ -260,7 +260,7 @@ output "postgresql_admin_password" {
 
 output "deployment_summary" {
   description = "Summary of the deployment"
-  value = <<EOF
+  value       = <<EOF
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                    AI Control Plane Deployment Complete                      ║
@@ -279,7 +279,7 @@ output "deployment_summary" {
                       az aks get-credentials --resource-group ${azurerm_resource_group.main.name} --name ${module.aks.cluster_name}
   3. Check pods:      kubectl get pods -n ${var.helm_namespace}
   4. Port forward:    kubectl port-forward svc/${var.helm_release_name}-litellm 4000:4000 -n ${var.helm_namespace}
-  5. Access:          http://localhost:4000
+  5. Access:          ${var.ingress_enabled ? "https://${var.ingress_host}" : "Local-only port-forward access"}
 ╚══════════════════════════════════════════════════════════════════════════════╝
 EOF
 }

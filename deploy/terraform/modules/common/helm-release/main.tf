@@ -35,17 +35,11 @@ resource "helm_release" "this" {
   create_namespace = var.create_namespace
 
   # Values files (applied in order, later files override earlier ones)
-  dynamic "values" {
-    for_each = var.values_files
-    content {
-      value = file(values.value)
-    }
-  }
-
-  # Inline values (deep merged with values files)
-  values = [
-    yamlencode(var.values)
-  ]
+  # followed by the final inline override payload.
+  values = concat(
+    [for values_file in var.values_files : file(values_file)],
+    [yamlencode(var.values)]
+  )
 
   # -----------------------------------------------------------------------------
   # Deployment Safety Options

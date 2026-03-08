@@ -215,7 +215,7 @@ variable "auto_scaler_profile" {
     max_graceful_termination_sec     = optional(number, 600)
     max_node_provision_time          = optional(string, "15m")
     max_unready_nodes                = optional(number, 3)
-    max_unready_percentage             = optional(number, 45)
+    max_unready_percentage           = optional(number, 45)
     new_pod_scale_up_delay           = optional(string, "0s")
     scale_down_delay_after_add       = optional(string, "10m")
     scale_down_delay_after_delete    = optional(string, "10s")
@@ -254,13 +254,13 @@ variable "maintenance_window" {
 variable "enable_microsoft_defender" {
   description = "Enable Microsoft Defender for Containers"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_oms_agent" {
   description = "Enable OMS agent for monitoring"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "log_analytics_workspace_id" {
@@ -272,13 +272,13 @@ variable "log_analytics_workspace_id" {
 variable "enable_azure_policy" {
   description = "Enable Azure Policy for the cluster"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_key_vault_secrets_provider" {
   description = "Enable Azure Key Vault Secrets Provider"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "key_vault_secrets_provider_secret_rotation" {

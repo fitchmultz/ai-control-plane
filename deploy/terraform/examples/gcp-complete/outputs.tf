@@ -206,7 +206,7 @@ output "get_master_key_command" {
 
 output "health_check_command" {
   description = "Command to check the health of the AI Control Plane"
-  value       = "kubectl exec -n ${var.namespace} deployment/${var.helm_release_name}-litellm -- curl -s http://localhost:4000/health || echo 'Health check endpoint not available'"
+  value       = "kubectl exec -n ${var.namespace} deployment/${var.helm_release_name}-litellm -- curl -s -H 'Authorization: Bearer <master-key>' http://localhost:4000/health || echo 'Health check endpoint not available'"
 }
 
 # -----------------------------------------------------------------------------
@@ -231,7 +231,7 @@ output "next_steps" {
        
        a) Port-forward (local access):
           kubectl port-forward -n ${var.namespace} svc/${var.helm_release_name}-litellm 4000:4000
-          Then open: http://localhost:4000
+          Then use a local browser session only
        
        b) Via Ingress (if enabled): ${var.ingress_enabled ? "https://${var.ingress_host}" : "Ingress not enabled - enable via var.ingress_enabled"}
     

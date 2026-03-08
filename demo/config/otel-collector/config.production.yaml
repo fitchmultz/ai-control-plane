@@ -21,6 +21,8 @@
 #   - OTEL_EXPORTER_OTLP_ENDPOINT: Remote OTLP endpoint URL (required)
 #   - OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf (default)
 #   - OTEL_EXPORTER_OTLP_AUTH_HEADER: Auth header for remote endpoint (if required)
+#   - OTEL_RECEIVER_BIND_ADDRESS: Receiver bind address (default 127.0.0.1 in config)
+#   - OTEL_HEALTH_BIND_ADDRESS: Health endpoint bind address (default 127.0.0.1 in config)
 #   - OTEL_RESOURCE_ENVIRONMENT: Environment tag (e.g., production, staging)
 #   - OTEL_RESOURCE_DEPLOYMENT: Deployment identifier (e.g., us-east-1, eu-west-1)
 
@@ -28,9 +30,9 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:4317
+        endpoint: ${env:OTEL_RECEIVER_BIND_ADDRESS:-127.0.0.1}:4317
       http:
-        endpoint: 0.0.0.0:4318
+        endpoint: ${env:OTEL_RECEIVER_BIND_ADDRESS:-127.0.0.1}:4318
 
 processors:
   memory_limiter:
@@ -80,7 +82,7 @@ exporters:
 
 extensions:
   health_check:
-    endpoint: 0.0.0.0:13133
+    endpoint: ${env:OTEL_HEALTH_BIND_ADDRESS:-127.0.0.1}:13133
 
 service:
   extensions: [health_check]

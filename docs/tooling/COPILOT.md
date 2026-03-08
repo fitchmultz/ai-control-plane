@@ -121,7 +121,7 @@ If you prefer to configure manually, you'll need:
 
 1. Gateway host address (e.g., `192.168.1.122` or `127.0.0.1`)
 2. Proxy port (default: `3128` if gateway proxy is configured)
-3. OTEL endpoint (for telemetry mode): `http://GATEWAY_HOST:4317`
+3. OTEL endpoint (for telemetry mode): `https://GATEWAY_HOST/otel`
 
 ---
 
@@ -298,8 +298,9 @@ OTEL telemetry mode is appropriate when:
 Set the following environment variables before launching your IDE:
 
 ```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://GATEWAY_HOST:4317"
-export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://GATEWAY_HOST/otel"
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer ${OTEL_INGEST_AUTH_TOKEN}"
 export OTEL_SERVICE_NAME="copilot-vscode"  # or copilot-jetbrains, etc.
 export OTEL_RESOURCE_ATTRIBUTES="service.version=1.0.0,deployment.environment=production"
 ```

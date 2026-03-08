@@ -22,12 +22,12 @@ This guide provides comprehensive instructions for deploying the AI Control Plan
 
 ## 1. Overview
 
-The Terraform modules provide one-command infrastructure provisioning for the AI Control Plane. They create:
+The Terraform modules provide a production-safe infrastructure baseline for the AI Control Plane. They create:
 
 - **Network Infrastructure**: VPC/VNet with public/private subnets, NAT for egress
 - **Kubernetes Cluster**: Managed EKS/AKS/GKE with autoscaling node pools
 - **Database**: Managed PostgreSQL with backup and high availability
-- **Load Balancer**: Application-level ingress with SSL/TLS
+- **Load Balancer**: TLS-terminated ingress only
 - **Identity**: Cloud-native pod identity for secure API access
 - **Application**: Automated Helm deployment of the AI Control Plane
 
@@ -132,7 +132,7 @@ cp terraform.tfvars.example terraform.tfvars
 # Initialize Terraform
 terraform init
 
-# Review the deployment plan
+# Review the deployment plan (guardrails fail public-open or TLS-off settings)
 terraform plan
 
 # Deploy
@@ -145,8 +145,7 @@ terraform output
 aws eks update-kubeconfig --region $(terraform output -raw aws_region) --name $(terraform output -raw cluster_name)
 
 # Access the application
-kubectl port-forward -n acp svc/acp-ai-control-plane-litellm 4000:4000
-curl http://localhost:4000/health
+terraform output application_url
 ```
 
 ### 3.2 Azure Quick Start
@@ -165,8 +164,7 @@ terraform apply
 az aks get-credentials --resource-group $(terraform output -raw resource_group_name) --name $(terraform output -raw cluster_name)
 
 # Access the application
-kubectl port-forward -n acp svc/acp-ai-control-plane-litellm 4000:4000
-curl http://localhost:4000/health
+terraform output application_url
 ```
 
 ### 3.3 GCP Quick Start
@@ -185,8 +183,7 @@ terraform apply
 gcloud container clusters get-credentials $(terraform output -raw cluster_name) --region $(terraform output -raw region)
 
 # Access the application
-kubectl port-forward -n acp svc/acp-ai-control-plane-litellm 4000:4000
-curl http://localhost:4000/health
+terraform output application_url
 ```
 
 ---

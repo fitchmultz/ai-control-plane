@@ -3,7 +3,7 @@ LiteLLM Gateway Deployment
 
 Responsibilities:
   - Deploys the LiteLLM proxy/gateway container
-  - Configures health checks (accepts 200 or 401 as healthy)
+  - Configures authenticated health checks
   - Mounts configuration from ConfigMap
   - Connects to PostgreSQL for persistence
 
@@ -99,13 +99,19 @@ spec:
                 - python
                 - -c
                 - |
-                  import urllib.request, urllib.error, sys
-                  req = urllib.request.Request("http://127.0.0.1:4000/health")
+                  import os, urllib.request, urllib.error, sys
+                  key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
+                  if not key:
+                      sys.exit(1)
+                  req = urllib.request.Request(
+                      "http://127.0.0.1:4000/health",
+                      headers={"Authorization": f"Bearer {key}"},
+                  )
                   try:
                       urllib.request.urlopen(req)
                       sys.exit(0)
                   except urllib.error.HTTPError as e:
-                      sys.exit(0) if e.code in (200, 401) else sys.exit(1)
+                      sys.exit(0) if e.code == 200 else sys.exit(1)
                   except Exception:
                       sys.exit(1)
             initialDelaySeconds: {{ .Values.litellm.healthCheck.initialDelaySeconds }}
@@ -118,13 +124,19 @@ spec:
                 - python
                 - -c
                 - |
-                  import urllib.request, urllib.error, sys
-                  req = urllib.request.Request("http://127.0.0.1:4000/health")
+                  import os, urllib.request, urllib.error, sys
+                  key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
+                  if not key:
+                      sys.exit(1)
+                  req = urllib.request.Request(
+                      "http://127.0.0.1:4000/health",
+                      headers={"Authorization": f"Bearer {key}"},
+                  )
                   try:
                       urllib.request.urlopen(req)
                       sys.exit(0)
                   except urllib.error.HTTPError as e:
-                      sys.exit(0) if e.code in (200, 401) else sys.exit(1)
+                      sys.exit(0) if e.code == 200 else sys.exit(1)
                   except Exception:
                       sys.exit(1)
             initialDelaySeconds: {{ add .Values.litellm.healthCheck.initialDelaySeconds 30 }}

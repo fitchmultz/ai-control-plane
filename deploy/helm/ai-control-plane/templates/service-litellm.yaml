@@ -3,11 +3,11 @@ LiteLLM Gateway Service
 
 Responsibilities:
   - Exposes the LiteLLM gateway within the cluster
-  - Supports ClusterIP (default), NodePort, and LoadBalancer types
+  - Supports ClusterIP (default) and NodePort types
 
 Non-scope:
   - Does NOT handle external TLS (see ingress.yaml for Ingress-based exposure)
-  - LoadBalancer service type uses cloud provider's LB without TLS termination
+  - External production access must stay on the ingress/TLS path
 */}}
 apiVersion: v1
 kind: Service

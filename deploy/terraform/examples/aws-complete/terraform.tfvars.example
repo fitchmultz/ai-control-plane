@@ -12,8 +12,8 @@
 # AWS region for deployment
 aws_region = "us-east-1"
 
-# Environment: dev, staging, or production
-environment = "dev"
+# Environment: production is the supported primary deployment baseline
+environment = "production"
 
 # Prefix for all resource names
 name_prefix = "ai-control-plane"
@@ -41,8 +41,8 @@ private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
 # Public subnet CIDRs (one per AZ)
 public_subnet_cidrs = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 
-# Use single NAT gateway for cost savings (not recommended for production)
-single_nat_gateway = true
+# Use redundant NAT gateways for production resilience
+single_nat_gateway = false
 
 #------------------------------------------------------------------------------
 # EKS Configuration
@@ -51,14 +51,14 @@ single_nat_gateway = true
 # Kubernetes version
 cluster_version = "1.29"
 
-# Enable public access to cluster endpoint
-cluster_endpoint_public_access = true
+# Keep the cluster API private unless you have an explicit admin allowlist
+cluster_endpoint_public_access = false
 
 # Enable private access to cluster endpoint
 cluster_endpoint_private_access = true
 
-# CIDR blocks allowed for public cluster access (restrict in production)
-cluster_public_access_cidrs = ["0.0.0.0/0"]
+# CIDR blocks allowed for public cluster access when explicitly enabled
+cluster_public_access_cidrs = []
 
 # EKS node groups configuration
 node_groups = {
@@ -86,7 +86,7 @@ enable_cluster_autoscaler = true
 #   dev:        db.t3.micro
 #   staging:    db.t3.small
 #   production: db.t3.medium
-rds_instance_class = "db.t3.micro"
+rds_instance_class = "db.t3.medium"
 
 # PostgreSQL engine version
 rds_engine_version = "16.3"
@@ -98,19 +98,19 @@ rds_allocated_storage = 20
 rds_max_allocated_storage = 100
 
 # Enable Multi-AZ for high availability
-rds_multi_az = false
+rds_multi_az = true
 
 # Backup retention period in days
 rds_backup_retention_period = 7
 
-# Enable deletion protection (recommended for production)
-rds_deletion_protection = false
+# Enable deletion protection
+rds_deletion_protection = true
 
-# Skip final snapshot when destroying (set to false in production)
-rds_skip_final_snapshot = true
+# Preserve a final snapshot when destroying
+rds_skip_final_snapshot = false
 
 # Enable Performance Insights
-rds_performance_insights_enabled = false
+rds_performance_insights_enabled = true
 
 # Database name
 rds_database_name = "litellm"
@@ -119,17 +119,14 @@ rds_database_name = "litellm"
 rds_username = "litellm"
 
 #------------------------------------------------------------------------------
-# ALB Configuration
+# Ingress Configuration
 #------------------------------------------------------------------------------
 
-# Enable Application Load Balancer
-enable_alb = true
+# Expose ingress publicly only when required
+public_ingress_enabled = false
 
-# Enable HTTPS on ALB
-alb_enable_https = false
-
-# ACM certificate ARN (required if HTTPS is enabled)
-alb_certificate_arn = ""
+# ACM certificate ARN (required when ingress is enabled)
+alb_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/replace-me"
 
 #------------------------------------------------------------------------------
 # Helm Chart Configuration
@@ -156,23 +153,21 @@ litellm_resources = {
   }
 }
 
-# LiteLLM master key (leave empty to auto-generate)
-# IMPORTANT: If manually set, use a strong key (>=32 chars, no whitespace)
-litellm_master_key = ""
+# LiteLLM master key (required)
+litellm_master_key = "replace-with-32-character-minimum-master-key"
 
-# LiteLLM salt key (leave empty to auto-generate)
-# IMPORTANT: If manually set, use a strong key (>=32 chars, no whitespace)
+# LiteLLM salt key (required)
 # WARNING: Never change this after initial deployment - it will corrupt encrypted data
-litellm_salt_key = ""
+litellm_salt_key = "replace-with-32-character-minimum-salt-key"
 
 # Enable autoscaling
 enable_autoscaling = true
 
-# Enable Kubernetes ingress
+# Enable Kubernetes ingress only after DNS and certificates are ready
 enable_ingress = false
 
-# Ingress hostname (required if ingress is enabled)
-ingress_host = ""
+# Ingress hostname (required)
+ingress_host = "ai-control-plane.example.com"
 
 # Ingress class name (e.g., alb, nginx, traefik)
 ingress_class_name = "alb"

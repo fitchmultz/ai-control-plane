@@ -29,7 +29,7 @@ locals {
     production = "REGIONAL"
   }
 
-  cloudsql_tier = var.cloudsql_tier != null ? var.cloudsql_tier : local.cloudsql_tier_by_environment[var.environment]
+  cloudsql_tier         = var.cloudsql_tier != null ? var.cloudsql_tier : local.cloudsql_tier_by_environment[var.environment]
   cloudsql_availability = var.cloudsql_availability_type != null ? var.cloudsql_availability_type : local.cloudsql_availability_by_environment[var.environment]
 
   # Default node pools with environment-specific sizing
@@ -59,25 +59,26 @@ locals {
     var.common_labels
   )
 
-  # Generate secrets if not provided
-  master_key = var.litellm_master_key != null ? var.litellm_master_key : random_password.master_key[0].result
-  salt_key   = var.litellm_salt_key != null ? var.litellm_salt_key : random_password.salt_key[0].result
 }
 
-# -----------------------------------------------------------------------------
-# Random Password Generation
-# -----------------------------------------------------------------------------
+resource "terraform_data" "deployment_guardrails" {
+  input = {
+    ingress_enabled            = var.ingress_enabled
+    ingress_host               = var.ingress_host
+    master_authorized_networks = var.master_authorized_networks
+  }
 
-resource "random_password" "master_key" {
-  count   = var.litellm_master_key == null ? 1 : 0
-  length  = 32
-  special = false
-}
+  lifecycle {
+    precondition {
+      condition     = length(var.master_authorized_networks) > 0
+      error_message = "master_authorized_networks must contain at least one explicit admin CIDR."
+    }
 
-resource "random_password" "salt_key" {
-  count   = var.litellm_salt_key == null ? 1 : 0
-  length  = 32
-  special = false
+    precondition {
+      condition     = !var.ingress_enabled || var.ingress_host != ""
+      error_message = "ingress_enabled=true requires ingress_host."
+    }
+  }
 }
 
 resource "random_password" "db_password" {
@@ -137,14 +138,15 @@ module "gke" {
   kubernetes_version = var.kubernetes_version
   release_channel    = var.release_channel
 
-  network     = module.vpc.network_self_link
-  subnetwork  = module.vpc.subnet_self_links["${local.name}-gke-subnet"]
-  pods_secondary_range_name    = var.pods_ip_range.name
+  network                       = module.vpc.network_self_link
+  subnetwork                    = module.vpc.subnet_self_links["${local.name}-gke-subnet"]
+  pods_secondary_range_name     = var.pods_ip_range.name
   services_secondary_range_name = var.services_ip_range.name
 
-  enable_private_nodes = var.enable_private_nodes
-  master_ipv4_cidr_block = var.master_ipv4_cidr_block
-  master_authorized_networks = var.master_authorized_networks
+  enable_private_nodes        = var.enable_private_nodes
+  master_ipv4_cidr_block      = var.master_ipv4_cidr_block
+  master_authorized_networks  = var.master_authorized_networks
+  enable_binary_authorization = true
 
   enable_workload_identity = var.enable_workload_identity
 
@@ -152,7 +154,7 @@ module "gke" {
 
   labels = local.common_labels
 
-  depends_on = [module.vpc]
+  depends_on = [terraform_data.deployment_guardrails, module.vpc]
 }
 
 # -----------------------------------------------------------------------------
@@ -175,8 +177,9 @@ module "cloudsql" {
   disk_autoresize   = var.cloudsql_disk_autoresize
   availability_type = local.cloudsql_availability
 
-  backup_enabled     = var.cloudsql_backup_enabled
+  backup_enabled         = var.cloudsql_backup_enabled
   backup_retention_count = var.cloudsql_backup_retention
+  enable_insights        = true
 
   # Use private IP with VPC
   vpc_network = module.vpc.network_name
@@ -185,7 +188,7 @@ module "cloudsql" {
 
   labels = local.common_labels
 
-  depends_on = [module.vpc]
+  depends_on = [terraform_data.deployment_guardrails, module.vpc]
 }
 
 # -----------------------------------------------------------------------------
@@ -204,7 +207,7 @@ module "namespace" {
     }
   )
 
-  depends_on = [module.gke]
+  depends_on = [terraform_data.deployment_guardrails, module.gke]
 }
 
 # -----------------------------------------------------------------------------
@@ -218,8 +221,8 @@ module "secrets" {
   secret_name = "${var.helm_release_name}-secrets"
 
   secret_data = {
-    LITELLM_MASTER_KEY = local.master_key
-    LITELLM_SALT_KEY   = local.salt_key
+    LITELLM_MASTER_KEY = var.litellm_master_key
+    LITELLM_SALT_KEY   = var.litellm_salt_key
     DATABASE_URL       = "postgresql://${urlencode(var.database_user)}:${urlencode(random_password.db_password.result)}@localhost/${urlencode(var.database_name)}?host=/cloudsql/${module.cloudsql.connection_name}"
   }
 
@@ -227,7 +230,7 @@ module "secrets" {
 
   labels = local.common_labels
 
-  depends_on = [module.namespace, module.cloudsql]
+  depends_on = [terraform_data.deployment_guardrails, module.namespace, module.cloudsql]
 }
 
 # -----------------------------------------------------------------------------
@@ -268,7 +271,10 @@ module "helm_release" {
 
   # Use production profile for production environment
   values = {
-    profile = var.environment == "production" ? "production" : "demo"
+    profile = "production"
+    demo = {
+      enabled = false
+    }
 
     # Use external database (Cloud SQL)
     postgres = {
@@ -284,18 +290,18 @@ module "helm_release" {
     secrets = {
       create = false
       existingSecret = {
-        name             = module.secrets.secret_name
-        masterKeyKey     = "LITELLM_MASTER_KEY"
-        saltKeyKey       = "LITELLM_SALT_KEY"
-        databaseUrlKey   = "DATABASE_URL"
+        name           = module.secrets.secret_name
+        masterKeyKey   = "LITELLM_MASTER_KEY"
+        saltKeyKey     = "LITELLM_SALT_KEY"
+        databaseUrlKey = "DATABASE_URL"
       }
     }
 
     # LiteLLM configuration
     litellm = {
-      replicaCount = var.environment == "production" ? 2 : 1
+      replicaCount = 2
 
-      resources = var.environment == "production" ? {
+      resources = {
         limits = {
           cpu    = "2000m"
           memory = "2Gi"
@@ -304,28 +310,28 @@ module "helm_release" {
           cpu    = "500m"
           memory = "1Gi"
         }
-      } : {
-        limits = {
-          cpu    = "1000m"
-          memory = "1Gi"
-        }
-        requests = {
-          cpu    = "250m"
-          memory = "512Mi"
-        }
       }
     }
 
     # Ingress configuration
     ingress = {
-      enabled      = var.ingress_enabled
-      className    = var.ingress_class_name
+      enabled   = var.ingress_enabled
+      className = var.ingress_class_name
+      annotations = var.ingress_enabled ? {
+        "cert-manager.io/cluster-issuer"                 = var.ingress_cluster_issuer
+        "nginx.ingress.kubernetes.io/ssl-redirect"       = "true"
+        "nginx.ingress.kubernetes.io/force-ssl-redirect" = "true"
+      } : {}
       hosts = var.ingress_enabled ? [{
         host = var.ingress_host
         paths = [{
           path     = "/"
           pathType = "Prefix"
         }]
+      }] : []
+      tls = var.ingress_enabled ? [{
+        secretName = var.ingress_tls_secret_name
+        hosts      = [var.ingress_host]
       }] : []
     }
 
@@ -337,18 +343,41 @@ module "helm_release" {
       } : {}
     }
 
-    # Pod Disruption Budget (production only)
+    # Pod Disruption Budget
     podDisruptionBudget = {
-      enabled = var.environment == "production"
+      enabled      = true
       minAvailable = 1
     }
 
-    # Autoscaling (production only)
+    # Autoscaling
     autoscaling = {
-      enabled = var.environment == "production"
-      minReplicas = 2
-      maxReplicas = 5
+      enabled                        = true
+      minReplicas                    = 2
+      maxReplicas                    = 5
       targetCPUUtilizationPercentage = 70
+    }
+
+    networkPolicy = {
+      enabled = true
+      ingress = var.ingress_enabled ? [
+        {
+          from = [
+            {
+              namespaceSelector = {
+                matchLabels = {
+                  "kubernetes.io/metadata.name" = "ingress-nginx"
+                }
+              }
+            }
+          ]
+          ports = [
+            {
+              protocol = "TCP"
+              port     = 4000
+            }
+          ]
+        }
+      ] : []
     }
 
     # Common labels

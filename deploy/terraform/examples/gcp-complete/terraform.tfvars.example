@@ -24,8 +24,8 @@ project_id = "your-gcp-project-id"
 # GCP region for all resources
 # region = "us-central1"
 
-# Environment tag (dev, staging, production)
-# environment = "dev"
+# Environment tag (production is the supported primary deployment baseline)
+# environment = "production"
 
 # Resource name prefix
 # name_prefix = "ai-cp"
@@ -56,10 +56,10 @@ project_id = "your-gcp-project-id"
 # Release channel (UNSPECIFIED, RAPID, REGULAR, STABLE)
 # release_channel = "REGULAR"
 
-# Enable private nodes (recommended for production)
+# Enable private nodes
 # enable_private_nodes = true
 
-# Master authorized networks (recommended for production)
+# Master authorized networks (required)
 # master_authorized_networks = [
 #   {
 #     cidr_block   = "YOUR_OFFICE_IP/32"
@@ -130,13 +130,13 @@ project_id = "your-gcp-project-id"
 # Kubernetes namespace
 # namespace = "acp"
 
-# LiteLLM master key (auto-generated if not provided)
-# litellm_master_key = "sk-litellm-master-change-me-32-chars-long"
+# LiteLLM master key (required)
+# litellm_master_key = "replace-with-32-character-minimum-master-key"
 
-# LiteLLM salt key (auto-generated if not provided)
-# litellm_salt_key = "sk-litellm-salt-change-me-32-chars-long"
+# LiteLLM salt key (required)
+# litellm_salt_key = "replace-with-32-character-minimum-salt-key"
 
-# Enable ingress
+# Enable ingress only after DNS and cert-manager are ready
 # ingress_enabled = false
 
 # Ingress hostname (required if ingress_enabled = true)
@@ -145,16 +145,13 @@ project_id = "your-gcp-project-id"
 # Ingress class name
 # ingress_class_name = "nginx"
 
+# TLS secret and cert-manager issuer (required if ingress_enabled = true)
+# ingress_tls_secret_name = "ai-control-plane-tls"
+# ingress_cluster_issuer = "letsencrypt-prod"
+
 # -----------------------------------------------------------------------------
 # Example Configurations
 # -----------------------------------------------------------------------------
-
-# Development configuration (minimal resources)
-# ---------------------------------------------
-# environment = "dev"
-# region = "us-central1"
-# cloudsql_tier = "db-f1-micro"
-# ingress_enabled = false
 
 # Production configuration (high availability)
 # ---------------------------------------------

@@ -84,7 +84,7 @@ export OPENAI_API_KEY="<YOUR_LITELLM_VIRTUAL_KEY>"
 
 **Remote Mode (Gateway Host):**
 ```bash
-export OPENAI_BASE_URL="http://GATEWAY_HOST:4000"
+export OPENAI_BASE_URL="https://GATEWAY_HOST"
 export OPENAI_API_KEY="<YOUR_LITELLM_VIRTUAL_KEY>"
 ```
 
@@ -281,12 +281,12 @@ make detection
 ```bash
 # Test gateway connectivity
 curl http://127.0.0.1:4000/health  # Local mode
-curl http://GATEWAY_HOST:4000/health  # Remote mode
+curl https://GATEWAY_HOST/health  # Remote mode
 ```
 
 **Solutions**:
 - Verify LiteLLM is running: `make ps`
-- Check firewall rules allow port 4000
+- Check firewall rules allow port 443 for the TLS gateway
 - Confirm base URL matches your deployment mode
 
 ### Authentication Failures

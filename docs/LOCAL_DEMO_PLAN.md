@@ -21,7 +21,7 @@ This document is the **current** implementation plan for the local demo environm
 - **API-key mode** and **subscription-backed upstream (routed)** can both be enforced at the gateway; **direct subscription (bypass)** is detection-first (logging/investigation), with enforcement limited by what the vendor/client allows.
 - Avoid hardcoded IPs in runbooks. Use placeholders:
   - `GATEWAY_HOST` — the server running Docker (its routable hostname or IP)
-  - `GATEWAY_URL` — `http://GATEWAY_HOST:4000` (or `https://...` when TLS is enabled)
+  - `GATEWAY_URL` — `https://GATEWAY_HOST` for remote access; `http://127.0.0.1:4000` is localhost-only
 
 ---
 
@@ -151,7 +151,7 @@ If you run tools on a separate client machine, the server (Docker host) must be 
 
 ```bash
 ping -c 2 GATEWAY_HOST
-curl -sS -o /dev/null -w '%{http_code}\n' "http://GATEWAY_HOST:4000/health"
+curl -sS -o /dev/null -w '%{http_code}\n' "https://GATEWAY_HOST/health"
 ```
 
 2) Then onboard tools from the client, pointing them at the remote host:

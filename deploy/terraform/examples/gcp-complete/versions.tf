@@ -69,7 +69,7 @@ provider "kubernetes" {
 
 # Helm Provider - configured using GKE cluster data
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host  = "https://${module.gke.endpoint}"
     token = data.google_client_config.default.access_token
     cluster_ca_certificate = base64decode(

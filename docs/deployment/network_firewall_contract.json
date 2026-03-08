@@ -41,7 +41,7 @@
       "direction": "ingress",
       "protocol": "tcp",
       "port": 80,
-      "exposure": "optional_public",
+      "exposure": "public",
       "tls_required_when_public": false,
       "manifests": [
         "demo/docker-compose.tls.yml:services.caddy.ports"
@@ -97,7 +97,7 @@
       "direction": "ingress",
       "protocol": "tcp",
       "port": 80,
-      "exposure": "optional_public",
+      "exposure": "public",
       "tls_required_when_public": false,
       "manifests": [
         "deploy/helm/ai-control-plane/values.yaml:ingress"
@@ -111,7 +111,7 @@
       "direction": "ingress",
       "protocol": "tcp",
       "port": 443,
-      "exposure": "optional_public",
+      "exposure": "public",
       "tls_required_when_public": true,
       "manifests": [
         "deploy/helm/ai-control-plane/values.yaml:ingress.tls"
@@ -310,7 +310,7 @@
       "direction": "ingress",
       "protocol": "tcp",
       "port": 4317,
-      "exposure": "optional_public",
+      "exposure": "public",
       "tls_required_when_public": false,
       "manifests": [
         "demo/docker-compose.yml:services.otel-collector.ports"
@@ -324,7 +324,7 @@
       "direction": "ingress",
       "protocol": "tcp",
       "port": 13133,
-      "exposure": "optional_public",
+      "exposure": "public",
       "tls_required_when_public": false,
       "manifests": [
         "demo/docker-compose.yml:services.otel-collector.ports"
@@ -338,7 +338,7 @@
       "direction": "ingress",
       "protocol": "tcp",
       "port": 4318,
-      "exposure": "optional_public",
+      "exposure": "public",
       "tls_required_when_public": false,
       "manifests": [
         "demo/docker-compose.yml:services.otel-collector.ports"

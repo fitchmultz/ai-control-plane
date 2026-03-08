@@ -77,7 +77,15 @@ Edit `terraform.tfvars`:
 ```hcl
 project_id = "your-gcp-project-id"
 region     = "us-central1"
-environment = "dev"
+environment = "production"
+litellm_master_key = "replace-with-32-character-minimum-master-key"
+litellm_salt_key   = "replace-with-32-character-minimum-salt-key"
+master_authorized_networks = [
+  {
+    cidr_block   = "YOUR_OFFICE_IP/32"
+    display_name = "Office Network"
+  }
+]
 ```
 
 ### 3. Initialize Terraform
@@ -109,7 +117,7 @@ kubectl get pods -n acp
 # Port-forward for local access
 kubectl port-forward -n acp svc/acp-litellm 4000:4000
 
-# Open http://localhost:4000
+# Keep access local-only when port-forwarding; shared access must use TLS ingress
 ```
 
 ## Module Structure
@@ -161,6 +169,8 @@ Enable ingress for external access:
 ingress_enabled  = true
 ingress_host     = "ai-control-plane.yourdomain.com"
 ingress_class_name = "nginx"
+ingress_tls_secret_name = "ai-control-plane-tls"
+ingress_cluster_issuer  = "letsencrypt-prod"
 ```
 
 Requires an ingress controller (e.g., NGINX Ingress Controller) to be installed in the cluster.

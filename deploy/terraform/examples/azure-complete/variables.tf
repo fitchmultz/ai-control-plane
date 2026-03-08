@@ -25,7 +25,7 @@ variable "location" {
 variable "environment" {
   description = "Environment tag for all resources (dev, staging, production)"
   type        = string
-  default     = "dev"
+  default     = "production"
 
   validation {
     condition     = contains(["dev", "staging", "production"], var.environment)
@@ -187,7 +187,7 @@ variable "postgresql_version" {
 variable "postgresql_sku_name" {
   description = "SKU name for PostgreSQL Flexible Server"
   type        = string
-  default     = "B_Standard_B2s"
+  default     = "GP_Standard_D4s_v3"
 }
 
 variable "postgresql_storage_mb" {
@@ -211,13 +211,19 @@ variable "postgresql_backup_retention_days" {
 variable "postgresql_geo_redundant_backup_enabled" {
   description = "Enable geo-redundant backups (only for Standard/Premium SKUs)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "postgresql_high_availability_enabled" {
   description = "Enable high availability for PostgreSQL (only for Standard/Premium SKUs)"
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "log_analytics_workspace_id" {
+  description = "Log Analytics Workspace resource ID for Defender and OMS integration"
+  type        = string
+  default     = ""
 }
 
 #------------------------------------------------------------------------------
@@ -243,23 +249,31 @@ variable "helm_chart_path" {
 }
 
 variable "litellm_master_key" {
-  description = "Master key for LiteLLM admin authentication (auto-generated if empty)"
+  description = "Master key for LiteLLM admin authentication"
   type        = string
-  default     = ""
   sensitive   = true
+
+  validation {
+    condition     = length(trimspace(var.litellm_master_key)) >= 32 && trimspace(var.litellm_master_key) == var.litellm_master_key && can(regex("^[^[:space:]]+$", var.litellm_master_key))
+    error_message = "litellm_master_key must be provided, be at least 32 characters, and contain no whitespace."
+  }
 }
 
 variable "litellm_salt_key" {
-  description = "Salt key for LiteLLM encryption (auto-generated if empty)"
+  description = "Salt key for LiteLLM encryption"
   type        = string
-  default     = ""
   sensitive   = true
+
+  validation {
+    condition     = length(trimspace(var.litellm_salt_key)) >= 32 && trimspace(var.litellm_salt_key) == var.litellm_salt_key && can(regex("^[^[:space:]]+$", var.litellm_salt_key))
+    error_message = "litellm_salt_key must be provided, be at least 32 characters, and contain no whitespace."
+  }
 }
 
 variable "litellm_replica_count" {
   description = "Number of LiteLLM replicas"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "ingress_enabled" {
@@ -272,6 +286,11 @@ variable "ingress_host" {
   description = "Hostname for the ingress"
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.ingress_enabled ? length(trimspace(var.ingress_host)) > 0 : true
+    error_message = "ingress_host is required when ingress_enabled=true."
+  }
 }
 
 variable "ingress_class_name" {
@@ -280,8 +299,25 @@ variable "ingress_class_name" {
   default     = "nginx"
 }
 
+variable "ingress_tls_secret_name" {
+  description = "TLS secret name for the ingress"
+  type        = string
+  default     = "ai-control-plane-tls"
+}
+
+variable "ingress_cluster_issuer" {
+  description = "cert-manager ClusterIssuer for ingress TLS automation"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.ingress_enabled ? length(trimspace(var.ingress_cluster_issuer)) > 0 : true
+    error_message = "ingress_cluster_issuer is required when ingress_enabled=true."
+  }
+}
+
 variable "enable_autoscaling" {
   description = "Enable Horizontal Pod Autoscaler"
   type        = bool
-  default     = false
+  default     = true
 }

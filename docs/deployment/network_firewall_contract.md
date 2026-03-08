@@ -27,12 +27,12 @@
 | Flow ID | Source | Destination | Direction | Protocol | Port | Exposure | TLS Required | Justification |
 |---------|--------|-------------|-----------|----------|------|----------|--------------|---------------|
 | flow-caddy-http-local | client_host | caddy_proxy | ingress | tcp | 80 | localhost | No | HTTP port for ACME challenge and redirect (localhost by default, public in production)  |
-| flow-caddy-http-public | client_host | caddy_proxy | ingress | tcp | 80 | optional_public | No | HTTP port for ACME challenge (public in production with automatic redirect to HTTPS)  |
+| flow-caddy-http-public | client_host | caddy_proxy | ingress | tcp | 80 | public | No | HTTP port for ACME challenge (public in production with automatic redirect to HTTPS)  |
 | flow-caddy-https-local | client_host | caddy_proxy | ingress | tcp | 443 | localhost | Yes | HTTPS port for secure gateway access (localhost by default)  |
 | flow-caddy-https-public | client_host | caddy_proxy | ingress | tcp | 443 | public | Yes | HTTPS port for secure gateway access (public in production deployments)  |
 | flow-caddy-litellm-backend | caddy_proxy | litellm_gateway | egress | tcp | 4000 | internal_only | No | Caddy reverse proxy to LiteLLM backend (internal Docker network)  |
-| flow-helm-ingress-http | external_client | litellm_gateway | ingress | tcp | 80 | optional_public | No | Kubernetes ingress HTTP endpoint (optional, redirects to HTTPS when TLS enabled)  |
-| flow-helm-ingress-https | external_client | litellm_gateway | ingress | tcp | 443 | optional_public | Yes | Kubernetes ingress HTTPS endpoint (optional, for production TLS termination)  |
+| flow-helm-ingress-http | external_client | litellm_gateway | ingress | tcp | 80 | public | No | Kubernetes ingress HTTP endpoint for redirect-only traffic on the TLS-first production path  |
+| flow-helm-ingress-https | external_client | litellm_gateway | ingress | tcp | 443 | public | Yes | Kubernetes ingress HTTPS endpoint for production TLS termination  |
 | flow-librechat-litellm | librechat | litellm_gateway | egress | tcp | 4000 | internal_only | No | LibreChat connects to LiteLLM gateway for LLM API access (internal Docker network)  |
 | flow-librechat-local | client_host | librechat | ingress | tcp | 3080 | localhost | Yes | LibreChat web UI (standard package, localhost by default for security)  |
 | flow-librechat-meilisearch | librechat | librechat_meilisearch | egress | tcp | 7700 | internal_only | No | LibreChat internal Meilisearch connectivity for chat search functionality  |
@@ -46,9 +46,9 @@
 | flow-litellm-presidio-anonymizer | litellm_gateway | presidio_anonymizer | egress | tcp | 3000 | internal_only | No | PII anonymization/redaction for request/response content filtering  |
 | flow-mock-upstream-helm-clusterip | litellm_gateway | mock_upstream | ingress | tcp | 8080 | internal_only | No | Kubernetes ClusterIP service for mock upstream (internal cluster access only)  |
 | flow-mock-upstream-internal | litellm_gateway | mock_upstream | ingress | tcp | 8080 | internal_only | No | Mock LLM service for offline demos - returns deterministic responses (internal only)  |
-| flow-otel-grpc | client_host | otel_collector | ingress | tcp | 4317 | optional_public | No | OpenTelemetry gRPC endpoint for optional direct/bypass and correlation telemetry collection  |
-| flow-otel-health | client_host | otel_collector | ingress | tcp | 13133 | optional_public | No | OTel collector health check endpoint for optional direct/bypass telemetry path  |
-| flow-otel-http | client_host | otel_collector | ingress | tcp | 4318 | optional_public | No | OpenTelemetry HTTP endpoint for optional direct/bypass and correlation telemetry collection  |
+| flow-otel-grpc | client_host | otel_collector | ingress | tcp | 4317 | localhost | No | OpenTelemetry gRPC endpoint remains localhost-only; remote ingest must traverse an authenticated HTTPS proxy path  |
+| flow-otel-health | client_host | otel_collector | ingress | tcp | 13133 | localhost | No | OTel collector health check endpoint remains localhost-only for local operator verification  |
+| flow-otel-http | client_host | otel_collector | ingress | tcp | 4318 | localhost | No | OpenTelemetry HTTP endpoint remains localhost-only; remote ingest must traverse an authenticated HTTPS proxy path  |
 | flow-postgres-helm-clusterip | litellm_gateway | postgres | ingress | tcp | 5432 | internal_only | No | Kubernetes ClusterIP service for PostgreSQL (internal cluster access only)  |
 | flow-postgres-internal-docker | litellm_gateway | postgres | ingress | tcp | 5432 | internal_only | No | Database for LiteLLM token storage and audit logs (internal Docker network only)  |
 | flow-postgres-offline-exposed | client_host | postgres | ingress | tcp | 5432 | localhost | Yes | PostgreSQL exposed on localhost for offline/demo debugging only  |

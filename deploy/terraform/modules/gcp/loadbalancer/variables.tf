@@ -190,7 +190,7 @@ variable "enable_http" {
 variable "enable_https_redirect" {
   description = "Redirect HTTP to HTTPS (creates a separate HTTP forwarding rule for redirect)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "ssl_certificate" {

@@ -92,8 +92,8 @@ locals {
   # Determine node groups (user-provided or environment default)
   effective_node_groups = length(var.node_groups) > 0 ? var.node_groups : local.environment_config[var.environment].node_groups
 
-  # Helm profile based on environment
-  helm_profile = var.environment == "production" ? "production" : "demo"
+  # Terraform examples now target the production-safe Helm contract only.
+  helm_profile = "production"
 }
 
 #------------------------------------------------------------------------------
@@ -106,25 +106,49 @@ resource "random_password" "rds" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-#------------------------------------------------------------------------------
-# Random Keys for LiteLLM (if not provided)
-#------------------------------------------------------------------------------
+resource "terraform_data" "deployment_guardrails" {
+  input = {
+    cluster_endpoint_public_access = var.cluster_endpoint_public_access
+    cluster_public_access_cidrs    = var.cluster_public_access_cidrs
+    public_ingress_enabled         = var.public_ingress_enabled
+    alb_certificate_arn            = var.alb_certificate_arn
+    enable_ingress                 = var.enable_ingress
+    ingress_host                   = var.ingress_host
+    rds_deletion_protection        = var.rds_deletion_protection
+    rds_skip_final_snapshot        = var.rds_skip_final_snapshot
+  }
 
-resource "random_password" "litellm_master_key" {
-  count   = var.litellm_master_key == "" ? 1 : 0
-  length  = 48
-  special = false
-}
+  lifecycle {
+    precondition {
+      condition     = !var.cluster_endpoint_public_access || length(var.cluster_public_access_cidrs) > 0
+      error_message = "Public EKS API access requires an explicit allowlist in cluster_public_access_cidrs."
+    }
 
-resource "random_password" "litellm_salt_key" {
-  count   = var.litellm_salt_key == "" ? 1 : 0
-  length  = 48
-  special = false
-}
+    precondition {
+      condition     = !var.enable_ingress || var.alb_certificate_arn != ""
+      error_message = "enable_ingress=true requires alb_certificate_arn so external access remains TLS-only."
+    }
 
-locals {
-  litellm_master_key = var.litellm_master_key != "" ? var.litellm_master_key : random_password.litellm_master_key[0].result
-  litellm_salt_key   = var.litellm_salt_key != "" ? var.litellm_salt_key : random_password.litellm_salt_key[0].result
+    precondition {
+      condition     = !var.enable_ingress || var.ingress_host != ""
+      error_message = "enable_ingress=true requires ingress_host."
+    }
+
+    precondition {
+      condition     = var.public_ingress_enabled ? var.enable_ingress : true
+      error_message = "public_ingress_enabled=true requires enable_ingress=true."
+    }
+
+    precondition {
+      condition     = var.rds_deletion_protection
+      error_message = "rds_deletion_protection must remain enabled."
+    }
+
+    precondition {
+      condition     = !var.rds_skip_final_snapshot
+      error_message = "rds_skip_final_snapshot must remain false."
+    }
+  }
 }
 
 #------------------------------------------------------------------------------
@@ -164,10 +188,10 @@ module "eks" {
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
   cluster_public_access_cidrs     = var.cluster_public_access_cidrs
 
-  node_groups              = local.effective_node_groups
-  node_group_subnet_ids    = module.vpc.private_subnet_ids
+  node_groups               = local.effective_node_groups
+  node_group_subnet_ids     = module.vpc.private_subnet_ids
   enable_cluster_autoscaler = var.enable_cluster_autoscaler
-  enable_irsa              = true
+  enable_irsa               = true
 
   tags = local.common_tags
 }
@@ -250,28 +274,7 @@ module "irsa" {
   service_account_name = "${var.helm_release_name}-sa"
   role_name            = "${var.name_prefix}-${var.environment}-irsa"
 
-  # Example policy statements - customize based on your requirements
-  policy_statements = [
-    {
-      effect = "Allow"
-      actions = [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-      ]
-      resources = ["*"]
-    },
-    {
-      effect = "Allow"
-      actions = [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams"
-      ]
-      resources = ["*"]
-    }
-  ]
+  policy_statements = var.irsa_policy_statements
 
   tags = local.common_tags
 
@@ -289,9 +292,9 @@ module "secrets" {
   secret_name = "${var.helm_release_name}-secrets"
 
   secret_data = {
-    LITELLM_MASTER_KEY = local.litellm_master_key
-    LITELLM_SALT_KEY   = local.litellm_salt_key
-    DATABASE_URL       = "postgresql://${var.rds_username}:${random_password.rds.result}@${module.rds.db_instance_address}:${module.rds.db_instance_port}/${var.rds_database_name}"
+    LITELLM_MASTER_KEY = var.litellm_master_key
+    LITELLM_SALT_KEY   = var.litellm_salt_key
+    DATABASE_URL       = "postgresql://${var.rds_username}:${random_password.rds.result}@${module.rds.db_instance_address}:${module.rds.db_instance_port}/${var.rds_database_name}?sslmode=require"
   }
 
   labels = {
@@ -301,38 +304,6 @@ module "secrets" {
   }
 
   depends_on = [module.namespace, module.rds]
-}
-
-#------------------------------------------------------------------------------
-# ALB Module (Optional)
-#------------------------------------------------------------------------------
-
-module "alb" {
-  count  = var.enable_alb ? 1 : 0
-  source = "../../modules/aws/alb"
-
-  name = "${var.name_prefix}-${var.environment}"
-
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.public_subnet_ids
-
-  internal             = false
-  enable_deletion_protection = var.environment == "production"
-
-  enable_https   = var.alb_enable_https
-  certificate_arn = var.alb_certificate_arn
-  target_port    = 4000
-
-  # Health check for LiteLLM
-  health_check_path     = "/health"
-  health_check_port     = "traffic-port"
-  health_check_protocol = "HTTP"
-  health_check_interval = 30
-  health_check_timeout  = 5
-  health_check_healthy_threshold   = 2
-  health_check_unhealthy_threshold = 3
-
-  tags = local.common_tags
 }
 
 #------------------------------------------------------------------------------
@@ -393,6 +364,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
   rule {
     id     = "backup-retention"
     status = "Enabled"
+
+    filter {}
 
     transition {
       days          = 30
@@ -455,13 +428,16 @@ module "helm_release" {
   values = {
     # Profile based on environment
     profile = local.helm_profile
+    demo = {
+      enabled = false
+    }
 
     # LiteLLM configuration
     litellm = {
       replicaCount = var.litellm_replica_count
       resources    = var.litellm_resources
       service = {
-        type = var.enable_alb ? "NodePort" : "ClusterIP"
+        type = "ClusterIP"
         port = 4000
       }
     }
@@ -470,10 +446,10 @@ module "helm_release" {
     secrets = {
       create = false
       existingSecret = {
-        name             = module.secrets.secret_name
-        masterKeyKey     = "LITELLM_MASTER_KEY"
-        saltKeyKey       = "LITELLM_SALT_KEY"
-        databaseUrlKey   = "DATABASE_URL"
+        name           = module.secrets.secret_name
+        masterKeyKey   = "LITELLM_MASTER_KEY"
+        saltKeyKey     = "LITELLM_SALT_KEY"
+        databaseUrlKey = "DATABASE_URL"
       }
     }
 
@@ -486,27 +462,28 @@ module "helm_release" {
     serviceAccount = {
       create = true
       name   = "${var.helm_release_name}-sa"
-      annotations = {
+      annotations = length(var.irsa_policy_statements) > 0 || var.backup_replication_enabled ? {
         "eks.amazonaws.com/role-arn" = module.irsa.iam_role_arn
-      }
+      } : {}
     }
 
     # Autoscaling configuration
     autoscaling = {
-      enabled     = var.enable_autoscaling
-      minReplicas = 2
-      maxReplicas = 10
+      enabled                        = var.enable_autoscaling
+      minReplicas                    = 2
+      maxReplicas                    = 10
       targetCPUUtilizationPercentage = 80
     }
 
     # Ingress configuration (optional)
     ingress = {
-      enabled     = var.enable_ingress
-      className   = var.ingress_class_name
-      annotations = var.enable_alb ? {
-        "alb.ingress.kubernetes.io/scheme"        = "internet-facing"
-        "alb.ingress.kubernetes.io/target-type"   = "ip"
-        "alb.ingress.kubernetes.io/listen-ports"  = "[{\"HTTPS\":443}]"
+      enabled   = var.enable_ingress
+      className = var.ingress_class_name
+      annotations = var.enable_ingress ? {
+        "alb.ingress.kubernetes.io/scheme"          = var.public_ingress_enabled ? "internet-facing" : "internal"
+        "alb.ingress.kubernetes.io/target-type"     = "ip"
+        "alb.ingress.kubernetes.io/listen-ports"    = "[{\"HTTP\":80},{\"HTTPS\":443}]"
+        "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
         "alb.ingress.kubernetes.io/certificate-arn" = var.alb_certificate_arn
       } : {}
       hosts = var.ingress_host != "" ? [{
@@ -516,16 +493,34 @@ module "helm_release" {
           pathType = "Prefix"
         }]
       }] : []
-      tls = var.ingress_host != "" && var.alb_enable_https ? [{
-        secretName = "${var.helm_release_name}-tls"
-        hosts      = [var.ingress_host]
-      }] : []
+      tls = []
     }
 
     # Pod disruption budget for high availability
     podDisruptionBudget = {
-      enabled      = var.environment == "production"
+      enabled      = true
       minAvailable = 1
+    }
+
+    networkPolicy = {
+      enabled = true
+      ingress = var.enable_ingress ? [
+        {
+          from = [
+            {
+              ipBlock = {
+                cidr = module.vpc.vpc_cidr_block
+              }
+            }
+          ]
+          ports = [
+            {
+              protocol = "TCP"
+              port     = 4000
+            }
+          ]
+        }
+      ] : []
     }
 
     # Monitoring
@@ -536,9 +531,9 @@ module "helm_release" {
     }
   }
 
-  timeout  = 600
-  atomic   = true
-  wait     = true
+  timeout = 600
+  atomic  = true
+  wait    = true
 
-  depends_on = [module.eks, module.rds, module.irsa, module.secrets]
+  depends_on = [terraform_data.deployment_guardrails, module.eks, module.rds, module.irsa, module.secrets]
 }

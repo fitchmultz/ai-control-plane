@@ -91,16 +91,16 @@ Map of node pool configurations. Each node pool can have the following attribute
 EOF
 
   type = map(object({
-    machine_type              = optional(string, "e2-medium")
-    initial_node_count        = optional(number, 1)
-    min_count                 = optional(number)
-    max_count                 = optional(number)
-    disk_size_gb              = optional(number, 100)
-    disk_type                 = optional(string, "pd-balanced")
-    preemptible               = optional(bool, false)
-    spot                      = optional(bool, false)
-    labels                    = optional(map(string), {})
-    taints                    = optional(list(object({
+    machine_type       = optional(string, "e2-medium")
+    initial_node_count = optional(number, 1)
+    min_count          = optional(number)
+    max_count          = optional(number)
+    disk_size_gb       = optional(number, 100)
+    disk_type          = optional(string, "pd-balanced")
+    preemptible        = optional(bool, false)
+    spot               = optional(bool, false)
+    labels             = optional(map(string), {})
+    taints = optional(list(object({
       key    = string
       value  = string
       effect = string
@@ -116,23 +116,23 @@ EOF
 
   default = {
     "default" = {
-      machine_type       = "e2-medium"
-      initial_node_count = 1
-      min_count          = 1
-      max_count          = 3
-      disk_size_gb       = 100
-      disk_type          = "pd-balanced"
-      preemptible        = false
-      spot               = false
-      labels             = {}
-      taints             = []
-      max_surge          = 1
-      max_unavailable    = 0
-      enable_gcfs        = false
-      enable_gvnic       = true
+      machine_type              = "e2-medium"
+      initial_node_count        = 1
+      min_count                 = 1
+      max_count                 = 3
+      disk_size_gb              = 100
+      disk_type                 = "pd-balanced"
+      preemptible               = false
+      spot                      = false
+      labels                    = {}
+      taints                    = []
+      max_surge                 = 1
+      max_unavailable           = 0
+      enable_gcfs               = false
+      enable_gvnic              = true
       enable_confidential_nodes = false
       reservation_affinity_type = "NO_RESERVATION"
-      network_tags       = []
+      network_tags              = []
     }
   }
 }
@@ -250,7 +250,7 @@ variable "cluster_autoscaling_max_memory" {
 variable "enable_binary_authorization" {
   description = "Enable Binary Authorization for the cluster"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_vertical_pod_autoscaling" {

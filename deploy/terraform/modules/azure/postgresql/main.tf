@@ -64,9 +64,6 @@ resource "azurerm_postgresql_flexible_server" "this" {
     start_minute = var.maintenance_window_start_minute
   }
 
-  # Security settings
-  ssl_enforcement_enabled = var.ssl_enforcement_enabled
-
   # Auto-grow
   auto_grow_enabled = var.auto_grow_enabled
 
