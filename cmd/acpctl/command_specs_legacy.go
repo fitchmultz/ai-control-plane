@@ -172,12 +172,13 @@ func validateCommandSpec() *commandSpec {
 		Description: "Configuration and policy validation operations.",
 		Examples: []string{
 			"acpctl validate config",
+			"acpctl validate config --production --secrets-env-file /etc/ai-control-plane/secrets.env",
 			"acpctl validate lint",
 			"acpctl validate detections",
 		},
 		Children: []*commandSpec{
 			makeLeafSpec("lint", "Run static validation/lint gate", "lint"),
-			{Name: "config", Summary: "Validate demo deployment configuration", Description: "Validate demo deployment configuration.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateConfig)},
+			{Name: "config", Summary: "Validate deployment configuration (use --production for host contract checks)", Description: "Validate deployment configuration, including production host contract checks when --production is set.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateConfig)},
 			{Name: "detections", Summary: "Validate detection rule output", Description: "Validate detection rule output.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateDetections)},
 			{Name: "siem-queries", Summary: "Validate SIEM query sync", Description: "Validate SIEM query sync.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateSiemQueries)},
 			makeLeafSpec("network-contract", "Render network contract artifacts", "network-contract"),

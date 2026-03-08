@@ -73,7 +73,8 @@ services:
       - CADDY_DOMAIN=${CADDY_DOMAIN:-}
       # Email for Let's Encrypt notifications
       - CADDY_EMAIL=${CADDY_EMAIL:-}
-      # OTEL ingest shared secret for HTTPS OTLP/HTTP ingress (required for remote OTEL use)
+      # OTEL ingest shared secret for the only supported remote OTEL path:
+      # HTTPS /otel/* on Caddy. Raw collector ports stay localhost-only.
       - OTEL_INGEST_AUTH_TOKEN=${OTEL_INGEST_AUTH_TOKEN:-}
     restart: unless-stopped
     logging: *acp-logging

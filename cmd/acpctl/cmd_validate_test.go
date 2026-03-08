@@ -102,6 +102,51 @@ func TestRunValidateSIEMQueries_SchemaValidation(t *testing.T) {
 	}
 }
 
+func TestRunValidateConfigProduction_Success(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeProductionValidationFixtureRepo(t, repoRoot)
+	secretsPath := filepath.Join(t.TempDir(), "secrets.env")
+	writeFile(t, secretsPath, ""+
+		"ACP_DATABASE_MODE=external\n"+
+		"CADDY_PUBLISH_HOST=0.0.0.0\n"+
+		"CADDYFILE_PATH=./config/caddy/Caddyfile.prod\n"+
+		"CADDY_ACME_CA=letsencrypt\n"+
+		"CADDY_DOMAIN=gateway.example.com\n"+
+		"CADDY_EMAIL=ops@example.com\n"+
+		"DATABASE_URL=postgresql://app:verysecurepassword@db.example.com:5432/acp?sslmode=require\n"+
+		"LITELLM_MASTER_KEY=prod-master-token-abcdefghijklmnopqrstuvwxyz1234567890\n"+
+		"LITELLM_PUBLISH_HOST=127.0.0.1\n"+
+		"LITELLM_PUBLIC_URL=https://gateway.example.com\n"+
+		"LITELLM_SALT_KEY=prod-salt-token-abcdefghijklmnopqrstuvwxyz1234567890\n"+
+		"OTEL_INGEST_AUTH_TOKEN=otel-ingest-auth-token-abcdefghijklmnopqrstuvwxyz\n")
+	if err := os.Chmod(secretsPath, 0o600); err != nil {
+		t.Fatalf("chmod %s: %v", secretsPath, err)
+	}
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runValidateConfig(context.Background(), []string{"--production", "--secrets-env-file", secretsPath}, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected success, got %d stderr=%s", exitCode, readFile(t, stderr))
+	}
+	if got := readFile(t, stdout); !strings.Contains(got, "Profile: production") {
+		t.Fatalf("expected production output, got %s", got)
+	}
+}
+
+func TestRunValidateConfigProduction_MissingSecretsFlagValue(t *testing.T) {
+	stdout, stderr := newTestFiles(t)
+	exitCode := runValidateConfig(context.Background(), []string{"--production", "--secrets-env-file"}, stdout, stderr)
+	if exitCode != exitcodes.ACPExitUsage {
+		t.Fatalf("expected usage exit, got %d", exitCode)
+	}
+	if got := readFile(t, stderr); !strings.Contains(got, "missing value for --secrets-env-file") {
+		t.Fatalf("expected missing flag value error, got %s", got)
+	}
+}
+
 func newTestFiles(t *testing.T) (*os.File, *os.File) {
 	t.Helper()
 	stdout, err := os.CreateTemp("", "acpctl-validate-stdout")
@@ -168,6 +213,42 @@ func writeFile(t *testing.T, path string, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func writeProductionValidationFixtureRepo(t *testing.T, repoRoot string) {
+	t.Helper()
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), ""+
+		"services:\n"+
+		"  otel-collector:\n"+
+		"    image: otel/opentelemetry-collector-contrib:0.147.0\n"+
+		"    ports:\n"+
+		"      - \"127.0.0.1:4317:4317\"\n"+
+		"      - \"127.0.0.1:4318:4318\"\n"+
+		"      - \"127.0.0.1:13133:13133\"\n"+
+		"    healthcheck:\n"+
+		"      test: [\"CMD\", \"/otelcol-contrib\", \"validate\", \"--config=/etc/otel-collector/config.production.yaml\"]\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services:\n  caddy:\n    image: caddy:2\n    healthcheck:\n      test: [\"CMD\", \"caddy\", \"validate\", \"--config\", \"/etc/caddy/Caddyfile\"]\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "config", "caddy", "Caddyfile.prod"), ""+
+		"{$CADDY_DOMAIN} {\n"+
+		"    handle_path /otel/* {\n"+
+		"        @authorized header Authorization \"Bearer {$OTEL_INGEST_AUTH_TOKEN}\"\n"+
+		"        reverse_proxy @authorized otel-collector:4318\n"+
+		"        respond \"OTEL ingest authorization required\" 401\n"+
+		"    }\n"+
+		"    reverse_proxy litellm:4000\n"+
+		"}\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
+	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: litellm\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "hosts: all\ntasks:\n  - debug:\n      msg: ok\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "terraform", "examples", "aws-complete", "main.tf"), "terraform {\n  required_version = \">= 1.9.0\"\n}\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM scratch\n")
 }
 
 const validLiteLLMYAML = `---

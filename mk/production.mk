@@ -39,10 +39,12 @@ prod-smoke-local-tls: ## Run production smoke tests against local TLS
 		|| { echo '$(COLOR_RED)✗ Local TLS smoke tests failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: validate-config-production
-validate-config-production: ## Validate production configuration
+validate-config-production: install-binary ## Validate production configuration
 	@echo '$(COLOR_BOLD)Validating production configuration...$(COLOR_RESET)'
+	@echo '  Profile: production'
 	@echo '  Secrets file: $(SECRETS_ENV_FILE)'
-	@$(ACPCTL_BIN) validate config \
+	@echo '  Contract: host secrets permissions, TLS exposure, localhost-only raw OTEL, authenticated /otel/* ingress'
+	@$(ACPCTL_BIN) validate config --production --secrets-env-file "$(SECRETS_ENV_FILE)" \
 		&& echo '$(COLOR_GREEN)✓ Production configuration validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Production configuration validation failed$(COLOR_RESET)'; exit 1; }
 

@@ -126,9 +126,40 @@ func validateHelmTemplateStructure(repoRoot string, target policy.SurfaceTarget)
 		return []string{fmt.Sprintf("%s: Helm template must not be empty", target.Path)}, nil
 	}
 	if !strings.Contains(trimmed, "apiVersion:") || !strings.Contains(trimmed, "kind:") {
+		if isTemplateOnlyHelmFile(trimmed) {
+			return nil, nil
+		}
 		return []string{fmt.Sprintf("%s: Helm template must declare apiVersion and kind", target.Path)}, nil
 	}
 	return nil, nil
+}
+
+func isTemplateOnlyHelmFile(content string) bool {
+	lines := strings.Split(content, "\n")
+	inTemplateComment := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if inTemplateComment {
+			if strings.Contains(trimmed, "*/}}") {
+				inTemplateComment = false
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "{{/*") {
+			if !strings.Contains(trimmed, "*/}}") {
+				inTemplateComment = true
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "{{") || strings.HasPrefix(trimmed, "}}") {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func validateComposeHealthchecksForTarget(repoRoot string, target policy.SurfaceTarget) ([]string, error) {

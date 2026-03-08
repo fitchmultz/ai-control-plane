@@ -12,7 +12,7 @@
 #   - Does not enforce policies
 
 .PHONY: validate-config
-validate-config: ## Validate deployment configuration
+validate-config: install-binary ## Validate deployment configuration
 	@echo '$(COLOR_BOLD)Validating deployment configuration...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) validate config \
 		&& echo '$(COLOR_GREEN)✓ Configuration validation passed$(COLOR_RESET)' \

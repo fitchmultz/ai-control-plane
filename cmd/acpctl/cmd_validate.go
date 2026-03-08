@@ -151,15 +151,39 @@ func runValidateSiemQueries(_ context.Context, args []string, stdout *os.File, s
 }
 
 func runValidateConfig(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	for _, arg := range args {
-		if isHelpToken(arg) {
-			printValidateConfigHelp(stdout)
-			return exitcodes.ACPExitSuccess
+	options := validation.ConfigValidationOptions{}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch arg {
+		case "--production":
+			options.Profile = validation.ConfigValidationProfileProduction
+		case "--secrets-env-file":
+			if i+1 >= len(args) {
+				fmt.Fprintln(stderr, "Error: missing value for --secrets-env-file")
+				return exitcodes.ACPExitUsage
+			}
+			i++
+			options.SecretsEnvFile = strings.TrimSpace(args[i])
+		default:
+			if isHelpToken(arg) {
+				printValidateConfigHelp(stdout)
+				return exitcodes.ACPExitSuccess
+			}
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintf(stderr, "Error: unknown option %s\n", arg)
+				return exitcodes.ACPExitUsage
+			}
 		}
 	}
 	out := output.New()
 	fmt.Fprintln(stdout, out.Bold("=== Deployment Configuration Validation ==="))
-	issues, err := validation.ValidateDeploymentSurfaces(detectRepoRootWithContext(ctx))
+	if options.Profile == validation.ConfigValidationProfileProduction {
+		fmt.Fprintf(stdout, "Profile: %s\n", options.Profile)
+		if strings.TrimSpace(options.SecretsEnvFile) != "" {
+			fmt.Fprintf(stdout, "Secrets file: %s\n", options.SecretsEnvFile)
+		}
+	}
+	issues, err := validation.ValidateDeploymentConfig(detectRepoRootWithContext(ctx), options)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Configuration validation failed: %v\n"), err)
 		return exitcodes.ACPExitRuntime
@@ -251,7 +275,7 @@ func printValidateSiemQueriesHelp(out *os.File) {
 	fmt.Fprint(out, "Usage: acpctl validate siem-queries [OPTIONS]\n")
 }
 func printValidateConfigHelp(out *os.File) {
-	fmt.Fprint(out, "Usage: acpctl validate config [OPTIONS]\n")
+	fmt.Fprint(out, "Usage: acpctl validate config [OPTIONS]\n\nOptions:\n  --production              Enforce the production deployment contract\n  --secrets-env-file PATH   Canonical production secrets file (used with --production)\n")
 }
 func printValidateComposeHealthchecksHelp(out *os.File) {
 	fmt.Fprint(out, "Usage: acpctl validate compose-healthchecks [OPTIONS]\n")
