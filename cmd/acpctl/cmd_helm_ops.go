@@ -100,11 +100,9 @@ func helmGateCommandSpec(name string, summary string, description string, config
 		Examples:    []string{"acpctl helm " + name},
 		Sections:    sections,
 		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return config, nil
-			},
-			NativeRun: runHelmGateCommand,
+			Kind:       commandBackendNative,
+			NativeBind: bindStaticOptions(config),
+			NativeRun:  runHelmGateCommand,
 		},
 	}
 }

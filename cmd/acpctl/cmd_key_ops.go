@@ -131,45 +131,25 @@ func bindKeyGenOptions(input parsedCommandInput, forcedRole string) (any, error)
 	if alias == "" {
 		return nil, fmt.Errorf("alias is required")
 	}
-	budget := 10.00
-	if input.String("budget") != "" {
-		value, err := input.Float("budget")
-		if err != nil {
-			return nil, fmt.Errorf("invalid budget: %s", input.String("budget"))
-		}
-		budget = value
+	budget, err := input.FloatDefault("budget", 10.00)
+	if err != nil {
+		return nil, fmt.Errorf("invalid budget: %s", input.String("budget"))
 	}
-	rpm := 0
-	if input.String("rpm") != "" {
-		value, err := input.Int("rpm")
-		if err != nil {
-			return nil, fmt.Errorf("invalid RPM: %s", input.String("rpm"))
-		}
-		rpm = value
+	rpm, err := input.IntDefault("rpm", 0)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RPM: %s", input.String("rpm"))
 	}
-	tpm := 0
-	if input.String("tpm") != "" {
-		value, err := input.Int("tpm")
-		if err != nil {
-			return nil, fmt.Errorf("invalid TPM: %s", input.String("tpm"))
-		}
-		tpm = value
+	tpm, err := input.IntDefault("tpm", 0)
+	if err != nil {
+		return nil, fmt.Errorf("invalid TPM: %s", input.String("tpm"))
 	}
-	parallel := 0
-	if input.String("parallel") != "" {
-		value, err := input.Int("parallel")
-		if err != nil {
-			return nil, fmt.Errorf("invalid parallel: %s", input.String("parallel"))
-		}
-		parallel = value
-	}
-	duration := input.String("duration")
-	if duration == "" {
-		duration = "30d"
+	parallel, err := input.IntDefault("parallel", 0)
+	if err != nil {
+		return nil, fmt.Errorf("invalid parallel: %s", input.String("parallel"))
 	}
 	role := forcedRole
 	if role == "" {
-		role = input.String("role")
+		role = input.StringDefault("role", "developer")
 	}
 	return keyGenOptions{
 		Alias:    alias,
@@ -177,7 +157,7 @@ func bindKeyGenOptions(input parsedCommandInput, forcedRole string) (any, error)
 		RPM:      rpm,
 		TPM:      tpm,
 		Parallel: parallel,
-		Duration: duration,
+		Duration: input.StringDefault("duration", "30d"),
 		Role:     role,
 		DryRun:   input.Bool("dry-run"),
 	}, nil

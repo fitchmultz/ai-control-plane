@@ -57,7 +57,9 @@ test_fixture_copy_libexec() {
     local script_name
     mkdir -p "${TEST_FIXTURE_SCRIPT_DIR}"
     cp "$(test_repo_root)/scripts/libexec/common.sh" "${TEST_FIXTURE_SCRIPT_DIR}/common.sh"
+    cp "$(test_repo_root)/scripts/libexec/exitcodes.sh" "${TEST_FIXTURE_SCRIPT_DIR}/exitcodes.sh"
     chmod +x "${TEST_FIXTURE_SCRIPT_DIR}/common.sh"
+    chmod +x "${TEST_FIXTURE_SCRIPT_DIR}/exitcodes.sh"
     for script_name in "$@"; do
         cp "$(test_repo_root)/scripts/libexec/${script_name}" "${TEST_FIXTURE_SCRIPT_DIR}/${script_name}"
         chmod +x "${TEST_FIXTURE_SCRIPT_DIR}/${script_name}"

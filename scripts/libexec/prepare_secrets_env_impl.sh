@@ -61,7 +61,7 @@ while [[ $# -gt 0 ]]; do
     --secrets-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --secrets-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         secrets_file="$2"
         shift 2
@@ -69,7 +69,7 @@ while [[ $# -gt 0 ]]; do
     --compose-env-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --compose-env-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         compose_env_file="$2"
         shift 2
@@ -77,7 +77,7 @@ while [[ $# -gt 0 ]]; do
     --fetch-hook)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --fetch-hook\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         fetch_hook="$2"
         shift 2
@@ -85,19 +85,19 @@ while [[ $# -gt 0 ]]; do
     --service-user)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --service-user\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         service_user="$2"
         shift 2
         ;;
     --help | -h)
         show_help
-        exit 0
+        exit "${ACP_EXIT_SUCCESS}"
         ;;
     *)
         printf 'ERROR: unknown argument: %s\n' "$1" >&2
         show_help >&2
-        exit 2
+        exit "${ACP_EXIT_USAGE}"
         ;;
     esac
 done
@@ -111,22 +111,22 @@ if [[ -n "${fetch_hook}" ]]; then
     fetch_hook="$(bridge_abspath "${fetch_hook}")"
     [[ -f "${fetch_hook}" ]] || {
         printf 'ERROR: fetch hook not found: %s\n' "${fetch_hook}" >&2
-        exit 2
+        exit "${ACP_EXIT_USAGE}"
     }
     [[ -x "${fetch_hook}" ]] || {
         printf 'ERROR: fetch hook is not executable: %s\n' "${fetch_hook}" >&2
-        exit 2
+        exit "${ACP_EXIT_USAGE}"
     }
     "${fetch_hook}"
 fi
 
 [[ -f "${secrets_file}" ]] || {
     printf 'ERROR: secrets file not found: %s\n' "${secrets_file}" >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
 }
 [[ ! -L "${secrets_file}" ]] || {
     printf 'ERROR: secrets file must not be a symlink: %s\n' "${secrets_file}" >&2
-    exit 3
+    exit "${ACP_EXIT_RUNTIME}"
 }
 
 mode="$(bridge_portable_stat_mode "${secrets_file}")"
@@ -134,7 +134,7 @@ case "${mode}" in
 600 | 640) ;;
 *)
     printf 'ERROR: secrets file permissions must be 600 or 640, got %s for %s\n' "${mode}" "${secrets_file}" >&2
-    exit 3
+    exit "${ACP_EXIT_RUNTIME}"
     ;;
 esac
 

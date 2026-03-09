@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -120,15 +121,15 @@ func ExitCodeForReport(r Report) int {
 	}
 
 	if hasRuntime {
-		return 3
+		return exitcodes.ACPExitRuntime
 	}
 	if hasPrereq {
-		return 2
+		return exitcodes.ACPExitPrereq
 	}
 	if hasDomain || r.Overall != status.HealthLevelHealthy {
-		return 1
+		return exitcodes.ACPExitDomain
 	}
-	return 0
+	return exitcodes.ACPExitSuccess
 }
 
 // Run executes all checks and returns an aggregated report.

@@ -81,25 +81,25 @@ func bindPilotCloseoutBuildOptions(bindCtx commandBindContext, input parsedComma
 		RepoRoot:   repoRoot,
 		OutputRoot: filepath.Join(repoRoot, "demo", "logs", "pilot-closeout"),
 	}
-	if input.String("output-dir") != "" {
+	if input.Has("output-dir") {
 		options.OutputRoot = resolveReadinessPath(repoRoot, input.String("output-dir"))
 	}
 	options.Customer = input.String("customer")
 	options.PilotName = input.String("pilot-name")
-	options.Decision = input.String("decision")
-	if input.String("charter") != "" {
+	options.Decision = input.StringDefault("decision", "PENDING_REVIEW")
+	if input.Has("charter") {
 		options.CharterPath = resolveReadinessPath(repoRoot, input.String("charter"))
 	}
-	if input.String("acceptance-memo") != "" {
+	if input.Has("acceptance-memo") {
 		options.AcceptanceMemoPath = resolveReadinessPath(repoRoot, input.String("acceptance-memo"))
 	}
-	if input.String("validation-checklist") != "" {
+	if input.Has("validation-checklist") {
 		options.ValidationChecklist = resolveReadinessPath(repoRoot, input.String("validation-checklist"))
 	}
-	if input.String("operator-checklist") != "" {
+	if input.Has("operator-checklist") {
 		options.OperatorChecklist = resolveReadinessPath(repoRoot, input.String("operator-checklist"))
 	}
-	if input.String("readiness-run-dir") != "" {
+	if input.Has("readiness-run-dir") {
 		options.ReadinessRunDir = resolveReadinessPath(repoRoot, input.String("readiness-run-dir"))
 	}
 	return options, nil

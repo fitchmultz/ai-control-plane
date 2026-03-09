@@ -29,64 +29,60 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/security"
 )
 
-func validateSecretsAuditCommandSpec() *commandSpec {
+type securityValidatorCommandConfig struct {
+	Name        string
+	Summary     string
+	Description string
+	Run         func(context.Context, commandRunContext, any) int
+}
+
+func newSecurityValidatorCommandSpec(config securityValidatorCommandConfig) *commandSpec {
 	return &commandSpec{
+		Name:        config.Name,
+		Summary:     config.Summary,
+		Description: config.Description,
+		Backend: commandBackend{
+			Kind:       commandBackendNative,
+			NativeBind: bindNoOptions,
+			NativeRun:  config.Run,
+		},
+	}
+}
+
+func validateSecretsAuditCommandSpec() *commandSpec {
+	return newSecurityValidatorCommandSpec(securityValidatorCommandConfig{
 		Name:        "secrets-audit",
 		Summary:     "Run deterministic tracked-file secrets audit",
 		Description: "Run deterministic tracked-file secrets audit.",
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return struct{}{}, nil
-			},
-			NativeRun: runSecretsAuditTyped,
-		},
-	}
+		Run:         runSecretsAuditTyped,
+	})
 }
 
 func validatePublicHygieneCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newSecurityValidatorCommandSpec(securityValidatorCommandConfig{
 		Name:        "public-hygiene",
 		Summary:     "Fail when local-only files are tracked by git",
 		Description: "Fail when local-only files are tracked by git.",
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return struct{}{}, nil
-			},
-			NativeRun: runValidatePublicHygieneTyped,
-		},
-	}
+		Run:         runValidatePublicHygieneTyped,
+	})
 }
 
 func validateLicenseCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newSecurityValidatorCommandSpec(securityValidatorCommandConfig{
 		Name:        "license",
 		Summary:     "Validate license policy structure and restricted references",
 		Description: "Validate the third-party license policy contract and restricted reference boundary.",
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return struct{}{}, nil
-			},
-			NativeRun: runValidateLicenseTyped,
-		},
-	}
+		Run:         runValidateLicenseTyped,
+	})
 }
 
 func validateSupplyChainCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newSecurityValidatorCommandSpec(securityValidatorCommandConfig{
 		Name:        "supply-chain",
 		Summary:     "Run supply-chain policy and digest validation",
 		Description: "Validate the typed supply-chain policy contract and digest pinning across canonical deployment surfaces.",
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return struct{}{}, nil
-			},
-			NativeRun: runValidateSupplyChainTyped,
-		},
-	}
+		Run:         runValidateSupplyChainTyped,
+	})
 }
 
 func runSecretsAuditTyped(ctx context.Context, runCtx commandRunContext, _ any) int {

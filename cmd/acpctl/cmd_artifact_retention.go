@@ -75,23 +75,17 @@ func bindArtifactRetentionOptions(bindCtx commandBindContext, input parsedComman
 	if input.Bool("apply") {
 		config.Mode = "apply"
 	}
-	if input.String("keep-evidence") != "" {
-		n, err := input.Int("keep-evidence")
-		if err != nil || n < 1 {
-			return nil, fmt.Errorf("--keep-evidence requires a positive integer")
-		}
-		config.KeepEvidence = n
+	keepEvidence, err := input.IntDefault("keep-evidence", config.KeepEvidence)
+	if err != nil || keepEvidence < 1 {
+		return nil, fmt.Errorf("--keep-evidence requires a positive integer")
 	}
-	if input.String("keep-bundles") != "" {
-		n, err := input.Int("keep-bundles")
-		if err != nil || n < 1 {
-			return nil, fmt.Errorf("--keep-bundles requires a positive integer")
-		}
-		config.KeepBundles = n
+	config.KeepEvidence = keepEvidence
+	keepBundles, err := input.IntDefault("keep-bundles", config.KeepBundles)
+	if err != nil || keepBundles < 1 {
+		return nil, fmt.Errorf("--keep-bundles requires a positive integer")
 	}
-	if input.String("repo-root") != "" {
-		config.RepoRoot = input.String("repo-root")
-	}
+	config.KeepBundles = keepBundles
+	config.RepoRoot = input.StringDefault("repo-root", config.RepoRoot)
 	return config, nil
 }
 

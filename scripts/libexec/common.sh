@@ -24,12 +24,8 @@ set -euo pipefail
 bridge_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bridge_repo_root_default="$(cd "${bridge_lib_dir}/../.." && pwd)"
 
-# Exit code contract mirrors internal/exitcodes/exitcodes.go.
-ACP_EXIT_SUCCESS=0
-ACP_EXIT_DOMAIN=1
-ACP_EXIT_PREREQ=2
-ACP_EXIT_RUNTIME=3
-ACP_EXIT_USAGE=64
+# shellcheck source=scripts/libexec/exitcodes.sh
+source "${bridge_lib_dir}/exitcodes.sh"
 
 bridge_repo_root() {
     printf '%s\n' "${ACP_REPO_ROOT:-${bridge_repo_root_default}}"

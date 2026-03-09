@@ -82,13 +82,9 @@ func statusCommandSpec() *commandSpec {
 }
 
 func bindStatusOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
-	interval := 2
-	if input.String("interval") != "" {
-		value, err := input.Int("interval")
-		if err != nil || value < 1 {
-			return nil, fmt.Errorf("invalid --interval value: %q (must be a positive integer)", input.String("interval"))
-		}
-		interval = value
+	interval, err := input.IntDefault("interval", 2)
+	if err != nil || interval < 1 {
+		return nil, fmt.Errorf("invalid --interval value: %q (must be a positive integer)", input.String("interval"))
 	}
 	return statusOptions{
 		JSON:     input.Bool("json"),

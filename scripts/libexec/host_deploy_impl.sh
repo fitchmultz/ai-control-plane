@@ -58,7 +58,7 @@ EOF
 
 [[ $# -ge 1 ]] || {
     show_help >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
 }
 subcommand="$1"
 shift
@@ -67,12 +67,12 @@ case "${subcommand}" in
 check | apply) ;;
 --help | -h)
     show_help
-    exit 0
+    exit "${ACP_EXIT_SUCCESS}"
     ;;
 *)
     printf 'ERROR: unknown host deploy command: %s\n' "${subcommand}" >&2
     show_help >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
     ;;
 esac
 
@@ -92,7 +92,7 @@ while [[ $# -gt 0 ]]; do
     --inventory)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --inventory\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         inventory="$2"
         shift 2
@@ -100,7 +100,7 @@ while [[ $# -gt 0 ]]; do
     --limit)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --limit\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         limit_target="$2"
         shift 2
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
     --repo-path)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --repo-path\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         repo_path="$2"
         shift 2
@@ -116,7 +116,7 @@ while [[ $# -gt 0 ]]; do
     --env-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --env-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         env_file="$2"
         shift 2
@@ -124,7 +124,7 @@ while [[ $# -gt 0 ]]; do
     --tls-mode)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --tls-mode\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         tls_mode="$2"
         shift 2
@@ -132,7 +132,7 @@ while [[ $# -gt 0 ]]; do
     --public-url)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --public-url\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         public_url="$2"
         shift 2
@@ -148,7 +148,7 @@ while [[ $# -gt 0 ]]; do
     --stabilization-seconds)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --stabilization-seconds\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         stabilization_seconds="$2"
         shift 2
@@ -156,26 +156,26 @@ while [[ $# -gt 0 ]]; do
     --extra-var)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --extra-var\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         extra_vars+=("$2")
         shift 2
         ;;
     --help | -h)
         show_help
-        exit 0
+        exit "${ACP_EXIT_SUCCESS}"
         ;;
     *)
         printf 'ERROR: unknown argument: %s\n' "$1" >&2
         show_help >&2
-        exit 2
+        exit "${ACP_EXIT_USAGE}"
         ;;
     esac
 done
 
 if [[ -n "${tls_mode}" && "${tls_mode}" != "plain" && "${tls_mode}" != "tls" ]]; then
     printf 'ERROR: --tls-mode must be plain or tls\n' >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
 fi
 
 repo_root="$(bridge_repo_root)"
@@ -186,15 +186,15 @@ ansible_cfg="${repo_root}/deploy/ansible/ansible.cfg"
 
 [[ -f "${inventory}" ]] || {
     printf 'ERROR: inventory file not found: %s\n' "${inventory}" >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
 }
 [[ -f "${playbook_path}" ]] || {
     printf 'ERROR: playbook not found: %s\n' "${playbook_path}" >&2
-    exit 3
+    exit "${ACP_EXIT_RUNTIME}"
 }
 [[ -f "${ansible_cfg}" ]] || {
     printf 'ERROR: ansible config not found: %s\n' "${ansible_cfg}" >&2
-    exit 3
+    exit "${ACP_EXIT_RUNTIME}"
 }
 
 declare -a ansible_args=("-i" "${inventory}" "${playbook_path}")

@@ -55,28 +55,18 @@ func (c dockerAvailableCheck) Run(ctx context.Context, opts Options) CheckResult
 		} else if strings.Contains(strings.ToLower(result.Stderr), "permission denied") {
 			message = "Docker daemon requires permissions"
 		}
-		return CheckResult{
-			ID:          c.ID(),
-			Name:        "Docker Available",
-			Level:       status.HealthLevelUnhealthy,
-			Severity:    SeverityPrereq,
-			Message:     message,
-			Suggestions: suggestions,
-			Details: status.ComponentDetails{
+		return withCheckDetails(
+			newCheckResult(c.ID(), "Docker Available", status.HealthLevelUnhealthy, SeverityPrereq, message),
+			status.ComponentDetails{
 				Error: strings.TrimSpace(result.Stderr),
 			},
-		}
+			suggestions...,
+		)
 	}
 
-	return CheckResult{
-		ID:       c.ID(),
-		Name:     "Docker Available",
-		Level:    status.HealthLevelHealthy,
-		Severity: SeverityDomain,
-		Message:  "Docker is available and daemon is accessible",
-	}
+	return newCheckResult(c.ID(), "Docker Available", status.HealthLevelHealthy, SeverityDomain, "Docker is available and daemon is accessible")
 }
 
 func (c dockerAvailableCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return false, "", nil
+	return noopFix(ctx, opts)
 }

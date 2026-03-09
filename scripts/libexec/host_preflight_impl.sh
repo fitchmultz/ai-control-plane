@@ -57,7 +57,7 @@ while [[ $# -gt 0 ]]; do
     --profile)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --profile\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         profile="$2"
         shift 2
@@ -65,7 +65,7 @@ while [[ $# -gt 0 ]]; do
     --secrets-env-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --secrets-env-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         secrets_env_file="$2"
         shift 2
@@ -73,26 +73,26 @@ while [[ $# -gt 0 ]]; do
     --compose-env-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --compose-env-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         compose_env_file="$2"
         shift 2
         ;;
     --help | -h)
         show_help
-        exit 0
+        exit "${ACP_EXIT_SUCCESS}"
         ;;
     *)
         printf 'ERROR: unknown argument: %s\n' "$1" >&2
         show_help >&2
-        exit 2
+        exit "${ACP_EXIT_USAGE}"
         ;;
     esac
 done
 
 [[ "${profile}" == "production" ]] || {
     printf 'ERROR: unsupported profile: %s\n' "${profile}" >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
 }
 
 repo_root="$(bridge_repo_root)"
@@ -107,13 +107,13 @@ bridge_detect_compose_bin >/dev/null
 
 [[ -f "${repo_root}/deploy/systemd/ai-control-plane.service.tmpl" ]] || {
     printf 'ERROR: missing systemd template: %s\n' "${repo_root}/deploy/systemd/ai-control-plane.service.tmpl" >&2
-    exit 3
+    exit "${ACP_EXIT_RUNTIME}"
 }
 
 compose_env_dir="$(dirname "${compose_env_file}")"
 [[ -d "${compose_env_dir}" ]] || {
     printf 'ERROR: compose env parent directory not found: %s\n' "${compose_env_dir}" >&2
-    exit 3
+    exit "${ACP_EXIT_RUNTIME}"
 }
 
 (

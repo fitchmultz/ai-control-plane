@@ -60,7 +60,7 @@ EOF
 
 [[ $# -ge 1 ]] || {
     show_help >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
 }
 subcommand="$1"
 shift
@@ -69,12 +69,12 @@ case "${subcommand}" in
 install | uninstall | service-status | service-start | service-stop | service-restart) ;;
 --help | -h)
     show_help
-    exit 0
+    exit "${ACP_EXIT_SUCCESS}"
     ;;
 *)
     printf 'ERROR: unknown host install command: %s\n' "${subcommand}" >&2
     show_help >&2
-    exit 2
+    exit "${ACP_EXIT_USAGE}"
     ;;
 esac
 
@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]]; do
     --service-name)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --service-name\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         service_name="$2"
         shift 2
@@ -104,7 +104,7 @@ while [[ $# -gt 0 ]]; do
     --service-user)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --service-user\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         service_user="$2"
         shift 2
@@ -112,7 +112,7 @@ while [[ $# -gt 0 ]]; do
     --service-group)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --service-group\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         service_group="$2"
         shift 2
@@ -120,7 +120,7 @@ while [[ $# -gt 0 ]]; do
     --repo-root)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --repo-root\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         repo_root="$(bridge_abspath "$2")"
         shift 2
@@ -128,7 +128,7 @@ while [[ $# -gt 0 ]]; do
     --unit-dir)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --unit-dir\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         unit_dir="$2"
         shift 2
@@ -136,7 +136,7 @@ while [[ $# -gt 0 ]]; do
     --env-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --env-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         env_file="$2"
         shift 2
@@ -144,7 +144,7 @@ while [[ $# -gt 0 ]]; do
     --compose-env-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --compose-env-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         compose_env_file="$2"
         shift 2
@@ -152,7 +152,7 @@ while [[ $# -gt 0 ]]; do
     --compose-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --compose-file\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         compose_file="$2"
         shift 2
@@ -160,7 +160,7 @@ while [[ $# -gt 0 ]]; do
     --compose-bin)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --compose-bin\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         compose_bin="$2"
         shift 2
@@ -168,7 +168,7 @@ while [[ $# -gt 0 ]]; do
     --fetch-hook)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --fetch-hook\n' >&2
-            exit 2
+            exit "${ACP_EXIT_USAGE}"
         }
         fetch_hook="$2"
         shift 2
@@ -183,12 +183,12 @@ while [[ $# -gt 0 ]]; do
         ;;
     --help | -h)
         show_help
-        exit 0
+        exit "${ACP_EXIT_SUCCESS}"
         ;;
     *)
         printf 'ERROR: unknown argument: %s\n' "$1" >&2
         show_help >&2
-        exit 2
+        exit "${ACP_EXIT_USAGE}"
         ;;
     esac
 done
@@ -237,11 +237,11 @@ case "${subcommand}" in
 install)
     [[ -f "${template_path}" ]] || {
         printf 'ERROR: systemd template not found: %s\n' "${template_path}" >&2
-        exit 3
+        exit "${ACP_EXIT_RUNTIME}"
     }
     [[ -x "${prepare_script}" ]] || {
         printf 'ERROR: secrets refresh script not executable: %s\n' "${prepare_script}" >&2
-        exit 3
+        exit "${ACP_EXIT_RUNTIME}"
     }
     mkdir -p "${unit_dir}"
     prepare_args=(

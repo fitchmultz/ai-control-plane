@@ -21,6 +21,8 @@
 package doctor
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/status"
@@ -59,4 +61,42 @@ func runtimeComponent(opts Options, name string) (status.ComponentStatus, bool) 
 	}
 	component, ok := opts.RuntimeReport.Components[name]
 	return component, ok
+}
+
+func newCheckResult(id string, name string, level status.HealthLevel, severity Severity, message string) CheckResult {
+	return CheckResult{
+		ID:       id,
+		Name:     name,
+		Level:    level,
+		Severity: severity,
+		Message:  message,
+	}
+}
+
+func withCheckDetails(result CheckResult, details status.ComponentDetails, suggestions ...string) CheckResult {
+	result.Details = details
+	if len(suggestions) > 0 {
+		result.Suggestions = append([]string(nil), suggestions...)
+	}
+	return result
+}
+
+func withComponentStatus(result CheckResult, component status.ComponentStatus) CheckResult {
+	result.Details = component.Details
+	result.Suggestions = append([]string(nil), component.Suggestions...)
+	return result
+}
+
+func runtimeInspectionMissing(id string, name string, component string) CheckResult {
+	return newCheckResult(
+		id,
+		name,
+		status.HealthLevelUnknown,
+		SeverityRuntime,
+		fmt.Sprintf("%s runtime inspection did not produce a result", component),
+	)
+}
+
+func noopFix(context.Context, Options) (bool, string, error) {
+	return false, "", nil
 }

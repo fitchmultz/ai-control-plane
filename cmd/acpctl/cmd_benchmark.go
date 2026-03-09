@@ -114,20 +114,36 @@ func benchmarkCommandSpec() *commandSpec {
 
 func bindBenchmarkBaselineOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
 	gatewayRuntime := config.NewLoader().Gateway(true)
+	warmupRequests, err := input.IntDefault("warmup-requests", 0)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --warmup-requests: %q", input.String("warmup-requests"))
+	}
+	requests, err := input.IntDefault("requests", 20)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --requests: %q", input.String("requests"))
+	}
+	concurrency, err := input.IntDefault("concurrency", 2)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --concurrency: %q", input.String("concurrency"))
+	}
+	maxTokens, err := input.IntDefault("max-tokens", 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --max-tokens: %q", input.String("max-tokens"))
+	}
 	opts := benchmarkBaselineOptions{
-		GatewayURL:     stringDefault(input.String("gateway-url"), "http://127.0.0.1:4000"),
-		MasterKey:      stringDefault(input.String("master-key"), gatewayRuntime.MasterKey),
-		Model:          stringDefault(input.String("model"), "mock-gpt"),
+		GatewayURL:     input.StringDefault("gateway-url", "http://127.0.0.1:4000"),
+		MasterKey:      input.StringDefault("master-key", gatewayRuntime.MasterKey),
+		Model:          input.StringDefault("model", "mock-gpt"),
 		Profile:        input.String("profile"),
-		Prompt:         stringDefault(input.String("prompt"), "Provide a short response for performance baseline verification."),
-		WarmupRequests: intValueDefault(input, "warmup-requests", 0),
-		Requests:       intValueDefault(input, "requests", 20),
-		Concurrency:    intValueDefault(input, "concurrency", 2),
-		MaxTokens:      intValueDefault(input, "max-tokens", 32),
+		Prompt:         input.StringDefault("prompt", "Provide a short response for performance baseline verification."),
+		WarmupRequests: warmupRequests,
+		Requests:       requests,
+		Concurrency:    concurrency,
+		MaxTokens:      maxTokens,
 		JSON:           input.Bool("json"),
-		WarmupSet:      input.String("warmup-requests") != "",
-		RequestsSet:    input.String("requests") != "",
-		ConcurrencySet: input.String("concurrency") != "",
+		WarmupSet:      input.Has("warmup-requests"),
+		RequestsSet:    input.Has("requests"),
+		ConcurrencySet: input.Has("concurrency"),
 	}
 	if opts.Requests <= 0 {
 		return nil, fmt.Errorf("--requests must be a positive integer")
@@ -235,17 +251,6 @@ func printBenchmarkSummary(out *os.File, summary *performance.Summary) {
 	fmt.Fprintf(out, "  p50 latency: %.2f ms\n", summary.P50LatencyMS)
 	fmt.Fprintf(out, "  p95 latency: %.2f ms\n", summary.P95LatencyMS)
 	fmt.Fprintf(out, "  Min/max latency: %.2f ms / %.2f ms\n", summary.MinLatencyMS, summary.MaxLatencyMS)
-}
-
-func intValueDefault(input parsedCommandInput, name string, fallback int) int {
-	if input.String(name) == "" {
-		return fallback
-	}
-	value, err := input.Int(name)
-	if err != nil {
-		return fallback
-	}
-	return value
 }
 
 func runBenchmarkCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {

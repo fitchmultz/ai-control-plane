@@ -29,6 +29,7 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/envfile"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 type lookupSource interface {
@@ -158,18 +159,12 @@ func (l *Loader) RepoAwareString(key string) string {
 
 // StringDefault returns a trimmed process-only string or the provided fallback.
 func (l *Loader) StringDefault(key, fallback string) string {
-	if value := l.String(key); value != "" {
-		return value
-	}
-	return fallback
+	return textutil.DefaultIfBlank(l.String(key), fallback)
 }
 
 // RepoAwareStringDefault returns a repo-aware trimmed string or fallback.
 func (l *Loader) RepoAwareStringDefault(key, fallback string) string {
-	if value := l.RepoAwareString(key); value != "" {
-		return value
-	}
-	return fallback
+	return textutil.DefaultIfBlank(l.RepoAwareString(key), fallback)
 }
 
 // BoolDefault parses a process-only boolean or returns the fallback.

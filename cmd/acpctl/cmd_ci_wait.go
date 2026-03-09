@@ -82,13 +82,9 @@ func ciWaitCommandSpec() *commandSpec {
 }
 
 func bindCIWaitOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
-	timeoutSeconds := 120
-	if input.String("timeout") != "" {
-		value, err := input.Int("timeout")
-		if err != nil || value <= 0 {
-			return nil, fmt.Errorf("invalid --timeout value: %q (must be a positive integer)", input.String("timeout"))
-		}
-		timeoutSeconds = value
+	timeoutSeconds, err := input.IntDefault("timeout", 120)
+	if err != nil || timeoutSeconds <= 0 {
+		return nil, fmt.Errorf("invalid --timeout value: %q (must be a positive integer)", input.String("timeout"))
 	}
 	return ciWaitOptions{
 		Timeout:  time.Duration(timeoutSeconds) * time.Second,

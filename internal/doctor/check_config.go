@@ -40,42 +40,25 @@ func (c configValidCheck) Run(ctx context.Context, opts Options) CheckResult {
 		}
 	}
 	if len(missingFiles) > 0 {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Config Valid",
-			Level:    status.HealthLevelUnhealthy,
-			Severity: SeverityPrereq,
-			Message:  "Required deployment configuration files are missing",
-			Suggestions: []string{
-				"Ensure repository is complete",
-				"Run: make install",
-			},
-			Details: status.ComponentDetails{MissingFiles: missingFiles},
-		}
+		return withCheckDetails(
+			newCheckResult(c.ID(), "Config Valid", status.HealthLevelUnhealthy, SeverityPrereq, "Required deployment configuration files are missing"),
+			status.ComponentDetails{MissingFiles: missingFiles},
+			"Ensure repository is complete",
+			"Run: make install",
+		)
 	}
 	envStatus, err := config.NewLoader().WithRepoRoot(opts.RepoRoot).RepoEnvStatus(ctx)
 	if err != nil || !envStatus.Exists {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Config Valid",
-			Level:    status.HealthLevelWarning,
-			Severity: SeverityPrereq,
-			Message:  "Environment file demo/.env is missing",
-			Suggestions: []string{
-				"Run: make install-env",
-				"Populate required environment variables in demo/.env",
-			},
-		}
+		return withCheckDetails(
+			newCheckResult(c.ID(), "Config Valid", status.HealthLevelWarning, SeverityPrereq, "Environment file demo/.env is missing"),
+			status.ComponentDetails{},
+			"Run: make install-env",
+			"Populate required environment variables in demo/.env",
+		)
 	}
-	return CheckResult{
-		ID:       c.ID(),
-		Name:     "Config Valid",
-		Level:    status.HealthLevelHealthy,
-		Severity: SeverityDomain,
-		Message:  "Deployment configuration files are present",
-	}
+	return newCheckResult(c.ID(), "Config Valid", status.HealthLevelHealthy, SeverityDomain, "Deployment configuration files are present")
 }
 
 func (c configValidCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return false, "", nil
+	return noopFix(ctx, opts)
 }

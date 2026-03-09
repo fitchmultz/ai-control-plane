@@ -28,6 +28,9 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
+
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 type commandBackendKind string
@@ -124,6 +127,14 @@ func (p parsedCommandInput) String(name string) string {
 	return firstValue(p.flags[name])
 }
 
+func (p parsedCommandInput) Has(name string) bool {
+	return len(p.flags[name]) > 0
+}
+
+func (p parsedCommandInput) StringDefault(name string, fallback string) string {
+	return textutil.DefaultIfBlank(p.String(name), fallback)
+}
+
 func (p parsedCommandInput) Strings(name string) []string {
 	values := p.flags[name]
 	if len(values) == 0 {
@@ -142,12 +153,26 @@ func (p parsedCommandInput) Int(name string) (int, error) {
 	return strconv.Atoi(value)
 }
 
+func (p parsedCommandInput) IntDefault(name string, fallback int) (int, error) {
+	if strings.TrimSpace(p.String(name)) == "" {
+		return fallback, nil
+	}
+	return p.Int(name)
+}
+
 func (p parsedCommandInput) Float(name string) (float64, error) {
 	value := firstValue(p.flags[name])
 	if value == "" {
 		return 0, nil
 	}
 	return strconv.ParseFloat(value, 64)
+}
+
+func (p parsedCommandInput) FloatDefault(name string, fallback float64) (float64, error) {
+	if strings.TrimSpace(p.String(name)) == "" {
+		return fallback, nil
+	}
+	return p.Float(name)
 }
 
 func (p parsedCommandInput) Argument(index int) string {

@@ -84,13 +84,13 @@ func bindReadinessEvidenceRunOptions(bindCtx commandBindContext, input parsedCom
 		MakeBin:       makeBin,
 		BundleVersion: bundle.GetDefaultVersion(repoRoot),
 	}
-	if input.String("output-dir") != "" {
+	if input.Has("output-dir") {
 		options.OutputRoot = resolveReadinessPath(repoRoot, input.String("output-dir"))
 	}
-	if input.String("bundle-version") != "" {
+	if input.Has("bundle-version") {
 		options.BundleVersion = input.String("bundle-version")
 	}
-	if input.String("secrets-env-file") != "" {
+	if input.Has("secrets-env-file") {
 		options.SecretsEnvFile = resolveReadinessPath(repoRoot, input.String("secrets-env-file"))
 	}
 	options.IncludeProduction = input.Bool("include-production")

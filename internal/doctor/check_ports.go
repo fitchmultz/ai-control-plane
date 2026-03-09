@@ -51,51 +51,37 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 	}
 	if len(occupied) > 0 {
 		if occupiedPortsBelongToRunningACP(ctx, occupied, opts) {
-			return CheckResult{
-				ID:       c.ID(),
-				Name:     "Ports Free",
-				Level:    status.HealthLevelHealthy,
-				Severity: SeverityDomain,
-				Message:  fmt.Sprintf("Required ports are bound by running AI Control Plane services: %v", occupied),
-				Details: status.ComponentDetails{
+			return withCheckDetails(
+				newCheckResult(c.ID(), "Ports Free", status.HealthLevelHealthy, SeverityDomain, fmt.Sprintf("Required ports are bound by running AI Control Plane services: %v", occupied)),
+				status.ComponentDetails{
 					RequiredPorts: ports,
 					OccupiedPorts: occupied,
 				},
-			}
+			)
 		}
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Ports Free",
-			Level:    status.HealthLevelWarning,
-			Severity: SeverityDomain,
-			Message:  fmt.Sprintf("Ports already in use: %v (expected when services are already running)", occupied),
-			Suggestions: []string{
-				fmt.Sprintf("Identify processes: ss -tlnp | grep -E ':(%s)'", joinPorts(occupied)),
-				fmt.Sprintf("Or: lsof -i :%d", occupied[0]),
-				"If these ports belong to AI Control Plane services, this is expected after startup",
-				"Otherwise stop conflicting services or choose different ports",
-			},
-			Details: status.ComponentDetails{
+		return withCheckDetails(
+			newCheckResult(c.ID(), "Ports Free", status.HealthLevelWarning, SeverityDomain, fmt.Sprintf("Ports already in use: %v (expected when services are already running)", occupied)),
+			status.ComponentDetails{
 				RequiredPorts: ports,
 				OccupiedPorts: occupied,
 			},
-		}
+			fmt.Sprintf("Identify processes: ss -tlnp | grep -E ':(%s)'", joinPorts(occupied)),
+			fmt.Sprintf("Or: lsof -i :%d", occupied[0]),
+			"If these ports belong to AI Control Plane services, this is expected after startup",
+			"Otherwise stop conflicting services or choose different ports",
+		)
 	}
 
-	return CheckResult{
-		ID:       c.ID(),
-		Name:     "Ports Free",
-		Level:    status.HealthLevelHealthy,
-		Severity: SeverityDomain,
-		Message:  fmt.Sprintf("All required ports available: %v", ports),
-		Details: status.ComponentDetails{
+	return withCheckDetails(
+		newCheckResult(c.ID(), "Ports Free", status.HealthLevelHealthy, SeverityDomain, fmt.Sprintf("All required ports available: %v", ports)),
+		status.ComponentDetails{
 			RequiredPorts: ports,
 		},
-	}
+	)
 }
 
 func (c portsFreeCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return false, "", nil
+	return noopFix(ctx, opts)
 }
 
 func isPortOccupied(ctx context.Context, host string, port int) bool {

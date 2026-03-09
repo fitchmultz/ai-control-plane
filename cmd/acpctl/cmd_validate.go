@@ -138,11 +138,9 @@ func validateComposeHealthchecksCommandSpec() *commandSpec {
 		Summary:     "Validate Docker Compose healthchecks",
 		Description: "Validate Docker Compose healthchecks.",
 		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return struct{}{}, nil
-			},
-			NativeRun: runValidateComposeHealthchecksTyped,
+			Kind:       commandBackendNative,
+			NativeBind: bindNoOptions,
+			NativeRun:  runValidateComposeHealthchecksTyped,
 		},
 	}
 }
@@ -153,11 +151,9 @@ func validateHeadersCommandSpec() *commandSpec {
 		Summary:     "Validate Go source file header policy",
 		Description: "Validate Go source file header policy.",
 		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return struct{}{}, nil
-			},
-			NativeRun: runValidateHeadersTyped,
+			Kind:       commandBackendNative,
+			NativeBind: bindNoOptions,
+			NativeRun:  runValidateHeadersTyped,
 		},
 	}
 }
@@ -168,11 +164,9 @@ func validateEnvAccessCommandSpec() *commandSpec {
 		Summary:     "Fail on direct environment access outside internal/config",
 		Description: "Fail on direct environment access outside internal/config.",
 		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return struct{}{}, nil
-			},
-			NativeRun: runValidateEnvAccessTyped,
+			Kind:       commandBackendNative,
+			NativeBind: bindNoOptions,
+			NativeRun:  runValidateEnvAccessTyped,
 		},
 	}
 }

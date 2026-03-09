@@ -37,30 +37,20 @@ func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 	loader := config.NewLoader().WithRepoRoot(opts.RepoRoot)
 	statusResult := loader.RequiredRuntimeEnv(requiredVars)
 	if len(statusResult.Missing) > 0 {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Environment Variables Set",
-			Level:    status.HealthLevelUnhealthy,
-			Severity: SeverityPrereq,
-			Message:  fmt.Sprintf("Missing required environment variables: %v", statusResult.Missing),
-			Suggestions: []string{
-				"Run: make install",
-				"Or manually set: export LITELLM_MASTER_KEY=sk-...",
-				"Copy .env.example to demo/.env and configure",
-			},
-			Details: status.ComponentDetails{
+		return withCheckDetails(
+			newCheckResult(c.ID(), "Environment Variables Set", status.HealthLevelUnhealthy, SeverityPrereq, fmt.Sprintf("Missing required environment variables: %v", statusResult.Missing)),
+			status.ComponentDetails{
 				MissingVars: statusResult.Missing,
 			},
-		}
+			"Run: make install",
+			"Or manually set: export LITELLM_MASTER_KEY=sk-...",
+			"Copy .env.example to demo/.env and configure",
+		)
 	}
-	return CheckResult{
-		ID:       c.ID(),
-		Name:     "Environment Variables Set",
-		Level:    status.HealthLevelHealthy,
-		Severity: SeverityDomain,
-		Message:  fmt.Sprintf("All required environment variables set (%d found)", len(statusResult.Found)),
-		Details:  status.ComponentDetails{},
-	}
+	return withCheckDetails(
+		newCheckResult(c.ID(), "Environment Variables Set", status.HealthLevelHealthy, SeverityDomain, fmt.Sprintf("All required environment variables set (%d found)", len(statusResult.Found))),
+		status.ComponentDetails{},
+	)
 }
 
 func (c envVarsSetCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
@@ -71,10 +61,10 @@ func (c envVarsSetCheck) Fix(ctx context.Context, opts Options) (bool, string, e
 	envPath := envStatus.Path
 	examplePath := filepath.Join(opts.RepoRoot, "demo", ".env.example")
 	if envStatus.Exists {
-		return false, "", nil
+		return noopFix(ctx, opts)
 	}
 	if _, err := os.Stat(examplePath); err != nil {
-		return false, "", nil
+		return noopFix(ctx, opts)
 	}
 	content, err := os.ReadFile(examplePath)
 	if err != nil {

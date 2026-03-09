@@ -31,6 +31,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 type Environment interface {
@@ -69,7 +71,7 @@ func NewReportWorkflowInput(command ReportCommandInput, env Environment, repoRoo
 		Request: ReportRequest{
 			ReportMonth:          strings.TrimSpace(command.ReportMonth),
 			Format:               format,
-			ArchiveDir:           stringDefault(command.ArchiveDir, defaultArchiveDir),
+			ArchiveDir:           textutil.DefaultIfBlank(command.ArchiveDir, defaultArchiveDir),
 			VarianceThreshold:    varianceThreshold,
 			AnomalyThreshold:     anomalyThreshold,
 			ForecastEnabled:      forecastEnabled,
@@ -119,7 +121,7 @@ func NewPayloadRequest(command PayloadCommandInput, env Environment, now func() 
 	return PayloadRequest{
 		Target: target,
 		Generic: GenericWebhookInput{
-			Event:       stringDefault(envString(env, "CHARGEBACK_PAYLOAD_EVENT"), defaultGenericNotificationEvent),
+			Event:       textutil.DefaultIfBlank(envString(env, "CHARGEBACK_PAYLOAD_EVENT"), defaultGenericNotificationEvent),
 			ReportMonth: envString(env, "CHARGEBACK_REPORT_MONTH"),
 			TotalSpend:  envFloat(env, "CHARGEBACK_TOTAL_SPEND", 0),
 			Variance:    envString(env, "CHARGEBACK_VARIANCE"),
@@ -130,7 +132,7 @@ func NewPayloadRequest(command PayloadCommandInput, env Environment, now func() 
 			ReportMonth: envString(env, "CHARGEBACK_REPORT_MONTH"),
 			TotalSpend:  envFloat(env, "CHARGEBACK_TOTAL_SPEND", 0),
 			Variance:    envString(env, "CHARGEBACK_VARIANCE"),
-			Color:       stringDefault(envString(env, "CHARGEBACK_SLACK_COLOR"), defaultSlackColor),
+			Color:       textutil.DefaultIfBlank(envString(env, "CHARGEBACK_SLACK_COLOR"), defaultSlackColor),
 			Epoch:       envInt64(env, "CHARGEBACK_SLACK_EPOCH", current.Unix()),
 		},
 	}, nil
@@ -155,8 +157,8 @@ func decodeReportInput(env Environment, now func() time.Time) (ReportInput, erro
 	month1, month2, month3 := env.ChargebackForecast()
 	current := now()
 	return ReportInput{
-		SchemaVersion:      stringDefault(envString(env, "CHARGEBACK_SCHEMA_VERSION"), defaultSchemaVersion),
-		GeneratedAt:        stringDefault(envString(env, "CHARGEBACK_GENERATED_AT"), current.UTC().Format(time.RFC3339)),
+		SchemaVersion:      textutil.DefaultIfBlank(envString(env, "CHARGEBACK_SCHEMA_VERSION"), defaultSchemaVersion),
+		GeneratedAt:        textutil.DefaultIfBlank(envString(env, "CHARGEBACK_GENERATED_AT"), current.UTC().Format(time.RFC3339)),
 		ReportMonth:        envString(env, "CHARGEBACK_REPORT_MONTH"),
 		PeriodStart:        envString(env, "CHARGEBACK_MONTH_START"),
 		PeriodEnd:          envString(env, "CHARGEBACK_MONTH_END"),
@@ -175,10 +177,10 @@ func decodeReportInput(env Environment, now func() time.Time) (ReportInput, erro
 		ForecastMonth3:     month3,
 		DailyBurn:          envFloat(env, "CHARGEBACK_DAILY_BURN", 0),
 		DaysRemaining:      env.Int64Ptr("CHARGEBACK_DAYS_REMAINING"),
-		ExhaustionDate:     stringDefault(envString(env, "CHARGEBACK_EXHAUSTION_DATE"), "N/A"),
+		ExhaustionDate:     textutil.DefaultIfBlank(envString(env, "CHARGEBACK_EXHAUSTION_DATE"), "N/A"),
 		TotalBudget:        envFloat(env, "CHARGEBACK_TOTAL_BUDGET", 0),
 		BudgetRisk: BudgetRisk{
-			RiskLevel:         stringDefault(envString(env, "CHARGEBACK_BUDGET_RISK_LEVEL"), "unknown"),
+			RiskLevel:         textutil.DefaultIfBlank(envString(env, "CHARGEBACK_BUDGET_RISK_LEVEL"), "unknown"),
 			BudgetPercent:     env.Float64Ptr("CHARGEBACK_BUDGET_RISK_PERCENT"),
 			ThresholdExceeded: envBool(env, "CHARGEBACK_BUDGET_RISK_THRESHOLD_EXCEEDED", false),
 		},
@@ -333,11 +335,4 @@ func chargebackTimestamp(env Environment, now time.Time) string {
 		return now.UTC().Format(time.RFC3339)
 	}
 	return env.ChargebackTimestamp(now)
-}
-
-func stringDefault(value string, fallback string) string {
-	if strings.TrimSpace(value) == "" {
-		return fallback
-	}
-	return value
 }

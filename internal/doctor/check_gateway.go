@@ -30,40 +30,26 @@ func (c gatewayHealthyCheck) ID() string { return "gateway_healthy" }
 func (c gatewayHealthyCheck) Run(ctx context.Context, opts Options) CheckResult {
 	component, ok := runtimeComponent(opts, "gateway")
 	if !ok {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Gateway Healthy",
-			Level:    status.HealthLevelUnknown,
-			Severity: SeverityRuntime,
-			Message:  "Gateway runtime inspection did not produce a result",
-		}
+		return runtimeInspectionMissing(c.ID(), "Gateway Healthy", "Gateway")
 	}
 
 	if !component.Details.MasterKeyConfigured {
-		return CheckResult{
-			ID:          c.ID(),
-			Name:        "Gateway Healthy",
-			Level:       status.HealthLevelUnhealthy,
-			Severity:    SeverityPrereq,
-			Message:     "LITELLM_MASTER_KEY not set; cannot run authorized gateway check",
-			Details:     component.Details,
-			Suggestions: []string{"Set LITELLM_MASTER_KEY in demo/.env", "Or export it in your shell environment"},
-		}
+		return withCheckDetails(
+			newCheckResult(c.ID(), "Gateway Healthy", status.HealthLevelUnhealthy, SeverityPrereq, "LITELLM_MASTER_KEY not set; cannot run authorized gateway check"),
+			component.Details,
+			"Set LITELLM_MASTER_KEY in demo/.env",
+			"Or export it in your shell environment",
+		)
 	}
 
-	return CheckResult{
-		ID:          c.ID(),
-		Name:        "Gateway Healthy",
-		Level:       component.Level,
-		Severity:    severityForLevel(component.Level),
-		Message:     component.Message,
-		Details:     component.Details,
-		Suggestions: component.Suggestions,
-	}
+	return withComponentStatus(
+		newCheckResult(c.ID(), "Gateway Healthy", component.Level, severityForLevel(component.Level), component.Message),
+		component,
+	)
 }
 
 func (c gatewayHealthyCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return false, "", nil
+	return noopFix(ctx, opts)
 }
 
 func severityForLevel(level status.HealthLevel) Severity {

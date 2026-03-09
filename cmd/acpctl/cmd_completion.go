@@ -58,11 +58,9 @@ func completionShellSpec(name string, summary string) *commandSpec {
 		Summary:     summary,
 		Description: summary + ".",
 		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-				return completionShellOptions{Shell: name}, nil
-			},
-			NativeRun: runCompletionShellCommand,
+			Kind:       commandBackendNative,
+			NativeBind: bindStaticOptions(completionShellOptions{Shell: name}),
+			NativeRun:  runCompletionShellCommand,
 		},
 	}
 }

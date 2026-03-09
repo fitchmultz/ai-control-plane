@@ -35,28 +35,17 @@ func (c dbConnectableCheck) ID() string { return "db_connectable" }
 func (c dbConnectableCheck) Run(ctx context.Context, opts Options) CheckResult {
 	component, ok := runtimeComponent(opts, "database")
 	if !ok {
-		return CheckResult{
-			ID:       c.ID(),
-			Name:     "Database Connectable",
-			Level:    status.HealthLevelUnknown,
-			Severity: SeverityRuntime,
-			Message:  "Database runtime inspection did not produce a result",
-		}
+		return runtimeInspectionMissing(c.ID(), "Database Connectable", "Database")
 	}
 
-	return CheckResult{
-		ID:          c.ID(),
-		Name:        "Database Connectable",
-		Level:       component.Level,
-		Severity:    databaseSeverity(component),
-		Message:     component.Message,
-		Details:     component.Details,
-		Suggestions: component.Suggestions,
-	}
+	return withComponentStatus(
+		newCheckResult(c.ID(), "Database Connectable", component.Level, databaseSeverity(component), component.Message),
+		component,
+	)
 }
 
 func (c dbConnectableCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return false, "", nil
+	return noopFix(ctx, opts)
 }
 
 func databaseSeverity(component status.ComponentStatus) Severity {

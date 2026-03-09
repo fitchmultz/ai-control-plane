@@ -92,11 +92,9 @@ func dbCommandSpec() *commandSpec {
 				Summary:     "Run database DR restore drill",
 				Description: "Run database disaster recovery drill.",
 				Backend: commandBackend{
-					Kind: commandBackendNative,
-					NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
-						return struct{}{}, nil
-					},
-					NativeRun: runDBDRDrillTyped,
+					Kind:       commandBackendNative,
+					NativeBind: bindNoOptions,
+					NativeRun:  runDBDRDrillTyped,
 				},
 			},
 		},
