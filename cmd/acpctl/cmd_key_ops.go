@@ -287,17 +287,17 @@ func runKeyRevoke(_ context.Context, runCtx commandRunContext, raw any) int {
 }
 
 func runKeyGenCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"key", "gen"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"key", "gen"}, args, stdout, stderr)
 }
 
 func runDeveloperKeyGenLegacy(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"key", "gen-dev"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"key", "gen-dev"}, args, stdout, stderr)
 }
 
 func runLeadKeyGenLegacy(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"key", "gen-lead"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"key", "gen-lead"}, args, stdout, stderr)
 }
 
 func runKeyRevokeCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"key", "revoke"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"key", "revoke"}, args, stdout, stderr)
 }

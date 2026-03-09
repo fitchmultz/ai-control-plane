@@ -29,6 +29,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/closeout"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 )
 
 func pilotCloseoutBundleCommandSpec() *commandSpec {
@@ -76,39 +77,46 @@ func pilotCloseoutBundleCommandSpec() *commandSpec {
 }
 
 func bindPilotCloseoutBuildOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
-	repoRoot := bindCtx.RepoRoot
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
 	options := closeout.Options{
 		RepoRoot:   repoRoot,
-		OutputRoot: filepath.Join(repoRoot, "demo", "logs", "pilot-closeout"),
+		OutputRoot: repopath.DemoLogsPath(repoRoot, "pilot-closeout"),
 	}
 	if input.Has("output-dir") {
-		options.OutputRoot = resolveReadinessPath(repoRoot, input.String("output-dir"))
+		options.OutputRoot = resolveRepoInput(repoRoot, input.String("output-dir"))
 	}
 	options.Customer = input.String("customer")
 	options.PilotName = input.String("pilot-name")
 	options.Decision = input.StringDefault("decision", "PENDING_REVIEW")
 	if input.Has("charter") {
-		options.CharterPath = resolveReadinessPath(repoRoot, input.String("charter"))
+		options.CharterPath = resolveRepoInput(repoRoot, input.String("charter"))
 	}
 	if input.Has("acceptance-memo") {
-		options.AcceptanceMemoPath = resolveReadinessPath(repoRoot, input.String("acceptance-memo"))
+		options.AcceptanceMemoPath = resolveRepoInput(repoRoot, input.String("acceptance-memo"))
 	}
 	if input.Has("validation-checklist") {
-		options.ValidationChecklist = resolveReadinessPath(repoRoot, input.String("validation-checklist"))
+		options.ValidationChecklist = resolveRepoInput(repoRoot, input.String("validation-checklist"))
 	}
 	if input.Has("operator-checklist") {
-		options.OperatorChecklist = resolveReadinessPath(repoRoot, input.String("operator-checklist"))
+		options.OperatorChecklist = resolveRepoInput(repoRoot, input.String("operator-checklist"))
 	}
 	if input.Has("readiness-run-dir") {
-		options.ReadinessRunDir = resolveReadinessPath(repoRoot, input.String("readiness-run-dir"))
+		options.ReadinessRunDir = resolveRepoInput(repoRoot, input.String("readiness-run-dir"))
 	}
 	return options, nil
 }
 
 func bindPilotCloseoutVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
 	runDir := input.String("run-dir")
 	if runDir != "" {
-		runDir = resolveReadinessPath(bindCtx.RepoRoot, runDir)
+		runDir = resolveRepoInput(repoRoot, runDir)
 	}
 	return runDir, nil
 }
@@ -137,7 +145,7 @@ func runPilotCloseoutBundleVerifyTyped(_ context.Context, runCtx commandRunConte
 	runDir := raw.(string)
 
 	if runDir == "" {
-		resolvedRunDir, err := closeout.ResolveLatestRun(filepath.Join(runCtx.RepoRoot, "demo", "logs", "pilot-closeout"))
+		resolvedRunDir, err := closeout.ResolveLatestRun(repopath.DemoLogsPath(runCtx.RepoRoot, "pilot-closeout"))
 		if err != nil {
 			fmt.Fprintln(runCtx.Stderr, "Error: no pilot closeout bundle available; use --run-dir or generate one first")
 			return exitcodes.ACPExitUsage
@@ -168,5 +176,5 @@ func runPilotCloseoutBundleCommand(ctx context.Context, args []string, stdout *o
 		}
 		return exitcodes.ACPExitUsage
 	}
-	return runTypedCommandAdapter(ctx, []string{"deploy", "pilot-closeout-bundle"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"deploy", "pilot-closeout-bundle"}, args, stdout, stderr)
 }

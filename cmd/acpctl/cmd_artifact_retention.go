@@ -131,7 +131,7 @@ func runArtifactRetention(_ context.Context, runCtx commandRunContext, raw any) 
 }
 
 func runArtifactRetentionCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"deploy", "artifact-retention"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"deploy", "artifact-retention"}, args, stdout, stderr)
 }
 
 func collectEvidenceDirs(evidenceRoot string) []string {

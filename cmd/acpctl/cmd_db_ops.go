@@ -37,6 +37,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
@@ -105,7 +106,9 @@ func runDBBackup(ctx context.Context, runCtx commandRunContext, raw any) int {
 
 	repoRoot := runCtx.RepoRoot
 	if backupDir == "" {
-		backupDir = filepath.Join(repoRoot, "demo", "backups")
+		backupDir = repopath.DemoBackupsPath(repoRoot)
+	} else {
+		backupDir = resolveRepoInput(repoRoot, backupDir)
 	}
 
 	backupFile, err := resolveBackupOutputPath(backupDir, customName)
@@ -199,7 +202,7 @@ func runDBRestore(ctx context.Context, runCtx commandRunContext, raw any) int {
 	workflowStart(logger)
 
 	if backupFile == "" {
-		backupDir := filepath.Join(runCtx.RepoRoot, "demo", "backups")
+		backupDir := repopath.DemoBackupsPath(runCtx.RepoRoot)
 		latest, err := findLatestBackup(backupDir)
 		if err != nil {
 			workflowFailure(logger, err)
@@ -207,6 +210,8 @@ func runDBRestore(ctx context.Context, runCtx commandRunContext, raw any) int {
 			return exitcodes.ACPExitUsage
 		}
 		backupFile = latest
+	} else {
+		backupFile = resolveRepoInput(runCtx.RepoRoot, backupFile)
 	}
 
 	if _, err := os.Stat(backupFile); err != nil {
@@ -287,15 +292,15 @@ func runDBDRDrillTyped(_ context.Context, runCtx commandRunContext, _ any) int {
 }
 
 func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"db", "backup"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"db", "backup"}, args, stdout, stderr)
 }
 
 func runDBRestoreCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"db", "restore"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"db", "restore"}, args, stdout, stderr)
 }
 
 func runDBDRDrill(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"db", "dr-drill"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"db", "dr-drill"}, args, stdout, stderr)
 }
 
 func checkDBPrereqs() error {

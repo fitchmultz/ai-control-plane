@@ -60,7 +60,7 @@ func detectRepoRoot() string {
 
 func detectRepoRootWithContext(ctx context.Context) string {
 	loader := config.NewLoader()
-	repoRoot, err := loader.RepoRoot(ctx)
+	repoRoot, err := loader.RequireRepoRoot(ctx)
 	if err != nil {
 		return ""
 	}

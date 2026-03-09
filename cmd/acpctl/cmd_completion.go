@@ -24,11 +24,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/catalog"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 )
 
 type completionShellOptions struct {
@@ -251,7 +251,7 @@ func shellSingleQuote(value string) string {
 }
 
 func extractModelNames(repoRoot string) []string {
-	litellmPath := filepath.Join(repoRoot, "demo", "config", "litellm.yaml")
+	litellmPath := repopath.DemoConfigPath(repoRoot, "litellm.yaml")
 	config, err := catalog.LoadLiteLLMConfig(litellmPath)
 	if err != nil {
 		return nil
@@ -260,7 +260,7 @@ func extractModelNames(repoRoot string) []string {
 }
 
 func extractPresetNames(repoRoot string) []string {
-	presetsPath := filepath.Join(repoRoot, "demo", "config", "demo_presets.yaml")
+	presetsPath := repopath.DemoConfigPath(repoRoot, "demo_presets.yaml")
 	config, err := catalog.LoadDemoPresets(presetsPath)
 	if err != nil {
 		return nil
@@ -269,7 +269,7 @@ func extractPresetNames(repoRoot string) []string {
 }
 
 func extractScenarioIDs(repoRoot string) []string {
-	presetsPath := filepath.Join(repoRoot, "demo", "config", "demo_presets.yaml")
+	presetsPath := repopath.DemoConfigPath(repoRoot, "demo_presets.yaml")
 	config, err := catalog.LoadDemoPresets(presetsPath)
 	if err != nil {
 		return nil
@@ -284,7 +284,7 @@ func extractKeyAliases(string) []string {
 func extractConfigKeys(repoRoot string) []string {
 	var keys []string
 
-	configPath := filepath.Join(repoRoot, "demo", "config", "test_config.yaml")
+	configPath := repopath.DemoConfigPath(repoRoot, "test_config.yaml")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return keys

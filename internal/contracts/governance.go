@@ -26,10 +26,10 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/catalog"
+	validationissues "github.com/mitchfultz/ai-control-plane/internal/validation"
 	"gopkg.in/yaml.v3"
 )
 
@@ -149,18 +149,20 @@ func loadYAMLFile(path string, target any) error {
 
 // ValidateDetectionContracts validates the full detection contract surface.
 func ValidateDetectionContracts(detections DetectionRulesFile, siemQueries SIEMQueriesFile, litellmConfig catalog.LiteLLMConfig) []string {
-	issues := validateDetectionRules(detections, litellmConfig)
-	issues = append(issues, validateSIEMRuleCoverage(detections, siemQueries, litellmConfig)...)
-	return sortIssues(issues)
+	issues := validationissues.NewIssues()
+	issues.Extend(validateDetectionRules(detections, litellmConfig))
+	issues.Extend(validateSIEMRuleCoverage(detections, siemQueries, litellmConfig))
+	return issues.Sorted()
 }
 
 // ValidateSIEMContracts validates SIEM coverage and optional schema mappings.
 func ValidateSIEMContracts(detections DetectionRulesFile, siemQueries SIEMQueriesFile, litellmConfig catalog.LiteLLMConfig, validateSchema bool) []string {
-	issues := validateSIEMRuleCoverage(detections, siemQueries, litellmConfig)
+	issues := validationissues.NewIssues()
+	issues.Extend(validateSIEMRuleCoverage(detections, siemQueries, litellmConfig))
 	if validateSchema {
-		issues = append(issues, validateSIEMSchemaMappings(siemQueries.SIEMConfig)...)
+		issues.Extend(validateSIEMSchemaMappings(siemQueries.SIEMConfig))
 	}
-	return sortIssues(issues)
+	return issues.Sorted()
 }
 
 // ApprovedModels returns sorted configured approved model names.
@@ -180,14 +182,14 @@ func CountEnabledDetectionRules(detections DetectionRulesFile) int {
 }
 
 func validateDetectionRules(detections DetectionRulesFile, litellmConfig catalog.LiteLLMConfig) []string {
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	if len(detections.DetectionRules) == 0 {
-		issues = append(issues, "demo/config/detection_rules.yaml: detection_rules must contain at least one rule")
-		return issues
+		issues.Add("demo/config/detection_rules.yaml: detection_rules must contain at least one rule")
+		return issues.ToSlice()
 	}
 
 	if len(ApprovedModels(litellmConfig)) == 0 {
-		issues = append(issues, "demo/config/litellm.yaml: model_list must contain at least one approved model")
+		issues.Add("demo/config/litellm.yaml: model_list must contain at least one approved model")
 	}
 
 	seenIDs := make(map[string]struct{})
@@ -201,63 +203,63 @@ func validateDetectionRules(detections DetectionRulesFile, litellmConfig catalog
 		ruleID := strings.TrimSpace(rule.RuleID)
 		name := strings.TrimSpace(rule.Name)
 		if !detectionRuleIDPattern.MatchString(ruleID) {
-			issues = append(issues, fmt.Sprintf("%s: rule_id must match DR-### (got %q)", prefix, rule.RuleID))
+			issues.Addf("%s: rule_id must match DR-### (got %q)", prefix, rule.RuleID)
 		}
 		if _, ok := seenIDs[ruleID]; ok {
-			issues = append(issues, fmt.Sprintf("%s: duplicate rule_id %q", prefix, ruleID))
+			issues.Addf("%s: duplicate rule_id %q", prefix, ruleID)
 		}
 		seenIDs[ruleID] = struct{}{}
 		if name == "" {
-			issues = append(issues, fmt.Sprintf("%s: name is required", prefix))
+			issues.Addf("%s: name is required", prefix)
 		} else {
 			if _, ok := seenNames[name]; ok {
-				issues = append(issues, fmt.Sprintf("%s: duplicate rule name %q", prefix, name))
+				issues.Addf("%s: duplicate rule name %q", prefix, name)
 			}
 			seenNames[name] = struct{}{}
 		}
 		if _, ok := allowedSeverity[strings.ToLower(strings.TrimSpace(rule.Severity))]; !ok {
-			issues = append(issues, fmt.Sprintf("%s: severity must be low, medium, or high", prefix))
+			issues.Addf("%s: severity must be low, medium, or high", prefix)
 		}
 		if strings.TrimSpace(rule.Category) == "" {
-			issues = append(issues, fmt.Sprintf("%s: category is required", prefix))
+			issues.Addf("%s: category is required", prefix)
 		}
 		if strings.TrimSpace(rule.Description) == "" {
-			issues = append(issues, fmt.Sprintf("%s: description is required", prefix))
+			issues.Addf("%s: description is required", prefix)
 		}
 		if strings.TrimSpace(rule.Remediation) == "" {
-			issues = append(issues, fmt.Sprintf("%s: remediation is required", prefix))
+			issues.Addf("%s: remediation is required", prefix)
 		}
 		if _, ok := allowedStatus[strings.ToLower(strings.TrimSpace(rule.OperationalStatus))]; !ok {
-			issues = append(issues, fmt.Sprintf("%s: operational_status must be validated or example", prefix))
+			issues.Addf("%s: operational_status must be validated or example", prefix)
 		}
 		if _, ok := allowedCoverage[strings.ToLower(strings.TrimSpace(rule.CoverageTier))]; !ok {
-			issues = append(issues, fmt.Sprintf("%s: coverage_tier must be decision-grade or demo", prefix))
+			issues.Addf("%s: coverage_tier must be decision-grade or demo", prefix)
 		}
 		if strings.EqualFold(rule.CoverageTier, "decision-grade") && !strings.EqualFold(rule.OperationalStatus, "validated") {
-			issues = append(issues, fmt.Sprintf("%s: decision-grade rules must also be operational_status=validated", prefix))
+			issues.Addf("%s: decision-grade rules must also be operational_status=validated", prefix)
 		}
 		if strings.TrimSpace(rule.ExpectedSignal) == "" {
-			issues = append(issues, fmt.Sprintf("%s: expected_signal is required", prefix))
+			issues.Addf("%s: expected_signal is required", prefix)
 		}
 		if rule.Enabled && strings.TrimSpace(rule.SQLQuery) == "" {
-			issues = append(issues, fmt.Sprintf("%s: enabled rules must include sql_query", prefix))
+			issues.Addf("%s: enabled rules must include sql_query", prefix)
 		}
 		if rule.AutoResponse.Enabled && strings.TrimSpace(rule.AutoResponse.Action) == "" {
-			issues = append(issues, fmt.Sprintf("%s: auto_response.enabled requires auto_response.action", prefix))
+			issues.Addf("%s: auto_response.enabled requires auto_response.action", prefix)
 		}
 		if ruleID == "DR-001" && !strings.Contains(rule.SQLQuery, "APPROVED_MODELS_JSON") {
-			issues = append(issues, fmt.Sprintf("%s: DR-001 sql_query must use APPROVED_MODELS_JSON placeholder", prefix))
+			issues.Addf("%s: DR-001 sql_query must use APPROVED_MODELS_JSON placeholder", prefix)
 		}
 	}
 
-	return issues
+	return issues.ToSlice()
 }
 
 func validateSIEMRuleCoverage(detections DetectionRulesFile, siemQueries SIEMQueriesFile, litellmConfig catalog.LiteLLMConfig) []string {
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	if len(siemQueries.SIEMQueries) == 0 {
-		issues = append(issues, "demo/config/siem_queries.yaml: siem_queries must contain at least one mapping")
-		return issues
+		issues.Add("demo/config/siem_queries.yaml: siem_queries must contain at least one mapping")
+		return issues.ToSlice()
 	}
 
 	detectionByID := make(map[string]DetectionRule)
@@ -272,97 +274,97 @@ func validateSIEMRuleCoverage(detections DetectionRulesFile, siemQueries SIEMQue
 		prefix := fmt.Sprintf("demo/config/siem_queries.yaml: siem_queries[%d]", idx)
 		ruleID := strings.TrimSpace(query.RuleID)
 		if !detectionRuleIDPattern.MatchString(ruleID) {
-			issues = append(issues, fmt.Sprintf("%s: rule_id must match DR-### (got %q)", prefix, query.RuleID))
+			issues.Addf("%s: rule_id must match DR-### (got %q)", prefix, query.RuleID)
 		}
 		if _, ok := seenIDs[ruleID]; ok {
-			issues = append(issues, fmt.Sprintf("%s: duplicate rule_id %q", prefix, ruleID))
+			issues.Addf("%s: duplicate rule_id %q", prefix, ruleID)
 		}
 		seenIDs[ruleID] = struct{}{}
 
 		detectionRule, ok := detectionByID[ruleID]
 		if !ok {
-			issues = append(issues, fmt.Sprintf("%s: no enabled detection rule matches %q", prefix, ruleID))
+			issues.Addf("%s: no enabled detection rule matches %q", prefix, ruleID)
 			continue
 		}
 		if strings.TrimSpace(query.Name) != strings.TrimSpace(detectionRule.Name) {
-			issues = append(issues, fmt.Sprintf("%s: name must match detection rule %q", prefix, detectionRule.Name))
+			issues.Addf("%s: name must match detection rule %q", prefix, detectionRule.Name)
 		}
 		if !strings.EqualFold(query.Severity, detectionRule.Severity) {
-			issues = append(issues, fmt.Sprintf("%s: severity must match detection rule %q", prefix, detectionRule.Severity))
+			issues.Addf("%s: severity must match detection rule %q", prefix, detectionRule.Severity)
 		}
 		if !strings.EqualFold(query.Category, detectionRule.Category) {
-			issues = append(issues, fmt.Sprintf("%s: category must match detection rule %q", prefix, detectionRule.Category))
+			issues.Addf("%s: category must match detection rule %q", prefix, detectionRule.Category)
 		}
 		if query.Enabled != detectionRule.Enabled {
-			issues = append(issues, fmt.Sprintf("%s: enabled must match detection rule (%t)", prefix, detectionRule.Enabled))
+			issues.Addf("%s: enabled must match detection rule (%t)", prefix, detectionRule.Enabled)
 		}
-		issues = append(issues, validatePlatformQuery(prefix+" splunk", query.Splunk)...)
-		issues = append(issues, validatePlatformQuery(prefix+" elk_kql", query.ELKKQL)...)
-		issues = append(issues, validatePlatformQuery(prefix+" sentinel_kql", query.SentinelKQL)...)
-		issues = append(issues, validateSigmaQuery(prefix+" sigma", query.Sigma)...)
+		issues.Extend(validatePlatformQuery(prefix+" splunk", query.Splunk))
+		issues.Extend(validatePlatformQuery(prefix+" elk_kql", query.ELKKQL))
+		issues.Extend(validatePlatformQuery(prefix+" sentinel_kql", query.SentinelKQL))
+		issues.Extend(validateSigmaQuery(prefix+" sigma", query.Sigma))
 		if ruleID == "DR-001" {
-			issues = append(issues, validateApprovedModelPlaceholders(prefix, query)...)
+			issues.Extend(validateApprovedModelPlaceholders(prefix, query))
 		}
 	}
 
 	for ruleID := range detectionByID {
 		if _, ok := seenIDs[ruleID]; !ok {
-			issues = append(issues, fmt.Sprintf("demo/config/siem_queries.yaml: missing SIEM mapping for enabled detection rule %q", ruleID))
+			issues.Addf("demo/config/siem_queries.yaml: missing SIEM mapping for enabled detection rule %q", ruleID)
 		}
 	}
 
 	if len(ApprovedModels(litellmConfig)) == 0 {
-		issues = append(issues, "demo/config/litellm.yaml: model_list must contain at least one approved model")
+		issues.Add("demo/config/litellm.yaml: model_list must contain at least one approved model")
 	}
 
-	return issues
+	return issues.ToSlice()
 }
 
 func validatePlatformQuery(prefix string, query SIEMPlatformQuery) []string {
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	if strings.TrimSpace(query.Platform) == "" {
-		issues = append(issues, fmt.Sprintf("%s: platform is required", prefix))
+		issues.Addf("%s: platform is required", prefix)
 	}
 	if strings.TrimSpace(query.Query) == "" {
-		issues = append(issues, fmt.Sprintf("%s: query is required", prefix))
+		issues.Addf("%s: query is required", prefix)
 	}
-	return issues
+	return issues.ToSlice()
 }
 
 func validateSigmaQuery(prefix string, query SigmaQueryRule) []string {
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	if strings.TrimSpace(query.Title) == "" {
-		issues = append(issues, fmt.Sprintf("%s: title is required", prefix))
+		issues.Addf("%s: title is required", prefix)
 	}
 	if strings.TrimSpace(query.Level) == "" {
-		issues = append(issues, fmt.Sprintf("%s: level is required", prefix))
+		issues.Addf("%s: level is required", prefix)
 	}
 	if len(query.Detection) == 0 {
-		issues = append(issues, fmt.Sprintf("%s: detection block is required", prefix))
+		issues.Addf("%s: detection block is required", prefix)
 	}
-	return issues
+	return issues.ToSlice()
 }
 
 func validateApprovedModelPlaceholders(prefix string, query SIEMQueryRule) []string {
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	if !strings.Contains(query.Splunk.Query, "{{APPROVED_MODELS_SPLUNK}}") {
-		issues = append(issues, fmt.Sprintf("%s splunk: missing {{APPROVED_MODELS_SPLUNK}} placeholder for DR-001", prefix))
+		issues.Addf("%s splunk: missing {{APPROVED_MODELS_SPLUNK}} placeholder for DR-001", prefix)
 	}
 	if !strings.Contains(query.ELKKQL.Query, "{{APPROVED_MODELS_ELK_OR}}") {
-		issues = append(issues, fmt.Sprintf("%s elk_kql: missing {{APPROVED_MODELS_ELK_OR}} placeholder for DR-001", prefix))
+		issues.Addf("%s elk_kql: missing {{APPROVED_MODELS_ELK_OR}} placeholder for DR-001", prefix)
 	}
 	if !strings.Contains(query.SentinelKQL.Query, "{{APPROVED_MODELS_JSON}}") {
-		issues = append(issues, fmt.Sprintf("%s sentinel_kql: missing {{APPROVED_MODELS_JSON}} placeholder for DR-001", prefix))
+		issues.Addf("%s sentinel_kql: missing {{APPROVED_MODELS_JSON}} placeholder for DR-001", prefix)
 	}
 	sigmaEncoded, _ := yaml.Marshal(query.Sigma)
 	if !strings.Contains(string(sigmaEncoded), "{{APPROVED_MODELS_SIGMA}}") {
-		issues = append(issues, fmt.Sprintf("%s sigma: missing {{APPROVED_MODELS_SIGMA}} placeholder for DR-001", prefix))
+		issues.Addf("%s sigma: missing {{APPROVED_MODELS_SIGMA}} placeholder for DR-001", prefix)
 	}
-	return issues
+	return issues.ToSlice()
 }
 
 func validateSIEMSchemaMappings(config SIEMConfig) []string {
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	required := []string{"principal.id", "ai.model.id", "ai.request.timestamp", "ai.cost.amount", "ai.tokens.total", "policy.action"}
 	fieldMap := make(map[string]FieldMapping)
 	for _, mapping := range config.FieldMappings {
@@ -371,21 +373,12 @@ func validateSIEMSchemaMappings(config SIEMConfig) []string {
 	for _, field := range required {
 		mapping, ok := fieldMap[field]
 		if !ok {
-			issues = append(issues, fmt.Sprintf("demo/config/siem_queries.yaml: missing siem_config.field_mappings entry for %q", field))
+			issues.Addf("demo/config/siem_queries.yaml: missing siem_config.field_mappings entry for %q", field)
 			continue
 		}
 		if strings.TrimSpace(mapping.Splunk) == "" || strings.TrimSpace(mapping.Elk) == "" || strings.TrimSpace(mapping.Sentinel) == "" {
-			issues = append(issues, fmt.Sprintf("demo/config/siem_queries.yaml: field mapping %q must define splunk, elk, and sentinel names", field))
+			issues.Addf("demo/config/siem_queries.yaml: field mapping %q must define splunk, elk, and sentinel names", field)
 		}
 	}
-	return issues
-}
-
-func sortIssues(issues []string) []string {
-	if len(issues) == 0 {
-		return issues
-	}
-	sorted := append([]string(nil), issues...)
-	sort.Strings(sorted)
-	return sorted
+	return issues.ToSlice()
 }

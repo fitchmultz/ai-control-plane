@@ -74,6 +74,29 @@ func TestLoaderGatewayFallsBackToHostPortAndRepoAwareKey(t *testing.T) {
 	}
 }
 
+func TestLoaderGatewayUsesRepoFallbackForHostAndPort(t *testing.T) {
+	loader := NewTestLoader(nil, "/repo", map[string]string{
+		"GATEWAY_HOST":       "repo-gateway.internal",
+		"LITELLM_PORT":       "8443",
+		"ACP_GATEWAY_TLS":    "true",
+		"LITELLM_MASTER_KEY": "repo-key",
+	})
+
+	settings := loader.Gateway(true)
+	if settings.Host != "repo-gateway.internal" {
+		t.Fatalf("Host = %q", settings.Host)
+	}
+	if settings.Port != "8443" || settings.PortInt != 8443 {
+		t.Fatalf("unexpected port settings: %+v", settings)
+	}
+	if settings.BaseURL != "https://repo-gateway.internal:8443" {
+		t.Fatalf("BaseURL = %q", settings.BaseURL)
+	}
+	if settings.MasterKey != "repo-key" {
+		t.Fatalf("MasterKey = %q", settings.MasterKey)
+	}
+}
+
 func TestToolingAndChargebackHelpers(t *testing.T) {
 	now := time.Date(2026, time.March, 8, 12, 0, 0, 0, time.UTC)
 	loader := NewTestLoader(map[string]string{

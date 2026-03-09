@@ -40,22 +40,22 @@ func validateProductionDeploymentConfig(repoRoot string, opts ConfigValidationOp
 		secretsEnvFile = defaultProductionSecretsEnvFile
 	}
 
-	issues := make([]string, 0)
+	issues := NewIssues()
 	secretsValues, secretsIssues, err := validateProductionSecretsEnvFile(secretsEnvFile)
 	if err != nil {
 		return nil, err
 	}
-	issues = append(issues, secretsIssues...)
-	issues = append(issues, validateCanonicalProductionCompose(repoRoot)...)
-	issues = append(issues, validateCanonicalProductionCaddyfile(repoRoot)...)
+	issues.Extend(secretsIssues)
+	issues.Extend(validateCanonicalProductionCompose(repoRoot))
+	issues.Extend(validateCanonicalProductionCaddyfile(repoRoot))
 	if len(secretsValues) > 0 {
-		issues = append(issues, validateProductionRuntimeValues(secretsEnvFile, secretsValues)...)
+		issues.Extend(validateProductionRuntimeValues(secretsEnvFile, secretsValues))
 	}
-	return issues, nil
+	return issues.ToSlice(), nil
 }
 
 func validateProductionSecretsEnvFile(path string) (map[string]string, []string, error) {
-	issues := make([]string, 0)
+	issues := NewIssues()
 	info, err := os.Lstat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -64,15 +64,15 @@ func validateProductionSecretsEnvFile(path string) (map[string]string, []string,
 		return nil, nil, err
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		issues = append(issues, fmt.Sprintf("%s: secrets file must not be a symlink", path))
-		return nil, issues, nil
+		issues.Addf("%s: secrets file must not be a symlink", path)
+		return nil, issues.ToSlice(), nil
 	}
 	if !info.Mode().IsRegular() {
-		issues = append(issues, fmt.Sprintf("%s: secrets file must be a regular file", path))
-		return nil, issues, nil
+		issues.Addf("%s: secrets file must be a regular file", path)
+		return nil, issues.ToSlice(), nil
 	}
 	if info.Mode().Perm()&0o077 != 0 {
-		issues = append(issues, fmt.Sprintf("%s: secrets file permissions must deny group/other access (found %04o)", path, info.Mode().Perm()))
+		issues.Addf("%s: secrets file permissions must deny group/other access (found %04o)", path, info.Mode().Perm())
 	}
 
 	dirInfo, err := os.Stat(filepath.Dir(path))
@@ -80,9 +80,9 @@ func validateProductionSecretsEnvFile(path string) (map[string]string, []string,
 		return nil, nil, err
 	}
 	if !dirInfo.IsDir() {
-		issues = append(issues, fmt.Sprintf("%s: parent path must be a directory", filepath.Dir(path)))
+		issues.Addf("%s: parent path must be a directory", filepath.Dir(path))
 	} else if dirInfo.Mode().Perm()&0o022 != 0 {
-		issues = append(issues, fmt.Sprintf("%s: parent directory permissions must not be group/other writable (found %04o)", filepath.Dir(path), dirInfo.Mode().Perm()))
+		issues.Addf("%s: parent directory permissions must not be group/other writable (found %04o)", filepath.Dir(path), dirInfo.Mode().Perm())
 	}
 
 	keys := []string{
@@ -119,11 +119,11 @@ func validateProductionSecretsEnvFile(path string) (map[string]string, []string,
 	required := []string{"LITELLM_MASTER_KEY", "LITELLM_SALT_KEY", "DATABASE_URL"}
 	for _, key := range required {
 		if strings.TrimSpace(values[key]) == "" {
-			issues = append(issues, fmt.Sprintf("%s: required key %s is missing or empty", path, key))
+			issues.Addf("%s: required key %s is missing or empty", path, key)
 		}
 	}
 
-	return values, issues, nil
+	return values, issues.ToSlice(), nil
 }
 
 func validateCanonicalProductionCompose(repoRoot string) []string {

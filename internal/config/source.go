@@ -23,11 +23,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/envfile"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
@@ -131,7 +131,7 @@ func (l *Loader) repoSource() (lookupSource, error) {
 	if err != nil || strings.TrimSpace(repoRoot) == "" {
 		return nil, err
 	}
-	l.repoFile = fileEnvSource{path: filepath.Join(repoRoot, "demo", ".env")}
+	l.repoFile = fileEnvSource{path: repopath.DemoEnvPath(repoRoot)}
 	return l.repoFile, nil
 }
 
@@ -215,6 +215,7 @@ func (l *Loader) RepoRoot(ctx context.Context) (string, error) {
 		if l != nil {
 			l.repoRoot = explicit
 			l.repoRootLoaded = true
+			l.repoRootErr = nil
 		}
 		return explicit, nil
 	}
@@ -223,21 +224,31 @@ func (l *Loader) RepoRoot(ctx context.Context) (string, error) {
 		Args:    []string{"rev-parse", "--show-toplevel"},
 		Timeout: DefaultConnectTimeout,
 	})
-	if res.Err == nil {
-		root := strings.TrimSpace(res.Stdout)
+	if res.Err != nil {
+		err := fmt.Errorf("detect repository root: %w", res.Err)
 		if l != nil {
-			l.repoRoot = root
+			l.repoRoot = ""
 			l.repoRootLoaded = true
+			l.repoRootErr = err
 		}
-		return root, nil
+		return "", err
 	}
-	wd, err := os.Getwd()
+	root := strings.TrimSpace(res.Stdout)
+	if root == "" {
+		err := fmt.Errorf("detect repository root: git returned empty output")
+		if l != nil {
+			l.repoRoot = ""
+			l.repoRootLoaded = true
+			l.repoRootErr = err
+		}
+		return "", err
+	}
 	if l != nil {
-		l.repoRoot = wd
+		l.repoRoot = root
 		l.repoRootLoaded = true
-		l.repoRootErr = err
+		l.repoRootErr = nil
 	}
-	return wd, err
+	return root, nil
 }
 
 // RequireRepoRoot resolves the repo root or returns a wrapped error.

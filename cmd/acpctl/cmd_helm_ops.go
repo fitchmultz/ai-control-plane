@@ -112,11 +112,11 @@ func runHelmGateCommand(ctx context.Context, runCtx commandRunContext, raw any) 
 }
 
 func runHelmValidateCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"helm", "validate"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"helm", "validate"}, args, stdout, stderr)
 }
 
 func runHelmSmokeCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"helm", "smoke"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"helm", "smoke"}, args, stdout, stderr)
 }
 
 func runHelmGate(ctx context.Context, runCtx commandRunContext, config helmGateConfig) int {

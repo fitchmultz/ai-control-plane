@@ -32,6 +32,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/readiness"
 )
 
@@ -76,22 +77,25 @@ func readinessEvidenceCommandSpec() *commandSpec {
 }
 
 func bindReadinessEvidenceRunOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
-	repoRoot := bindCtx.RepoRoot
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
 	makeBin := config.NewLoader().Tooling().MakeBinary
 	options := readiness.Options{
 		RepoRoot:      repoRoot,
-		OutputRoot:    filepath.Join(repoRoot, "demo", "logs", "evidence"),
+		OutputRoot:    repopath.DemoLogsPath(repoRoot, "evidence"),
 		MakeBin:       makeBin,
 		BundleVersion: bundle.GetDefaultVersion(repoRoot),
 	}
 	if input.Has("output-dir") {
-		options.OutputRoot = resolveReadinessPath(repoRoot, input.String("output-dir"))
+		options.OutputRoot = resolveRepoInput(repoRoot, input.String("output-dir"))
 	}
 	if input.Has("bundle-version") {
 		options.BundleVersion = input.String("bundle-version")
 	}
 	if input.Has("secrets-env-file") {
-		options.SecretsEnvFile = resolveReadinessPath(repoRoot, input.String("secrets-env-file"))
+		options.SecretsEnvFile = resolveRepoInput(repoRoot, input.String("secrets-env-file"))
 	}
 	options.IncludeProduction = input.Bool("include-production")
 	options.Verbose = input.Bool("verbose")
@@ -99,9 +103,13 @@ func bindReadinessEvidenceRunOptions(bindCtx commandBindContext, input parsedCom
 }
 
 func bindReadinessEvidenceVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
 	runDir := input.String("run-dir")
 	if runDir != "" {
-		runDir = resolveReadinessPath(bindCtx.RepoRoot, runDir)
+		runDir = resolveRepoInput(repoRoot, runDir)
 	}
 	return runDir, nil
 }
@@ -109,7 +117,7 @@ func bindReadinessEvidenceVerifyOptions(bindCtx commandBindContext, input parsed
 func runReadinessEvidenceRunTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
 	options := raw.(readiness.Options)
-	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "readiness_evidence")))
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "readiness_evidence")))
 
 	fmt.Fprint(runCtx.Stdout, out.Bold("Generating readiness evidence")+"\n")
 	summary, err := readiness.RunContext(ctx, options)
@@ -136,7 +144,7 @@ func runReadinessEvidenceVerifyTyped(_ context.Context, runCtx commandRunContext
 	runDir := raw.(string)
 
 	if runDir == "" {
-		resolvedRunDir, err := readiness.ResolveLatestRun(filepath.Join(runCtx.RepoRoot, "demo", "logs", "evidence"))
+		resolvedRunDir, err := readiness.ResolveLatestRun(repopath.DemoLogsPath(runCtx.RepoRoot, "evidence"))
 		if err != nil {
 			fmt.Fprintln(runCtx.Stderr, "Error: no readiness run available; use --run-dir or generate one first")
 			return exitcodes.ACPExitUsage
@@ -161,13 +169,6 @@ func runReadinessEvidenceVerifyTyped(_ context.Context, runCtx commandRunContext
 	return exitcodes.ACPExitSuccess
 }
 
-func resolveReadinessPath(repoRoot string, path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(repoRoot, path)
-}
-
 func runReadinessEvidenceCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"deploy", "readiness-evidence"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"deploy", "readiness-evidence"}, args, stdout, stderr)
 }

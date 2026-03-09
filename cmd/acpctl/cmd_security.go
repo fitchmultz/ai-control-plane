@@ -88,14 +88,12 @@ func runSecretsAuditTyped(ctx context.Context, runCtx commandRunContext, _ any) 
 	trackedFiles, err := security.ListTrackedFiles(ctx, runCtx.RepoRoot)
 	if err != nil {
 		workflowFailure(logger, err)
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Secrets audit could not enumerate tracked files: %v\n"), err)
-		return exitcodes.ACPExitPrereq
+		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitPrereq, err, "Secrets audit could not enumerate tracked files")
 	}
 	findings, err := security.AuditTrackedSecrets(runCtx.RepoRoot, trackedFiles)
 	if err != nil {
 		workflowFailure(logger, err)
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Secrets audit failed: %v\n"), err)
-		return exitcodes.ACPExitRuntime
+		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitRuntime, err, "Secrets audit failed")
 	}
 	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Secrets Audit ==="))
 	fmt.Fprintln(runCtx.Stdout, "Scanning tracked files for likely public-repo secret leaks...")
@@ -185,17 +183,17 @@ func runValidateSupplyChainTyped(_ context.Context, runCtx commandRunContext, _ 
 }
 
 func runSecretsAudit(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"validate", "secrets-audit"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"validate", "secrets-audit"}, args, stdout, stderr)
 }
 
 func runValidatePublicHygiene(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"validate", "public-hygiene"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"validate", "public-hygiene"}, args, stdout, stderr)
 }
 
 func runValidateLicense(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"validate", "license"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"validate", "license"}, args, stdout, stderr)
 }
 
 func runValidateSupplyChain(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"validate", "supply-chain"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"validate", "supply-chain"}, args, stdout, stderr)
 }

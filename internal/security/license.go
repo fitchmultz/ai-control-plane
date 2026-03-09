@@ -24,10 +24,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/policy"
+	validationissues "github.com/mitchfultz/ai-control-plane/internal/validation"
 )
 
 func ValidateLicensePolicy(repoRoot string) ([]string, error) {
@@ -40,7 +40,9 @@ func ValidateLicensePolicy(repoRoot string) ([]string, error) {
 		return nil, err
 	}
 	if policyDoc.SchemaVersion == nil || policyDoc.PolicyID == nil || len(policyDoc.ScanScope.Include) == 0 || len(policyDoc.RestrictedComponents) == 0 {
-		return []string{"docs/policy/THIRD_PARTY_LICENSE_MATRIX.json: missing required policy fields"}, nil
+		issues := validationissues.NewIssues(1)
+		issues.Add("docs/policy/THIRD_PARTY_LICENSE_MATRIX.json: missing required policy fields")
+		return issues.Sorted(), nil
 	}
 	return findRestrictedLicenseReferences(repoRoot, policyDoc)
 }
@@ -61,10 +63,10 @@ func findRestrictedLicenseReferences(repoRoot string, policyDoc LicensePolicy) (
 	if err != nil {
 		return nil, err
 	}
-	findings := make([]string, 0)
+	findings := validationissues.NewIssues(len(scanPaths))
 	for _, relPath := range scanPaths {
 		if matchesAnyRegexp(relPath, pathMatchers) {
-			findings = append(findings, relPath)
+			findings.Add(relPath)
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(repoRoot, relPath))
@@ -75,11 +77,10 @@ func findRestrictedLicenseReferences(repoRoot string, policyDoc LicensePolicy) (
 			return nil, err
 		}
 		if matchesAnyRegexp(string(data), contentMatchers) {
-			findings = append(findings, relPath)
+			findings.Add(relPath)
 		}
 	}
-	sort.Strings(findings)
-	return findings, nil
+	return findings.Sorted(), nil
 }
 
 func flattenLicensePathRegexps(components []licenseRestrictedComponent) []string {

@@ -21,10 +21,8 @@ package validation
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -37,7 +35,7 @@ var requiredHeaderFields = []string{
 }
 
 func ValidateGoHeaders(repoRoot string) ([]string, error) {
-	issues := make([]string, 0)
+	issues := NewIssues()
 	err := filepath.WalkDir(repoRoot, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -62,15 +60,14 @@ func ValidateGoHeaders(repoRoot string) ([]string, error) {
 			return err
 		}
 		if !hasRequiredHeader(data) {
-			issues = append(issues, fmt.Sprintf("%s: missing required top-of-file purpose header fields", relPath))
+			issues.Addf("%s: missing required top-of-file purpose header fields", relPath)
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(issues)
-	return issues, nil
+	return issues.Sorted(), nil
 }
 
 func hasRequiredHeader(data []byte) bool {
@@ -108,7 +105,7 @@ func hasRequiredHeader(data []byte) bool {
 }
 
 func ValidateDirectEnvAccess(repoRoot string) ([]string, error) {
-	issues := make([]string, 0)
+	issues := NewIssues()
 	err := filepath.WalkDir(repoRoot, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -141,7 +138,7 @@ func ValidateDirectEnvAccess(repoRoot string) ([]string, error) {
 		content := string(data)
 		for _, forbidden := range []string{"os.Getenv(", "os.LookupEnv(", "envfile.LookupFile("} {
 			if strings.Contains(content, forbidden) {
-				issues = append(issues, fmt.Sprintf("%s: direct config access %q is forbidden outside internal/config", relPath, forbidden))
+				issues.Addf("%s: direct config access %q is forbidden outside internal/config", relPath, forbidden)
 			}
 		}
 		return nil
@@ -149,6 +146,5 @@ func ValidateDirectEnvAccess(repoRoot string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(issues)
-	return issues, nil
+	return issues.Sorted(), nil
 }

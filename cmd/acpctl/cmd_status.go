@@ -114,7 +114,7 @@ func runStatus(ctx context.Context, runCtx commandRunContext, raw any) int {
 }
 
 func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"status"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"status"}, args, stdout, stderr)
 }
 
 func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspector statusInspector, opts status.Options, jsonOutput bool, wide bool) int {

@@ -27,10 +27,7 @@ import (
 )
 
 func workflowLogger(runCtx commandRunContext, workflow string, attrs ...any) *slog.Logger {
-	base := runCtx.Logger
-	if base == nil {
-		base = logging.Nop()
-	}
+	base := ensureWorkflowLogger(runCtx)
 	args := make([]any, 0, len(attrs)+1)
 	args = append(args, slog.String("workflow", workflow))
 	args = append(args, attrs...)

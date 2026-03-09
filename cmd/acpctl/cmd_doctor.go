@@ -122,7 +122,7 @@ func runDoctor(ctx context.Context, runCtx commandRunContext, raw any) int {
 }
 
 func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"doctor"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"doctor"}, args, stdout, stderr)
 }
 
 func writeDoctorHuman(w *os.File, report doctor.Report, wide bool) error {

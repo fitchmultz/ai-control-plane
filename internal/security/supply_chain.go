@@ -25,16 +25,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/policy"
+	validationissues "github.com/mitchfultz/ai-control-plane/internal/validation"
 	"gopkg.in/yaml.v3"
 )
 
 func ValidateSupplyChainPolicy(repoRoot string) ([]string, error) {
-	data, err := os.ReadFile(filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"))
+	data, err := os.ReadFile(repopath.DemoConfigPath(repoRoot, "supply_chain_vulnerability_policy.json"))
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +42,9 @@ func ValidateSupplyChainPolicy(repoRoot string) ([]string, error) {
 	if err := json.Unmarshal(data, &policyDoc); err != nil {
 		return nil, err
 	}
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	if policyDoc.PolicyID == "" || len(policyDoc.SeverityPolicy.FailOn) == 0 {
-		issues = append(issues, "demo/config/supply_chain_vulnerability_policy.json: missing required policy fields")
+		issues.Add("demo/config/supply_chain_vulnerability_policy.json: missing required policy fields")
 	}
 	targets, err := policy.ExpandDeploymentSurfaces(repoRoot)
 	if err != nil {
@@ -58,10 +58,9 @@ func ValidateSupplyChainPolicy(repoRoot string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		issues = append(issues, targetIssues...)
+		issues.Extend(targetIssues)
 	}
-	sort.Strings(issues)
-	return issues, nil
+	return issues.Sorted(), nil
 }
 
 func validatePinnedImagesForTarget(repoRoot string, target policy.SurfaceTarget) ([]string, error) {

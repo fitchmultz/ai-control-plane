@@ -20,10 +20,6 @@
 //   - Remote OTEL ingestion must terminate at the TLS Caddy `/otel/*` ingress.
 package validation
 
-import (
-	"sort"
-)
-
 const (
 	defaultProductionSecretsEnvFile = "/etc/ai-control-plane/secrets.env"
 	canonicalProductionCaddyfile    = "./config/caddy/Caddyfile.prod"
@@ -55,15 +51,17 @@ func ValidateDeploymentConfig(repoRoot string, opts ConfigValidationOptions) ([]
 		return nil, err
 	}
 	if profile != ConfigValidationProfileProduction {
-		sort.Strings(issues)
-		return issues, nil
+		acc := NewIssues(len(issues))
+		acc.Extend(issues)
+		return acc.Sorted(), nil
 	}
 
 	productionIssues, err := validateProductionDeploymentConfig(repoRoot, opts)
 	if err != nil {
 		return nil, err
 	}
-	issues = append(issues, productionIssues...)
-	sort.Strings(issues)
-	return issues, nil
+	acc := NewIssues(len(issues) + len(productionIssues))
+	acc.Extend(issues)
+	acc.Extend(productionIssues)
+	return acc.Sorted(), nil
 }

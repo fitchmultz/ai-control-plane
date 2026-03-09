@@ -66,8 +66,8 @@ func (l *Loader) Gateway(includeRepoFallback bool) GatewaySettings {
 		}
 	}
 
-	host := l.StringDefault("GATEWAY_HOST", DefaultGatewayHost)
-	portString := l.StringDefault("LITELLM_PORT", strconv.Itoa(DefaultLiteLLMPort))
+	host := firstNonEmpty(resolve("GATEWAY_HOST"), DefaultGatewayHost)
+	portString := firstNonEmpty(resolve("LITELLM_PORT"), strconv.Itoa(DefaultLiteLLMPort))
 	port, err := strconv.Atoi(portString)
 	if err != nil || port <= 0 {
 		port = DefaultLiteLLMPort

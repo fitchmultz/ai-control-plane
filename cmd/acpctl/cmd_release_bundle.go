@@ -26,12 +26,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
@@ -75,14 +75,19 @@ func releaseBundleCommandSpec() *commandSpec {
 }
 
 func bindReleaseBundleBuildOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
-	repoRoot := bindCtx.RepoRoot
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
 	version := input.String("version")
 	if version == "" {
 		version = bundle.GetDefaultVersion(repoRoot)
 	}
 	outputDir := input.String("output-dir")
 	if outputDir == "" {
-		outputDir = filepath.Join(repoRoot, "demo", "logs", "release-bundles")
+		outputDir = repopath.ReleaseBundlesPath(repoRoot)
+	} else {
+		outputDir = resolveRepoInput(repoRoot, outputDir)
 	}
 	return &bundle.Config{
 		Command:   "build",
@@ -92,10 +97,14 @@ func bindReleaseBundleBuildOptions(bindCtx commandBindContext, input parsedComma
 	}, nil
 }
 
-func bindReleaseBundleVerifyOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+func bindReleaseBundleVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
 	return &bundle.Config{
 		Command: "verify",
-		Bundle:  input.String("bundle"),
+		Bundle:  resolveRepoInput(repoRoot, input.String("bundle")),
 		Verbose: input.Bool("verbose"),
 	}, nil
 }
@@ -103,7 +112,7 @@ func bindReleaseBundleVerifyOptions(_ commandBindContext, input parsedCommandInp
 func runReleaseBundleBuildTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	config := raw.(*bundle.Config)
 	out := output.New()
-	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "release_bundle_build")))
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "release_bundle_build")))
 
 	if err := bundle.ValidateVersion(config.Version); err != nil {
 		fmt.Fprintln(runCtx.Stderr, err)
@@ -160,12 +169,11 @@ func runReleaseBundleBuildTyped(ctx context.Context, runCtx commandRunContext, r
 func runReleaseBundleVerifyTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	config := raw.(*bundle.Config)
 	out := output.New()
-	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "release_bundle_verify")))
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "release_bundle_verify")))
 
 	bundlePath := config.Bundle
-	if !filepath.IsAbs(bundlePath) {
-		wd, _ := os.Getwd()
-		bundlePath = filepath.Join(wd, bundlePath)
+	if bundlePath == "" {
+		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitUsage, nil, "bundle path is required")
 	}
 
 	fmt.Fprint(runCtx.Stdout, out.Bold("Verifying release bundle")+"\n")
@@ -207,5 +215,5 @@ func runReleaseBundleVerifyTyped(ctx context.Context, runCtx commandRunContext, 
 }
 
 func runReleaseBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"deploy", "release-bundle"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"deploy", "release-bundle"}, args, stdout, stderr)
 }

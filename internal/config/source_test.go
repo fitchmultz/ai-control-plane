@@ -19,6 +19,7 @@ package config
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 )
@@ -121,5 +122,30 @@ func TestLoaderRequireRepoRootRejectsEmptyValue(t *testing.T) {
 
 	if _, err := loader.RequireRepoRoot(context.Background()); err == nil || !strings.Contains(err.Error(), "empty path") {
 		t.Fatalf("expected empty path error, got %v", err)
+	}
+}
+
+func TestLoaderRepoRootFailsOutsideRepository(t *testing.T) {
+	loader := NewLoader()
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalWD)
+	}()
+
+	outsideRepo := t.TempDir()
+	if err := os.Chdir(outsideRepo); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
+	t.Setenv("ACP_REPO_ROOT", "")
+
+	repoRoot, err := loader.RepoRoot(context.Background())
+	if err == nil {
+		t.Fatal("expected RepoRoot() to fail outside a repository")
+	}
+	if repoRoot != "" {
+		t.Fatalf("RepoRoot() = %q, want empty string", repoRoot)
 	}
 }

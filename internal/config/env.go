@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/envfile"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 )
 
 // EnvFile provides strict data-only access to a specific env file.
@@ -70,7 +71,7 @@ func (l *Loader) RepoEnvStatus(ctx context.Context) (EnvFileStatus, error) {
 	if err != nil {
 		return EnvFileStatus{}, err
 	}
-	path := filepath.Join(repoRoot, "demo", ".env")
+	path := repopath.DemoEnvPath(repoRoot)
 	_, statErr := os.Stat(path)
 	return EnvFileStatus{
 		Path:   path,

@@ -20,12 +20,13 @@
 package security
 
 import (
-	"sort"
 	"strings"
+
+	validationissues "github.com/mitchfultz/ai-control-plane/internal/validation"
 )
 
 func ValidatePublicHygiene(trackedFiles []string) []string {
-	violations := make([]string, 0)
+	violations := validationissues.NewIssues(len(trackedFiles))
 	for _, relPath := range trackedFiles {
 		if !IsLocalOnlyTrackedPath(relPath) {
 			continue
@@ -33,10 +34,9 @@ func ValidatePublicHygiene(trackedFiles []string) []string {
 		if strings.HasSuffix(relPath, "/.gitkeep") || strings.HasSuffix(relPath, "/.gitignore") {
 			continue
 		}
-		violations = append(violations, relPath)
+		violations.Add(relPath)
 	}
-	sort.Strings(violations)
-	return violations
+	return violations.Sorted()
 }
 
 func IsLocalOnlyTrackedPath(relPath string) bool {

@@ -21,10 +21,7 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
-
-	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
 type subcommandDefinition struct {
@@ -97,15 +94,5 @@ func findCommandPath(parts []string) ([]*commandSpec, error) {
 }
 
 func runTypedCommandAdapter(ctx context.Context, prefix []string, args []string, stdout *os.File, stderr *os.File) int {
-	combined := append(append([]string(nil), prefix...), args...)
-	invocation, err := parseInvocation(combined)
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		path, pathErr := findCommandPath(prefix)
-		if pathErr == nil {
-			printCommandHelp(stderr, path)
-		}
-		return exitcodes.ACPExitUsage
-	}
-	return executeInvocation(ctx, invocation, stdout, stderr)
+	return runCommandPath(ctx, prefix, args, stdout, stderr)
 }

@@ -27,11 +27,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 )
 
 type envGetOptions struct {
@@ -94,10 +94,18 @@ func bindEnvGetOptions(bindCtx commandBindContext, input parsedCommandInput) (an
 	if key == "" {
 		return nil, fmt.Errorf("env key must not be empty")
 	}
-	defaultEnvPath := filepath.Join(bindCtx.RepoRoot, "demo", ".env")
+
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	defaultEnvPath := repopath.DemoEnvPath(repoRoot)
 	envPath := strings.TrimSpace(input.String("file"))
 	if envPath == "" {
 		envPath = defaultEnvPath
+	} else {
+		envPath = resolveRepoInput(repoRoot, envPath)
 	}
 	return envGetOptions{
 		File: envPath,
@@ -122,9 +130,9 @@ func runEnvGet(_ context.Context, runCtx commandRunContext, raw any) int {
 }
 
 func runEnvCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"env"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"env"}, args, stdout, stderr)
 }
 
 func runEnvGetCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"env", "get"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"env", "get"}, args, stdout, stderr)
 }

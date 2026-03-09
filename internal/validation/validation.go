@@ -22,7 +22,6 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/policy"
@@ -34,7 +33,7 @@ func ValidateDeploymentSurfaces(repoRoot string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	issues := make([]string, 0)
+	issues := NewIssues()
 	for _, target := range targets {
 		if !policy.HasRule(target.Rules, policy.RuleStructure) {
 			continue
@@ -43,13 +42,12 @@ func ValidateDeploymentSurfaces(repoRoot string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		issues = append(issues, targetIssues...)
+		issues.Extend(targetIssues)
 		if policy.HasRule(target.Rules, policy.RuleHelmContracts) {
-			issues = append(issues, validateHelmContracts(repoRoot, target)...)
+			issues.Extend(validateHelmContracts(repoRoot, target))
 		}
 	}
-	sort.Strings(issues)
-	return issues, nil
+	return issues.Sorted(), nil
 }
 
 func ValidateHelmSurfaces(repoRoot string) ([]string, error) {
@@ -57,7 +55,7 @@ func ValidateHelmSurfaces(repoRoot string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	issues := make([]string, 0)
+	issues := NewIssues()
 	for _, target := range targets {
 		if !isHelmSurface(target.Kind) {
 			continue
@@ -67,14 +65,13 @@ func ValidateHelmSurfaces(repoRoot string) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			issues = append(issues, targetIssues...)
+			issues.Extend(targetIssues)
 		}
 		if policy.HasRule(target.Rules, policy.RuleHelmContracts) {
-			issues = append(issues, validateHelmContracts(repoRoot, target)...)
+			issues.Extend(validateHelmContracts(repoRoot, target))
 		}
 	}
-	sort.Strings(issues)
-	return issues, nil
+	return issues.Sorted(), nil
 }
 
 func ValidateComposeHealthchecks(repoRoot string) ([]string, error) {
@@ -82,7 +79,7 @@ func ValidateComposeHealthchecks(repoRoot string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	issues := make([]string, 0)
+	issues := NewIssues()
 	for _, target := range targets {
 		if target.Kind != policy.SurfaceCompose || !policy.HasRule(target.Rules, policy.RuleHealthchecks) {
 			continue
@@ -91,10 +88,9 @@ func ValidateComposeHealthchecks(repoRoot string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		issues = append(issues, targetIssues...)
+		issues.Extend(targetIssues)
 	}
-	sort.Strings(issues)
-	return issues, nil
+	return issues.Sorted(), nil
 }
 
 func validateStructureForTarget(repoRoot string, target policy.SurfaceTarget) ([]string, error) {
@@ -205,7 +201,7 @@ func validateComposeHealthchecksForTarget(repoRoot string, target policy.Surface
 	if servicesNode == nil || servicesNode.Kind != yaml.MappingNode {
 		return []string{fmt.Sprintf("%s: compose file must define services", target.Path)}, nil
 	}
-	issues := make([]string, 0)
+	issues := NewIssues()
 	for i := 0; i < len(servicesNode.Content); i += 2 {
 		serviceName := servicesNode.Content[i].Value
 		serviceNode := servicesNode.Content[i+1]
@@ -214,28 +210,28 @@ func validateComposeHealthchecksForTarget(repoRoot string, target policy.Surface
 		}
 		healthcheck := policy.MappingValue(serviceNode, "healthcheck")
 		if healthcheck == nil || healthcheck.Kind != yaml.MappingNode {
-			issues = append(issues, fmt.Sprintf("%s: service %q must define a healthcheck mapping", target.Path, serviceName))
+			issues.Addf("%s: service %q must define a healthcheck mapping", target.Path, serviceName)
 			continue
 		}
 		testNode := policy.MappingValue(healthcheck, "test")
 		if testNode == nil {
-			issues = append(issues, fmt.Sprintf("%s: service %q healthcheck must define test", target.Path, serviceName))
+			issues.Addf("%s: service %q healthcheck must define test", target.Path, serviceName)
 			continue
 		}
 		switch testNode.Kind {
 		case yaml.SequenceNode:
 			if len(testNode.Content) == 0 {
-				issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must not be empty", target.Path, serviceName))
+				issues.Addf("%s: service %q healthcheck test must not be empty", target.Path, serviceName)
 			}
 		case yaml.ScalarNode:
 			if strings.TrimSpace(testNode.Value) == "" {
-				issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must not be empty", target.Path, serviceName))
+				issues.Addf("%s: service %q healthcheck test must not be empty", target.Path, serviceName)
 			}
 		default:
-			issues = append(issues, fmt.Sprintf("%s: service %q healthcheck test must be a string or sequence", target.Path, serviceName))
+			issues.Addf("%s: service %q healthcheck test must be a string or sequence", target.Path, serviceName)
 		}
 	}
-	return issues, nil
+	return issues.ToSlice(), nil
 }
 
 func validateHelmContracts(repoRoot string, target policy.SurfaceTarget) []string {
@@ -245,24 +241,24 @@ func validateHelmContracts(repoRoot string, target policy.SurfaceTarget) []strin
 	}
 	profile := policy.ScalarValue(policy.MappingValue(root, "profile"))
 	demoEnabled := policy.ScalarValue(policy.MappingValue(policy.MappingValue(root, "demo"), "enabled"))
-	issues := make([]string, 0)
+	issues := NewIssues()
 	switch target.Path {
 	case "deploy/helm/ai-control-plane/values.yaml":
 		if profile != "production" {
-			issues = append(issues, fmt.Sprintf("%s: profile must be production", target.Path))
+			issues.Addf("%s: profile must be production", target.Path)
 		}
 		if demoEnabled != "false" {
-			issues = append(issues, fmt.Sprintf("%s: demo.enabled must be false", target.Path))
+			issues.Addf("%s: demo.enabled must be false", target.Path)
 		}
 	default:
 		if strings.Contains(target.Path, "values.demo.yaml") || strings.Contains(target.Path, "values.offline.yaml") {
 			if profile != "demo" {
-				issues = append(issues, fmt.Sprintf("%s: profile must be demo", target.Path))
+				issues.Addf("%s: profile must be demo", target.Path)
 			}
 			if demoEnabled != "true" {
-				issues = append(issues, fmt.Sprintf("%s: demo.enabled must be true", target.Path))
+				issues.Addf("%s: demo.enabled must be true", target.Path)
 			}
 		}
 	}
-	return issues
+	return issues.ToSlice()
 }

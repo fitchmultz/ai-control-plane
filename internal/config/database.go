@@ -23,6 +23,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 )
 
 const defaultEmbeddedDatabaseURL = "postgresql://litellm:litellm@postgres:5432/litellm"
@@ -63,14 +65,16 @@ type DatabaseSettings struct {
 
 // Database returns the effective typed database settings.
 func (l *Loader) Database(ctx context.Context) DatabaseSettings {
-	repoRoot, _ := l.RepoRoot(ctx)
+	repoRoot, repoRootErr := l.RepoRoot(ctx)
 	settings := DatabaseSettings{
-		Mode:        DatabaseModeEmbedded,
-		Name:        l.StringDefault("DB_NAME", "litellm"),
-		User:        l.StringDefault("DB_USER", "litellm"),
-		URL:         l.RepoAwareString("DATABASE_URL"),
-		RepoRoot:    repoRoot,
-		RepoEnvPath: repoRoot + "/demo/.env",
+		Mode:     DatabaseModeEmbedded,
+		Name:     l.StringDefault("DB_NAME", "litellm"),
+		User:     l.StringDefault("DB_USER", "litellm"),
+		URL:      l.RepoAwareString("DATABASE_URL"),
+		RepoRoot: repoRoot,
+	}
+	if repoRootErr == nil && strings.TrimSpace(repoRoot) != "" {
+		settings.RepoEnvPath = repopath.DemoEnvPath(repoRoot)
 	}
 	if mode, ok := normalizeDatabaseMode(l.String("ACP_DATABASE_MODE")); ok {
 		settings.Mode = mode

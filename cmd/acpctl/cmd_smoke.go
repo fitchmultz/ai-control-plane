@@ -162,5 +162,5 @@ func runSmokeTest(ctx context.Context, runCtx commandRunContext, raw any) int {
 }
 
 func runSmokeTestCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"smoke"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"smoke"}, args, stdout, stderr)
 }

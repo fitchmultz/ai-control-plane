@@ -79,12 +79,12 @@ func bindOnboardOptions(bindCtx commandBindContext, input parsedCommandInput) (a
 }
 
 func runOnboard(ctx context.Context, runCtx commandRunContext, raw any) int {
-	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "onboard")))
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "onboard")))
 	result := onboard.Run(ctx, raw.(onboard.Options))
 	onboard.WriteHuman(runCtx.Stdout, runCtx.Stderr, result)
 	return result.ExitCode
 }
 
 func runOnboardCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"onboard"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"onboard"}, args, stdout, stderr)
 }

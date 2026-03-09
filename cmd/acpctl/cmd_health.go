@@ -131,5 +131,5 @@ func runHealth(ctx context.Context, runCtx commandRunContext, raw any) int {
 }
 
 func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runTypedCommandAdapter(ctx, []string{"health"}, args, stdout, stderr)
+	return runCommandPath(ctx, []string{"health"}, args, stdout, stderr)
 }
