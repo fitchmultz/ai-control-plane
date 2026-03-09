@@ -29,6 +29,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 )
 
 // Verifier handles bundle verification
@@ -162,14 +164,16 @@ func (v *Verifier) extractTarball(tarballPath, destDir string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(path, 0755); err != nil {
+			if err := fsutil.EnsurePrivateDir(path); err != nil {
 				return err
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			if err := fsutil.EnsurePrivateDir(filepath.Dir(path)); err != nil {
 				return err
 			}
-			file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+			// Verification never executes extracted files, so clamp archive metadata to
+			// private local-only defaults instead of recreating broader on-disk modes.
+			file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fsutil.PrivateFilePerm)
 			if err != nil {
 				return err
 			}

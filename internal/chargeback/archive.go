@@ -5,8 +5,8 @@
 //
 // Responsibilities:
 //   - Resolve archive destinations relative to the repo root when needed.
-//   - Create archive directories.
-//   - Write report artifacts atomically.
+//   - Create private archive directories.
+//   - Write report artifacts atomically with private default modes.
 //
 // Non-scope:
 //   - Does not decide what content to render.
@@ -25,7 +25,6 @@ package chargeback
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -40,7 +39,7 @@ func (FileArchiver) Archive(repoRoot string, archiveDir string, reportMonth stri
 		return map[string]string{}, nil
 	}
 	targetDir := filepath.Join(archiveBase, reportMonth)
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+	if err := fsutil.EnsurePrivateDir(targetDir); err != nil {
 		return nil, fmt.Errorf("create archive directory: %w", err)
 	}
 
@@ -52,7 +51,7 @@ func (FileArchiver) Archive(repoRoot string, archiveDir string, reportMonth stri
 	paths := make(map[string]string, len(files))
 	for extension, content := range files {
 		path := filepath.Join(targetDir, fmt.Sprintf("chargeback-report-%s.%s", reportMonth, extension))
-		if err := fsutil.AtomicWriteFile(path, []byte(content), 0o644); err != nil {
+		if err := fsutil.AtomicWritePrivateFile(path, []byte(content)); err != nil {
 			return nil, fmt.Errorf("write archive %s: %w", path, err)
 		}
 		paths[extension] = path
