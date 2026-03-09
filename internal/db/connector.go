@@ -118,7 +118,9 @@ func (c *Connector) ping(ctx context.Context) Probe {
 		if err != nil {
 			return Probe{Operation: "ping", Error: err.Error(), Latency: time.Since(start).Round(time.Millisecond)}
 		}
-		err = dbConn.PingContext(withTimeoutContext(ctx, queryTimeout))
+		pingCtx, cancel := withTimeoutContext(ctx, queryTimeout)
+		defer cancel()
+		err = dbConn.PingContext(pingCtx)
 		if err != nil {
 			return Probe{
 				Operation: "ping",
@@ -134,7 +136,9 @@ func (c *Connector) ping(ctx context.Context) Probe {
 		return Probe{Operation: "ping", Error: err.Error(), Latency: time.Since(start).Round(time.Millisecond)}
 	}
 
-	res := proc.Run(withTimeoutContext(ctx, queryTimeout), proc.Request{
+	runCtx, cancel := withTimeoutContext(ctx, queryTimeout)
+	defer cancel()
+	res := proc.Run(runCtx, proc.Request{
 		Name:    "docker",
 		Args:    []string{"exec", containerID, "pg_isready", "-U", c.databaseUser(), "-d", c.databaseName()},
 		Timeout: queryTimeout,
@@ -161,7 +165,9 @@ func (c *Connector) ensureSQLDB(ctx context.Context) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
-	if err := dbConn.PingContext(withTimeoutContext(ctx, queryTimeout)); err != nil {
+	pingCtx, cancel := withTimeoutContext(ctx, queryTimeout)
+	defer cancel()
+	if err := dbConn.PingContext(pingCtx); err != nil {
 		_ = dbConn.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
@@ -176,7 +182,8 @@ func (c *Connector) containerID(ctx context.Context) (string, error) {
 	if c.compose == nil {
 		return "", fmt.Errorf("database runtime requires docker compose for embedded mode")
 	}
-	lookupCtx := withTimeoutContext(ctx, containerLookupTimeout)
+	lookupCtx, cancel := withTimeoutContext(ctx, containerLookupTimeout)
+	defer cancel()
 	containerID, err := c.compose.ContainerID(lookupCtx, "postgres")
 	if err != nil {
 		return "", fmt.Errorf("database container lookup failed: %w", err)
@@ -195,7 +202,9 @@ func (c *Connector) scalarString(ctx context.Context, query string) (string, err
 			return "", err
 		}
 		var value sql.NullString
-		err = dbConn.QueryRowContext(withTimeoutContext(ctx, queryTimeout), query).Scan(&value)
+		queryCtx, cancel := withTimeoutContext(ctx, queryTimeout)
+		defer cancel()
+		err = dbConn.QueryRowContext(queryCtx, query).Scan(&value)
 		if err != nil {
 			return "", fmt.Errorf("database query failed: %w", err)
 		}
@@ -206,7 +215,9 @@ func (c *Connector) scalarString(ctx context.Context, query string) (string, err
 	if err != nil {
 		return "", err
 	}
-	res := proc.Run(withTimeoutContext(ctx, queryTimeout), proc.Request{
+	runCtx, cancel := withTimeoutContext(ctx, queryTimeout)
+	defer cancel()
+	res := proc.Run(runCtx, proc.Request{
 		Name:    "docker",
 		Args:    []string{"exec", containerID, "psql", "-X", "-A", "-t", "-U", c.databaseUser(), "-d", c.databaseName(), "-c", query},
 		Timeout: queryTimeout,
@@ -239,10 +250,9 @@ func (c *Connector) execError(prefix string, res proc.Result) string {
 	return prefix
 }
 
-func withTimeoutContext(ctx context.Context, timeout time.Duration) context.Context {
+func withTimeoutContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if _, hasDeadline := ctx.Deadline(); hasDeadline {
-		return ctx
+		return ctx, func() {}
 	}
-	child, _ := context.WithTimeout(ctx, timeout)
-	return child
+	return context.WithTimeout(ctx, timeout)
 }

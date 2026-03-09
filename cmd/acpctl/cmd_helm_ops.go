@@ -112,17 +112,19 @@ func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, config h
 		switch {
 		case proc.IsNotFound(result.Err):
 			fmt.Fprintln(stderr, out.Fail("helm not found in PATH"))
-			return exitcodes.ACPExitPrereq
 		case proc.IsTimeout(result.Err):
 			fmt.Fprintln(stderr, out.Fail("helm lint timed out"))
-			return exitcodes.ACPExitRuntime
 		case proc.IsCanceled(result.Err):
 			fmt.Fprintln(stderr, out.Fail("helm lint canceled"))
-			return exitcodes.ACPExitRuntime
+		case proc.IsStart(result.Err):
+			fmt.Fprintf(stderr, out.Fail("helm lint could not start: %v\n"), result.Err)
 		default:
 			fmt.Fprintln(stderr, out.Fail("helm lint failed"))
-			return exitcodes.ACPExitDomain
+			if proc.IsExit(result.Err) {
+				return exitcodes.ACPExitDomain
+			}
 		}
+		return proc.ACPExitCode(result.Err)
 	}
 
 	fmt.Fprintln(stdout, out.Green(config.successMessage))
