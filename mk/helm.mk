@@ -3,7 +3,7 @@
 # Purpose: Helm chart validation and Kubernetes operations
 # Responsibilities:
 #   - Helm chart validation
-#   - Helm smoke tests
+#   - Helm smoke validation gates
 #   - Kubernetes resource management
 #
 # Non-scope:
@@ -18,7 +18,7 @@ helm-validate: ## Validate Helm chart
 		|| { echo '$(COLOR_RED)✗ Helm chart validation failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: helm-smoke
-helm-smoke: ## Run Helm smoke checks
+helm-smoke: ## Run truthful Helm smoke validation
 	@echo '$(COLOR_BOLD)Running Helm smoke checks...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) helm smoke \
 		&& echo '$(COLOR_GREEN)✓ Helm smoke checks passed$(COLOR_RESET)' \

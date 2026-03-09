@@ -167,8 +167,8 @@ terraform apply
 helm upgrade --install acp ./deploy/helm/ai-control-plane -n acp \
   -f ./deploy/helm/ai-control-plane/examples/values.production.yaml
 
-# 4. Verify deployment
-make helm-smoke NAMESPACE=acp RELEASE=acp
+# 4. Verify repository Helm artifacts and lint before declaring the deployment ready
+make helm-smoke
 ```
 
 ### Scenario 3: Point-in-Time Recovery (External Database)

@@ -52,6 +52,31 @@ func ValidateDeploymentSurfaces(repoRoot string) ([]string, error) {
 	return issues, nil
 }
 
+func ValidateHelmSurfaces(repoRoot string) ([]string, error) {
+	targets, err := policy.ExpandDeploymentSurfaces(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	issues := make([]string, 0)
+	for _, target := range targets {
+		if !isHelmSurface(target.Kind) {
+			continue
+		}
+		if policy.HasRule(target.Rules, policy.RuleStructure) {
+			targetIssues, err := validateStructureForTarget(repoRoot, target)
+			if err != nil {
+				return nil, err
+			}
+			issues = append(issues, targetIssues...)
+		}
+		if policy.HasRule(target.Rules, policy.RuleHelmContracts) {
+			issues = append(issues, validateHelmContracts(repoRoot, target)...)
+		}
+	}
+	sort.Strings(issues)
+	return issues, nil
+}
+
 func ValidateComposeHealthchecks(repoRoot string) ([]string, error) {
 	targets, err := policy.ExpandDeploymentSurfaces(repoRoot)
 	if err != nil {
@@ -114,6 +139,15 @@ func validateStructureForTarget(repoRoot string, target policy.SurfaceTarget) ([
 		}
 	}
 	return nil, nil
+}
+
+func isHelmSurface(kind policy.SurfaceKind) bool {
+	switch kind {
+	case policy.SurfaceHelmValues, policy.SurfaceHelmChart, policy.SurfaceHelmSchema, policy.SurfaceHelmTpl:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateHelmTemplateStructure(repoRoot string, target policy.SurfaceTarget) ([]string, error) {

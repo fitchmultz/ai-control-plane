@@ -25,14 +25,14 @@ up-production: validate-config-production ## Start production profile with OTEL
 	@echo 'Run $(COLOR_BOLD)make otel-health$(COLOR_RESET) to verify OTEL collector.'
 
 .PHONY: prod-smoke
-prod-smoke: ## Run production smoke tests
+prod-smoke: ## Run truthful runtime smoke checks
 	@echo '$(COLOR_BOLD)Running production smoke tests...$(COLOR_RESET)'
 	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
 		&& echo '$(COLOR_GREEN)✓ Production smoke tests passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Production smoke tests failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: prod-smoke-local-tls
-prod-smoke-local-tls: ## Run production smoke tests against local TLS
+prod-smoke-local-tls: ## Run truthful runtime smoke checks against local TLS
 	@echo '$(COLOR_BOLD)Running production smoke tests against local TLS...$(COLOR_RESET)'
 	@GATEWAY_HOST=localhost LITELLM_PORT=$(TLS_PORT) $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
 		&& echo '$(COLOR_GREEN)✓ Local TLS smoke tests passed$(COLOR_RESET)' \

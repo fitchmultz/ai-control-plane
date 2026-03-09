@@ -1135,7 +1135,7 @@ Follow this workflow before production cutover:
 
 1. **Run nightly gate** for runtime + release verification
 2. **Run manual-heavy gate** for hardened-image/supply-chain validation
-3. **Run smoke checks** against the target public URL
+3. **Run smoke checks** against the target runtime
 4. **Archive evidence** from readiness logs + release bundles
 
 ```bash
@@ -1145,8 +1145,8 @@ make ci-nightly
 # Step 2: On-demand heavy gate
 make ci-manual-heavy
 
-# Step 3: Runtime smoke against target endpoint
-make prod-smoke PUBLIC_URL=https://gateway.example.com
+# Step 3: Runtime smoke against the active runtime configuration
+make prod-smoke
 
 # Step 4: Capture release evidence artifacts
 make release-bundle
@@ -1169,6 +1169,8 @@ make release-bundle-verify
 - Supply-chain summaries: `demo/logs/supply-chain/summary.json`
 
 > Legacy benchmark harness command references from private iterations are retired from the current public-snapshot Make target surface. Use external load-testing tooling in customer environments when deeper performance profiling is required.
+
+`make prod-smoke` is a real runtime gate. It fails when the gateway is unreachable, when authorized `/v1/models` checks cannot run successfully, or when the database/readiness contract is not healthy. `make helm-smoke` is a real repository Helm gate that validates tracked Helm surfaces and runs `helm lint`; it does not probe a live cluster.
 
 ---
 

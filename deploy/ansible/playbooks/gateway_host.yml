@@ -225,7 +225,7 @@
         set -a
         source "{{ acp_env_file }}"
         set +a
-        make prod-smoke PUBLIC_URL="{{ acp_public_url }}"
+        make prod-smoke
       args:
         chdir: "{{ acp_repo_path }}"
         executable: /bin/bash
