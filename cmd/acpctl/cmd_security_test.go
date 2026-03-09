@@ -26,6 +26,84 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
+const defaultSecretsPolicyFixture = `{
+  "schema_version": "1.0.0",
+  "policy_id": "tracked-secret-scan-v1",
+  "description": "Tracked-file repository secret scanning policy for deterministic CI-friendly leak detection.",
+  "path_rules": [
+    {
+      "id": "tracked-env-file",
+      "message": "tracked environment file",
+      "patterns": ["**/.env"]
+    },
+    {
+      "id": "private-key-file",
+      "message": "suspicious private-key filename",
+      "patterns": ["**/id_rsa", "**/id_ed25519"]
+    },
+    {
+      "id": "secret-bearing-file",
+      "message": "suspicious certificate/key archive filename",
+      "patterns": ["**/*.pem", "**/*.p12", "**/*.pfx"]
+    }
+  ],
+  "content_rules": [
+    {
+      "id": "private-key-block",
+      "message": "private key material",
+      "pattern": "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"
+    },
+    {
+      "id": "aws-access-key-id",
+      "message": "AWS access key ID",
+      "pattern": "\\bAKIA[0-9A-Z]{16}\\b"
+    },
+    {
+      "id": "github-token",
+      "message": "GitHub token",
+      "pattern": "\\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\\b"
+    },
+    {
+      "id": "slack-token",
+      "message": "Slack token",
+      "pattern": "\\bxox[baprs]-[A-Za-z0-9-]{20,}\\b"
+    },
+    {
+      "id": "google-api-key",
+      "message": "Google API key",
+      "pattern": "\\bAIza[0-9A-Za-z_-]{20,}\\b"
+    },
+    {
+      "id": "openai-style-key",
+      "message": "OpenAI-style API key",
+      "pattern": "\\bsk-[A-Za-z0-9][A-Za-z0-9_-]{20,}\\b"
+    }
+  ],
+  "placeholder_exemptions": [
+    {
+      "id": "demo-env-example-placeholders",
+      "path_patterns": ["demo/.env.example"],
+      "allowed_substrings": ["change-me"],
+      "allow_empty_assignment": true
+    },
+    {
+      "id": "test-placeholder-fixtures",
+      "path_patterns": ["**/*_test.go", "**/tests/**"],
+      "allowed_substrings": ["sk-test-", "change-me", "sk-litellm-"]
+    },
+    {
+      "id": "helm-example-placeholders",
+      "path_patterns": ["deploy/helm/ai-control-plane/examples/**"],
+      "allowed_substrings": ["sk-demo-", "sk-offline-demo-"]
+    },
+    {
+      "id": "docs-placeholder-examples",
+      "path_patterns": ["README.md", "demo/README.md", "docs/**"],
+      "allowed_substrings": ["change-me", "sk-demo-", "sk-offline-demo-", "sk-your-", "sk-personal-", "sk-litellm-"]
+    }
+  ]
+}`
+
 func TestRunSecretsAudit_Help(t *testing.T) {
 	stdout, stderr := newTestFiles(t)
 
@@ -154,6 +232,39 @@ func TestRunSecretsAudit_IgnoresTrackedDeletedFilesInWorkingTree(t *testing.T) {
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected success with deleted tracked file, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+}
+
+func TestRunSecretsAudit_FailsOnMalformedPolicy(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeSecurityFixtureRepo(t, repoRoot, securityFixtureOptions{
+		TrackedFiles: map[string]string{
+			"README.md":         "fixture\n",
+			"demo/.env.example": "OPENAI_API_KEY=\n",
+		},
+		SecretsPolicy: `{
+  "schema_version": "1.0.0",
+  "policy_id": "broken",
+  "content_rules": [
+    {
+      "id": "openai-style-key",
+      "message": "OpenAI-style API key",
+      "pattern": "("
+    }
+  ]
+}`,
+	})
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runSecretsAudit(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitRuntime {
+		t.Fatalf("expected runtime failure, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+	if !strings.Contains(readFile(t, stderr), "SECRET_SCAN_POLICY.json") {
+		t.Fatalf("expected policy error in stderr, got %s", readFile(t, stderr))
 	}
 }
 
@@ -321,11 +432,17 @@ func TestRunDelegatedGroup_ValidateSecretsAuditHelpUsesNativeHelp(t *testing.T) 
 }
 
 type securityFixtureOptions struct {
-	TrackedFiles map[string]string
+	TrackedFiles  map[string]string
+	SecretsPolicy string
 }
 
 func writeSecurityFixtureRepo(t *testing.T, repoRoot string, opts securityFixtureOptions) {
 	t.Helper()
+	policyJSON := opts.SecretsPolicy
+	if strings.TrimSpace(policyJSON) == "" {
+		policyJSON = defaultSecretsPolicyFixture
+	}
+	writeFile(t, filepath.Join(repoRoot, "docs", "policy", "SECRET_SCAN_POLICY.json"), policyJSON)
 	for relPath, contents := range opts.TrackedFiles {
 		writeFile(t, filepath.Join(repoRoot, relPath), contents)
 	}

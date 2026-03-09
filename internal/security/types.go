@@ -26,16 +26,32 @@ type Finding struct {
 	Message string
 }
 
-type pathRule struct {
-	ID      string
-	Message string
-	Match   func(relPath string) bool
+type SecretsPolicy struct {
+	SchemaVersion         string                       `json:"schema_version"`
+	PolicyID              string                       `json:"policy_id"`
+	Description           string                       `json:"description"`
+	PathRules             []SecretPathRule             `json:"path_rules"`
+	ContentRules          []SecretContentRule          `json:"content_rules"`
+	PlaceholderExemptions []SecretPlaceholderExemption `json:"placeholder_exemptions"`
 }
 
-type contentRule struct {
-	ID      string
-	Message string
-	Pattern string
+type SecretPathRule struct {
+	ID       string   `json:"id"`
+	Message  string   `json:"message"`
+	Patterns []string `json:"patterns"`
+}
+
+type SecretContentRule struct {
+	ID      string `json:"id"`
+	Message string `json:"message"`
+	Pattern string `json:"pattern"`
+}
+
+type SecretPlaceholderExemption struct {
+	ID                   string   `json:"id"`
+	PathPatterns         []string `json:"path_patterns"`
+	AllowedSubstrings    []string `json:"allowed_substrings"`
+	AllowEmptyAssignment bool     `json:"allow_empty_assignment,omitempty"`
 }
 
 type SupplyChainPolicy struct {
