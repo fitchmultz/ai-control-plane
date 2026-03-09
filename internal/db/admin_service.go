@@ -52,7 +52,9 @@ func (s *AdminService) Backup(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	res := proc.Run(withTimeoutContext(ctx, 30*time.Second), proc.Request{
+	runCtx, cancel := withTimeoutContext(ctx, 30*time.Second)
+	defer cancel()
+	res := proc.Run(runCtx, proc.Request{
 		Name: "docker",
 		Args: []string{
 			"exec", containerID,
@@ -80,7 +82,9 @@ func (s *AdminService) Restore(ctx context.Context, sqlReader io.Reader) error {
 		return err
 	}
 
-	res := proc.Run(withTimeoutContext(ctx, 30*time.Second), proc.Request{
+	runCtx, cancel := withTimeoutContext(ctx, 30*time.Second)
+	defer cancel()
+	res := proc.Run(runCtx, proc.Request{
 		Name:    "docker",
 		Args:    []string{"exec", "-i", containerID, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", s.connector.databaseUser(), "-d", "postgres"},
 		Stdin:   sqlReader,

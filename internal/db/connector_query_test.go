@@ -130,7 +130,8 @@ func TestWithTimeoutContextHonorsExistingDeadline(t *testing.T) {
 	parent, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	child := withTimeoutContext(parent, 10*time.Second)
+	child, childCancel := withTimeoutContext(parent, 10*time.Second)
+	defer childCancel()
 	parentDeadline, _ := parent.Deadline()
 	childDeadline, _ := child.Deadline()
 	if !parentDeadline.Equal(childDeadline) {
@@ -139,13 +140,25 @@ func TestWithTimeoutContextHonorsExistingDeadline(t *testing.T) {
 }
 
 func TestWithTimeoutContextAddsDeadlineWhenMissing(t *testing.T) {
-	child := withTimeoutContext(context.Background(), time.Second)
+	child, cancel := withTimeoutContext(context.Background(), time.Second)
+	defer cancel()
 	deadline, ok := child.Deadline()
 	if !ok {
 		t.Fatal("expected deadline to be added")
 	}
 	if time.Until(deadline) <= 0 {
 		t.Fatal("expected future deadline")
+	}
+}
+
+func TestWithTimeoutContextCancelClosesDerivedContext(t *testing.T) {
+	child, cancel := withTimeoutContext(context.Background(), time.Second)
+	cancel()
+
+	select {
+	case <-child.Done():
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("expected derived context to close after cancel")
 	}
 }
 

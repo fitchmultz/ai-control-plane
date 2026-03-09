@@ -27,8 +27,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
 func TestProcHelperProcess(t *testing.T) {
@@ -97,6 +100,41 @@ func TestRunCapturesStdoutAndStderr(t *testing.T) {
 	}
 }
 
+func TestRunRejectsNilContextAsStartError(t *testing.T) {
+	res := Run(nil, Request{Name: "helper"})
+	if !IsStart(res.Err) {
+		t.Fatalf("expected start classification, got %v", res.Err)
+	}
+	if res.ExitCode != -1 {
+		t.Fatalf("ExitCode = %d, want -1", res.ExitCode)
+	}
+	if code, ok := ExitCode(res.Err); ok {
+		t.Fatalf("ExitCode(err) = %d, %v; want no exit code", code, ok)
+	}
+	if got := ACPExitCode(res.Err); got != exitcodes.ACPExitRuntime {
+		t.Fatalf("ACPExitCode(nil context) = %d, want %d", got, exitcodes.ACPExitRuntime)
+	}
+	if !strings.Contains(res.Err.Error(), "non-nil context") {
+		t.Fatalf("error = %q, want non-nil context guidance", res.Err.Error())
+	}
+}
+
+func TestRunRejectsEmptyCommandNameAsStartError(t *testing.T) {
+	res := Run(context.Background(), Request{Name: "   "})
+	if !IsStart(res.Err) {
+		t.Fatalf("expected start classification, got %v", res.Err)
+	}
+	if res.ExitCode != -1 {
+		t.Fatalf("ExitCode = %d, want -1", res.ExitCode)
+	}
+	if got := ACPExitCode(res.Err); got != exitcodes.ACPExitRuntime {
+		t.Fatalf("ACPExitCode(empty command) = %d, want %d", got, exitcodes.ACPExitRuntime)
+	}
+	if !strings.Contains(res.Err.Error(), "non-empty command name") {
+		t.Fatalf("error = %q, want non-empty command guidance", res.Err.Error())
+	}
+}
+
 func TestRunClassifiesExit(t *testing.T) {
 	res := Run(context.Background(), helperRequest("exit", "7"))
 	if !IsExit(res.Err) {
@@ -128,18 +166,23 @@ func TestRunClassifiesCancel(t *testing.T) {
 }
 
 func TestACPExitCodeMappings(t *testing.T) {
-	if code := ACPExitCode(nil); code != 0 {
-		t.Fatalf("ACPExitCode(nil) = %d, want 0", code)
+	if code := ACPExitCode(nil); code != exitcodes.ACPExitSuccess {
+		t.Fatalf("ACPExitCode(nil) = %d, want %d", code, exitcodes.ACPExitSuccess)
 	}
 
 	res := Run(context.Background(), helperRequest("exit", "64"))
-	if code := ACPExitCode(res.Err); code != 64 {
-		t.Fatalf("ACPExitCode(exit 64) = %d, want 64", code)
+	if code := ACPExitCode(res.Err); code != exitcodes.ACPExitUsage {
+		t.Fatalf("ACPExitCode(exit 64) = %d, want %d", code, exitcodes.ACPExitUsage)
 	}
 
 	notFound := Run(context.Background(), Request{Name: filepathDoesNotExist()})
-	if code := ACPExitCode(notFound.Err); code != 2 {
-		t.Fatalf("ACPExitCode(not found) = %d, want 2", code)
+	if code := ACPExitCode(notFound.Err); code != exitcodes.ACPExitPrereq {
+		t.Fatalf("ACPExitCode(not found) = %d, want %d", code, exitcodes.ACPExitPrereq)
+	}
+
+	start := Run(context.Background(), Request{Name: ""})
+	if code := ACPExitCode(start.Err); code != exitcodes.ACPExitRuntime {
+		t.Fatalf("ACPExitCode(start error) = %d, want %d", code, exitcodes.ACPExitRuntime)
 	}
 }
 
