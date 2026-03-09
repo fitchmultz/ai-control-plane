@@ -92,7 +92,7 @@ func validateComposeImages(repoRoot string, target policy.SurfaceTarget) ([]stri
 	if servicesNode == nil || servicesNode.Kind != yaml.MappingNode {
 		return []string{fmt.Sprintf("%s: missing services mapping", target.Path)}, nil
 	}
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	for i := 0; i < len(servicesNode.Content); i += 2 {
 		serviceName := servicesNode.Content[i].Value
 		serviceNode := servicesNode.Content[i+1]
@@ -104,9 +104,9 @@ func validateComposeImages(repoRoot string, target policy.SurfaceTarget) ([]stri
 		if isDigestPinnedImage(image) {
 			continue
 		}
-		issues = append(issues, fmt.Sprintf("%s: service %q image must be digest pinned (got %q)", target.Path, serviceName, image))
+		issues.Addf("%s: service %q image must be digest pinned (got %q)", target.Path, serviceName, image)
 	}
-	return issues, nil
+	return issues.ToSlice(), nil
 }
 
 func validateHelmImages(repoRoot string, target policy.SurfaceTarget) ([]string, error) {
@@ -114,7 +114,7 @@ func validateHelmImages(repoRoot string, target policy.SurfaceTarget) ([]string,
 	if err != nil {
 		return []string{fmt.Sprintf("%s: %v", target.Path, err)}, nil
 	}
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	policy.VisitMappings(root, "", func(node *yaml.Node, currentPath string) {
 		repository := policy.MappingValue(node, "repository")
 		if repository == nil || strings.TrimSpace(repository.Value) == "" {
@@ -125,10 +125,10 @@ func validateHelmImages(repoRoot string, target policy.SurfaceTarget) ([]string,
 		}
 		digest := policy.MappingValue(node, "digest")
 		if digest == nil || strings.TrimSpace(digest.Value) == "" {
-			issues = append(issues, fmt.Sprintf("%s: %s must declare a non-empty image digest for repository %q", target.Path, currentPath, strings.TrimSpace(repository.Value)))
+			issues.Addf("%s: %s must declare a non-empty image digest for repository %q", target.Path, currentPath, strings.TrimSpace(repository.Value))
 		}
 	})
-	return issues, nil
+	return issues.ToSlice(), nil
 }
 
 func isLocalImageOverride(node *yaml.Node, repository string) bool {
@@ -145,7 +145,7 @@ func validateDockerfileBaseImages(repoRoot string, target policy.SurfaceTarget) 
 		return nil, err
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
-	issues := make([]string, 0)
+	issues := validationissues.NewIssues()
 	lineNumber := 0
 	for scanner.Scan() {
 		lineNumber++
@@ -160,9 +160,9 @@ func validateDockerfileBaseImages(repoRoot string, target policy.SurfaceTarget) 
 		if len(fields) < 2 || isDigestPinnedImage(fields[1]) {
 			continue
 		}
-		issues = append(issues, fmt.Sprintf("%s:%d: base image must be digest pinned (got %q)", target.Path, lineNumber, fields[1]))
+		issues.Addf("%s:%d: base image must be digest pinned (got %q)", target.Path, lineNumber, fields[1])
 	}
-	return issues, scanner.Err()
+	return issues.ToSlice(), scanner.Err()
 }
 
 func isDigestPinnedImage(value string) bool {

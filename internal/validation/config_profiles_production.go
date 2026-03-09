@@ -142,7 +142,7 @@ func validateCanonicalProductionCompose(repoRoot string) []string {
 		return []string{fmt.Sprintf("%s: service %q must define ports", target.Path, "otel-collector")}
 	}
 
-	issues := make([]string, 0)
+	acc := NewIssues()
 	expectedPorts := map[string]string{
 		"4317":  "127.0.0.1",
 		"4318":  "127.0.0.1",
@@ -155,7 +155,7 @@ func validateCanonicalProductionCompose(repoRoot string) []string {
 			continue
 		}
 		if strings.Contains(portSpec, "OTEL_PUBLISH_HOST") {
-			issues = append(issues, fmt.Sprintf("%s: service %q must not use OTEL_PUBLISH_HOST; raw OTEL ports are localhost-only", target.Path, "otel-collector"))
+			acc.Addf("%s: service %q must not use OTEL_PUBLISH_HOST; raw OTEL ports are localhost-only", target.Path, "otel-collector")
 		}
 		host, targetPort := splitComposePort(portSpec)
 		expectedHost, tracked := expectedPorts[targetPort]
@@ -164,15 +164,15 @@ func validateCanonicalProductionCompose(repoRoot string) []string {
 		}
 		seenPorts[targetPort] = struct{}{}
 		if host != expectedHost {
-			issues = append(issues, fmt.Sprintf("%s: service %q port %s must bind %s (found %s)", target.Path, "otel-collector", targetPort, expectedHost, host))
+			acc.Addf("%s: service %q port %s must bind %s (found %s)", target.Path, "otel-collector", targetPort, expectedHost, host)
 		}
 	}
 	for targetPort, expectedHost := range expectedPorts {
 		if _, ok := seenPorts[targetPort]; !ok {
-			issues = append(issues, fmt.Sprintf("%s: service %q must publish %s on %s", target.Path, "otel-collector", targetPort, expectedHost))
+			acc.Addf("%s: service %q must publish %s on %s", target.Path, "otel-collector", targetPort, expectedHost)
 		}
 	}
-	return issues
+	return acc.ToSlice()
 }
 
 func validateCanonicalProductionCaddyfile(repoRoot string) []string {
@@ -182,7 +182,7 @@ func validateCanonicalProductionCaddyfile(repoRoot string) []string {
 		return []string{fmt.Sprintf("demo/config/caddy/Caddyfile.prod: %v", err)}
 	}
 	content := string(data)
-	issues := make([]string, 0)
+	issues := NewIssues()
 	requiredSnippets := []string{
 		"handle_path /otel/*",
 		`@authorized header Authorization "Bearer {$OTEL_INGEST_AUTH_TOKEN}"`,
@@ -191,123 +191,123 @@ func validateCanonicalProductionCaddyfile(repoRoot string) []string {
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(content, snippet) {
-			issues = append(issues, fmt.Sprintf("demo/config/caddy/Caddyfile.prod: missing required production OTEL ingress contract %q", snippet))
+			issues.Addf("demo/config/caddy/Caddyfile.prod: missing required production OTEL ingress contract %q", snippet)
 		}
 	}
-	return issues
+	return issues.ToSlice()
 }
 
 func validateProductionRuntimeValues(path string, values map[string]string) []string {
-	issues := make([]string, 0)
-	issues = append(issues, validateSecretValue(path, values, "LITELLM_MASTER_KEY", 32)...)
-	issues = append(issues, validateSecretValue(path, values, "LITELLM_SALT_KEY", 32)...)
+	issues := NewIssues()
+	issues.Extend(validateSecretValue(path, values, "LITELLM_MASTER_KEY", 32))
+	issues.Extend(validateSecretValue(path, values, "LITELLM_SALT_KEY", 32))
 
 	if rawOTELHost := strings.TrimSpace(values["OTEL_PUBLISH_HOST"]); rawOTELHost != "" {
-		issues = append(issues, fmt.Sprintf("%s: OTEL_PUBLISH_HOST is not allowed in the production contract; raw OTEL ports are fixed to localhost and remote ingest must use TLS /otel/*", path))
+		issues.Addf("%s: OTEL_PUBLISH_HOST is not allowed in the production contract; raw OTEL ports are fixed to localhost and remote ingest must use TLS /otel/*", path)
 	}
 	if litellmHost := normalizeHostValue(values["LITELLM_PUBLISH_HOST"], "127.0.0.1"); litellmHost != "127.0.0.1" && litellmHost != "localhost" {
-		issues = append(issues, fmt.Sprintf("%s: LITELLM_PUBLISH_HOST must remain localhost in production; expose traffic through Caddy TLS instead", path))
+		issues.Addf("%s: LITELLM_PUBLISH_HOST must remain localhost in production; expose traffic through Caddy TLS instead", path)
 	}
 
 	mode := normalizeDatabaseModeValue(values["ACP_DATABASE_MODE"])
 	if mode == "" {
-		issues = append(issues, fmt.Sprintf("%s: ACP_DATABASE_MODE must be explicitly set to embedded or external in production", path))
+		issues.Addf("%s: ACP_DATABASE_MODE must be explicitly set to embedded or external in production", path)
 	}
 
 	databaseURL := strings.TrimSpace(values["DATABASE_URL"])
 	parsedDatabaseURL, err := url.Parse(databaseURL)
 	if err != nil || parsedDatabaseURL == nil {
-		issues = append(issues, fmt.Sprintf("%s: DATABASE_URL must be a valid PostgreSQL connection string", path))
+		issues.Addf("%s: DATABASE_URL must be a valid PostgreSQL connection string", path)
 	} else {
-		issues = append(issues, validateDatabaseURL(path, values, mode, parsedDatabaseURL)...)
+		issues.Extend(validateDatabaseURL(path, values, mode, parsedDatabaseURL))
 	}
 
 	caddyHost := normalizeHostValue(values["CADDY_PUBLISH_HOST"], "127.0.0.1")
 	if caddyHost != "127.0.0.1" && caddyHost != "localhost" {
-		issues = append(issues, validateExternalTLSExposure(path, values)...)
+		issues.Extend(validateExternalTLSExposure(path, values))
 	}
 
-	return issues
+	return issues.ToSlice()
 }
 
 func validateDatabaseURL(path string, values map[string]string, mode string, parsed *url.URL) []string {
-	issues := make([]string, 0)
+	issues := NewIssues()
 	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
 	if scheme != "postgresql" && scheme != "postgres" {
-		issues = append(issues, fmt.Sprintf("%s: DATABASE_URL must use postgres/postgresql scheme", path))
+		issues.Addf("%s: DATABASE_URL must use postgres/postgresql scheme", path)
 	}
 
 	host := normalizeURLHost(parsed.Hostname())
 	if host == "" {
-		issues = append(issues, fmt.Sprintf("%s: DATABASE_URL must include a database host", path))
-		return issues
+		issues.Addf("%s: DATABASE_URL must include a database host", path)
+		return issues.ToSlice()
 	}
 
 	if mode == "embedded" {
 		if host != "postgres" {
-			issues = append(issues, fmt.Sprintf("%s: embedded ACP_DATABASE_MODE requires DATABASE_URL host postgres (found %s)", path, host))
+			issues.Addf("%s: embedded ACP_DATABASE_MODE requires DATABASE_URL host postgres (found %s)", path, host)
 		}
 		user := strings.TrimSpace(values["POSTGRES_USER"])
 		password := strings.TrimSpace(values["POSTGRES_PASSWORD"])
 		dbName := strings.TrimSpace(values["POSTGRES_DB"])
 		if user == "" || password == "" || dbName == "" {
-			issues = append(issues, fmt.Sprintf("%s: embedded ACP_DATABASE_MODE requires POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB", path))
-			return issues
+			issues.Addf("%s: embedded ACP_DATABASE_MODE requires POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB", path)
+			return issues.ToSlice()
 		}
-		issues = append(issues, validatePostgresPassword(path, password)...)
+		issues.Extend(validatePostgresPassword(path, password))
 		if parsed.User == nil || parsed.User.Username() != user {
-			issues = append(issues, fmt.Sprintf("%s: DATABASE_URL username must match POSTGRES_USER", path))
+			issues.Addf("%s: DATABASE_URL username must match POSTGRES_USER", path)
 		}
 		if parsedPassword, ok := parsed.User.Password(); !ok || parsedPassword != password {
-			issues = append(issues, fmt.Sprintf("%s: DATABASE_URL password must match POSTGRES_PASSWORD", path))
+			issues.Addf("%s: DATABASE_URL password must match POSTGRES_PASSWORD", path)
 		}
 		databaseName := strings.Trim(strings.TrimSpace(parsed.Path), "/")
 		if databaseName != dbName {
-			issues = append(issues, fmt.Sprintf("%s: DATABASE_URL database name must match POSTGRES_DB", path))
+			issues.Addf("%s: DATABASE_URL database name must match POSTGRES_DB", path)
 		}
-		return issues
+		return issues.ToSlice()
 	}
 
 	if host == "postgres" {
-		issues = append(issues, fmt.Sprintf("%s: external ACP_DATABASE_MODE must not target the embedded postgres host", path))
+		issues.Addf("%s: external ACP_DATABASE_MODE must not target the embedded postgres host", path)
 	}
 	if !isLoopbackHost(host) {
 		sslMode := strings.ToLower(strings.TrimSpace(parsed.Query().Get("sslmode")))
 		if sslMode != "require" && sslMode != "verify-ca" && sslMode != "verify-full" {
-			issues = append(issues, fmt.Sprintf("%s: external DATABASE_URL must set sslmode=require or stronger for non-local hosts", path))
+			issues.Addf("%s: external DATABASE_URL must set sslmode=require or stronger for non-local hosts", path)
 		}
 	}
-	return issues
+	return issues.ToSlice()
 }
 
 func validateExternalTLSExposure(path string, values map[string]string) []string {
-	issues := make([]string, 0)
+	issues := NewIssues()
 	if strings.TrimSpace(values["CADDYFILE_PATH"]) != canonicalProductionCaddyfile {
-		issues = append(issues, fmt.Sprintf("%s: exposed production ingress must use CADDYFILE_PATH=%s", path, canonicalProductionCaddyfile))
+		issues.Addf("%s: exposed production ingress must use CADDYFILE_PATH=%s", path, canonicalProductionCaddyfile)
 	}
 	if strings.TrimSpace(values["CADDY_ACME_CA"]) != "letsencrypt" {
-		issues = append(issues, fmt.Sprintf("%s: exposed production ingress must use CADDY_ACME_CA=letsencrypt", path))
+		issues.Addf("%s: exposed production ingress must use CADDY_ACME_CA=letsencrypt", path)
 	}
 
 	domain := strings.TrimSpace(values["CADDY_DOMAIN"])
 	email := strings.TrimSpace(values["CADDY_EMAIL"])
 	if domain == "" {
-		issues = append(issues, fmt.Sprintf("%s: CADDY_DOMAIN is required when CADDY_PUBLISH_HOST is exposed", path))
+		issues.Addf("%s: CADDY_DOMAIN is required when CADDY_PUBLISH_HOST is exposed", path)
 	}
 	if email == "" {
-		issues = append(issues, fmt.Sprintf("%s: CADDY_EMAIL is required when CADDY_PUBLISH_HOST is exposed", path))
+		issues.Addf("%s: CADDY_EMAIL is required when CADDY_PUBLISH_HOST is exposed", path)
 	}
 
 	publicURL := strings.TrimSpace(values["LITELLM_PUBLIC_URL"])
 	parsedPublicURL, err := url.Parse(publicURL)
 	if err != nil || parsedPublicURL == nil || !strings.EqualFold(parsedPublicURL.Scheme, "https") {
-		issues = append(issues, fmt.Sprintf("%s: LITELLM_PUBLIC_URL must be a valid https:// URL when CADDY_PUBLISH_HOST is exposed", path))
+		issues.Addf("%s: LITELLM_PUBLIC_URL must be a valid https:// URL when CADDY_PUBLISH_HOST is exposed", path)
 	} else if domain != "" && !strings.EqualFold(parsedPublicURL.Hostname(), domain) {
-		issues = append(issues, fmt.Sprintf("%s: LITELLM_PUBLIC_URL host must match CADDY_DOMAIN", path))
+		issues.Addf("%s: LITELLM_PUBLIC_URL host must match CADDY_DOMAIN", path)
 	}
 
-	issues = append(issues, validateSecretValue(path, values, "OTEL_INGEST_AUTH_TOKEN", 32)...)
-	return issues
+	issues.Extend(validateSecretValue(path, values, "OTEL_INGEST_AUTH_TOKEN", 32))
+	return issues.ToSlice()
 }
 
 func validateSecretValue(path string, values map[string]string, key string, minLength int) []string {
@@ -317,35 +317,35 @@ func validateSecretValue(path string, values map[string]string, key string, minL
 	}
 
 	lowerValue := strings.ToLower(value)
-	issues := make([]string, 0)
+	issues := NewIssues()
 	if len(value) < minLength {
-		issues = append(issues, fmt.Sprintf("%s: %s must be at least %d characters", path, key, minLength))
+		issues.Addf("%s: %s must be at least %d characters", path, key, minLength)
 	}
 	if strings.ContainsAny(value, " \t\r\n") {
-		issues = append(issues, fmt.Sprintf("%s: %s must not contain whitespace", path, key))
+		issues.Addf("%s: %s must not contain whitespace", path, key)
 	}
 	placeholderFragments := []string{"change-me", "replace-with", "example", "placeholder", "your-"}
 	for _, fragment := range placeholderFragments {
 		if strings.Contains(lowerValue, fragment) {
-			issues = append(issues, fmt.Sprintf("%s: %s must not use placeholder/demo values", path, key))
+			issues.Addf("%s: %s must not use placeholder/demo values", path, key)
 			break
 		}
 	}
-	return issues
+	return issues.ToSlice()
 }
 
 func validatePostgresPassword(path string, password string) []string {
-	issues := make([]string, 0)
+	issues := NewIssues()
 	if len(password) < 16 {
-		issues = append(issues, fmt.Sprintf("%s: POSTGRES_PASSWORD must be at least 16 characters in production", path))
+		issues.Addf("%s: POSTGRES_PASSWORD must be at least 16 characters in production", path)
 	}
 	if strings.ContainsAny(password, " \t\r\n") {
-		issues = append(issues, fmt.Sprintf("%s: POSTGRES_PASSWORD must not contain whitespace", path))
+		issues.Addf("%s: POSTGRES_PASSWORD must not contain whitespace", path)
 	}
 	if slices.Contains([]string{"litellm", "postgres", "password", "change-me"}, strings.ToLower(strings.TrimSpace(password))) {
-		issues = append(issues, fmt.Sprintf("%s: POSTGRES_PASSWORD must not use demo/default values", path))
+		issues.Addf("%s: POSTGRES_PASSWORD must not use demo/default values", path)
 	}
-	return issues
+	return issues.ToSlice()
 }
 
 func serviceMapping(root *yaml.Node, serviceName string) *yaml.Node {

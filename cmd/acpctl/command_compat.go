@@ -1,79 +1,21 @@
-// command_compat.go - Compatibility helpers for existing tests and legacy help.
+// command_compat.go - Shared command tree path lookup helpers.
 //
 // Purpose:
-//
-//	Provide narrow compatibility shims while the typed command-spec layer
-//	replaces the old registry API surface.
+//   - Provide shared command tree path lookup helpers for help rendering.
 //
 // Responsibilities:
-//   - Expose first-level root/subcommand descriptors for legacy helpers.
-//   - Support delegated-group compatibility tests against the new command tree.
+//   - Resolve typed command paths from the canonical command tree.
+//   - Surface stable lookup errors for help and adapter flows.
 //
 // Scope:
-//   - Transitional compatibility for the cmd/acpctl package only.
+//   - Command-tree path lookup only.
 //
 // Usage:
-//   - Consumed by older command help functions and tests in this package.
+//   - Used by help rendering and command path adapters in this package.
 //
 // Invariants/Assumptions:
-//   - These helpers reflect the typed command tree and do not define new metadata.
+//   - These helpers reflect the typed command tree and do not define metadata.
 package main
-
-import (
-	"context"
-	"os"
-)
-
-type subcommandDefinition struct {
-	commandDescriptor
-}
-
-type rootCommandDefinition struct {
-	commandDescriptor
-	Subcommands []subcommandDefinition
-}
-
-func lookupNativeRootCommand(name string) (rootCommandDefinition, error) {
-	node, err := findCommand([]string{name})
-	if err != nil {
-		return rootCommandDefinition{}, err
-	}
-	definition := rootCommandDefinition{
-		commandDescriptor: commandDescriptor{
-			Name:        node.Name,
-			Description: node.Summary,
-		},
-		Subcommands: make([]subcommandDefinition, 0, len(node.Children)),
-	}
-	for _, child := range node.Children {
-		if child.Hidden {
-			continue
-		}
-		definition.Subcommands = append(definition.Subcommands, subcommandDefinition{
-			commandDescriptor: commandDescriptor{
-				Name:        child.Name,
-				Description: child.Summary,
-			},
-		})
-	}
-	return definition, nil
-}
-
-func lookupDelegatedGroup(name string) (*commandSpec, bool) {
-	node, err := findCommand([]string{name})
-	if err != nil || len(node.Children) == 0 {
-		return nil, false
-	}
-	return node, true
-}
-
-func runDelegatedGroup(ctx context.Context, root *commandSpec, args []string, stdout *os.File, stderr *os.File) int {
-	invocation, err := parseInvocation(append([]string{root.Name}, args...))
-	if err != nil {
-		return 64
-	}
-	return executeInvocation(ctx, invocation, stdout, stderr)
-}
 
 func findCommandPath(parts []string) ([]*commandSpec, error) {
 	spec, err := loadCommandSpec()
@@ -91,8 +33,4 @@ func findCommandPath(parts []string) ([]*commandSpec, error) {
 		current = next
 	}
 	return path, nil
-}
-
-func runTypedCommandAdapter(ctx context.Context, prefix []string, args []string, stdout *os.File, stderr *os.File) int {
-	return runCommandPath(ctx, prefix, args, stdout, stderr)
 }

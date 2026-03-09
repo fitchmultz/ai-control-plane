@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
@@ -306,7 +307,7 @@ func resolveComposeFile(projectDir string, file string) string {
 
 // DefaultProjectDir returns the default compose project directory (demo/)
 func DefaultProjectDir(repoRoot string) string {
-	return filepath.Join(repoRoot, "demo")
+	return repopath.DemoPath(repoRoot)
 }
 
 // IsDockerRunning checks if Docker daemon is accessible

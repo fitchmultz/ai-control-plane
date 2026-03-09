@@ -377,11 +377,6 @@ func TestRunDelegatedGroup_ValidateSecurityDelegatesToSecurityGate(t *testing.T)
 		t.Fatalf("chmod fake make: %v", err)
 	}
 
-	validateGroup, ok := lookupDelegatedGroup("validate")
-	if !ok {
-		t.Fatalf("expected validate group to exist")
-	}
-
 	originalMakeBin := os.Getenv("ACPCTL_MAKE_BIN")
 	if err := os.Setenv("ACPCTL_MAKE_BIN", fakeMake); err != nil {
 		t.Fatalf("set ACPCTL_MAKE_BIN: %v", err)
@@ -396,7 +391,7 @@ func TestRunDelegatedGroup_ValidateSecurityDelegatesToSecurityGate(t *testing.T)
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runDelegatedGroup(context.Background(), validateGroup, []string{"security"}, stdout, stderr)
+		return runCommandPath(context.Background(), []string{"validate"}, []string{"security"}, stdout, stderr)
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -410,13 +405,8 @@ func TestRunDelegatedGroup_ValidateSecurityDelegatesToSecurityGate(t *testing.T)
 }
 
 func TestRunDelegatedGroup_ValidateSecretsAuditHelpUsesNativeHelp(t *testing.T) {
-	validateGroup, ok := lookupDelegatedGroup("validate")
-	if !ok {
-		t.Fatalf("expected validate group to exist")
-	}
-
 	stdout, stderr := newTestFiles(t)
-	exitCode := runDelegatedGroup(context.Background(), validateGroup, []string{"secrets-audit", "help"}, stdout, stderr)
+	exitCode := runCommandPath(context.Background(), []string{"validate"}, []string{"secrets-audit", "help"}, stdout, stderr)
 
 	if exitCode != exitcodes.ACPExitSuccess {
 		t.Fatalf("expected native help success, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
