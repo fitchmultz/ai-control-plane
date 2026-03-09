@@ -592,11 +592,9 @@ Configuration validation (static checks) is performed by `make validate-config`.
 The `make prod-smoke` workflow validates these production invariants against a running deployment:
 
 1. **Reachability**: Gateway health endpoint is accessible
-2. **Auth Enforcement**: No anonymous access to `/v1/models`
-3. **Models Configured**: At least one model is available
-4. **Virtual Key Generation**: Admin API works with master key
-5. **Key Validation**: Generated keys work on public endpoints
-6. **Request Path**: Full request cycle works (when mock models configured)
+2. **Auth Enforcement**: Authorized `/v1/models` checks succeed with `LITELLM_MASTER_KEY`
+3. **Inference Surface**: The gateway models endpoint stays reachable and authorized
+4. **Database Readiness**: Required runtime readiness components stay healthy
 
 ### Running Smoke Tests
 
@@ -604,12 +602,11 @@ The `make prod-smoke` workflow validates these production invariants against a r
 # Against local TLS deployment
 make prod-smoke-local-tls
 
-# Against specific endpoint
-export LITELLM_MASTER_KEY=sk-...
-make prod-smoke PUBLIC_URL=https://gateway.example.com
+# Against the active runtime configuration
+make prod-smoke
 
-# Against Helm deployment (via port-forward)
-make helm-smoke NAMESPACE=acp RELEASE=acp
+# Validate repository Helm artifacts
+make helm-smoke
 ```
 
 ### CI Integration

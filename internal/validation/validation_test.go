@@ -61,6 +61,31 @@ func TestValidateDeploymentSurfacesFlagsHelmContractDrift(t *testing.T) {
 	}
 }
 
+func TestValidateHelmSurfacesIgnoresNonHelmIssues(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services:\n  app:\n    image: example/app:1\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: litellm\n")
+
+	issues, err := ValidateHelmSurfaces(repoRoot)
+	if err != nil {
+		t.Fatalf("ValidateHelmSurfaces returned error: %v", err)
+	}
+	joined := strings.Join(issues, "\n")
+	if !strings.Contains(joined, "values.yaml: profile must be production") {
+		t.Fatalf("expected helm issue, got %v", issues)
+	}
+	if strings.Contains(joined, "docker-compose") {
+		t.Fatalf("expected helm-only validation, got %v", issues)
+	}
+}
+
 func TestValidateDeploymentSurfacesFlagsNestedCanonicalTargets(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")

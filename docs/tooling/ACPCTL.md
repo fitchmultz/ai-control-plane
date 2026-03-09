@@ -33,7 +33,7 @@ Top-level commands:
 - `status` - aggregated system health overview
 - `doctor` - environment preflight diagnostics
 - `benchmark` - local reference-host performance baseline
-- `smoke` - runtime production smoke checks
+- `smoke` - truthful runtime smoke checks
 - `bridge` - compatibility execution of `scripts/libexec/*_impl.sh` workflows
 - `deploy` - service lifecycle, TLS/offline, Helm, readiness-evidence, and release-bundle flows (delegates to Make targets)
 - `validate` - configuration and policy validation flows (typed core checks + selective Make delegation)

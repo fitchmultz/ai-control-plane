@@ -292,8 +292,8 @@ make ci-nightly
 # Heavy security/image validation gate
 make ci-manual-heavy
 
-# Optional smoke validation against a deployed endpoint
-make prod-smoke PUBLIC_URL=https://gateway.example.com
+# Optional runtime smoke validation after apply
+make prod-smoke
 ```
 
 **How to calibrate Terraform variables from validation results:**

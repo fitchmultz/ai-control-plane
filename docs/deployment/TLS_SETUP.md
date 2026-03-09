@@ -562,16 +562,14 @@ After enabling TLS, run the production smoke tests to validate the deployment:
 # Validate local TLS deployment
 make prod-smoke-local-tls
 
-# Or validate against a specific endpoint
-export LITELLM_MASTER_KEY=your-master-key
-make prod-smoke PUBLIC_URL=https://gateway.example.com
+# Or validate the active runtime configuration directly
+make prod-smoke
 ```
 
 The smoke tests verify:
-- HTTPS endpoint is reachable
-- Authentication is enforced
-- Virtual key generation works
-- Full request cycle completes
+- Gateway health is reachable over the configured TLS endpoint
+- Authorized `/v1/models` access works with `LITELLM_MASTER_KEY`
+- Database/readiness requirements are healthy
 
 For production handoff procedures, see the [Production Handoff Runbook](./PRODUCTION_HANDOFF_RUNBOOK.md).
 
