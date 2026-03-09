@@ -18,6 +18,10 @@ set -euo pipefail
 #   0  all tests passed
 #   1  one or more tests failed
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
 show_help() {
     cat <<'EOF'
 Usage: supply_chain_allowlist_expiry_check_test.sh [--help]
@@ -39,8 +43,7 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(test_repo_root)"
 SCRIPT_UNDER_TEST="$REPO_ROOT/scripts/libexec/check_supply_chain_allowlist_expiry_impl.py"
 
 if [[ ! -f "$SCRIPT_UNDER_TEST" ]]; then
@@ -53,18 +56,7 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 0
 fi
 
-PASS=0
-FAIL=0
-
-pass() {
-    echo "  ✓ $1"
-    PASS=$((PASS + 1))
-}
-
-fail() {
-    echo "  ✗ $1"
-    FAIL=$((FAIL + 1))
-}
+test_results_init
 
 run_case() {
     local name="$1"
@@ -85,9 +77,9 @@ run_case() {
     set -e
 
     if [[ "$exit_code" -eq "$expected_exit" ]]; then
-        pass "$name"
+        test_pass "$name"
     else
-        fail "$name (expected exit $expected_exit, got $exit_code)"
+        test_fail "$name (expected exit $expected_exit, got $exit_code)"
         echo "--- stdout ---"
         cat "$stdout_file" || true
         echo "--- stderr ---"
@@ -95,8 +87,8 @@ run_case() {
     fi
 }
 
-TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/acp-supply-expiry-test.XXXXXX")"
-trap 'rm -rf "$TMP_ROOT"' EXIT
+test_fixture_init acp-supply-expiry-test
+TMP_ROOT="${TEST_TMP_ROOT}"
 
 FIXED_TODAY="2026-03-07"
 warn_date="2026-03-27"
@@ -127,10 +119,10 @@ run_case "invalid date fails" 1 "$TMP_ROOT/invalid-date.json"
 
 echo
 echo "Summary"
-echo "  Passed: $PASS"
-echo "  Failed: $FAIL"
+echo "  Passed: $TESTS_PASSED"
+echo "  Failed: $TESTS_FAILED"
 
-if [[ "$FAIL" -gt 0 ]]; then
+if [[ "$TESTS_FAILED" -gt 0 ]]; then
     exit 1
 fi
 

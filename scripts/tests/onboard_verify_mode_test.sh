@@ -19,6 +19,10 @@ set -euo pipefail
 # Invariants/Assumptions:
 #   - Tests run entirely from temp fixtures.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
 show_help() {
     cat <<'EOF'
 Usage: onboard_verify_mode_test.sh [OPTIONS]
@@ -35,25 +39,14 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SOURCE_SCRIPT="${PROJECT_ROOT}/scripts/libexec/onboard_impl.sh"
-
-TMP_ROOT="$(mktemp -d)"
-trap 'rm -rf "${TMP_ROOT}"' EXIT
-
-TEST_REPO="${TMP_ROOT}/repo"
-TEST_BIN_DIR="${TEST_REPO}/.bin"
-TEST_SCRIPT_DIR="${TEST_REPO}/scripts/libexec"
-TEST_DEMO_DIR="${TEST_REPO}/demo"
-TEST_STUB_BIN_DIR="${TMP_ROOT}/bin"
+PROJECT_ROOT="$(test_repo_root)"
+test_fixture_init onboard-verify-mode-test
+TMP_ROOT="${TEST_TMP_ROOT}"
+test_fixture_repo_init "${TMP_ROOT}"
 CURL_LOG="${TMP_ROOT}/curl.log"
-mkdir -p "${TEST_BIN_DIR}" "${TEST_SCRIPT_DIR}" "${TEST_DEMO_DIR}" "${TEST_STUB_BIN_DIR}"
+test_fixture_copy_libexec "onboard_impl.sh"
 
-cp "${SOURCE_SCRIPT}" "${TEST_SCRIPT_DIR}/onboard_impl.sh"
-chmod +x "${TEST_SCRIPT_DIR}/onboard_impl.sh"
-
-cat >"${TEST_DEMO_DIR}/.env" <<'EOF'
+test_write_fixture_env <<'EOF'
 LITELLM_MASTER_KEY=sk-master-test-12345
 EOF
 
@@ -82,16 +75,7 @@ fi
 EOF
 chmod +x "${TEST_BIN_DIR}/acpctl"
 
-cat >"${TEST_STUB_BIN_DIR}/curl" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-log_file="${ACP_TEST_CURL_LOG:?missing ACP_TEST_CURL_LOG}"
-printf '%s\n' "$*" >>"${log_file}"
-if [[ "$*" == *"%{http_code}"* ]]; then
-    printf '200'
-fi
-EOF
-chmod +x "${TEST_STUB_BIN_DIR}/curl"
+test_install_stub "curl_log_http_200_stub.sh" "${TEST_STUB_BIN_DIR}" "curl"
 
 TEST_SCRIPT="${TEST_SCRIPT_DIR}/onboard_impl.sh"
 run_onboard() {
