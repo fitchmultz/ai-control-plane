@@ -298,18 +298,18 @@ docker compose logs litellm | grep -i "authorization"
 
 **Automated secrets audit:**
 ```bash
-# Run comprehensive audit (includes mounted logs and backups)
+# Run the tracked-file audit
 make secrets-audit
 
 # Difference from tls-verify:
 # - tls-verify: checks live container logs only
-# - secrets-audit: checks mounted logs, backups, and build contexts
+# - secrets-audit: applies docs/policy/SECRET_SCAN_POLICY.json to tracked repository files
 ```
 
 ### What to Do If Tokens Are Found in Logs
 
 1. **Immediate Action**: Stop services and secure log files
-2. **Run Secrets Audit**: Use `make secrets-audit` to identify all leaked tokens
+2. **Run Secrets Audit**: Use `make secrets-audit` to check tracked repository content before sharing or committing it
 3. **Rotate Tokens**: Revoke compromised OAuth tokens through provider portal
 4. **Fix Configuration**: Remove any `log_headers` or similar directives
 5. **Clean Logs**: Remove or redact log files containing tokens
@@ -320,11 +320,11 @@ make secrets-audit
 | Command | Scope | Use Case |
 |---------|-------|----------|
 | `make tls-verify` | Live container logs (Caddy, LiteLLM) | Runtime verification |
-| `make secrets-audit` | Mounted logs, backups, build contexts | Pre-sharing validation |
+| `make secrets-audit` | Tracked repository files matched by `docs/policy/SECRET_SCAN_POLICY.json` | Pre-commit and pre-sharing repository validation |
 
 **When to use each:**
 - Use `make tls-verify` during development to ensure OAuth tokens aren't being logged
-- Use `make secrets-audit` before sharing logs, backups, or creating demos
+- Use `make secrets-audit` before committing or sharing tracked repository content
 - Both are included in `make lint` and `make ci` for automated checking
 
 ---
