@@ -46,6 +46,13 @@ func (c DatabaseCollector) Name() string {
 
 // Collect gathers database status information.
 func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
+	if c.runtime.ConfigError() != nil {
+		return componentStatus(c.Name(), status.HealthLevelUnhealthy, "Database configuration is ambiguous", status.ComponentDetails{},
+			"Set ACP_DATABASE_MODE=embedded for the local demo stack",
+			"Or set ACP_DATABASE_MODE=external when using DATABASE_URL",
+		)
+	}
+
 	summary, err := c.runtime.Summary(ctx)
 	details := status.ComponentDetails{
 		Mode:           summary.Mode.String(),
@@ -61,49 +68,19 @@ func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
 		details.Error = summary.Ping.Error
 	}
 
-	if c.runtime.ConfigError() != nil {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnhealthy,
-			Message: "Database configuration is ambiguous",
-			Details: details,
-			Suggestions: []string{
-				"Set ACP_DATABASE_MODE=embedded for the local demo stack",
-				"Or set ACP_DATABASE_MODE=external when using DATABASE_URL",
-			},
-		}
-	}
-
 	if err != nil {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnhealthy,
-			Message: "PostgreSQL is not accepting connections",
-			Details: details,
-			Suggestions: []string{
-				"Check PostgreSQL connectivity and credentials",
-				"Start or restart services: make up / make restart",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelUnhealthy, "PostgreSQL is not accepting connections", details,
+			"Check PostgreSQL connectivity and credentials",
+			"Start or restart services: make up / make restart",
+		)
 	}
 
 	if summary.ExpectedTables < 4 {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelWarning,
-			Message: "Database accessible, but schema is incomplete",
-			Details: details,
-			Suggestions: []string{
-				"Run the stack long enough for LiteLLM schema initialization",
-				"Verify LiteLLM database migrations completed",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelWarning, "Database accessible, but schema is incomplete", details,
+			"Run the stack long enough for LiteLLM schema initialization",
+			"Verify LiteLLM database migrations completed",
+		)
 	}
 
-	return status.ComponentStatus{
-		Name:    c.Name(),
-		Level:   status.HealthLevelHealthy,
-		Message: "Connected",
-		Details: details,
-	}
+	return componentStatus(c.Name(), status.HealthLevelHealthy, "Connected", details)
 }

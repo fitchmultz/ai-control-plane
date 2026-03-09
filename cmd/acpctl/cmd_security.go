@@ -37,16 +37,12 @@ type securityValidatorCommandConfig struct {
 }
 
 func newSecurityValidatorCommandSpec(config securityValidatorCommandConfig) *commandSpec {
-	return &commandSpec{
+	return newNativeCommandSpec(nativeCommandConfig{
 		Name:        config.Name,
 		Summary:     config.Summary,
 		Description: config.Description,
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindNoOptions,
-			NativeRun:  config.Run,
-		},
-	}
+		Run:         config.Run,
+	})
 }
 
 func validateSecretsAuditCommandSpec() *commandSpec {

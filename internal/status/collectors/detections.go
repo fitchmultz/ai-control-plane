@@ -53,14 +53,9 @@ func (c DetectionsCollector) Name() string {
 func (c DetectionsCollector) Collect(ctx context.Context) status.ComponentStatus {
 	configPath := filepath.Join(c.repoRoot, "demo", "config", "detection_rules.yaml")
 	if _, err := os.Stat(configPath); err != nil {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnknown,
-			Message: "Detection rules config not found",
-			Suggestions: []string{
-				"Verify installation: detection_rules.yaml should exist",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelUnknown, "Detection rules config not found", status.ComponentDetails{},
+			"Verify installation: detection_rules.yaml should exist",
+		)
 	}
 
 	summary, err := c.reader.DetectionSummary(ctx)
@@ -72,58 +67,29 @@ func (c DetectionsCollector) Collect(ctx context.Context) status.ComponentStatus
 		TotalEntries24h:        summary.TotalEntries24h,
 	}
 	if err != nil {
-		details.Error = err.Error()
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnknown,
-			Message: "Could not query detection data",
-			Details: details,
-		}
+		return componentStatus(c.Name(), status.HealthLevelUnknown, "Could not query detection data", withDetailError(details, err))
 	}
 
 	if !summary.SpendLogsTableExists {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelHealthy,
-			Message: "No audit log data yet",
-			Details: details,
-			Suggestions: []string{
-				"Logs will appear after API requests are made",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelHealthy, "No audit log data yet", details,
+			"Logs will appear after API requests are made",
+		)
 	}
 
 	if summary.HighSeverity > 0 {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnhealthy,
-			Message: fmt.Sprintf("%d high-severity findings in last 24h", summary.HighSeverity),
-			Details: details,
-			Suggestions: []string{
-				"Run detections: acpctl validate detections",
-				"Review audit logs: acpctl db status",
-				"Check for anomalous spend patterns",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelUnhealthy, fmt.Sprintf("%d high-severity findings in last 24h", summary.HighSeverity), details,
+			"Run detections: acpctl validate detections",
+			"Review audit logs: acpctl db status",
+			"Check for anomalous spend patterns",
+		)
 	}
 
 	if summary.MediumSeverity > 0 {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelWarning,
-			Message: fmt.Sprintf("No high-severity, %d medium in last 24h", summary.MediumSeverity),
-			Details: details,
-			Suggestions: []string{
-				"Review elevated spend patterns",
-				"Run full detection scan: acpctl validate detections",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelWarning, fmt.Sprintf("No high-severity, %d medium in last 24h", summary.MediumSeverity), details,
+			"Review elevated spend patterns",
+			"Run full detection scan: acpctl validate detections",
+		)
 	}
 
-	return status.ComponentStatus{
-		Name:    c.Name(),
-		Level:   status.HealthLevelHealthy,
-		Message: "No recent findings",
-		Details: details,
-	}
+	return componentStatus(c.Name(), status.HealthLevelHealthy, "No recent findings", details)
 }

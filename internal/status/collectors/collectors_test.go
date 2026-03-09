@@ -41,16 +41,18 @@ func (f fakeGatewayReader) Status(context.Context) gateway.Status {
 }
 
 type fakeRuntimeReader struct {
-	summary    db.Summary
-	summaryErr error
-	configErr  error
+	summary      db.Summary
+	summaryErr   error
+	configErr    error
+	summaryCalls int
 }
 
-func (f fakeRuntimeReader) Summary(context.Context) (db.Summary, error) {
+func (f *fakeRuntimeReader) Summary(context.Context) (db.Summary, error) {
+	f.summaryCalls++
 	return f.summary, f.summaryErr
 }
 
-func (f fakeRuntimeReader) ConfigError() error {
+func (f *fakeRuntimeReader) ConfigError() error {
 	return f.configErr
 }
 
@@ -106,12 +108,16 @@ func TestGatewayCollectorCoversWarningAndHealthyBranches(t *testing.T) {
 func TestDatabaseCollectorCoversConfigErrorRuntimeErrorSchemaWarningAndHealthy(t *testing.T) {
 	t.Parallel()
 
-	configStatus := NewDatabaseCollector(fakeRuntimeReader{configErr: errors.New("ambiguous")}).Collect(context.Background())
+	configReader := &fakeRuntimeReader{configErr: errors.New("ambiguous")}
+	configStatus := NewDatabaseCollector(configReader).Collect(context.Background())
 	if configStatus.Level != status.HealthLevelUnhealthy || configStatus.Message != "Database configuration is ambiguous" {
 		t.Fatalf("unexpected config error status: %+v", configStatus)
 	}
+	if configReader.summaryCalls != 0 {
+		t.Fatalf("expected config error to short-circuit summary collection, got %d summary call(s)", configReader.summaryCalls)
+	}
 
-	errorStatus := NewDatabaseCollector(fakeRuntimeReader{
+	errorStatus := NewDatabaseCollector(&fakeRuntimeReader{
 		summary:    db.Summary{Mode: config.DatabaseModeExternal, Ping: db.Probe{Error: "connection refused"}},
 		summaryErr: errors.New("connection refused"),
 	}).Collect(context.Background())
@@ -119,14 +125,14 @@ func TestDatabaseCollectorCoversConfigErrorRuntimeErrorSchemaWarningAndHealthy(t
 		t.Fatalf("unexpected runtime error status: %+v", errorStatus)
 	}
 
-	warningStatus := NewDatabaseCollector(fakeRuntimeReader{
+	warningStatus := NewDatabaseCollector(&fakeRuntimeReader{
 		summary: db.Summary{Mode: config.DatabaseModeEmbedded, ExpectedTables: 2, DatabaseName: "litellm"},
 	}).Collect(context.Background())
 	if warningStatus.Level != status.HealthLevelWarning {
 		t.Fatalf("expected schema warning, got %+v", warningStatus)
 	}
 
-	healthyStatus := NewDatabaseCollector(fakeRuntimeReader{
+	healthyStatus := NewDatabaseCollector(&fakeRuntimeReader{
 		summary: db.Summary{Mode: config.DatabaseModeEmbedded, ExpectedTables: 4, DatabaseName: "litellm", DatabaseUser: "litellm"},
 	}).Collect(context.Background())
 	if healthyStatus.Level != status.HealthLevelHealthy || healthyStatus.Details.DatabaseName != "litellm" {

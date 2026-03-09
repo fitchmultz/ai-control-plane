@@ -54,57 +54,26 @@ func (c BudgetCollector) Collect(ctx context.Context) status.ComponentStatus {
 		ExhaustedBudgets:       summary.Exhausted,
 	}
 	if err != nil {
-		details.Error = err.Error()
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelWarning,
-			Message: "Could not query budget count",
-			Details: details,
-			Suggestions: []string{
-				"Table may not exist yet - LiteLLM creates tables on first use",
-			},
-		}
+		return readonlyQueryWarning(c.Name(), "Could not query budget count", details, err)
 	}
 
 	if summary.Total == 0 {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelHealthy,
-			Message: "No budgets configured",
-			Details: details,
-		}
+		return componentStatus(c.Name(), status.HealthLevelHealthy, "No budgets configured", details)
 	}
 
 	if summary.Exhausted > 0 {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnhealthy,
-			Message: fmt.Sprintf("%d budgets, %d exhausted", summary.Total, summary.Exhausted),
-			Details: details,
-			Suggestions: []string{
-				"Review exhausted budgets: acpctl db status",
-				"Increase budget or create new key with higher limit",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelUnhealthy, fmt.Sprintf("%d budgets, %d exhausted", summary.Total, summary.Exhausted), details,
+			"Review exhausted budgets: acpctl db status",
+			"Increase budget or create new key with higher limit",
+		)
 	}
 
 	if summary.HighUtilization > 0 {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelWarning,
-			Message: fmt.Sprintf("%d budgets, %d >80%% utilized", summary.Total, summary.HighUtilization),
-			Details: details,
-			Suggestions: []string{
-				"Monitor high-utilization budgets closely",
-				"Consider increasing limits before exhaustion",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelWarning, fmt.Sprintf("%d budgets, %d >80%% utilized", summary.Total, summary.HighUtilization), details,
+			"Monitor high-utilization budgets closely",
+			"Consider increasing limits before exhaustion",
+		)
 	}
 
-	return status.ComponentStatus{
-		Name:    c.Name(),
-		Level:   status.HealthLevelHealthy,
-		Message: fmt.Sprintf("%d budgets, all healthy", summary.Total),
-		Details: details,
-	}
+	return componentStatus(c.Name(), status.HealthLevelHealthy, fmt.Sprintf("%d budgets, all healthy", summary.Total), details)
 }

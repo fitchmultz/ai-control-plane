@@ -60,43 +60,28 @@ func dbCommandSpec() *commandSpec {
 		},
 		Children: []*commandSpec{
 			makeLeafSpec("status", "Show database status and statistics", "db-status"),
-			{
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "backup",
 				Summary:     "Create database backup",
 				Description: "Backup the PostgreSQL database to a timestamped compressed file.",
 				Arguments: []commandArgumentSpec{
 					{Name: "backup-name", Summary: "Optional custom backup name"},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindDBBackupOptions,
-					NativeRun:  runDBBackup,
-				},
-			},
-			{
+				Bind: bindDBBackupOptions,
+				Run:  runDBBackup,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "restore",
 				Summary:     "Restore embedded database from backup",
 				Description: "Restore the PostgreSQL database from a backup file.",
 				Arguments: []commandArgumentSpec{
 					{Name: "backup-file", Summary: "Optional backup file path"},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindDBRestoreOptions,
-					NativeRun:  runDBRestore,
-				},
-			},
+				Bind: bindDBRestoreOptions,
+				Run:  runDBRestore,
+			}),
 			makeLeafSpec("shell", "Open database shell", "db-shell"),
-			{
-				Name:        "dr-drill",
-				Summary:     "Run database DR restore drill",
-				Description: "Run database disaster recovery drill.",
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindNoOptions,
-					NativeRun:  runDBDRDrillTyped,
-				},
-			},
+			newNativeLeafCommandSpec("dr-drill", "Run database DR restore drill", runDBDRDrillTyped),
 		},
 	}
 }

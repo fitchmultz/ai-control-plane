@@ -70,7 +70,7 @@ func benchmarkCommandSpec() *commandSpec {
 			"acpctl benchmark baseline --json",
 		},
 		Children: []*commandSpec{
-			{
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "baseline",
 				Summary:     "Run the local gateway performance baseline",
 				Description: "Run the local gateway performance baseline.",
@@ -102,12 +102,9 @@ func benchmarkCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindBenchmarkBaselineOptions,
-					NativeRun:  runBenchmarkBaseline,
-				},
-			},
+				Bind: bindBenchmarkBaselineOptions,
+				Run:  runBenchmarkBaseline,
+			}),
 		},
 	}
 }

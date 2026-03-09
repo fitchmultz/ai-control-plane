@@ -45,7 +45,7 @@ func ciCommandSpec() *commandSpec {
 			"acpctl ci wait --timeout 120",
 		},
 		Children: []*commandSpec{
-			{
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "should-run-runtime",
 				Summary:     "Decide whether runtime checks should run",
 				Description: "Determine whether CI runtime checks should run for the current change set.",
@@ -57,12 +57,9 @@ func ciCommandSpec() *commandSpec {
 					{Name: "path", ValueName: "PATH", Summary: "Add a changed path explicitly", Type: optionValueString, Repeatable: true},
 					{Name: "quiet", Short: "q", Summary: "Print no informational output", Type: optionValueBool},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindCIShouldRunRuntimeOptions,
-					NativeRun:  runCIShouldRunRuntime,
-				},
-			},
+				Bind: bindCIShouldRunRuntimeOptions,
+				Run:  runCIShouldRunRuntime,
+			}),
 			ciWaitCommandSpec(),
 		},
 	}

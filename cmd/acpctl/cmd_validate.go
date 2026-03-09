@@ -33,6 +33,15 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/validation"
 )
 
+type validationContracts struct {
+	Detections  contracts.DetectionRulesFile
+	SIEMQueries contracts.SIEMQueriesFile
+	LiteLLM     catalog.LiteLLMConfig
+	RulesPath   string
+	SIEMPath    string
+	LiteLLMPath string
+}
+
 type validateDetectionsOptions struct {
 	Verbose bool
 }
@@ -76,47 +85,39 @@ func validateCommandSpec() *commandSpec {
 }
 
 func validateDetectionsCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "detections",
-		Summary:     "Validate detection rule output",
-		Description: "Validate detection rule output.",
+	return newNativeCommandSpec(nativeCommandConfig{
+		Name:    "detections",
+		Summary: "Validate detection rule output",
 		Options: []commandOptionSpec{
 			{Name: "verbose", Short: "v", Summary: "Enable detailed output", Type: optionValueBool},
 		},
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
-				return validateDetectionsOptions{Verbose: input.Bool("verbose")}, nil
-			},
-			NativeRun: runValidateDetectionsTyped,
+		Bind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+			return validateDetectionsOptions{Verbose: input.Bool("verbose")}, nil
 		},
-	}
+		Run: runValidateDetectionsTyped,
+	})
 }
 
 func validateSIEMQueriesCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "siem-queries",
-		Summary:     "Validate SIEM query sync",
-		Description: "Validate SIEM query sync.",
+	return newNativeCommandSpec(nativeCommandConfig{
+		Name:    "siem-queries",
+		Summary: "Validate SIEM query sync",
 		Options: []commandOptionSpec{
 			{Name: "validate-schema", Summary: "Validate schema coverage", Type: optionValueBool},
 			{Name: "verbose", Short: "v", Summary: "Enable detailed output", Type: optionValueBool},
 		},
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
-				return validateSIEMQueriesOptions{
-					ValidateSchema: input.Bool("validate-schema"),
-					Verbose:        input.Bool("verbose"),
-				}, nil
-			},
-			NativeRun: runValidateSIEMQueriesTyped,
+		Bind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+			return validateSIEMQueriesOptions{
+				ValidateSchema: input.Bool("validate-schema"),
+				Verbose:        input.Bool("verbose"),
+			}, nil
 		},
-	}
+		Run: runValidateSIEMQueriesTyped,
+	})
 }
 
 func validateConfigCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newNativeCommandSpec(nativeCommandConfig{
 		Name:        "config",
 		Summary:     "Validate deployment configuration (use --production for host contract checks)",
 		Description: "Validate deployment configuration, including production host contract checks when --production is set.",
@@ -124,51 +125,21 @@ func validateConfigCommandSpec() *commandSpec {
 			{Name: "production", Summary: "Enforce the production deployment contract", Type: optionValueBool},
 			{Name: "secrets-env-file", ValueName: "PATH", Summary: "Canonical production secrets file", Type: optionValueString},
 		},
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindValidateConfigOptions,
-			NativeRun:  runValidateConfigTyped,
-		},
-	}
+		Bind: bindValidateConfigOptions,
+		Run:  runValidateConfigTyped,
+	})
 }
 
 func validateComposeHealthchecksCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "compose-healthchecks",
-		Summary:     "Validate Docker Compose healthchecks",
-		Description: "Validate Docker Compose healthchecks.",
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindNoOptions,
-			NativeRun:  runValidateComposeHealthchecksTyped,
-		},
-	}
+	return newNativeLeafCommandSpec("compose-healthchecks", "Validate Docker Compose healthchecks", runValidateComposeHealthchecksTyped)
 }
 
 func validateHeadersCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "headers",
-		Summary:     "Validate Go source file header policy",
-		Description: "Validate Go source file header policy.",
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindNoOptions,
-			NativeRun:  runValidateHeadersTyped,
-		},
-	}
+	return newNativeLeafCommandSpec("headers", "Validate Go source file header policy", runValidateHeadersTyped)
 }
 
 func validateEnvAccessCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "env-access",
-		Summary:     "Fail on direct environment access outside internal/config",
-		Description: "Fail on direct environment access outside internal/config.",
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindNoOptions,
-			NativeRun:  runValidateEnvAccessTyped,
-		},
-	}
+	return newNativeLeafCommandSpec("env-access", "Fail on direct environment access outside internal/config", runValidateEnvAccessTyped)
 }
 
 func bindValidateConfigOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
@@ -178,45 +149,60 @@ func bindValidateConfigOptions(_ commandBindContext, input parsedCommandInput) (
 	}, nil
 }
 
+func loadValidationContracts(repoRoot string) (validationContracts, error) {
+	artifacts := validationContracts{
+		RulesPath:   filepath.Join(repoRoot, detectionRulesRelativePath),
+		SIEMPath:    filepath.Join(repoRoot, siemQueriesRelativePath),
+		LiteLLMPath: filepath.Join(repoRoot, litellmConfigRelativePath),
+	}
+	var err error
+	if artifacts.Detections, err = contracts.LoadDetectionRulesFile(artifacts.RulesPath); err != nil {
+		return validationContracts{}, fmt.Errorf("failed to load detection rules: %w", err)
+	}
+	if artifacts.SIEMQueries, err = contracts.LoadSIEMQueriesFile(artifacts.SIEMPath); err != nil {
+		return validationContracts{}, fmt.Errorf("failed to load SIEM query mappings: %w", err)
+	}
+	if artifacts.LiteLLM, err = catalog.LoadLiteLLMConfig(artifacts.LiteLLMPath); err != nil {
+		return validationContracts{}, fmt.Errorf("failed to load LiteLLM config: %w", err)
+	}
+	return artifacts, nil
+}
+
+func printValidationContractPaths(stdout *os.File, contracts validationContracts) {
+	fmt.Fprintf(stdout, "Detection rules: %s\n", contracts.RulesPath)
+	fmt.Fprintf(stdout, "SIEM query mappings: %s\n", contracts.SIEMPath)
+	fmt.Fprintf(stdout, "Approved models source: %s\n", contracts.LiteLLMPath)
+}
+
+func printValidationIssues(stderr *os.File, issues []string, failureMessage string, out *output.Output) int {
+	for _, issue := range issues {
+		fmt.Fprintf(stderr, "- %s\n", issue)
+	}
+	if failureMessage != "" {
+		fmt.Fprintln(stderr, out.Fail(failureMessage))
+	}
+	return exitcodes.ACPExitDomain
+}
+
 func runValidateDetectionsTyped(_ context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(validateDetectionsOptions)
 	out := output.New()
 	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Detection Rules Validation ==="))
-	repoRoot := runCtx.RepoRoot
-	rulesPath := filepath.Join(repoRoot, detectionRulesRelativePath)
-	siemPath := filepath.Join(repoRoot, siemQueriesRelativePath)
-	litellmPath := filepath.Join(repoRoot, litellmConfigRelativePath)
-	detections, err := contracts.LoadDetectionRulesFile(rulesPath)
+	artifacts, err := loadValidationContracts(runCtx.RepoRoot)
 	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to load detection rules: %v\n"), err)
-		return mapValidationLoadExitCode(err)
-	}
-	siemQueries, err := contracts.LoadSIEMQueriesFile(siemPath)
-	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to load SIEM query mappings: %v\n"), err)
-		return mapValidationLoadExitCode(err)
-	}
-	litellmConfig, err := catalog.LoadLiteLLMConfig(litellmPath)
-	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to load LiteLLM config: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return mapValidationLoadExitCode(err)
 	}
 	if opts.Verbose {
-		fmt.Fprintf(runCtx.Stdout, "Detection rules: %s\n", rulesPath)
-		fmt.Fprintf(runCtx.Stdout, "SIEM query mappings: %s\n", siemPath)
-		fmt.Fprintf(runCtx.Stdout, "Approved models source: %s\n", litellmPath)
+		printValidationContractPaths(runCtx.Stdout, artifacts)
 	}
-	issues := contracts.ValidateDetectionContracts(detections, siemQueries, litellmConfig)
+	issues := contracts.ValidateDetectionContracts(artifacts.Detections, artifacts.SIEMQueries, artifacts.LiteLLM)
 	if len(issues) > 0 {
-		for _, issue := range issues {
-			fmt.Fprintf(runCtx.Stderr, "- %s\n", issue)
-		}
-		fmt.Fprintln(runCtx.Stderr, out.Fail("Detection validation failed"))
-		return exitcodes.ACPExitDomain
+		return printValidationIssues(runCtx.Stderr, issues, "Detection validation failed", out)
 	}
 	validatedCount := 0
 	decisionGradeCount := 0
-	for _, rule := range detections.DetectionRules {
+	for _, rule := range artifacts.Detections.DetectionRules {
 		if strings.EqualFold(rule.OperationalStatus, "validated") {
 			validatedCount++
 		}
@@ -224,7 +210,7 @@ func runValidateDetectionsTyped(_ context.Context, runCtx commandRunContext, raw
 			decisionGradeCount++
 		}
 	}
-	fmt.Fprintf(runCtx.Stdout, "Validated %d detection rule(s) (%d validated, %d decision-grade)\n", len(detections.DetectionRules), validatedCount, decisionGradeCount)
+	fmt.Fprintf(runCtx.Stdout, "Validated %d detection rule(s) (%d validated, %d decision-grade)\n", len(artifacts.Detections.DetectionRules), validatedCount, decisionGradeCount)
 	fmt.Fprintln(runCtx.Stdout, out.Green("Detection rules validation passed"))
 	return exitcodes.ACPExitSuccess
 }
@@ -233,39 +219,19 @@ func runValidateSIEMQueriesTyped(_ context.Context, runCtx commandRunContext, ra
 	opts := raw.(validateSIEMQueriesOptions)
 	out := output.New()
 	fmt.Fprintln(runCtx.Stdout, out.Bold("=== SIEM Queries Validation ==="))
-	repoRoot := runCtx.RepoRoot
-	rulesPath := filepath.Join(repoRoot, detectionRulesRelativePath)
-	siemPath := filepath.Join(repoRoot, siemQueriesRelativePath)
-	litellmPath := filepath.Join(repoRoot, litellmConfigRelativePath)
-	detections, err := contracts.LoadDetectionRulesFile(rulesPath)
+	artifacts, err := loadValidationContracts(runCtx.RepoRoot)
 	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to load detection rules: %v\n"), err)
-		return mapValidationLoadExitCode(err)
-	}
-	siemQueries, err := contracts.LoadSIEMQueriesFile(siemPath)
-	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to load SIEM query mappings: %v\n"), err)
-		return mapValidationLoadExitCode(err)
-	}
-	litellmConfig, err := catalog.LoadLiteLLMConfig(litellmPath)
-	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to load LiteLLM config: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return mapValidationLoadExitCode(err)
 	}
 	if opts.Verbose {
-		fmt.Fprintf(runCtx.Stdout, "Detection rules: %s\n", rulesPath)
-		fmt.Fprintf(runCtx.Stdout, "SIEM query mappings: %s\n", siemPath)
-		fmt.Fprintf(runCtx.Stdout, "Approved models source: %s\n", litellmPath)
+		printValidationContractPaths(runCtx.Stdout, artifacts)
 	}
-	issues := contracts.ValidateSIEMContracts(detections, siemQueries, litellmConfig, opts.ValidateSchema)
+	issues := contracts.ValidateSIEMContracts(artifacts.Detections, artifacts.SIEMQueries, artifacts.LiteLLM, opts.ValidateSchema)
 	if len(issues) > 0 {
-		for _, issue := range issues {
-			fmt.Fprintf(runCtx.Stderr, "- %s\n", issue)
-		}
-		fmt.Fprintln(runCtx.Stderr, out.Fail("SIEM query validation failed"))
-		return exitcodes.ACPExitDomain
+		return printValidationIssues(runCtx.Stderr, issues, "SIEM query validation failed", out)
 	}
-	fmt.Fprintf(runCtx.Stdout, "Validated %d SIEM mapping(s) against %d enabled detection rule(s)\n", len(siemQueries.SIEMQueries), contracts.CountEnabledDetectionRules(detections))
+	fmt.Fprintf(runCtx.Stdout, "Validated %d SIEM mapping(s) against %d enabled detection rule(s)\n", len(artifacts.SIEMQueries.SIEMQueries), contracts.CountEnabledDetectionRules(artifacts.Detections))
 	if opts.ValidateSchema {
 		fmt.Fprintln(runCtx.Stdout, "Schema mapping coverage validated")
 	}
@@ -317,11 +283,7 @@ func runValidateComposeHealthchecksTyped(_ context.Context, runCtx commandRunCon
 		fmt.Fprintln(runCtx.Stdout, out.Green("Healthcheck validation passed"))
 		return exitcodes.ACPExitSuccess
 	}
-	for _, issue := range issues {
-		fmt.Fprintf(runCtx.Stderr, "- %s\n", issue)
-	}
-	fmt.Fprintln(runCtx.Stderr, out.Fail("Healthcheck validation failed"))
-	return exitcodes.ACPExitDomain
+	return printValidationIssues(runCtx.Stderr, issues, "Healthcheck validation failed", out)
 }
 
 func runValidateHeadersTyped(_ context.Context, runCtx commandRunContext, _ any) int {

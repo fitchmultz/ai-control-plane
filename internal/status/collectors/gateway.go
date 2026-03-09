@@ -64,69 +64,34 @@ func (c GatewayCollector) Collect(ctx context.Context) status.ComponentStatus {
 	}
 
 	if !state.MasterKeyConfigured {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelWarning,
-			Message: "LITELLM_MASTER_KEY not set; authorized gateway checks skipped",
-			Details: details,
-			Suggestions: []string{
-				"Set LITELLM_MASTER_KEY in demo/.env or your shell environment",
-				"Re-run: make health",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelWarning, "LITELLM_MASTER_KEY not set; authorized gateway checks skipped", details,
+			"Set LITELLM_MASTER_KEY in demo/.env or your shell environment",
+			"Re-run: make health",
+		)
 	}
 
 	if state.Health.Error != "" {
-		details.Error = state.Health.Error
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnhealthy,
-			Message: fmt.Sprintf("Gateway unreachable: %s", state.Health.Error),
-			Details: details,
-			Suggestions: []string{
-				"Check if services are running: make ps",
-				"View gateway logs: make logs",
-				"Start services: make up",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelUnhealthy, fmt.Sprintf("Gateway unreachable: %s", state.Health.Error), withDetailError(details, fmt.Errorf("%s", state.Health.Error)),
+			"Check if services are running: make ps",
+			"View gateway logs: make logs",
+			"Start services: make up",
+		)
 	}
 
 	if !state.Health.Healthy {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelUnhealthy,
-			Message: fmt.Sprintf("Gateway returned status %d", state.Health.HTTPStatus),
-			Details: details,
-			Suggestions: []string{
-				"Check gateway logs: make logs",
-				"Restart services: make restart",
-			},
-		}
+		return componentStatus(c.Name(), status.HealthLevelUnhealthy, fmt.Sprintf("Gateway returned status %d", state.Health.HTTPStatus), details,
+			"Check gateway logs: make logs",
+			"Restart services: make restart",
+		)
 	}
 
 	if state.Models.Error != "" {
-		details.Error = state.Models.Error
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelWarning,
-			Message: "Gateway responding, but models endpoint unreachable",
-			Details: details,
-		}
+		return componentStatus(c.Name(), status.HealthLevelWarning, "Gateway responding, but models endpoint unreachable", withDetailError(details, fmt.Errorf("%s", state.Models.Error)))
 	}
 
 	if !state.Models.Healthy {
-		return status.ComponentStatus{
-			Name:    c.Name(),
-			Level:   status.HealthLevelWarning,
-			Message: fmt.Sprintf("Models endpoint returned status %d", state.Models.HTTPStatus),
-			Details: details,
-		}
+		return componentStatus(c.Name(), status.HealthLevelWarning, fmt.Sprintf("Models endpoint returned status %d", state.Models.HTTPStatus), details)
 	}
 
-	return status.ComponentStatus{
-		Name:    c.Name(),
-		Level:   status.HealthLevelHealthy,
-		Message: "Gateway is responding",
-		Details: details,
-	}
+	return componentStatus(c.Name(), status.HealthLevelHealthy, "Gateway is responding", details)
 }
