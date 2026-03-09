@@ -21,12 +21,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/testutil"
 )
 
 type fakeKeyGenerator struct {
@@ -151,11 +150,5 @@ func TestRun_VerifyChecksGatewayEndpoints(t *testing.T) {
 
 func writeEnvFixture(t *testing.T, repoRoot string) {
 	t.Helper()
-	path := filepath.Join(repoRoot, "demo", ".env")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir env dir: %v", err)
-	}
-	if err := os.WriteFile(path, []byte("LITELLM_MASTER_KEY=sk-master-test-12345\n"), 0o644); err != nil {
-		t.Fatalf("write env file: %v", err)
-	}
+	testutil.WriteRepoFile(t, repoRoot, "demo/.env", "LITELLM_MASTER_KEY=sk-master-test-12345\n")
 }

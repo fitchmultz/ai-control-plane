@@ -29,25 +29,17 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/testutil"
 )
 
 func mustClientForServer(t *testing.T, server *httptest.Server, opts ...Option) *Client {
 	t.Helper()
-	parsed, err := url.Parse(server.URL)
-	if err != nil {
-		t.Fatalf("failed to parse server URL: %v", err)
-	}
-
-	port, err := strconv.Atoi(parsed.Port())
-	if err != nil {
-		t.Fatalf("failed to parse server port: %v", err)
-	}
+	host, port := testutil.HostPortFromURL(t, server.URL)
 
 	baseOpts := []Option{
-		WithHost(parsed.Hostname()),
+		WithHost(host),
 		WithPort(port),
 	}
 	baseOpts = append(baseOpts, opts...)

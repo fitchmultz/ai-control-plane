@@ -20,10 +20,10 @@ package main
 import (
 	"bytes"
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/testutil"
 )
 
 func captureCompletionScript(t *testing.T, shell string) string {
@@ -46,7 +46,5 @@ func captureCompletionScript(t *testing.T, shell string) string {
 
 func writeCompletionConfigFile(t *testing.T, repoRoot string, relativePath string, contents string) string {
 	t.Helper()
-	path := filepath.Join(repoRoot, relativePath)
-	writeFile(t, path, contents)
-	return path
+	return testutil.WriteRepoFile(t, repoRoot, relativePath, contents)
 }

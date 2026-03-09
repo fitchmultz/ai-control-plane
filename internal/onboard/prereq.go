@@ -38,7 +38,7 @@ func loadPrerequisites(opts Options) (prerequisites, error) {
 	if _, err := os.Stat(envPath); err != nil {
 		return prerequisites{}, fmt.Errorf("missing %s. Run: make install-env", envPath)
 	}
-	masterKey := config.NewLoader().Gateway(true).MasterKey
+	masterKey := config.NewLoader().WithRepoRoot(opts.RepoRoot).Gateway(true).MasterKey
 	if strings.TrimSpace(masterKey) == "" {
 		return prerequisites{}, fmt.Errorf("LITELLM_MASTER_KEY is not set (%s)", envPath)
 	}
