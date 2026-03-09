@@ -42,7 +42,7 @@ func readinessEvidenceCommandSpec() *commandSpec {
 		Summary:     "Generate and verify dated readiness evidence",
 		Description: "Generate and verify timestamped readiness evidence packs for enterprise review.",
 		Children: []*commandSpec{
-			{
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "run",
 				Summary:     "Generate a new readiness evidence run",
 				Description: "Generate a new readiness evidence run.",
@@ -53,25 +53,19 @@ func readinessEvidenceCommandSpec() *commandSpec {
 					{Name: "secrets-env-file", ValueName: "PATH", Summary: "Secrets file for production gate", Type: optionValueString, DefaultText: "/etc/ai-control-plane/secrets.env"},
 					{Name: "verbose", Summary: "Reserved for future verbose rendering", Type: optionValueBool},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindReadinessEvidenceRunOptions,
-					NativeRun:  runReadinessEvidenceRunTyped,
-				},
-			},
-			{
+				Bind: bindReadinessEvidenceRunOptions,
+				Run:  runReadinessEvidenceRunTyped,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "verify",
 				Summary:     "Verify a generated readiness evidence directory",
 				Description: "Verify a generated readiness evidence directory.",
 				Options: []commandOptionSpec{
 					{Name: "run-dir", ValueName: "DIR", Summary: "Specific readiness run directory to verify", Type: optionValueString},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindReadinessEvidenceVerifyOptions,
-					NativeRun:  runReadinessEvidenceVerifyTyped,
-				},
-			},
+				Bind: bindReadinessEvidenceVerifyOptions,
+				Run:  runReadinessEvidenceVerifyTyped,
+			}),
 		},
 	}
 }

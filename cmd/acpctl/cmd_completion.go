@@ -53,35 +53,27 @@ func completionCommandSpec() *commandSpec {
 }
 
 func completionShellSpec(name string, summary string) *commandSpec {
-	return &commandSpec{
-		Name:        name,
-		Summary:     summary,
-		Description: summary + ".",
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindStaticOptions(completionShellOptions{Shell: name}),
-			NativeRun:  runCompletionShellCommand,
-		},
-	}
+	return newNativeCommandSpec(nativeCommandConfig{
+		Name:    name,
+		Summary: summary,
+		Bind:    bindStaticOptions(completionShellOptions{Shell: name}),
+		Run:     runCompletionShellCommand,
+	})
 }
 
 func hiddenCompleteCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newNativeCommandSpec(nativeCommandConfig{
 		Name:              "__complete",
 		Summary:           "Hidden shell completion helper",
-		Description:       "Hidden shell completion helper.",
 		Hidden:            true,
 		AllowTrailingArgs: true,
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
-				words := append([]string(nil), input.Arguments()...)
-				words = append(words, input.Trailing()...)
-				return hiddenCompleteOptions{Words: words}, nil
-			},
-			NativeRun: runHiddenComplete,
+		Bind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+			words := append([]string(nil), input.Arguments()...)
+			words = append(words, input.Trailing()...)
+			return hiddenCompleteOptions{Words: words}, nil
 		},
-	}
+		Run: runHiddenComplete,
+	})
 }
 
 func runCompletionShellCommand(ctx context.Context, runCtx commandRunContext, raw any) int {

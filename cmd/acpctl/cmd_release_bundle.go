@@ -41,7 +41,7 @@ func releaseBundleCommandSpec() *commandSpec {
 		Summary:     "Build deployment release bundle",
 		Description: "Build and verify versioned deployment handoff bundles.",
 		Children: []*commandSpec{
-			{
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "build",
 				Summary:     "Build a versioned deployment bundle",
 				Description: "Build a versioned deployment bundle with checksums and install manifest.",
@@ -50,13 +50,10 @@ func releaseBundleCommandSpec() *commandSpec {
 					{Name: "output-dir", ValueName: "DIR", Summary: "Output directory for the bundle", Type: optionValueString, DefaultText: "demo/logs/release-bundles"},
 					{Name: "verbose", Summary: "Enable verbose output", Type: optionValueBool},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindReleaseBundleBuildOptions,
-					NativeRun:  runReleaseBundleBuildTyped,
-				},
-			},
-			{
+				Bind: bindReleaseBundleBuildOptions,
+				Run:  runReleaseBundleBuildTyped,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "verify",
 				Summary:     "Verify bundle integrity using checksums",
 				Description: "Verify bundle integrity using sha256 checksums.",
@@ -64,12 +61,9 @@ func releaseBundleCommandSpec() *commandSpec {
 					{Name: "bundle", ValueName: "PATH", Summary: "Path to the tarball to verify", Type: optionValueString, Required: true},
 					{Name: "verbose", Summary: "Enable verbose output", Type: optionValueBool},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindReleaseBundleVerifyOptions,
-					NativeRun:  runReleaseBundleVerifyTyped,
-				},
-			},
+				Bind: bindReleaseBundleVerifyOptions,
+				Run:  runReleaseBundleVerifyTyped,
+			}),
 		},
 	}
 }

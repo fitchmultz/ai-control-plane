@@ -38,7 +38,7 @@ func pilotCloseoutBundleCommandSpec() *commandSpec {
 		Summary:     "Assemble and verify a pilot closeout evidence bundle",
 		Description: "Assemble and verify a pilot closeout evidence bundle.",
 		Children: []*commandSpec{
-			{
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "build",
 				Summary:     "Assemble a local pilot closeout bundle",
 				Description: "Assemble a local pilot closeout bundle.",
@@ -53,25 +53,19 @@ func pilotCloseoutBundleCommandSpec() *commandSpec {
 					{Name: "operator-checklist", ValueName: "PATH", Summary: "Optional operator handoff checklist source document", Type: optionValueString},
 					{Name: "readiness-run-dir", ValueName: "DIR", Summary: "Specific readiness evidence run to include", Type: optionValueString},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindPilotCloseoutBuildOptions,
-					NativeRun:  runPilotCloseoutBundleBuildTyped,
-				},
-			},
-			{
+				Bind: bindPilotCloseoutBuildOptions,
+				Run:  runPilotCloseoutBundleBuildTyped,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "verify",
 				Summary:     "Verify a generated pilot closeout bundle",
 				Description: "Verify a generated pilot closeout bundle.",
 				Options: []commandOptionSpec{
 					{Name: "run-dir", ValueName: "DIR", Summary: "Specific pilot closeout bundle directory to verify", Type: optionValueString},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindPilotCloseoutVerifyOptions,
-					NativeRun:  runPilotCloseoutBundleVerifyTyped,
-				},
-			},
+				Bind: bindPilotCloseoutVerifyOptions,
+				Run:  runPilotCloseoutBundleVerifyTyped,
+			}),
 		},
 	}
 }

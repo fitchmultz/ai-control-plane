@@ -34,7 +34,7 @@ func chargebackCommandSpec() *commandSpec {
 			"acpctl chargeback payload --target generic",
 		},
 		Children: []*commandSpec{
-			{
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "report",
 				Summary:     "Generate canonical chargeback report artifacts",
 				Description: "Generate monthly chargeback artifacts from the typed database/report workflow.",
@@ -68,13 +68,10 @@ func chargebackCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindChargebackReportOptions,
-					NativeRun:  runChargebackReportCommand,
-				},
-			},
-			{
+				Bind: bindChargebackReportOptions,
+				Run:  runChargebackReportCommand,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "render",
 				Summary:     "Render canonical chargeback JSON or CSV",
 				Description: "Render machine-safe chargeback outputs from environment-provided inputs.",
@@ -116,13 +113,10 @@ func chargebackCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindChargebackRenderOptions,
-					NativeRun:  runChargebackRenderCommand,
-				},
-			},
-			{
+				Bind: bindChargebackRenderOptions,
+				Run:  runChargebackRenderCommand,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "payload",
 				Summary:     "Render canonical chargeback webhook payload JSON",
 				Description: "Render webhook payload JSON from environment-provided inputs.",
@@ -148,12 +142,9 @@ func chargebackCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Backend: commandBackend{
-					Kind:       commandBackendNative,
-					NativeBind: bindChargebackPayloadOptions,
-					NativeRun:  runChargebackPayloadCommand,
-				},
-			},
+				Bind: bindChargebackPayloadOptions,
+				Run:  runChargebackPayloadCommand,
+			}),
 		},
 	}
 }
