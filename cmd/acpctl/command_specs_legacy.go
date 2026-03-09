@@ -1,47 +1,24 @@
-// command_specs_legacy.go - Transitional command spec wiring for existing handlers.
+// command_specs_legacy.go - Delegated command metadata helpers.
 //
 // Purpose:
 //
-//	Attach existing acpctl command handlers and delegated commands to the new
-//	typed command-spec tree while keeping ownership metadata in one place.
+//	Provide typed specs for Make-backed and bridge-backed command families that
+//	remain intentionally delegated outside the native CLI runtime.
 //
 // Responsibilities:
-//   - Build command specs for domains not fully migrated in this refactor.
-//   - Adapt legacy native handlers to the typed command backend contract.
-//   - Preserve existing Make and bridge delegation paths under the spec layer.
+//   - Define reusable delegated spec helpers.
+//   - Compose delegated deploy, host, demo, terraform, and bridge command trees.
+//   - Keep delegated command metadata inside the typed command registry.
 //
 // Scope:
-//   - Command metadata and backend wiring only.
+//   - Command metadata and delegated backend wiring only.
 //
 // Usage:
 //   - Consumed by command_registry.go when composing the root command tree.
 //
 // Invariants/Assumptions:
-//   - Even transitional commands resolve only through the typed command-spec tree.
+//   - Native command parsing/help/completion ownership lives in typed specs elsewhere.
 package main
-
-import (
-	"context"
-	"os"
-)
-
-type rawArgsOptions struct {
-	Args []string
-}
-
-func legacyNativeBackend(runner func(context.Context, []string, *os.File, *os.File) int) commandBackend {
-	return commandBackend{
-		Kind: commandBackendNative,
-		NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
-			args := append([]string(nil), input.arguments...)
-			args = append(args, input.trailing...)
-			return rawArgsOptions{Args: args}, nil
-		},
-		NativeRun: func(ctx context.Context, runCtx commandRunContext, raw any) int {
-			return runner(ctx, raw.(rawArgsOptions).Args, runCtx.Stdout, runCtx.Stderr)
-		},
-	}
-}
 
 func makeLeafSpec(name string, summary string, target string) *commandSpec {
 	return &commandSpec{
@@ -74,67 +51,6 @@ func bridgeLeafSpecWithArgs(name string, summary string, relativePath string, br
 	}
 }
 
-func envCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "env",
-		Summary:     "Strict .env access helpers",
-		Description: "Strict .env access helpers.",
-		Examples: []string{
-			"acpctl env get LITELLM_MASTER_KEY",
-			"acpctl env get --file demo/.env DATABASE_URL",
-		},
-		Children: []*commandSpec{
-			{
-				Name:              "get",
-				Summary:           "Read a single env key without shell execution",
-				Description:       "Read a single env key without shell execution.",
-				AllowTrailingArgs: true,
-				Backend:           legacyNativeBackend(runEnvGetCommand),
-			},
-		},
-	}
-}
-
-func statusCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:              "status",
-		Summary:           "Aggregated system health overview",
-		Description:       "Aggregated system health overview.",
-		AllowTrailingArgs: true,
-		Backend:           legacyNativeBackend(runStatusCommand),
-	}
-}
-
-func healthCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:              "health",
-		Summary:           "Run service health checks",
-		Description:       "Run service health checks.",
-		AllowTrailingArgs: true,
-		Backend:           legacyNativeBackend(runHealthCommand),
-	}
-}
-
-func doctorCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:              "doctor",
-		Summary:           "Environment preflight diagnostics",
-		Description:       "Environment preflight diagnostics.",
-		AllowTrailingArgs: true,
-		Backend:           legacyNativeBackend(runDoctorCommand),
-	}
-}
-
-func onboardCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:              "onboard",
-		Summary:           "Configure local tools to route through the gateway",
-		Description:       "Configure local tools to route through the gateway.",
-		AllowTrailingArgs: true,
-		Backend:           legacyNativeBackend(runOnboardCommand),
-	}
-}
-
 func deployCommandSpec() *commandSpec {
 	return &commandSpec{
 		Name:        "deploy",
@@ -144,7 +60,7 @@ func deployCommandSpec() *commandSpec {
 			"acpctl deploy up",
 			"acpctl deploy health",
 			"acpctl deploy up-production",
-			"acpctl deploy up-tls",
+			"acpctl deploy readiness-evidence run",
 		},
 		Children: []*commandSpec{
 			makeLeafSpec("up", "Start default services", "up"),
@@ -162,86 +78,12 @@ func deployCommandSpec() *commandSpec {
 			makeLeafSpec("down-tls", "Stop TLS mode services", "down-tls"),
 			makeLeafSpec("tls-health", "Run TLS health checks", "tls-health"),
 			makeLeafSpec("helm-validate", "Validate Helm chart", "helm-validate"),
-			{Name: "release-bundle", Summary: "Build deployment release bundle", Description: "Build deployment release bundle.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runReleaseBundleCommand)},
-			{Name: "readiness-evidence", Summary: "Generate and verify dated readiness evidence", Description: "Generate and verify dated readiness evidence.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runReadinessEvidenceCommand)},
-			{Name: "pilot-closeout-bundle", Summary: "Assemble and verify a pilot closeout evidence bundle", Description: "Assemble and verify a pilot closeout evidence bundle.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runPilotCloseoutBundleCommand)},
-			{Name: "artifact-retention", Summary: "Enforce document artifact retention policy", Description: "Enforce document artifact retention policy.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runArtifactRetentionCommand)},
+			releaseBundleCommandSpec(),
+			readinessEvidenceCommandSpec(),
+			pilotCloseoutBundleCommandSpec(),
+			artifactRetentionCommandSpec(),
 		},
 	}
-}
-
-func validateCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "validate",
-		Summary:     "Configuration and policy validation operations",
-		Description: "Configuration and policy validation operations.",
-		Examples: []string{
-			"acpctl validate config",
-			"acpctl validate config --production --secrets-env-file /etc/ai-control-plane/secrets.env",
-			"acpctl validate lint",
-			"acpctl validate detections",
-		},
-		Children: []*commandSpec{
-			makeLeafSpec("lint", "Run static validation/lint gate", "lint"),
-			{Name: "config", Summary: "Validate deployment configuration (use --production for host contract checks)", Description: "Validate deployment configuration, including production host contract checks when --production is set.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateConfig)},
-			{Name: "detections", Summary: "Validate detection rule output", Description: "Validate detection rule output.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateDetections)},
-			{Name: "siem-queries", Summary: "Validate SIEM query sync", Description: "Validate SIEM query sync.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateSiemQueries)},
-			{Name: "public-hygiene", Summary: "Fail when local-only files are tracked by git", Description: "Fail when local-only files are tracked by git.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidatePublicHygiene)},
-			{Name: "license", Summary: "Validate license policy structure and restricted references", Description: "Validate license policy structure and restricted references.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateLicense)},
-			{Name: "supply-chain", Summary: "Run supply-chain policy and digest validation", Description: "Run supply-chain policy and digest validation.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateSupplyChain)},
-			{Name: "secrets-audit", Summary: "Run deterministic tracked-file secrets audit", Description: "Run deterministic tracked-file secrets audit.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runSecretsAudit)},
-			{Name: "compose-healthchecks", Summary: "Validate Docker Compose healthchecks", Description: "Validate Docker Compose healthchecks.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateComposeHealthchecks)},
-			{Name: "headers", Summary: "Validate Go source file header policy", Description: "Validate Go source file header policy.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateHeaders)},
-			{Name: "env-access", Summary: "Fail on direct environment access outside internal/config", Description: "Fail on direct environment access outside internal/config.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runValidateEnvAccess)},
-			makeLeafSpec("security", "Run Make-composed security gate (hygiene, secrets, license, supply chain)", "security-gate"),
-		},
-	}
-}
-
-func dbCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "db",
-		Summary:     "Database backup, restore, and inspection operations",
-		Description: "Database backup, restore, and inspection operations.",
-		Examples: []string{
-			"acpctl db status",
-			"acpctl db backup",
-			"acpctl db dr-drill",
-		},
-		Children: []*commandSpec{
-			makeLeafSpec("status", "Show database status and statistics", "db-status"),
-			{Name: "backup", Summary: "Create database backup", Description: "Create database backup.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runDBBackupCommand)},
-			{Name: "restore", Summary: "Restore embedded database from backup", Description: "Restore embedded database from backup.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runDBRestoreCommand)},
-			makeLeafSpec("shell", "Open database shell", "db-shell"),
-			{Name: "dr-drill", Summary: "Run database DR restore drill", Description: "Run database DR restore drill.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runDBDRDrill)},
-		},
-	}
-}
-
-func keyCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "key",
-		Summary:     "Virtual key lifecycle operations",
-		Description: "Virtual key lifecycle operations.",
-		Examples: []string{
-			"acpctl key gen alice --budget 10.00",
-			"acpctl key revoke alice",
-		},
-		Children: []*commandSpec{
-			{Name: "gen", Summary: "Generate a standard virtual key", Description: "Generate a standard virtual key.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runKeyGenCommand)},
-			{Name: "revoke", Summary: "Revoke a virtual key by alias", Description: "Revoke a virtual key by alias.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runKeyRevokeCommand)},
-			{Name: "gen-dev", Summary: "Generate a developer key", Description: "Generate a developer key.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runDeveloperKeyGenLegacy)},
-			{Name: "gen-lead", Summary: "Generate a team-lead key", Description: "Generate a team-lead key.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runLeadKeyGenLegacy)},
-		},
-	}
-}
-
-func runDeveloperKeyGenLegacy(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runKeyGenCommand(ctx, append([]string{"--role", "developer"}, args...), stdout, stderr)
-}
-
-func runLeadKeyGenLegacy(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runKeyGenCommand(ctx, append([]string{"--role", "team-lead"}, args...), stdout, stderr)
 }
 
 func hostCommandSpec() *commandSpec {
@@ -267,15 +109,6 @@ func hostCommandSpec() *commandSpec {
 			bridgeLeafSpecWithArgs("service-restart", "Restart the systemd service", "scripts/libexec/host_install_impl.sh", "service-restart"),
 			bridgeLeafSpec("secrets-refresh", "Validate and sync canonical host secrets into the Compose runtime env file", "scripts/libexec/prepare_secrets_env_impl.sh"),
 		},
-	}
-}
-
-func smokeCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "smoke",
-		Summary:     "Run truthful runtime smoke checks",
-		Description: "Run truthful runtime smoke checks against the active ACP deployment.",
-		Backend:     legacyNativeBackend(runSmokeTestCommand),
 	}
 }
 
@@ -315,22 +148,6 @@ func terraformCommandSpec() *commandSpec {
 			makeLeafSpec("destroy", "Run Terraform destroy", "tf-destroy"),
 			makeLeafSpec("fmt", "Format Terraform files", "tf-fmt"),
 			makeLeafSpec("validate", "Validate Terraform configuration", "tf-validate"),
-		},
-	}
-}
-
-func helmCommandSpec() *commandSpec {
-	return &commandSpec{
-		Name:        "helm",
-		Summary:     "Helm chart validation and smoke gates",
-		Description: "Helm chart validation and smoke gates.",
-		Examples: []string{
-			"acpctl helm validate",
-			"acpctl helm smoke",
-		},
-		Children: []*commandSpec{
-			{Name: "validate", Summary: "Validate Helm deployment surfaces", Description: "Validate Helm deployment surfaces and run helm lint.", Backend: legacyNativeBackend(runHelmValidateCommand)},
-			{Name: "smoke", Summary: "Run truthful Helm smoke validation", Description: "Run truthful Helm smoke validation for repository-managed deployment surfaces.", Backend: legacyNativeBackend(runHelmSmokeCommand)},
 		},
 	}
 }

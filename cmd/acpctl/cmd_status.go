@@ -1,14 +1,14 @@
 // cmd_status.go - Status subcommand implementation
 //
-// Purpose: Implement system health status collection and display
+// Purpose: Implement system health status collection and display.
 // Responsibilities:
-//   - Parse status flags (json, wide, watch)
-//   - Collect status from all domains
-//   - Format and display status output
+//   - Define the typed status command surface.
+//   - Collect status from all domains.
+//   - Format and display status output.
 //
 // Non-scope:
-//   - Does not modify system state
-//   - Does not execute remediation actions
+//   - Does not modify system state.
+//   - Does not execute remediation actions.
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -18,15 +18,12 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-
 package main
 
 import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
@@ -35,98 +32,96 @@ import (
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
 )
 
-func printStatusHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl status [OPTIONS]
+type statusOptions struct {
+	JSON     bool
+	Wide     bool
+	Watch    bool
+	Interval int
+}
 
-Display aggregated system health status across all domains.
+type statusInspector interface {
+	Collect(context.Context, status.Options) status.StatusReport
+	Close() error
+}
 
-Options:
-  --json       Output in JSON format
-  --wide, -w   Show extended details
-  --watch, -n  Watch mode - continuous monitoring (interval in seconds, default: 2)
-  --help, -h   Show this help message
+var newStatusInspector = func(repoRoot string) statusInspector {
+	return runtimeinspect.NewInspector(repoRoot)
+}
 
-Examples:
-  acpctl status              # Show human-readable status summary
-  acpctl status --json       # Output JSON for programmatic use
-  acpctl status --wide       # Show detailed information
-  acpctl status --watch      # Continuous monitoring (2 second interval)
-  acpctl status --watch=5    # Continuous monitoring (5 second interval)
+func statusCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "status",
+		Summary:     "Aggregated system health overview",
+		Description: "Display aggregated system health status across all domains.",
+		Examples: []string{
+			"acpctl status",
+			"acpctl status --json",
+			"acpctl status --wide",
+			"acpctl status --watch --interval 5",
+		},
+		Options: []commandOptionSpec{
+			{Name: "json", Summary: "Output in JSON format", Type: optionValueBool},
+			{Name: "wide", Short: "w", Summary: "Show extended details", Type: optionValueBool},
+			{Name: "watch", Short: "n", Summary: "Enable watch mode", Type: optionValueBool},
+			{Name: "interval", ValueName: "SECONDS", Summary: "Watch interval in seconds", Type: optionValueInt, DefaultText: "2"},
+		},
+		Sections: []commandHelpSection{
+			{
+				Title: "Watch mode",
+				Lines: []string{
+					"Press Ctrl+C to exit watch mode.",
+				},
+			},
+		},
+		Backend: commandBackend{
+			Kind:       commandBackendNative,
+			NativeBind: bindStatusOptions,
+			NativeRun:  runStatus,
+		},
+	}
+}
 
-Exit codes:
-  0   All systems healthy
-  1   One or more systems unhealthy (domain non-success)
-  2   Prerequisites not ready (docker not installed)
-  3   Runtime/internal error
-  64  Usage error
+func bindStatusOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	interval := 2
+	if input.String("interval") != "" {
+		value, err := input.Int("interval")
+		if err != nil || value < 1 {
+			return nil, fmt.Errorf("invalid --interval value: %q (must be a positive integer)", input.String("interval"))
+		}
+		interval = value
+	}
+	return statusOptions{
+		JSON:     input.Bool("json"),
+		Wide:     input.Bool("wide"),
+		Watch:    input.Bool("watch"),
+		Interval: interval,
+	}, nil
+}
 
-Watch Mode:
-  Press Ctrl+C to exit watch mode.
-`)
+func runStatus(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(statusOptions)
+	if runCtx.RepoRoot == "" {
+		fmt.Fprintln(runCtx.Stderr, "Error: failed to detect repository root")
+		return exitcodes.ACPExitRuntime
+	}
+	inspector := newStatusInspector(runCtx.RepoRoot)
+	defer inspector.Close()
+
+	statusOpts := status.Options{
+		RepoRoot: runCtx.RepoRoot,
+		Wide:     opts.Wide,
+	}
+	if !opts.Watch {
+		return runStatusOnce(ctx, runCtx.Stdout, runCtx.Stderr, inspector, statusOpts, opts.JSON, opts.Wide)
+	}
+	return runStatusWatch(ctx, runCtx.Stdout, runCtx.Stderr, inspector, statusOpts, opts.JSON, opts.Wide, opts.Interval)
 }
 
 func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	var jsonOutput, wide, watchMode bool
-	var watchInterval int
-
-	for i := range args {
-		arg := args[i]
-		switch {
-		case arg == "--help" || arg == "-h":
-			printStatusHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		case arg == "--json":
-			jsonOutput = true
-		case arg == "--wide" || arg == "-w":
-			wide = true
-		case arg == "--watch" || arg == "-n":
-			watchMode = true
-			watchInterval = 2
-		case strings.HasPrefix(arg, "--watch="):
-			watchMode = true
-			intervalStr := strings.TrimPrefix(arg, "--watch=")
-			interval, err := strconv.Atoi(intervalStr)
-			if err != nil || interval < 1 {
-				fmt.Fprintf(stderr, "Error: Invalid watch interval: %s\n", intervalStr)
-				return exitcodes.ACPExitUsage
-			}
-			watchInterval = interval
-		case strings.HasPrefix(arg, "-n="):
-			watchMode = true
-			intervalStr := strings.TrimPrefix(arg, "-n=")
-			interval, err := strconv.Atoi(intervalStr)
-			if err != nil || interval < 1 {
-				fmt.Fprintf(stderr, "Error: Invalid watch interval: %s\n", intervalStr)
-				return exitcodes.ACPExitUsage
-			}
-			watchInterval = interval
-		default:
-			fmt.Fprintf(stderr, "Error: Unknown option: %s\n", arg)
-			return exitcodes.ACPExitUsage
-		}
-	}
-
-	repoRoot := detectRepoRootWithContext(ctx)
-	if repoRoot == "" {
-		fmt.Fprintln(stderr, "Error: failed to detect repository root")
-		return exitcodes.ACPExitRuntime
-	}
-	inspector := runtimeinspect.NewInspector(repoRoot)
-	defer inspector.Close()
-
-	opts := status.Options{
-		RepoRoot: repoRoot,
-		Wide:     wide,
-	}
-
-	if !watchMode {
-		return runStatusOnce(ctx, stdout, stderr, inspector, opts, jsonOutput, wide)
-	}
-
-	return runStatusWatch(ctx, stdout, stderr, inspector, opts, jsonOutput, wide, watchInterval)
+	return runTypedCommandAdapter(ctx, []string{"status"}, args, stdout, stderr)
 }
 
-func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspector *runtimeinspect.Inspector, opts status.Options, jsonOutput bool, wide bool) int {
+func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspector statusInspector, opts status.Options, jsonOutput bool, wide bool) int {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -154,7 +149,7 @@ func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspec
 	}
 }
 
-func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspector *runtimeinspect.Inspector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
+func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspector statusInspector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
@@ -178,12 +173,10 @@ func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspe
 			fmt.Fprint(stdout, colors.Clear)
 		}
 
-		// Create timeout context that also respects signal cancellation
 		collectCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		report := inspector.Collect(collectCtx, opts)
 		cancel()
 
-		// Check if context was cancelled during collection
 		if ctx.Err() != nil {
 			if !jsonOutput {
 				fmt.Fprintln(stdout)

@@ -4,12 +4,12 @@
 //   - Provide truthful operator-facing Helm validation and smoke gates.
 //
 // Responsibilities:
+//   - Define the typed Helm command tree.
 //   - Validate tracked Helm surfaces with the typed validation package.
 //   - Run `helm lint` through the canonical subprocess wrapper.
-//   - Return honest prerequisite, domain, and runtime exit codes.
 //
 // Scope:
-//   - File-local Helm command parsing and gate execution only.
+//   - File-local Helm command execution and gate output only.
 //
 // Usage:
 //   - Invoked via `acpctl helm validate` and `acpctl helm smoke`.
@@ -50,43 +50,79 @@ var runHelmLint = func(ctx context.Context, repoRoot string, stdout *os.File, st
 	})
 }
 
-func runHelmValidateCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if err := ensureHelpOnlyArgs(args); err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		printHelmValidateHelp(stderr)
-		return exitcodes.ACPExitUsage
+func helmCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "helm",
+		Summary:     "Helm chart validation and smoke gates",
+		Description: "Helm chart validation and smoke gates.",
+		Examples: []string{
+			"acpctl helm validate",
+			"acpctl helm smoke",
+		},
+		Children: []*commandSpec{
+			helmGateCommandSpec(
+				"validate",
+				"Validate Helm deployment surfaces",
+				"Validate tracked Helm deployment surfaces and run helm lint.",
+				helmGateConfig{
+					title:          "=== Helm Validation ===",
+					successMessage: "Helm validation passed",
+				},
+				nil,
+			),
+			helmGateCommandSpec(
+				"smoke",
+				"Run truthful Helm smoke validation",
+				"Run truthful Helm smoke validation for repository-managed deployment surfaces.",
+				helmGateConfig{
+					title:          "=== Helm Smoke Checks ===",
+					successMessage: "Helm smoke checks passed",
+				},
+				[]commandHelpSection{
+					{
+						Title: "Notes",
+						Lines: []string{
+							"This validates repository-managed Helm artifacts only.",
+							"It does not probe a live cluster or silently ignore missing context.",
+						},
+					},
+				},
+			),
+		},
 	}
-	if wantsHelp(args) {
-		printHelmValidateHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
+}
 
-	return runHelmGate(ctx, stdout, stderr, helmGateConfig{
-		title:          "=== Helm Validation ===",
-		successMessage: "Helm validation passed",
-	})
+func helmGateCommandSpec(name string, summary string, description string, config helmGateConfig, sections []commandHelpSection) *commandSpec {
+	return &commandSpec{
+		Name:        name,
+		Summary:     summary,
+		Description: description,
+		Examples:    []string{"acpctl helm " + name},
+		Sections:    sections,
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
+				return config, nil
+			},
+			NativeRun: runHelmGateCommand,
+		},
+	}
+}
+
+func runHelmGateCommand(ctx context.Context, runCtx commandRunContext, raw any) int {
+	return runHelmGate(ctx, runCtx.Stdout, runCtx.Stderr, runCtx.RepoRoot, raw.(helmGateConfig))
+}
+
+func runHelmValidateCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"helm", "validate"}, args, stdout, stderr)
 }
 
 func runHelmSmokeCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if err := ensureHelpOnlyArgs(args); err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		printHelmSmokeHelp(stderr)
-		return exitcodes.ACPExitUsage
-	}
-	if wantsHelp(args) {
-		printHelmSmokeHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
-
-	return runHelmGate(ctx, stdout, stderr, helmGateConfig{
-		title:          "=== Helm Smoke Checks ===",
-		successMessage: "Helm smoke checks passed",
-	})
+	return runTypedCommandAdapter(ctx, []string{"helm", "smoke"}, args, stdout, stderr)
 }
 
-func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, config helmGateConfig) int {
+func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, repoRoot string, config helmGateConfig) int {
 	out := output.New()
-	repoRoot := detectRepoRootWithContext(ctx)
 	if repoRoot == "" {
 		fmt.Fprintln(stderr, out.Fail("Failed to detect repository root"))
 		return exitcodes.ACPExitRuntime
@@ -129,79 +165,4 @@ func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, config h
 
 	fmt.Fprintln(stdout, out.Green(config.successMessage))
 	return exitcodes.ACPExitSuccess
-}
-
-func wantsHelp(args []string) bool {
-	for _, arg := range args {
-		if arg == "--help" || arg == "-h" {
-			return true
-		}
-	}
-	return false
-}
-
-func ensureHelpOnlyArgs(args []string) error {
-	for _, arg := range args {
-		switch arg {
-		case "--help", "-h":
-			continue
-		default:
-			return fmt.Errorf("unknown option: %s", arg)
-		}
-	}
-	return nil
-}
-
-func printHelmValidateHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl helm validate [OPTIONS]
-
-Validate tracked Helm deployment surfaces and run helm lint.
-
-Checks:
-  - Helm chart, values, schema, and template structure
-  - Helm production/demo values contract enforcement
-  - helm lint against deploy/helm/ai-control-plane
-
-Options:
-  --help, -h        Show this help message
-
-Examples:
-  acpctl helm validate
-
-Exit codes:
-  0   Validation passed
-  1   Validation failed
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
-}
-
-func printHelmSmokeHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl helm smoke [OPTIONS]
-
-Run truthful Helm smoke validation for repository-managed deployment surfaces.
-
-Checks:
-  - Helm chart, values, schema, and template structure
-  - Helm production/demo values contract enforcement
-  - helm lint against deploy/helm/ai-control-plane
-
-Notes:
-  - This command validates repository-managed Helm artifacts only.
-  - It does not probe a live cluster or silently ignore missing context.
-
-Options:
-  --help, -h        Show this help message
-
-Examples:
-  acpctl helm smoke
-
-Exit codes:
-  0   Tests passed
-  1   Tests failed
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
 }

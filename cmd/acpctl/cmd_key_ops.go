@@ -1,15 +1,15 @@
 // cmd_key_ops.go - Key operations command implementation
 //
-// Purpose: Provide native Go implementation of key generation and management
+// Purpose: Provide native Go implementation of key generation and management.
 //
 // Responsibilities:
-//   - Parse arguments using internal/keygen/parser
-//   - Validate using internal/keygen/validator
-//   - Execute key generation via gateway client
+//   - Define the typed `key` command tree and binders.
+//   - Validate key options using internal/keygen helpers.
+//   - Execute key generation via the gateway client.
 //
 // Non-scope:
-//   - Argument parsing logic (see internal/keygen/parser.go)
-//   - Validation logic (see internal/keygen/validator.go)
+//   - Does not own business validation rules.
+//   - Does not implement revoke support in the gateway.
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -19,7 +19,6 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-
 package main
 
 import (
@@ -35,82 +34,216 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
-func runKeyGenCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	// Handle help
-	if len(args) == 0 || (len(args) == 1 && (args[0] == "--help" || args[0] == "-h")) {
-		printKeyGenHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
+type keyGenOptions struct {
+	Alias    string
+	Budget   float64
+	RPM      int
+	TPM      int
+	Parallel int
+	Duration string
+	Role     string
+	DryRun   bool
+}
 
+type keyRevokeOptions struct {
+	Alias string
+}
+
+func keyCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "key",
+		Summary:     "Virtual key lifecycle operations",
+		Description: "Virtual key lifecycle operations.",
+		Examples: []string{
+			"acpctl key gen alice --budget 10.00",
+			"acpctl key revoke alice",
+		},
+		Children: []*commandSpec{
+			keyGenCommandSpec("gen", "Generate a standard virtual key", ""),
+			{
+				Name:        "revoke",
+				Summary:     "Revoke a virtual key by alias",
+				Description: "Revoke a virtual key by alias.",
+				Arguments: []commandArgumentSpec{
+					{Name: "alias", Summary: "Key alias to revoke", Required: true},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindKeyRevokeOptions,
+					NativeRun:  runKeyRevoke,
+				},
+			},
+			keyGenCommandSpec("gen-dev", "Generate a developer key", "developer"),
+			keyGenCommandSpec("gen-lead", "Generate a team-lead key", "team-lead"),
+		},
+	}
+}
+
+func keyGenCommandSpec(name string, summary string, forcedRole string) *commandSpec {
+	options := []commandOptionSpec{
+		{Name: "budget", ValueName: "BUDGET", Summary: "Maximum budget in USD", Type: optionValueFloat, DefaultText: "10.00"},
+		{Name: "rpm", ValueName: "RPM", Summary: "Requests per minute limit", Type: optionValueInt},
+		{Name: "tpm", ValueName: "TPM", Summary: "Tokens per minute limit", Type: optionValueInt},
+		{Name: "parallel", ValueName: "N", Summary: "Max parallel requests", Type: optionValueInt},
+		{Name: "duration", ValueName: "DUR", Summary: "Budget reset duration", Type: optionValueString, DefaultText: "30d"},
+		{Name: "dry-run", Summary: "Preview the request without executing", Type: optionValueBool},
+	}
+	if forcedRole == "" {
+		options = append(options, commandOptionSpec{
+			Name:        "role",
+			ValueName:   "ROLE",
+			Summary:     "Role for key generation",
+			Type:        optionValueString,
+			DefaultText: "developer",
+			Suggestions: func(string) []string { return keygen.ValidRoles() },
+		})
+	}
+	return &commandSpec{
+		Name:        name,
+		Summary:     summary,
+		Description: summary + ".",
+		Arguments: []commandArgumentSpec{
+			{Name: "alias", Summary: "Key alias/name", Required: true},
+		},
+		Options: options,
+		Sections: []commandHelpSection{
+			{
+				Title: "Environment",
+				Lines: []string{
+					"LITELLM_MASTER_KEY",
+					"GATEWAY_HOST",
+					"LITELLM_PORT",
+				},
+			},
+		},
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+				return bindKeyGenOptions(input, forcedRole)
+			},
+			NativeRun: runKeyGen,
+		},
+	}
+}
+
+func bindKeyGenOptions(input parsedCommandInput, forcedRole string) (any, error) {
+	alias := input.Argument(0)
+	if alias == "" {
+		return nil, fmt.Errorf("alias is required")
+	}
+	budget := 10.00
+	if input.String("budget") != "" {
+		value, err := input.Float("budget")
+		if err != nil {
+			return nil, fmt.Errorf("invalid budget: %s", input.String("budget"))
+		}
+		budget = value
+	}
+	rpm := 0
+	if input.String("rpm") != "" {
+		value, err := input.Int("rpm")
+		if err != nil {
+			return nil, fmt.Errorf("invalid RPM: %s", input.String("rpm"))
+		}
+		rpm = value
+	}
+	tpm := 0
+	if input.String("tpm") != "" {
+		value, err := input.Int("tpm")
+		if err != nil {
+			return nil, fmt.Errorf("invalid TPM: %s", input.String("tpm"))
+		}
+		tpm = value
+	}
+	parallel := 0
+	if input.String("parallel") != "" {
+		value, err := input.Int("parallel")
+		if err != nil {
+			return nil, fmt.Errorf("invalid parallel: %s", input.String("parallel"))
+		}
+		parallel = value
+	}
+	duration := input.String("duration")
+	if duration == "" {
+		duration = "30d"
+	}
+	role := forcedRole
+	if role == "" {
+		role = input.String("role")
+	}
+	return keyGenOptions{
+		Alias:    alias,
+		Budget:   budget,
+		RPM:      rpm,
+		TPM:      tpm,
+		Parallel: parallel,
+		Duration: duration,
+		Role:     role,
+		DryRun:   input.Bool("dry-run"),
+	}, nil
+}
+
+func bindKeyRevokeOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	alias := input.Argument(0)
+	if alias == "" {
+		return nil, fmt.Errorf("alias is required")
+	}
+	return keyRevokeOptions{Alias: alias}, nil
+}
+
+func runKeyGen(ctx context.Context, runCtx commandRunContext, raw any) int {
+	options := raw.(keyGenOptions)
 	out := output.New()
 
-	// Parse arguments using the parser module
-	config, err := keygen.ParseArgs(args)
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		printKeyGenHelp(stderr)
+	if err := keygen.ValidateAlias(options.Alias); err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Invalid alias: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 
-	// Validate alias
-	if err := keygen.ValidateAlias(config.Alias); err != nil {
-		fmt.Fprintf(stderr, "Invalid alias: %v\n", err)
-		return exitcodes.ACPExitUsage
-	}
-
-	// Resolve and validate role
-	role := keygen.ResolveRole(config.Role)
+	role := keygen.ResolveRole(options.Role)
 	if err := keygen.ValidateRole(role); err != nil {
-		fmt.Fprintf(stderr, "Invalid role: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Invalid role: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 
-	// Check prerequisites
-	if err := keygen.CheckPrerequisites(!config.DryRun); err != nil {
-		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
-		if !config.DryRun {
-			fmt.Fprintln(stderr, "Set it in your environment: export LITELLM_MASTER_KEY=...")
+	if err := keygen.CheckPrerequisites(!options.DryRun); err != nil {
+		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
+		if !options.DryRun {
+			fmt.Fprintln(runCtx.Stderr, "Set it in your environment: export LITELLM_MASTER_KEY=...")
 		}
 		return exitcodes.ACPExitPrereq
 	}
 
-	// Get models for role
 	models := keygen.GetModelsForRole(role)
-
-	// Build request
 	req := &gateway.GenerateKeyRequest{
-		KeyAlias:       config.Alias,
-		MaxBudget:      config.Budget,
-		BudgetDuration: config.Duration,
+		KeyAlias:       options.Alias,
+		MaxBudget:      options.Budget,
+		BudgetDuration: options.Duration,
 		Models:         models,
 	}
-
-	if config.RPM > 0 {
-		req.RPMLimit = config.RPM
+	if options.RPM > 0 {
+		req.RPMLimit = options.RPM
 	}
-	if config.TPM > 0 {
-		req.TPMLimit = config.TPM
+	if options.TPM > 0 {
+		req.TPMLimit = options.TPM
 	}
-	if config.Parallel > 0 {
-		req.MaxParallelRequests = config.Parallel
-	}
-
-	// Dry run mode
-	if config.DryRun {
-		return runDryRun(config, role, models, stdout, out)
+	if options.Parallel > 0 {
+		req.MaxParallelRequests = options.Parallel
 	}
 
-	// Check curl prerequisite
+	if options.DryRun {
+		return runDryRun(options, role, models, runCtx.Stdout, out)
+	}
+
 	if !prereq.CommandExists("curl") {
-		fmt.Fprintln(stderr, out.Fail("curl is required"))
+		fmt.Fprintln(runCtx.Stderr, out.Fail("curl is required"))
 		return exitcodes.ACPExitPrereq
 	}
 
-	// Create gateway client and generate key
-	return generateKey(ctx, config, req, stdout, stderr, out)
+	return generateKey(ctx, options, req, runCtx.Stdout, runCtx.Stderr, out)
 }
 
-func runDryRun(config *keygen.Config, role string, models []string, stdout *os.File, out *output.Output) int {
+func runDryRun(config keyGenOptions, role string, models []string, stdout *os.File, out *output.Output) int {
 	fmt.Fprintln(stdout, out.Bold("=== Key Generation (Dry Run) ==="))
 	fmt.Fprintf(stdout, "Alias: %s\n", config.Alias)
 	fmt.Fprintf(stdout, "Budget: $%.2f\n", config.Budget)
@@ -129,7 +262,7 @@ func runDryRun(config *keygen.Config, role string, models []string, stdout *os.F
 	return exitcodes.ACPExitSuccess
 }
 
-func generateKey(ctx context.Context, config *keygen.Config, req *gateway.GenerateKeyRequest, stdout *os.File, stderr *os.File, out *output.Output) int {
+func generateKey(ctx context.Context, config keyGenOptions, req *gateway.GenerateKeyRequest, stdout *os.File, stderr *os.File, out *output.Output) int {
 	masterKey := acpconfig.NewLoader().Gateway(true).MasterKey
 	client := gateway.NewClient(gateway.WithMasterKey(masterKey))
 
@@ -153,99 +286,38 @@ func generateKey(ctx context.Context, config *keygen.Config, req *gateway.Genera
 		return exitcodes.ACPExitRuntime
 	}
 
-	// Output key to stdout ONLY
 	fmt.Fprintln(stdout, resp.Key)
 	return exitcodes.ACPExitSuccess
 }
 
-func runKeyRevokeCommand(_ context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 || (len(args) == 1 && (args[0] == "--help" || args[0] == "-h")) {
-		printKeyRevokeHelp(stdout)
-		return exitcodes.ACPExitSuccess
-	}
-
-	// Parse alias
-	config, err := keygen.ParseArgs(args)
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		printKeyRevokeHelp(stderr)
-		return exitcodes.ACPExitUsage
-	}
-
-	if config.Alias == "" {
-		fmt.Fprintln(stderr, "Error: alias is required")
-		printKeyRevokeHelp(stderr)
-		return exitcodes.ACPExitUsage
-	}
-
+func runKeyRevoke(_ context.Context, runCtx commandRunContext, raw any) int {
+	config := raw.(keyRevokeOptions)
 	out := output.New()
 
-	// Check prerequisites (master key required)
 	if err := keygen.CheckPrerequisites(true); err != nil {
-		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 
-	fmt.Fprintf(stdout, "Revoking key: %s\n", config.Alias)
-	fmt.Fprintln(stdout, out.Yellow("Note: Key revocation requires LiteLLM admin API"))
-	fmt.Fprintln(stdout, "This would call DELETE /key/{alias} if supported by LiteLLM")
+	fmt.Fprintf(runCtx.Stdout, "Revoking key: %s\n", config.Alias)
+	fmt.Fprintln(runCtx.Stdout, out.Yellow("Note: Key revocation requires LiteLLM admin API"))
+	fmt.Fprintln(runCtx.Stdout, "This would call DELETE /key/{alias} if supported by LiteLLM")
 
 	return exitcodes.ACPExitSuccess
 }
 
-func printKeyGenHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl key gen <alias> [OPTIONS]
-
-Generate a LiteLLM virtual key with optional budget and rate limits.
-
-Arguments:
-  alias              Key alias/name (required)
-                     Allowed: A-Z, a-z, 0-9, ., _, - (1-64 chars)
-
-Options:
-  --budget BUDGET    Maximum budget in USD (default: 10.00)
-  --rpm RPM          Requests per minute limit (optional)
-  --tpm TPM          Tokens per minute limit (optional)
-  --parallel N       Max parallel requests (optional)
-  --duration DUR     Budget reset duration (default: 30d)
-  --role ROLE        Role for key generation (default: developer)
-                     Valid: admin, team-lead, developer, auditor
-  --dry-run          Preview the request without executing
-  --help, -h         Show this help message
-
-Environment Variables:
-  LITELLM_MASTER_KEY  Master key for key generation (required)
-  GATEWAY_HOST        Gateway host (default: 127.0.0.1)
-  LITELLM_PORT        LiteLLM port (default: 4000)
-
-Examples:
-  acpctl key gen my-key                    # Generate with $10 budget
-  acpctl key gen my-key --budget 5.00      # Generate with $5 budget
-  acpctl key gen my-key --role developer   # Generate with specific role
-  acpctl key gen my-key --dry-run          # Preview only
-
-Exit codes:
-  0   Success: key generated
-  2   Prerequisites not ready
-  3   Runtime error
-  64  Usage error
-`)
+func runKeyGenCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"key", "gen"}, args, stdout, stderr)
 }
 
-func printKeyRevokeHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl key revoke <alias>
+func runDeveloperKeyGenLegacy(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"key", "gen-dev"}, args, stdout, stderr)
+}
 
-Revoke a virtual key by alias.
+func runLeadKeyGenLegacy(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"key", "gen-lead"}, args, stdout, stderr)
+}
 
-Arguments:
-  alias              Key alias to revoke (required)
-
-Environment Variables:
-  LITELLM_MASTER_KEY  Master key (required)
-
-Exit codes:
-  0   Success
-  2   Prerequisites not ready
-  64  Usage error
-`)
+func runKeyRevokeCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"key", "revoke"}, args, stdout, stderr)
 }

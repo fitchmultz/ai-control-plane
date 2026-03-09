@@ -1,13 +1,12 @@
 // cmd_onboard.go - Onboarding command implementation.
 //
 // Purpose:
-//
-//	Expose typed onboarding workflows for local tools and IDE integrations.
+//   - Expose typed onboarding workflows for local tools and IDE integrations.
 //
 // Responsibilities:
-//   - Parse onboarding arguments.
-//   - Render onboarding help and tool notes.
-//   - Delegate execution to internal/onboard.
+//   - Define the typed onboarding command surface.
+//   - Bind typed CLI options into `internal/onboard.Options`.
+//   - Delegate execution to `internal/onboard`.
 //
 // Scope:
 //   - CLI integration only; workflow logic lives in internal/onboard.
@@ -22,19 +21,66 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 
-	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/onboard"
 )
 
-func runOnboardCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	opts, err := onboard.ParseArgs(args, detectRepoRootWithContext(ctx), stdout, stderr)
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitUsage
+func onboardCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "onboard",
+		Summary:     "Configure local tools to route through the gateway",
+		Description: "Configure local tools to route through the gateway.",
+		Examples: []string{
+			"acpctl onboard codex --mode subscription --verify",
+			"acpctl onboard codex --mode direct --write-config",
+			"acpctl onboard --help",
+		},
+		Arguments: []commandArgumentSpec{
+			{Name: "tool", Summary: "Tool to onboard"},
+		},
+		Options: []commandOptionSpec{
+			{Name: "mode", ValueName: "MODE", Summary: "Onboarding mode", Type: optionValueString},
+			{Name: "alias", ValueName: "ALIAS", Summary: "Generated key alias override", Type: optionValueString},
+			{Name: "budget", ValueName: "USD", Summary: "Budget override", Type: optionValueString, DefaultText: onboard.DefaultBudget},
+			{Name: "model", ValueName: "MODEL", Summary: "Model override", Type: optionValueString},
+			{Name: "host", ValueName: "HOST", Summary: "Gateway host override", Type: optionValueString, DefaultText: onboard.DefaultHost},
+			{Name: "port", ValueName: "PORT", Summary: "Gateway port override", Type: optionValueString, DefaultText: onboard.DefaultPort},
+			{Name: "tls", Summary: "Use TLS when constructing gateway URLs", Type: optionValueBool},
+			{Name: "verify", Summary: "Verify subscription or gateway readiness", Type: optionValueBool},
+			{Name: "write-config", Summary: "Write ACP-managed Codex configuration", Type: optionValueBool},
+			{Name: "show-key", Summary: "Display generated key material", Type: optionValueBool},
+		},
+		Backend: commandBackend{
+			Kind:       commandBackendNative,
+			NativeBind: bindOnboardOptions,
+			NativeRun:  runOnboard,
+		},
 	}
-	result := onboard.Run(ctx, opts)
+}
+
+func bindOnboardOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+	return onboard.Options{
+		RepoRoot:    bindCtx.RepoRoot,
+		Tool:        input.Argument(0),
+		Mode:        input.String("mode"),
+		Alias:       input.String("alias"),
+		Budget:      input.String("budget"),
+		Model:       input.String("model"),
+		Host:        input.String("host"),
+		Port:        input.String("port"),
+		UseTLS:      input.Bool("tls"),
+		Verify:      input.Bool("verify"),
+		WriteConfig: input.Bool("write-config"),
+		ShowKey:     input.Bool("show-key"),
+	}, nil
+}
+
+func runOnboard(ctx context.Context, _ commandRunContext, raw any) int {
+	result := onboard.Run(ctx, raw.(onboard.Options))
 	return result.ExitCode
+}
+
+func runOnboardCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"onboard"}, args, stdout, stderr)
 }

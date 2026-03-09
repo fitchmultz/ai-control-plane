@@ -1,11 +1,11 @@
 // cmd_security.go - Security validation command adapters.
 //
 // Purpose:
-//   - Expose typed security validators through thin CLI wrappers.
+//   - Expose typed security validators through spec-owned bind/run flows.
 //
 // Responsibilities:
+//   - Define validate subcommand specs for security validators.
 //   - Route security validation requests into `internal/security`.
-//   - Keep CLI help and exit-code behavior stable.
 //   - Render deterministic findings for operators and CI.
 //
 // Scope:
@@ -29,146 +29,160 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/security"
 )
 
-func runSecretsAudit(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	for _, arg := range args {
-		if isHelpToken(arg) {
-			printSecretsAuditHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		}
-		if arg != "" {
-			fmt.Fprintf(stderr, "Error: unknown option: %s\n", arg)
-			printSecretsAuditHelp(stderr)
-			return exitcodes.ACPExitUsage
-		}
+func validateSecretsAuditCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "secrets-audit",
+		Summary:     "Run deterministic tracked-file secrets audit",
+		Description: "Run deterministic tracked-file secrets audit.",
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
+				return struct{}{}, nil
+			},
+			NativeRun: runSecretsAuditTyped,
+		},
 	}
+}
 
+func validatePublicHygieneCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "public-hygiene",
+		Summary:     "Fail when local-only files are tracked by git",
+		Description: "Fail when local-only files are tracked by git.",
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
+				return struct{}{}, nil
+			},
+			NativeRun: runValidatePublicHygieneTyped,
+		},
+	}
+}
+
+func validateLicenseCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "license",
+		Summary:     "Validate license policy structure and restricted references",
+		Description: "Validate the third-party license policy contract and restricted reference boundary.",
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
+				return struct{}{}, nil
+			},
+			NativeRun: runValidateLicenseTyped,
+		},
+	}
+}
+
+func validateSupplyChainCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "supply-chain",
+		Summary:     "Run supply-chain policy and digest validation",
+		Description: "Validate the typed supply-chain policy contract and digest pinning across canonical deployment surfaces.",
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
+				return struct{}{}, nil
+			},
+			NativeRun: runValidateSupplyChainTyped,
+		},
+	}
+}
+
+func runSecretsAuditTyped(ctx context.Context, runCtx commandRunContext, _ any) int {
 	out := output.New()
-	repoRoot := detectRepoRootWithContext(ctx)
-	trackedFiles, err := security.ListTrackedFiles(ctx, repoRoot)
+	trackedFiles, err := security.ListTrackedFiles(ctx, runCtx.RepoRoot)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Secrets audit could not enumerate tracked files: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Secrets audit could not enumerate tracked files: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
-	findings, err := security.AuditTrackedSecrets(repoRoot, trackedFiles)
+	findings, err := security.AuditTrackedSecrets(runCtx.RepoRoot, trackedFiles)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Secrets audit failed: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Secrets audit failed: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
-	fmt.Fprintln(stdout, out.Bold("=== Secrets Audit ==="))
-	fmt.Fprintln(stdout, "Scanning tracked files for likely public-repo secret leaks...")
+	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Secrets Audit ==="))
+	fmt.Fprintln(runCtx.Stdout, "Scanning tracked files for likely public-repo secret leaks...")
 	if len(findings) == 0 {
-		fmt.Fprintln(stdout, out.Green("Secrets audit passed"))
+		fmt.Fprintln(runCtx.Stdout, out.Green("Secrets audit passed"))
 		return exitcodes.ACPExitSuccess
 	}
 	for _, finding := range findings {
 		if finding.Line > 0 {
-			fmt.Fprintf(stdout, "%s:%d [%s] %s\n", finding.Path, finding.Line, finding.RuleID, finding.Message)
+			fmt.Fprintf(runCtx.Stdout, "%s:%d [%s] %s\n", finding.Path, finding.Line, finding.RuleID, finding.Message)
 			continue
 		}
-		fmt.Fprintf(stdout, "%s [%s] %s\n", finding.Path, finding.RuleID, finding.Message)
+		fmt.Fprintf(runCtx.Stdout, "%s [%s] %s\n", finding.Path, finding.RuleID, finding.Message)
 	}
-	fmt.Fprintln(stderr, out.Fail("Secrets audit found tracked-file security issues"))
+	fmt.Fprintln(runCtx.Stderr, out.Fail("Secrets audit found tracked-file security issues"))
 	return exitcodes.ACPExitDomain
 }
 
-func runValidatePublicHygiene(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	for _, arg := range args {
-		if isHelpToken(arg) {
-			printPublicHygieneHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		}
-		if arg != "" {
-			fmt.Fprintf(stderr, "Error: unknown option: %s\n", arg)
-			printPublicHygieneHelp(stderr)
-			return exitcodes.ACPExitUsage
-		}
-	}
-	trackedFiles, err := security.ListTrackedFiles(ctx, detectRepoRootWithContext(ctx))
+func runValidatePublicHygieneTyped(ctx context.Context, runCtx commandRunContext, _ any) int {
+	trackedFiles, err := security.ListTrackedFiles(ctx, runCtx.RepoRoot)
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitPrereq
 	}
 	violations := security.ValidatePublicHygiene(trackedFiles)
 	if len(violations) == 0 {
-		fmt.Fprintln(stdout, "Public-release tracked file hygiene passed")
+		fmt.Fprintln(runCtx.Stdout, "Public-release tracked file hygiene passed")
 		return exitcodes.ACPExitSuccess
 	}
-	fmt.Fprintln(stderr, "Local-only files are tracked and block public release:")
+	fmt.Fprintln(runCtx.Stderr, "Local-only files are tracked and block public release:")
 	for _, violation := range violations {
-		fmt.Fprintln(stderr, violation)
+		fmt.Fprintln(runCtx.Stderr, violation)
 	}
-	fmt.Fprintln(stderr, "Remove from git index (git rm --cached ...) and keep in .gitignore.")
+	fmt.Fprintln(runCtx.Stderr, "Remove from git index (git rm --cached ...) and keep in .gitignore.")
 	return exitcodes.ACPExitDomain
+}
+
+func runValidateLicenseTyped(_ context.Context, runCtx commandRunContext, _ any) int {
+	findings, err := security.ValidateLicensePolicy(runCtx.RepoRoot)
+	if err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitRuntime
+	}
+	if len(findings) == 0 {
+		fmt.Fprintln(runCtx.Stdout, "License boundary check passed")
+		return exitcodes.ACPExitSuccess
+	}
+	fmt.Fprintln(runCtx.Stderr, "Restricted LiteLLM enterprise references detected outside docs:")
+	for _, finding := range findings {
+		fmt.Fprintln(runCtx.Stderr, finding)
+	}
+	return exitcodes.ACPExitDomain
+}
+
+func runValidateSupplyChainTyped(_ context.Context, runCtx commandRunContext, _ any) int {
+	findings, err := security.ValidateSupplyChainPolicy(runCtx.RepoRoot)
+	if err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
+		return exitcodes.ACPExitRuntime
+	}
+	if len(findings) == 0 {
+		fmt.Fprintln(runCtx.Stdout, "Supply-chain policy and digest pinning baseline passed")
+		return exitcodes.ACPExitSuccess
+	}
+	fmt.Fprintln(runCtx.Stderr, "Supply-chain policy violations detected:")
+	for _, finding := range findings {
+		fmt.Fprintln(runCtx.Stderr, finding)
+	}
+	return exitcodes.ACPExitDomain
+}
+
+func runSecretsAudit(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"validate", "secrets-audit"}, args, stdout, stderr)
+}
+
+func runValidatePublicHygiene(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"validate", "public-hygiene"}, args, stdout, stderr)
 }
 
 func runValidateLicense(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	for _, arg := range args {
-		if isHelpToken(arg) {
-			printLicenseHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		}
-		if arg != "" {
-			fmt.Fprintf(stderr, "Error: unknown option: %s\n", arg)
-			printLicenseHelp(stderr)
-			return exitcodes.ACPExitUsage
-		}
-	}
-	findings, err := security.ValidateLicensePolicy(detectRepoRootWithContext(ctx))
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitRuntime
-	}
-	if len(findings) == 0 {
-		fmt.Fprintln(stdout, "License boundary check passed")
-		return exitcodes.ACPExitSuccess
-	}
-	fmt.Fprintln(stderr, "Restricted LiteLLM enterprise references detected outside docs:")
-	for _, finding := range findings {
-		fmt.Fprintln(stderr, finding)
-	}
-	return exitcodes.ACPExitDomain
+	return runTypedCommandAdapter(ctx, []string{"validate", "license"}, args, stdout, stderr)
 }
 
 func runValidateSupplyChain(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	for _, arg := range args {
-		if isHelpToken(arg) {
-			printSupplyChainHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		}
-		if arg != "" {
-			fmt.Fprintf(stderr, "Error: unknown option: %s\n", arg)
-			printSupplyChainHelp(stderr)
-			return exitcodes.ACPExitUsage
-		}
-	}
-	findings, err := security.ValidateSupplyChainPolicy(detectRepoRootWithContext(ctx))
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitRuntime
-	}
-	if len(findings) == 0 {
-		fmt.Fprintln(stdout, "Supply-chain policy and digest pinning baseline passed")
-		return exitcodes.ACPExitSuccess
-	}
-	fmt.Fprintln(stderr, "Supply-chain policy violations detected:")
-	for _, finding := range findings {
-		fmt.Fprintln(stderr, finding)
-	}
-	return exitcodes.ACPExitDomain
-}
-
-func printPublicHygieneHelp(out *os.File) {
-	fmt.Fprint(out, "Usage: acpctl validate public-hygiene\n\nFail when local-only files are tracked by git.\n")
-}
-
-func printLicenseHelp(out *os.File) {
-	fmt.Fprint(out, "Usage: acpctl validate license\n\nValidate the third-party license policy contract and restricted reference boundary.\n")
-}
-
-func printSupplyChainHelp(out *os.File) {
-	fmt.Fprint(out, "Usage: acpctl validate supply-chain\n\nValidate the typed supply-chain policy contract and digest pinning across canonical deployment surfaces.\n")
-}
-
-func printSecretsAuditHelp(out *os.File) {
-	fmt.Fprint(out, "Usage: acpctl validate secrets-audit\n\nRun deterministic tracked-file secrets audit.\n")
+	return runTypedCommandAdapter(ctx, []string{"validate", "supply-chain"}, args, stdout, stderr)
 }

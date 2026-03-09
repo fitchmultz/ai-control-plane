@@ -21,7 +21,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
+
+	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 )
 
 type subcommandDefinition struct {
@@ -71,6 +74,38 @@ func runDelegatedGroup(ctx context.Context, root *commandSpec, args []string, st
 	invocation, err := parseInvocation(append([]string{root.Name}, args...))
 	if err != nil {
 		return 64
+	}
+	return executeInvocation(ctx, invocation, stdout, stderr)
+}
+
+func findCommandPath(parts []string) ([]*commandSpec, error) {
+	spec, err := loadCommandSpec()
+	if err != nil {
+		return nil, err
+	}
+	path := []*commandSpec{spec.Root}
+	current := spec.Root
+	for _, part := range parts {
+		next := findChildCommand(current, part)
+		if next == nil {
+			return nil, &commandLookupError{Kind: "subcommand", Path: commandPathLabel(path[1:]), Name: part}
+		}
+		path = append(path, next)
+		current = next
+	}
+	return path, nil
+}
+
+func runTypedCommandAdapter(ctx context.Context, prefix []string, args []string, stdout *os.File, stderr *os.File) int {
+	combined := append(append([]string(nil), prefix...), args...)
+	invocation, err := parseInvocation(combined)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		path, pathErr := findCommandPath(prefix)
+		if pathErr == nil {
+			printCommandHelp(stderr, path)
+		}
+		return exitcodes.ACPExitUsage
 	}
 	return executeInvocation(ctx, invocation, stdout, stderr)
 }

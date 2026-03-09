@@ -1,16 +1,15 @@
 // cmd_health.go - Health check command implementation
 //
-// Purpose: Provide native Go implementation of health checks
+// Purpose: Provide native Go implementation of health checks.
 //
 // Responsibilities:
-//   - Check Docker container status
-//   - Verify LiteLLM gateway endpoints
-//   - Check PostgreSQL connectivity
-//   - Check OTEL collector status
+//   - Define the typed health command surface.
+//   - Check Docker container status and ACP runtime health.
+//   - Render human-readable health output.
 //
 // Non-scope:
-//   - Does not start services
-//   - Does not fix issues
+//   - Does not start services.
+//   - Does not fix issues.
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -20,7 +19,6 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-
 package main
 
 import (
@@ -39,55 +37,78 @@ import (
 
 const healthCommandTimeout = 30 * time.Second
 
-func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	// Parse arguments
-	verbose := false
-	for _, arg := range args {
-		switch arg {
-		case "--verbose", "-v":
-			verbose = true
-		case "--help", "-h":
-			printHealthHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		}
-	}
+type healthOptions struct {
+	Verbose bool
+}
 
+func healthCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "health",
+		Summary:     "Run service health checks",
+		Description: "Run health checks for AI Control Plane services.",
+		Examples: []string{
+			"acpctl health",
+			"acpctl health --verbose",
+		},
+		Options: []commandOptionSpec{
+			{Name: "verbose", Short: "v", Summary: "Enable detailed output", Type: optionValueBool},
+		},
+		Sections: []commandHelpSection{
+			{
+				Title: "Environment",
+				Lines: []string{
+					"GATEWAY_HOST",
+					"LITELLM_PORT",
+					"LITELLM_MASTER_KEY",
+					"ACP_DATABASE_MODE",
+				},
+			},
+		},
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+				return healthOptions{Verbose: input.Bool("verbose")}, nil
+			},
+			NativeRun: runHealth,
+		},
+	}
+}
+
+func runHealth(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(healthOptions)
 	out := output.New()
 
-	// Check prerequisites
 	if !prereq.CommandExists("docker") {
-		fmt.Fprintln(stderr, out.Fail("Docker not found"))
-		fmt.Fprintln(stderr, "Install Docker from https://docs.docker.com/get-docker/")
+		fmt.Fprintln(runCtx.Stderr, out.Fail("Docker not found"))
+		fmt.Fprintln(runCtx.Stderr, "Install Docker from https://docs.docker.com/get-docker/")
 		return exitcodes.ACPExitPrereq
 	}
 
-	repoRoot := detectRepoRootWithContext(ctx)
-	if repoRoot == "" {
-		fmt.Fprintln(stderr, out.Fail("Failed to detect repository root"))
+	if runCtx.RepoRoot == "" {
+		fmt.Fprintln(runCtx.Stderr, out.Fail("Failed to detect repository root"))
 		return exitcodes.ACPExitRuntime
 	}
 
-	inspector := runtimeinspect.NewInspector(repoRoot)
+	inspector := runtimeinspect.NewInspector(runCtx.RepoRoot)
 	defer inspector.Close()
 
 	ctx, cancel := context.WithTimeout(ctx, healthCommandTimeout)
 	defer cancel()
-	report := inspector.Collect(ctx, status.Options{RepoRoot: repoRoot, Wide: verbose})
-	if err := report.WriteHuman(stdout, verbose); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to render health output: %v\n"), err)
+	report := inspector.Collect(ctx, status.Options{RepoRoot: runCtx.RepoRoot, Wide: opts.Verbose})
+	if err := report.WriteHuman(runCtx.Stdout, opts.Verbose); err != nil {
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to render health output: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		fmt.Fprintln(stderr, out.Fail("Health check timed out"))
+		fmt.Fprintln(runCtx.Stderr, out.Fail("Health check timed out"))
 		return exitcodes.ACPExitRuntime
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
-		fmt.Fprintln(stderr, out.Fail("Health check canceled"))
+		fmt.Fprintln(runCtx.Stderr, out.Fail("Health check canceled"))
 		return exitcodes.ACPExitRuntime
 	}
 
-	// Return appropriate exit code
 	switch report.Overall {
 	case status.HealthLevelHealthy:
 		return exitcodes.ACPExitSuccess
@@ -98,37 +119,6 @@ func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stder
 	}
 }
 
-func printHealthHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl health [OPTIONS]
-
-Run health checks for AI Control Plane services.
-
-Checks:
-  - Docker container status (postgres, litellm)
-  - LiteLLM gateway health endpoint
-  - LiteLLM models endpoint
-  - PostgreSQL connectivity and schema
-  - OTEL collector status (optional)
-
-Options:
-  --verbose, -v     Enable detailed output
-  --help, -h        Show this help message
-
-Environment variables:
-  GATEWAY_HOST      Gateway host (default: 127.0.0.1)
-  LITELLM_PORT      LiteLLM port (default: 4000)
-  LITELLM_MASTER_KEY  Master key for authorized gateway checks (required)
-  ACP_DATABASE_MODE Database mode: embedded|external (default: embedded)
-
-Examples:
-  acpctl health              # Run health checks
-  acpctl health --verbose    # Run with detailed output
-
-Exit codes:
-  0   All required services healthy
-  1   One or more required services unhealthy
-  2   Prerequisites not ready
-  3   Runtime/internal error (including timeout or cancellation)
-  64  Usage error
-`)
+func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"health"}, args, stdout, stderr)
 }

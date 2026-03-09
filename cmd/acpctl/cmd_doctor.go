@@ -1,14 +1,14 @@
 // cmd_doctor.go - Doctor subcommand implementation
 //
-// Purpose: Implement environment preflight diagnostics
+// Purpose: Implement environment preflight diagnostics.
 // Responsibilities:
-//   - Parse doctor flags
-//   - Run diagnostic checks
-//   - Output results in human or JSON format
+//   - Define the typed doctor command surface.
+//   - Run diagnostic checks.
+//   - Output results in human or JSON format.
 //
 // Non-scope:
-//   - Does not modify system state (unless --fix is used)
-//   - Does not replace operational monitoring
+//   - Does not modify system state unless `--fix` is used.
+//   - Does not replace operational monitoring.
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -18,7 +18,6 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-
 package main
 
 import (
@@ -35,111 +34,95 @@ import (
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
 )
 
-func printDoctorHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl doctor [OPTIONS]
-
-Environment preflight diagnostics for AI Control Plane.
-
-Checks:
-  docker_available    Docker binary and daemon accessible
-  ports_free          Required ports (4000, 5432) are available
-  env_vars_set        Required environment variables configured
-  gateway_healthy     LiteLLM gateway responding
-  db_connectable      PostgreSQL accepting connections
-  config_valid        Deployment configuration valid
-  credentials_valid   Master key valid and usable
-
-Options:
-  --json              Output in JSON format
-  --wide, -w          Show extended details
-  --fix               Attempt safe auto-remediation
-  --skip-check CHECK  Skip specific check (repeatable)
-  --help, -h          Show this help message
-
-Examples:
-  acpctl doctor
-  acpctl doctor --json
-  acpctl doctor --fix --skip-check db_connectable
-  acpctl doctor --wide
-
-Exit codes:
-  0   All checks passed
-  1   One or more checks failed (domain)
-  2   Prerequisites not ready
-  3   Runtime/internal error
-  64  Usage error
-`)
+type doctorOptions struct {
+	JSON       bool
+	Wide       bool
+	Fix        bool
+	SkipChecks []string
 }
 
-func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	var jsonOutput, wide, fix bool
-	skipChecks := make(map[string]struct{})
+func doctorCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "doctor",
+		Summary:     "Environment preflight diagnostics",
+		Description: "Environment preflight diagnostics for AI Control Plane.",
+		Examples: []string{
+			"acpctl doctor",
+			"acpctl doctor --json",
+			"acpctl doctor --fix --skip-check db_connectable",
+			"acpctl doctor --wide",
+		},
+		Options: []commandOptionSpec{
+			{Name: "json", Summary: "Output in JSON format", Type: optionValueBool},
+			{Name: "wide", Short: "w", Summary: "Show extended details", Type: optionValueBool},
+			{Name: "fix", Summary: "Attempt safe auto-remediation", Type: optionValueBool},
+			{Name: "skip-check", ValueName: "CHECK", Summary: "Skip a specific check", Type: optionValueString, Repeatable: true},
+		},
+		Backend: commandBackend{
+			Kind: commandBackendNative,
+			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+				return doctorOptions{
+					JSON:       input.Bool("json"),
+					Wide:       input.Bool("wide"),
+					Fix:        input.Bool("fix"),
+					SkipChecks: input.Strings("skip-check"),
+				}, nil
+			},
+			NativeRun: runDoctor,
+		},
+	}
+}
 
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case arg == "--help" || arg == "-h":
-			printDoctorHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		case arg == "--json":
-			jsonOutput = true
-		case arg == "--wide" || arg == "-w":
-			wide = true
-		case arg == "--fix":
-			fix = true
-		case arg == "--skip-check":
-			if i+1 >= len(args) {
-				fmt.Fprintln(stderr, "Error: --skip-check requires a CHECK argument")
-				return exitcodes.ACPExitUsage
-			}
-			skipChecks[args[i+1]] = struct{}{}
-			i++
-		default:
-			fmt.Fprintf(stderr, "Error: Unknown option: %s\n", arg)
-			return exitcodes.ACPExitUsage
-		}
+func runDoctor(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(doctorOptions)
+	skipChecks := make(map[string]struct{}, len(opts.SkipChecks))
+	for _, name := range opts.SkipChecks {
+		skipChecks[name] = struct{}{}
 	}
 
-	repoRoot := detectRepoRootWithContext(ctx)
-	if repoRoot == "" {
-		fmt.Fprintln(stderr, "Error: failed to detect repository root")
+	if runCtx.RepoRoot == "" {
+		fmt.Fprintln(runCtx.Stderr, "Error: failed to detect repository root")
 		return exitcodes.ACPExitRuntime
 	}
 	gatewayRuntime := config.NewLoader().Gateway(true)
-	inspector := runtimeinspect.NewInspector(repoRoot)
+	inspector := runtimeinspect.NewInspector(runCtx.RepoRoot)
 	defer inspector.Close()
 	runtimeCtx, runtimeCancel := context.WithTimeout(ctx, 30*time.Second)
-	runtimeReport := inspector.Collect(runtimeCtx, status.Options{RepoRoot: repoRoot, Wide: wide})
+	runtimeReport := inspector.Collect(runtimeCtx, status.Options{RepoRoot: runCtx.RepoRoot, Wide: opts.Wide})
 	runtimeCancel()
 
-	opts := doctor.Options{
-		RepoRoot:      repoRoot,
+	diagnosticOpts := doctor.Options{
+		RepoRoot:      runCtx.RepoRoot,
 		Gateway:       gatewayRuntime,
 		RequiredPorts: config.RequiredPorts(),
 		SkipChecks:    skipChecks,
-		Fix:           fix,
-		Wide:          wide,
+		Fix:           opts.Fix,
+		Wide:          opts.Wide,
 		RuntimeReport: &runtimeReport,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	report := doctor.Run(ctx, doctor.DefaultChecks(), opts)
+	report := doctor.Run(ctx, doctor.DefaultChecks(), diagnosticOpts)
 
-	if jsonOutput {
-		if err := report.WriteJSON(stdout); err != nil {
-			fmt.Fprintf(stderr, "Error: failed to write JSON output: %v\n", err)
+	if opts.JSON {
+		if err := report.WriteJSON(runCtx.Stdout); err != nil {
+			fmt.Fprintf(runCtx.Stderr, "Error: failed to write JSON output: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
 	} else {
-		if err := writeDoctorHuman(stdout, report, wide); err != nil {
-			fmt.Fprintf(stderr, "Error: failed to write output: %v\n", err)
+		if err := writeDoctorHuman(runCtx.Stdout, report, opts.Wide); err != nil {
+			fmt.Fprintf(runCtx.Stderr, "Error: failed to write output: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
 	}
 
 	return doctor.ExitCodeForReport(report)
+}
+
+func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"doctor"}, args, stdout, stderr)
 }
 
 func writeDoctorHuman(w *os.File, report doctor.Report, wide bool) error {

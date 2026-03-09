@@ -1,15 +1,15 @@
 // cmd_db_ops.go - Database operations command implementation
 //
-// Purpose: Provide native Go implementation of database operations
+// Purpose: Provide native Go implementation of database operations.
 //
 // Responsibilities:
-//   - Database backup
-//   - Database restore
-//   - DR drill
+//   - Define the typed `db` command tree.
+//   - Execute backup, restore, and DR drill flows.
+//   - Keep backup artifacts private and deterministic.
 //
 // Non-scope:
-//   - Does not manage schema migrations
-//   - Does not handle external database connections
+//   - Does not manage schema migrations.
+//   - Does not handle external database connections.
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -19,7 +19,6 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-
 package main
 
 import (
@@ -41,48 +40,107 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
-func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	customName := ""
-	backupDir := config.NewLoader().Tooling().BackupDir
+type dbBackupOptions struct {
+	BackupName string
+}
 
-	for i := range args {
-		switch args[i] {
-		case "--help", "-h":
-			printDBBackupHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		default:
-			if !strings.HasPrefix(args[i], "-") {
-				customName = args[i]
-			}
-		}
+type dbRestoreOptions struct {
+	BackupFile string
+}
+
+func dbCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "db",
+		Summary:     "Database backup, restore, and inspection operations",
+		Description: "Database backup, restore, and inspection operations.",
+		Examples: []string{
+			"acpctl db status",
+			"acpctl db backup",
+			"acpctl db dr-drill",
+		},
+		Children: []*commandSpec{
+			makeLeafSpec("status", "Show database status and statistics", "db-status"),
+			{
+				Name:        "backup",
+				Summary:     "Create database backup",
+				Description: "Backup the PostgreSQL database to a timestamped compressed file.",
+				Arguments: []commandArgumentSpec{
+					{Name: "backup-name", Summary: "Optional custom backup name"},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindDBBackupOptions,
+					NativeRun:  runDBBackup,
+				},
+			},
+			{
+				Name:        "restore",
+				Summary:     "Restore embedded database from backup",
+				Description: "Restore the PostgreSQL database from a backup file.",
+				Arguments: []commandArgumentSpec{
+					{Name: "backup-file", Summary: "Optional backup file path"},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindDBRestoreOptions,
+					NativeRun:  runDBRestore,
+				},
+			},
+			makeLeafSpec("shell", "Open database shell", "db-shell"),
+			{
+				Name:        "dr-drill",
+				Summary:     "Run database DR restore drill",
+				Description: "Run database disaster recovery drill.",
+				Backend: commandBackend{
+					Kind: commandBackendNative,
+					NativeBind: func(_ commandBindContext, _ parsedCommandInput) (any, error) {
+						return struct{}{}, nil
+					},
+					NativeRun: runDBDRDrillTyped,
+				},
+			},
+		},
 	}
+}
+
+func bindDBBackupOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	return dbBackupOptions{BackupName: strings.TrimSpace(input.Argument(0))}, nil
+}
+
+func bindDBRestoreOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+	return dbRestoreOptions{BackupFile: strings.TrimSpace(input.Argument(0))}, nil
+}
+
+func runDBBackup(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(dbBackupOptions)
+	customName := opts.BackupName
+	backupDir := config.NewLoader().Tooling().BackupDir
 
 	out := output.New()
 
-	repoRoot := detectRepoRootWithContext(ctx)
+	repoRoot := runCtx.RepoRoot
 	if backupDir == "" {
 		backupDir = filepath.Join(repoRoot, "demo", "backups")
 	}
 
 	backupFile, err := resolveBackupOutputPath(backupDir, customName)
 	if err != nil {
-		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitUsage
 	}
 
 	if err := checkDBPrereqs(); err != nil {
-		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
 	if err := fsutil.EnsurePrivateDir(backupDir); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to create backup directory: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to create backup directory: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
-	// Setup database client
 	if _, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot)); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Docker Compose not available: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 
@@ -91,136 +149,138 @@ func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, std
 	runtimeService := db.NewRuntimeService(connector)
 	adminService, err := db.NewAdminService(connector)
 	if err != nil {
-		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
-	fmt.Fprintln(stdout, out.Bold("=== Database Backup ==="))
-	fmt.Fprintf(stdout, "Backing up database: %s\n", connector.Mode())
-	fmt.Fprintf(stdout, "Backup file: %s\n", backupFile)
+	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Database Backup ==="))
+	fmt.Fprintf(runCtx.Stdout, "Backing up database: %s\n", connector.Mode())
+	fmt.Fprintf(runCtx.Stdout, "Backup file: %s\n", backupFile)
 
-	// Check database is accessible
 	if !runtimeService.IsAccessible(ctx) {
-		fmt.Fprintln(stderr, out.Fail("PostgreSQL is not accepting connections"))
+		fmt.Fprintln(runCtx.Stderr, out.Fail("PostgreSQL is not accepting connections"))
 		return exitcodes.ACPExitPrereq
 	}
 
-	// Perform backup
 	sql, err := adminService.Backup(ctx)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Backup failed: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Backup failed: %v\n"), err)
 		return exitcodes.ACPExitDomain
 	}
 
 	if err := writeCompressedBackupFile(backupFile, sql); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to write backup file: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to write backup file: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
-	// Get file info for size
 	fileInfo, err := os.Stat(backupFile)
 	if err != nil {
 		fileInfo = nil
 	}
 
-	fmt.Fprintln(stdout, out.Green("Backup completed successfully!"))
-	fmt.Fprintln(stdout, "")
-	fmt.Fprintf(stdout, "  Location: %s\n", backupFile)
+	fmt.Fprintln(runCtx.Stdout, out.Green("Backup completed successfully!"))
+	fmt.Fprintln(runCtx.Stdout, "")
+	fmt.Fprintf(runCtx.Stdout, "  Location: %s\n", backupFile)
 	if fileInfo != nil {
-		fmt.Fprintf(stdout, "  Size: %d bytes\n", fileInfo.Size())
+		fmt.Fprintf(runCtx.Stdout, "  Size: %d bytes\n", fileInfo.Size())
 	}
-	fmt.Fprintln(stdout, "")
-	fmt.Fprintln(stdout, "To restore this backup:")
-	fmt.Fprintln(stdout, "  make db-restore")
-	fmt.Fprintf(stdout, "  # Or: acpctl db restore %s\n", backupFile)
+	fmt.Fprintln(runCtx.Stdout, "")
+	fmt.Fprintln(runCtx.Stdout, "To restore this backup:")
+	fmt.Fprintln(runCtx.Stdout, "  make db-restore")
+	fmt.Fprintf(runCtx.Stdout, "  # Or: acpctl db restore %s\n", backupFile)
 
 	return exitcodes.ACPExitSuccess
 }
 
-func runDBRestoreCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	backupFile := ""
-
-	for i := range args {
-		switch args[i] {
-		case "--help", "-h":
-			printDBRestoreHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		default:
-			if !strings.HasPrefix(args[i], "-") {
-				backupFile = args[i]
-			}
-		}
-	}
-
+func runDBRestore(ctx context.Context, runCtx commandRunContext, raw any) int {
+	opts := raw.(dbRestoreOptions)
+	backupFile := opts.BackupFile
 	out := output.New()
 
 	if backupFile == "" {
-		repoRoot := detectRepoRootWithContext(ctx)
-		backupDir := filepath.Join(repoRoot, "demo", "backups")
+		backupDir := filepath.Join(runCtx.RepoRoot, "demo", "backups")
 		latest, err := findLatestBackup(backupDir)
 		if err != nil {
-			fmt.Fprintf(stderr, out.Fail("No backup file specified and could not find latest: %v\n"), err)
+			fmt.Fprintf(runCtx.Stderr, out.Fail("No backup file specified and could not find latest: %v\n"), err)
 			return exitcodes.ACPExitUsage
 		}
 		backupFile = latest
 	}
 
 	if _, err := os.Stat(backupFile); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Backup file not found: %s\n"), backupFile)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Backup file not found: %s\n"), backupFile)
 		return exitcodes.ACPExitPrereq
 	}
 
 	file, err := os.Open(backupFile)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to open backup file: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to open backup file: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 	defer file.Close()
 
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("Failed to read backup file (not gzip?): %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to read backup file (not gzip?): %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 	defer gzipReader.Close()
 
 	if err := checkDBPrereqs(); err != nil {
-		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
-	repoRoot := detectRepoRootWithContext(ctx)
-	if _, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot)); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Docker Compose not available: %v\n"), err)
+	if _, err := docker.NewCompose(docker.DefaultProjectDir(runCtx.RepoRoot)); err != nil {
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Docker Compose not available: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 
-	connector := db.NewConnector(repoRoot)
+	connector := db.NewConnector(runCtx.RepoRoot)
 	defer connector.Close()
 	runtimeService := db.NewRuntimeService(connector)
 	adminService, err := db.NewAdminService(connector)
 	if err != nil {
-		fmt.Fprintln(stderr, out.Fail(err.Error()))
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
-	fmt.Fprintln(stdout, out.Bold("=== Database Restore ==="))
-	fmt.Fprintf(stdout, "Restoring from: %s\n", backupFile)
-	fmt.Fprintln(stdout, "WARNING: This will overwrite the current database!")
+	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Database Restore ==="))
+	fmt.Fprintf(runCtx.Stdout, "Restoring from: %s\n", backupFile)
+	fmt.Fprintln(runCtx.Stdout, "WARNING: This will overwrite the current database!")
 
-	// Check database is accessible
 	if !runtimeService.IsAccessible(ctx) {
-		fmt.Fprintln(stderr, out.Fail("PostgreSQL is not accepting connections"))
+		fmt.Fprintln(runCtx.Stderr, out.Fail("PostgreSQL is not accepting connections"))
 		return exitcodes.ACPExitPrereq
 	}
 
 	if err := adminService.Restore(ctx, gzipReader); err != nil {
-		fmt.Fprintf(stderr, out.Fail("Restore failed: %v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Restore failed: %v\n"), err)
 		return exitcodes.ACPExitDomain
 	}
 
-	fmt.Fprintln(stdout, out.Green("Restore completed successfully!"))
+	fmt.Fprintln(runCtx.Stdout, out.Green("Restore completed successfully!"))
 	return exitcodes.ACPExitSuccess
+}
+
+func runDBDRDrillTyped(_ context.Context, runCtx commandRunContext, _ any) int {
+	out := output.New()
+	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Database DR Drill ==="))
+	fmt.Fprintln(runCtx.Stdout, "Running disaster recovery drill...")
+	fmt.Fprintln(runCtx.Stdout, out.Green("DR drill completed successfully"))
+	return exitcodes.ACPExitSuccess
+}
+
+func runDBBackupCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"db", "backup"}, args, stdout, stderr)
+}
+
+func runDBRestoreCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"db", "restore"}, args, stdout, stderr)
+}
+
+func runDBDRDrill(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"db", "dr-drill"}, args, stdout, stderr)
 }
 
 func checkDBPrereqs() error {
@@ -316,82 +376,4 @@ func writeCompressedBackupFile(path string, sql string) error {
 		return fmt.Errorf("persist backup atomically: %w", err)
 	}
 	return nil
-}
-
-func printDBBackupHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl db backup [backup_name]
-
-Backup the PostgreSQL database to a timestamped compressed file.
-
-Arguments:
-  backup_name    Optional custom name for the backup (without extension)
-
-Environment variables:
-  BACKUP_DIR             Backup directory (default: demo/backups/)
-
-Examples:
-  acpctl db backup              # Creates: litellm-backup-YYYYMMDD-HHMMSS.sql.gz
-  acpctl db backup my-backup    # Creates: my-backup.sql.gz
-
-Exit codes:
-  0   Backup completed successfully
-  1   Backup failed
-  2   Prerequisites not ready
-  64  Usage error
-`)
-}
-
-func runDBDRDrill(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	for _, arg := range args {
-		if arg == "--help" || arg == "-h" {
-			printDBDRDrillHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		}
-	}
-
-	out := output.New()
-	fmt.Fprintln(stdout, out.Bold("=== Database DR Drill ==="))
-	fmt.Fprintln(stdout, "Running disaster recovery drill...")
-
-	// This would perform a full DR test in production
-	// For now, it's a simplified version that validates backup/restore capability
-	fmt.Fprintln(stdout, out.Green("DR drill completed successfully"))
-	return exitcodes.ACPExitSuccess
-}
-
-func printDBDRDrillHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl db dr-drill [OPTIONS]
-
-Run database disaster recovery drill.
-
-Options:
-  --help, -h        Show this help message
-
-Exit codes:
-  0   DR drill completed successfully
-  1   DR drill failed
-  2   Prerequisites not ready
-`)
-}
-
-func printDBRestoreHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl db restore [backup_file]
-
-Restore the PostgreSQL database from a backup file.
-Embedded Docker PostgreSQL only. This operation overwrites the current
-database by streaming the backup's plain SQL into psql.
-
-Arguments:
-  backup_file    Path to the backup file (auto-detects latest if not specified)
-
-Examples:
-  acpctl db restore                    # Restores latest backup
-  acpctl db restore my-backup.sql.gz   # Restores specific backup
-
-Exit codes:
-  0   Restore completed successfully
-  1   Restore failed
-  2   Prerequisites not ready
-  64  Usage error
-`)
 }

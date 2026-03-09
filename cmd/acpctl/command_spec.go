@@ -781,6 +781,9 @@ func resolveSuggestions(words []string, prefix string, repoRoot string) []string
 		}
 		return filterSuggestionsByPrefix(dedupeAndSort(names), prefix)
 	}
+	if len(current.Children) == 0 {
+		return filterSuggestionsByPrefix(visibleOptionSuggestions(current), prefix)
+	}
 	return filterSuggestionsByPrefix(append([]string(nil), spec.VisibleRootNames...), prefix)
 }
 
@@ -814,6 +817,20 @@ func dedupeAndSort(values []string) []string {
 	}
 	sort.Strings(deduped)
 	return deduped
+}
+
+func visibleOptionSuggestions(spec *commandSpec) []string {
+	if len(spec.Options) == 0 {
+		return nil
+	}
+	values := make([]string, 0, len(spec.Options)*2)
+	for _, option := range spec.Options {
+		values = append(values, "--"+option.Name)
+		if option.Short != "" {
+			values = append(values, "-"+option.Short)
+		}
+	}
+	return dedupeAndSort(values)
 }
 
 func filterSuggestionsByPrefix(values []string, prefix string) []string {

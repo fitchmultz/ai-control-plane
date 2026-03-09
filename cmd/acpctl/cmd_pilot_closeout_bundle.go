@@ -1,25 +1,23 @@
 // cmd_pilot_closeout_bundle.go - Pilot closeout bundle command implementation.
 //
 // Purpose:
-//
-//	Provide a typed CLI surface for assembling and verifying pilot closeout
-//	evidence bundles.
+//   - Provide a typed CLI surface for assembling and verifying pilot closeout evidence bundles.
 //
 // Responsibilities:
-//   - Parse closeout-bundle command arguments
-//   - Build local pilot closeout bundles from source documents and readiness evidence
-//   - Verify generated closeout bundle structure
+//   - Define the typed pilot-closeout-bundle command tree.
+//   - Build local pilot closeout bundles from source documents and readiness evidence.
+//   - Verify generated closeout bundle structure.
 //
 // Scope:
-//   - Covers local bundle assembly and verification only
+//   - Covers local bundle assembly and verification only.
 //
 // Usage:
 //   - `acpctl deploy pilot-closeout-bundle build`
 //   - `acpctl deploy pilot-closeout-bundle verify`
 //
 // Invariants/Assumptions:
-//   - Bundles remain local-only under `demo/logs/pilot-closeout`
-//   - Source pilot documents are authored outside the generated bundle
+//   - Bundles remain local-only under `demo/logs/pilot-closeout`.
+//   - Source pilot documents are authored outside the generated bundle.
 package main
 
 import (
@@ -27,214 +25,148 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/closeout"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 )
 
-func runPilotCloseoutBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 || isHelpToken(args[0]) {
-		printPilotCloseoutBundleHelp(stdout)
-		if len(args) == 0 {
-			return exitcodes.ACPExitUsage
-		}
-		return exitcodes.ACPExitSuccess
-	}
-
-	switch args[0] {
-	case "build":
-		return runPilotCloseoutBundleBuild(ctx, args[1:], stdout, stderr)
-	case "verify":
-		return runPilotCloseoutBundleVerify(ctx, args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "Error: unknown pilot-closeout-bundle command: %s\n", args[0])
-		printPilotCloseoutBundleHelp(stderr)
-		return exitcodes.ACPExitUsage
+func pilotCloseoutBundleCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "pilot-closeout-bundle",
+		Summary:     "Assemble and verify a pilot closeout evidence bundle",
+		Description: "Assemble and verify a pilot closeout evidence bundle.",
+		Children: []*commandSpec{
+			{
+				Name:        "build",
+				Summary:     "Assemble a local pilot closeout bundle",
+				Description: "Assemble a local pilot closeout bundle.",
+				Options: []commandOptionSpec{
+					{Name: "output-dir", ValueName: "DIR", Summary: "Output root for bundle runs", Type: optionValueString, DefaultText: "demo/logs/pilot-closeout"},
+					{Name: "customer", ValueName: "NAME", Summary: "Customer name", Type: optionValueString},
+					{Name: "pilot-name", ValueName: "NAME", Summary: "Pilot name", Type: optionValueString},
+					{Name: "decision", ValueName: "VALUE", Summary: "Decision label", Type: optionValueString, DefaultText: "PENDING_REVIEW"},
+					{Name: "charter", ValueName: "PATH", Summary: "Pilot charter source document", Type: optionValueString},
+					{Name: "acceptance-memo", ValueName: "PATH", Summary: "Pilot acceptance memo source document", Type: optionValueString},
+					{Name: "validation-checklist", ValueName: "PATH", Summary: "Customer validation checklist source document", Type: optionValueString},
+					{Name: "operator-checklist", ValueName: "PATH", Summary: "Optional operator handoff checklist source document", Type: optionValueString},
+					{Name: "readiness-run-dir", ValueName: "DIR", Summary: "Specific readiness evidence run to include", Type: optionValueString},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindPilotCloseoutBuildOptions,
+					NativeRun:  runPilotCloseoutBundleBuildTyped,
+				},
+			},
+			{
+				Name:        "verify",
+				Summary:     "Verify a generated pilot closeout bundle",
+				Description: "Verify a generated pilot closeout bundle.",
+				Options: []commandOptionSpec{
+					{Name: "run-dir", ValueName: "DIR", Summary: "Specific pilot closeout bundle directory to verify", Type: optionValueString},
+				},
+				Backend: commandBackend{
+					Kind:       commandBackendNative,
+					NativeBind: bindPilotCloseoutVerifyOptions,
+					NativeRun:  runPilotCloseoutBundleVerifyTyped,
+				},
+			},
+		},
 	}
 }
 
-func runPilotCloseoutBundleBuild(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	out := output.New()
-	repoRoot := detectRepoRootWithContext(ctx)
+func bindPilotCloseoutBuildOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+	repoRoot := bindCtx.RepoRoot
 	options := closeout.Options{
 		RepoRoot:   repoRoot,
 		OutputRoot: filepath.Join(repoRoot, "demo", "logs", "pilot-closeout"),
 	}
-
-	for index := 0; index < len(args); index++ {
-		switch args[index] {
-		case "--output-dir":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --output-dir")
-				return exitcodes.ACPExitUsage
-			}
-			options.OutputRoot = resolveReadinessPath(repoRoot, args[index])
-		case "--customer":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --customer")
-				return exitcodes.ACPExitUsage
-			}
-			options.Customer = args[index]
-		case "--pilot-name":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --pilot-name")
-				return exitcodes.ACPExitUsage
-			}
-			options.PilotName = args[index]
-		case "--decision":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --decision")
-				return exitcodes.ACPExitUsage
-			}
-			options.Decision = args[index]
-		case "--charter":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --charter")
-				return exitcodes.ACPExitUsage
-			}
-			options.CharterPath = resolveReadinessPath(repoRoot, args[index])
-		case "--acceptance-memo":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --acceptance-memo")
-				return exitcodes.ACPExitUsage
-			}
-			options.AcceptanceMemoPath = resolveReadinessPath(repoRoot, args[index])
-		case "--validation-checklist":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --validation-checklist")
-				return exitcodes.ACPExitUsage
-			}
-			options.ValidationChecklist = resolveReadinessPath(repoRoot, args[index])
-		case "--operator-checklist":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --operator-checklist")
-				return exitcodes.ACPExitUsage
-			}
-			options.OperatorChecklist = resolveReadinessPath(repoRoot, args[index])
-		case "--readiness-run-dir":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --readiness-run-dir")
-				return exitcodes.ACPExitUsage
-			}
-			options.ReadinessRunDir = resolveReadinessPath(repoRoot, args[index])
-		case "--help", "-h":
-			printPilotCloseoutBundleBuildHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		default:
-			fmt.Fprintf(stderr, "Error: unknown option: %s\n", args[index])
-			return exitcodes.ACPExitUsage
-		}
+	if input.String("output-dir") != "" {
+		options.OutputRoot = resolveReadinessPath(repoRoot, input.String("output-dir"))
 	}
+	options.Customer = input.String("customer")
+	options.PilotName = input.String("pilot-name")
+	options.Decision = input.String("decision")
+	if input.String("charter") != "" {
+		options.CharterPath = resolveReadinessPath(repoRoot, input.String("charter"))
+	}
+	if input.String("acceptance-memo") != "" {
+		options.AcceptanceMemoPath = resolveReadinessPath(repoRoot, input.String("acceptance-memo"))
+	}
+	if input.String("validation-checklist") != "" {
+		options.ValidationChecklist = resolveReadinessPath(repoRoot, input.String("validation-checklist"))
+	}
+	if input.String("operator-checklist") != "" {
+		options.OperatorChecklist = resolveReadinessPath(repoRoot, input.String("operator-checklist"))
+	}
+	if input.String("readiness-run-dir") != "" {
+		options.ReadinessRunDir = resolveReadinessPath(repoRoot, input.String("readiness-run-dir"))
+	}
+	return options, nil
+}
 
-	fmt.Fprint(stdout, out.Bold("Building pilot closeout bundle")+"\n")
+func bindPilotCloseoutVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+	runDir := input.String("run-dir")
+	if runDir != "" {
+		runDir = resolveReadinessPath(bindCtx.RepoRoot, runDir)
+	}
+	return runDir, nil
+}
+
+func runPilotCloseoutBundleBuildTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
+	out := output.New()
+	options := raw.(closeout.Options)
+
+	fmt.Fprint(runCtx.Stdout, out.Bold("Building pilot closeout bundle")+"\n")
 	summary, err := closeout.Build(ctx, options)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
-	fmt.Fprintln(stdout, "")
-	fmt.Fprint(stdout, out.Green(out.Bold("Pilot closeout bundle complete"))+"\n")
-	fmt.Fprintf(stdout, "  Run directory: %s\n", summary.RunDirectory)
-	fmt.Fprintf(stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, closeout.SummaryMarkdown))
-	fmt.Fprintf(stdout, "  Inventory: %s\n", filepath.Join(summary.RunDirectory, closeout.InventoryFileName))
+	fmt.Fprintln(runCtx.Stdout, "")
+	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Pilot closeout bundle complete"))+"\n")
+	fmt.Fprintf(runCtx.Stdout, "  Run directory: %s\n", summary.RunDirectory)
+	fmt.Fprintf(runCtx.Stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, closeout.SummaryMarkdown))
+	fmt.Fprintf(runCtx.Stdout, "  Inventory: %s\n", filepath.Join(summary.RunDirectory, closeout.InventoryFileName))
 	return exitcodes.ACPExitSuccess
 }
 
-func runPilotCloseoutBundleVerify(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+func runPilotCloseoutBundleVerifyTyped(_ context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
-	repoRoot := detectRepoRootWithContext(ctx)
-	runDir := ""
+	runDir := raw.(string)
 
-	for index := 0; index < len(args); index++ {
-		switch args[index] {
-		case "--run-dir":
-			index++
-			if index >= len(args) {
-				fmt.Fprintln(stderr, "Error: missing value for --run-dir")
-				return exitcodes.ACPExitUsage
-			}
-			runDir = resolveReadinessPath(repoRoot, args[index])
-		case "--help", "-h":
-			printPilotCloseoutBundleVerifyHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		default:
-			fmt.Fprintf(stderr, "Error: unknown option: %s\n", args[index])
-			return exitcodes.ACPExitUsage
-		}
-	}
-
-	if strings.TrimSpace(runDir) == "" {
-		resolvedRunDir, err := closeout.ResolveLatestRun(filepath.Join(repoRoot, "demo", "logs", "pilot-closeout"))
+	if runDir == "" {
+		resolvedRunDir, err := closeout.ResolveLatestRun(filepath.Join(runCtx.RepoRoot, "demo", "logs", "pilot-closeout"))
 		if err != nil {
-			fmt.Fprintln(stderr, "Error: no pilot closeout bundle available; use --run-dir or generate one first")
+			fmt.Fprintln(runCtx.Stderr, "Error: no pilot closeout bundle available; use --run-dir or generate one first")
 			return exitcodes.ACPExitUsage
 		}
 		runDir = resolvedRunDir
 	}
 
-	fmt.Fprint(stdout, out.Bold("Verifying pilot closeout bundle")+"\n")
-	fmt.Fprintf(stdout, "  Run directory: %s\n", runDir)
+	fmt.Fprint(runCtx.Stdout, out.Bold("Verifying pilot closeout bundle")+"\n")
+	fmt.Fprintf(runCtx.Stdout, "  Run directory: %s\n", runDir)
 	summary, err := closeout.NewVerifier().VerifyRun(runDir)
 	if err != nil {
-		fmt.Fprintf(stderr, out.Fail("%v\n"), err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain
 	}
 
-	fmt.Fprintln(stdout, "")
-	fmt.Fprint(stdout, out.Green(out.Bold("Pilot closeout bundle verified"))+"\n")
-	fmt.Fprintf(stdout, "  Customer: %s\n", summary.Customer)
-	fmt.Fprintf(stdout, "  Pilot: %s\n", summary.PilotName)
-	fmt.Fprintf(stdout, "  Decision: %s\n", summary.Decision)
+	fmt.Fprintln(runCtx.Stdout, "")
+	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Pilot closeout bundle verified"))+"\n")
+	fmt.Fprintf(runCtx.Stdout, "  Customer: %s\n", summary.Customer)
+	fmt.Fprintf(runCtx.Stdout, "  Pilot: %s\n", summary.PilotName)
+	fmt.Fprintf(runCtx.Stdout, "  Decision: %s\n", summary.Decision)
 	return exitcodes.ACPExitSuccess
 }
 
-func printPilotCloseoutBundleHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl deploy pilot-closeout-bundle <command> [OPTIONS]
-
-Commands:
-  build    Assemble a local pilot closeout bundle
-  verify   Verify a generated pilot closeout bundle
-
-Examples:
-  acpctl deploy pilot-closeout-bundle build --customer "Falcon Insurance Group" --pilot-name "Claims Governance Pilot" --charter docs/examples/falcon-insurance-group/PILOT_CHARTER.md --acceptance-memo docs/examples/falcon-insurance-group/PILOT_ACCEPTANCE_MEMO.md --validation-checklist docs/examples/falcon-insurance-group/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md
-  acpctl deploy pilot-closeout-bundle verify --run-dir demo/logs/pilot-closeout/pilot-closeout-20260305T170000Z
-`)
-}
-
-func printPilotCloseoutBundleBuildHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl deploy pilot-closeout-bundle build [OPTIONS]
-
-Options:
-  --output-dir DIR             Output root for bundle runs (default: demo/logs/pilot-closeout)
-  --customer NAME              Customer name
-  --pilot-name NAME            Pilot name
-  --decision VALUE             Decision label (default: PENDING_REVIEW)
-  --charter PATH               Pilot charter source document
-  --acceptance-memo PATH       Pilot acceptance memo source document
-  --validation-checklist PATH  Customer validation checklist source document
-  --operator-checklist PATH    Optional operator handoff checklist source document
-  --readiness-run-dir DIR      Specific readiness evidence run to include (default: latest)
-  --help                       Show this help message
-`)
-}
-
-func printPilotCloseoutBundleVerifyHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl deploy pilot-closeout-bundle verify [OPTIONS]
-
-Options:
-  --run-dir DIR   Specific pilot closeout bundle directory to verify (default: latest generated run)
-  --help          Show this help message
-`)
+func runPilotCloseoutBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	if len(args) == 0 {
+		if path, err := findCommandPath([]string{"deploy", "pilot-closeout-bundle"}); err == nil {
+			printCommandHelp(stdout, path)
+		}
+		return exitcodes.ACPExitUsage
+	}
+	return runTypedCommandAdapter(ctx, []string{"deploy", "pilot-closeout-bundle"}, args, stdout, stderr)
 }

@@ -138,7 +138,7 @@ func TestRunHelmSmokeCommandRejectsUnsupportedArguments(t *testing.T) {
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage failure, got %d stderr=%s", exitCode, readFile(t, stderr))
 	}
-	if got := readFile(t, stderr); !stringsContainAll(got, "unknown option: NAMESPACE=acp", "Usage: acpctl helm smoke") {
+	if got := readFile(t, stderr); !stringsContainAll(got, "unexpected argument: NAMESPACE=acp", "Usage: acpctl helm smoke") {
 		t.Fatalf("expected usage output, got %s", got)
 	}
 }

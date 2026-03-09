@@ -1,16 +1,16 @@
 // cmd_artifact_retention.go - Document artifact retention command
 //
-// Purpose: Enforce retention policy for generated document artifacts
+// Purpose: Enforce retention policy for generated document artifacts.
 //
 // Responsibilities:
-//   - Detect stale timestamped handoff evidence directories
-//   - Detect stale release-bundle document sets
-//   - Provide check mode for CI and apply mode for cleanup
-//   - Keep the newest N artifacts per class
+//   - Define the typed artifact-retention command surface.
+//   - Detect stale timestamped handoff evidence directories.
+//   - Detect stale release-bundle document sets.
+//   - Provide check mode for CI and apply mode for cleanup.
 //
 // Non-scope:
-//   - Does NOT regenerate artifacts
-//   - Does NOT mutate git history
+//   - Does not regenerate artifacts.
+//   - Does not mutate git history.
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -20,7 +20,6 @@
 //
 // Invariants/Assumptions:
 //   - Behavior must remain deterministic for equivalent inputs.
-
 package main
 
 import (
@@ -30,7 +29,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
@@ -44,98 +42,96 @@ type artifactRetentionConfig struct {
 	RepoRoot     string
 }
 
-func runArtifactRetentionCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+func artifactRetentionCommandSpec() *commandSpec {
+	return &commandSpec{
+		Name:        "artifact-retention",
+		Summary:     "Enforce document artifact retention policy",
+		Description: "Enforce cleanup policy for stale generated document artifacts.",
+		Options: []commandOptionSpec{
+			{Name: "check", Summary: "Check only; fail if stale artifacts exist", Type: optionValueBool},
+			{Name: "apply", Summary: "Delete stale artifacts", Type: optionValueBool},
+			{Name: "keep-evidence", ValueName: "N", Summary: "Number of newest evidence directories to keep", Type: optionValueInt, DefaultText: "1"},
+			{Name: "keep-bundles", ValueName: "N", Summary: "Number of newest release bundle sets to keep", Type: optionValueInt, DefaultText: "1"},
+			{Name: "repo-root", ValueName: "PATH", Summary: "Override repository root path", Type: optionValueString},
+		},
+		Backend: commandBackend{
+			Kind:       commandBackendNative,
+			NativeBind: bindArtifactRetentionOptions,
+			NativeRun:  runArtifactRetention,
+		},
+	}
+}
+
+func bindArtifactRetentionOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
 	config := artifactRetentionConfig{
 		Mode:         "check",
 		KeepEvidence: 1,
 		KeepBundles:  1,
-		RepoRoot:     detectRepoRootWithContext(ctx),
+		RepoRoot:     bindCtx.RepoRoot,
 	}
-
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--check":
-			config.Mode = "check"
-		case "--apply":
-			config.Mode = "apply"
-		case "--keep-evidence":
-			if i+1 >= len(args) {
-				fmt.Fprintln(stderr, "Error: --keep-evidence requires a positive integer")
-				return exitcodes.ACPExitUsage
-			}
-			n, err := strconv.Atoi(args[i+1])
-			if err != nil || n < 1 {
-				fmt.Fprintln(stderr, "Error: --keep-evidence requires a positive integer")
-				return exitcodes.ACPExitUsage
-			}
-			config.KeepEvidence = n
-			i++
-		case "--keep-bundles":
-			if i+1 >= len(args) {
-				fmt.Fprintln(stderr, "Error: --keep-bundles requires a positive integer")
-				return exitcodes.ACPExitUsage
-			}
-			n, err := strconv.Atoi(args[i+1])
-			if err != nil || n < 1 {
-				fmt.Fprintln(stderr, "Error: --keep-bundles requires a positive integer")
-				return exitcodes.ACPExitUsage
-			}
-			config.KeepBundles = n
-			i++
-		case "--repo-root":
-			if i+1 >= len(args) {
-				fmt.Fprintln(stderr, "Error: --repo-root requires a path")
-				return exitcodes.ACPExitUsage
-			}
-			config.RepoRoot = args[i+1]
-			i++
-		case "--help":
-			printArtifactRetentionHelp(stdout)
-			return exitcodes.ACPExitSuccess
-		default:
-			fmt.Fprintf(stderr, "Error: Unknown option '%s'\n", args[i])
-			return exitcodes.ACPExitUsage
+	if input.Bool("apply") && input.Bool("check") {
+		return nil, fmt.Errorf("--check and --apply cannot be used together")
+	}
+	if input.Bool("apply") {
+		config.Mode = "apply"
+	}
+	if input.String("keep-evidence") != "" {
+		n, err := input.Int("keep-evidence")
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("--keep-evidence requires a positive integer")
 		}
+		config.KeepEvidence = n
 	}
+	if input.String("keep-bundles") != "" {
+		n, err := input.Int("keep-bundles")
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("--keep-bundles requires a positive integer")
+		}
+		config.KeepBundles = n
+	}
+	if input.String("repo-root") != "" {
+		config.RepoRoot = input.String("repo-root")
+	}
+	return config, nil
+}
 
+func runArtifactRetention(_ context.Context, runCtx commandRunContext, raw any) int {
+	config := raw.(artifactRetentionConfig)
 	out := output.New()
 	evidenceRoot := filepath.Join(config.RepoRoot, "handoff-packet", "evidence")
 	bundleRoot := filepath.Join(config.RepoRoot, "demo", "logs", "release-bundles")
 
-	// Collect evidence directories
 	evidenceOrdered := collectEvidenceDirs(evidenceRoot)
-
-	// Collect bundle bases
 	bundleBasesOrdered := collectBundleBases(bundleRoot)
-
-	// Compute stale lists
 	evidenceStale := computeStaleEvidence(evidenceOrdered, config.KeepEvidence, evidenceRoot)
 	bundleFilesStale := computeStaleBundles(bundleBasesOrdered, config.KeepBundles, bundleRoot)
 
-	// Print summary
-	printStaleSummary(stdout, out, config, evidenceStale, bundleFilesStale)
+	printStaleSummary(runCtx.Stdout, out, config, evidenceStale, bundleFilesStale)
 
 	if config.Mode == "check" {
 		if len(evidenceStale) > 0 || len(bundleFilesStale) > 0 {
-			fmt.Fprintln(stdout, "")
-			fmt.Fprintln(stdout, out.Fail("Retention check failed."))
-			fmt.Fprintln(stdout, "Run: acpctl deploy artifact-retention --apply")
+			fmt.Fprintln(runCtx.Stdout, "")
+			fmt.Fprintln(runCtx.Stdout, out.Fail("Retention check failed."))
+			fmt.Fprintln(runCtx.Stdout, "Run: acpctl deploy artifact-retention --apply")
 			return exitcodes.ACPExitDomain
 		}
 		return exitcodes.ACPExitSuccess
 	}
 
-	// Apply cleanup
 	for _, stale := range evidenceStale {
 		deleteEvidenceDir(stale)
 	}
 	for _, stale := range bundleFilesStale {
-		os.Remove(stale)
+		_ = os.Remove(stale)
 	}
 
-	fmt.Fprintln(stdout, "")
-	fmt.Fprintln(stdout, out.Green("Retention cleanup applied successfully."))
+	fmt.Fprintln(runCtx.Stdout, "")
+	fmt.Fprintln(runCtx.Stdout, out.Green("Retention cleanup applied successfully."))
 	return exitcodes.ACPExitSuccess
+}
+
+func runArtifactRetentionCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
+	return runTypedCommandAdapter(ctx, []string{"deploy", "artifact-retention"}, args, stdout, stderr)
 }
 
 func collectEvidenceDirs(evidenceRoot string) []string {
@@ -156,7 +152,6 @@ func collectEvidenceDirs(evidenceRoot string) []string {
 		}
 	}
 
-	// Sort reverse (newest first)
 	sort.Sort(sort.Reverse(sort.StringSlice(ordered)))
 	return ordered
 }
@@ -192,7 +187,6 @@ func collectBundleBases(bundleRoot string) []string {
 		})
 	}
 
-	// Sort by modTime descending (newest first)
 	sort.Slice(bundles, func(i, j int) bool {
 		return bundles[i].modTime > bundles[j].modTime
 	})
@@ -279,42 +273,11 @@ func printStaleSummary(stdout *os.File, out *output.Output, config artifactReten
 }
 
 func deleteEvidenceDir(dir string) {
-	// Remove all files in the directory
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
-			os.Remove(path)
+			_ = os.Remove(path)
 		}
 		return nil
 	})
-	// Remove empty directories
-	os.RemoveAll(dir)
-}
-
-func printArtifactRetentionHelp(out *os.File) {
-	fmt.Fprint(out, `Usage: acpctl deploy artifact-retention [OPTIONS]
-
-Enforce cleanup policy for stale document artifacts:
-  - handoff-packet/evidence/<timestamp>/
-  - demo/logs/release-bundles/*.tar.gz{,.sha256,.asc}
-
-Options:
-  --check                 Check only; fail if stale artifacts exist (default)
-  --apply                 Delete stale artifacts, keeping newest artifacts
-  --keep-evidence N       Number of newest evidence directories to keep (default: 1)
-  --keep-bundles N        Number of newest release bundle sets to keep (default: 1)
-  --repo-root PATH        Override repository root path
-  --help                  Show this help message
-
-Examples:
-  # Check workspace retention compliance
-  acpctl deploy artifact-retention --check
-
-  # Keep only newest evidence dir and release bundle set
-  acpctl deploy artifact-retention --apply
-
-Exit codes:
-  0   Success (compliant or cleanup applied)
-  1   Stale artifacts found in --check mode
-  64  Usage error
-`)
+	_ = os.RemoveAll(dir)
 }

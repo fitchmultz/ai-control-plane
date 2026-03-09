@@ -35,7 +35,10 @@ func TestPrintEnvGetHelpStatesNonExecutingContract(t *testing.T) {
 	t.Parallel()
 
 	stdout, stdoutPath := tempOutputFile(t)
-	printEnvGetHelp(stdout)
+	exitCode := run(context.Background(), []string{"env", "get", "--help"}, stdout, stdout)
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("run(env get --help) exit = %d, want %d", exitCode, exitcodes.ACPExitSuccess)
+	}
 
 	output := readOutputFile(t, stdoutPath)
 	if !strings.Contains(output, "Prefer this over sourcing env files or grepping secrets from them.") {
