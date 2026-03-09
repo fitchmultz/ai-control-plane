@@ -30,12 +30,16 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
+var runDockerInfo = func(ctx context.Context) proc.Result {
+	return proc.Run(ctx, proc.Request{Name: "docker", Args: []string{"info"}})
+}
+
 type dockerAvailableCheck struct{}
 
 func (c dockerAvailableCheck) ID() string { return "docker_available" }
 
 func (c dockerAvailableCheck) Run(ctx context.Context, opts Options) CheckResult {
-	result := proc.Run(ctx, proc.Request{Name: "docker", Args: []string{"info"}})
+	result := runDockerInfo(ctx)
 	if result.Err != nil {
 		message := "Docker daemon not accessible"
 		suggestions := []string{

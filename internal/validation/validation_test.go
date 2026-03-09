@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/testutil"
 )
 
 func TestValidateComposeHealthchecksFlagsMissingTest(t *testing.T) {
@@ -235,22 +237,12 @@ func TestValidateDeploymentConfigProductionFlagsInsecureHostContract(t *testing.
 
 func writeFixtureFile(t *testing.T, path string, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", path, err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
+	testutil.WriteFile(t, filepath.Clean(path), content)
 }
 
 func writeEnvFixtureFile(t *testing.T, path string, content string, mode os.FileMode) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", path, err)
-	}
-	if err := os.WriteFile(path, []byte(content), mode); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
+	testutil.WriteFileMode(t, filepath.Clean(path), content, mode)
 }
 
 func writeValidDeploymentSurfaceRepo(t *testing.T, repoRoot string) {

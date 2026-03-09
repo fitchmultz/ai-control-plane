@@ -31,10 +31,20 @@ import (
 )
 
 type DBStore struct {
-	Reader *db.ChargebackReader
+	Reader chargebackReader
 }
 
-func NewDBStore(reader *db.ChargebackReader) *DBStore {
+type chargebackReader interface {
+	CostCenterAllocationsJSON(ctx context.Context, monthStart string, monthEnd string) (string, error)
+	ModelAllocationsJSON(ctx context.Context, monthStart string, monthEnd string) (string, error)
+	TopPrincipalsJSON(ctx context.Context, monthStart string, monthEnd string, limit int) (string, error)
+	TotalSpend(ctx context.Context, monthStart string, monthEnd string) (float64, error)
+	MetricsSummary(ctx context.Context, monthStart string, monthEnd string) (db.ChargebackMetricsSummary, error)
+	HistoricalSpendJSON(ctx context.Context, monthsBack int, monthStart string) (string, error)
+	TotalBudget(ctx context.Context) (float64, error)
+}
+
+func NewDBStore(reader chargebackReader) *DBStore {
 	return &DBStore{Reader: reader}
 }
 
@@ -122,7 +132,7 @@ func (s *DBStore) TotalBudget(ctx context.Context) (float64, error) {
 	return reader.TotalBudget(ctx)
 }
 
-func (s *DBStore) requireReader() (*db.ChargebackReader, error) {
+func (s *DBStore) requireReader() (chargebackReader, error) {
 	if s == nil || s.Reader == nil {
 		return nil, fmt.Errorf("chargeback DB store requires a database reader")
 	}

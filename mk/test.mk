@@ -4,21 +4,30 @@
 # Responsibilities:
 #   - Run shell/Python contract tests
 #   - Run Go tests
-#   - Enforce critical-package coverage thresholds
+#   - Enforce high-risk internal package coverage thresholds
 #   - Run health checks as test suite
 #
 # Non-scope:
 #   - Does not run integration tests against live services
 #   - Does not replace broader runtime CI verification
 
-GO_COVERAGE_CRITICAL_PACKAGES := ./internal/db ./internal/contracts ./internal/config ./internal/catalog ./internal/fsutil
+GO_COVERAGE_CRITICAL_SPECS := \
+	./internal/db:70 \
+	./internal/contracts:90 \
+	./internal/config:85 \
+	./internal/catalog:90 \
+	./internal/fsutil:65 \
+	./internal/security:80 \
+	./internal/validation:80 \
+	./internal/bundle:75 \
+	./internal/gateway:85 \
+	./internal/chargeback:75 \
+	./internal/doctor:90 \
+	./internal/status:85 \
+	./internal/status/collectors:90 \
+	./internal/status/runner:85
 GO_COVERAGE_ARTIFACT_DIR := local/coverage
 GO_COVERAGE_CRITICAL_PROFILE := $(GO_COVERAGE_ARTIFACT_DIR)/critical.out
-GO_COVERAGE_MIN_INTERNAL_DB := 70
-GO_COVERAGE_MIN_INTERNAL_CONTRACTS := 90
-GO_COVERAGE_MIN_INTERNAL_CONFIG := 85
-GO_COVERAGE_MIN_INTERNAL_CATALOG := 90
-GO_COVERAGE_MIN_INTERNAL_FSUTIL := 65
 
 .PHONY: test
 test: ## Run tests (health checks are the test suite for infrastructure project)
@@ -46,10 +55,10 @@ test-go: ## Run Go unit tests
 		|| { echo '$(COLOR_RED)✗ Go tests failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: coverage-critical
-coverage-critical: test-go-cover ## Enforce minimum coverage for critical internal packages
+coverage-critical: test-go-cover ## Enforce minimum coverage for critical high-risk internal packages
 
 .PHONY: test-go-cover
-test-go-cover: ## Run and enforce coverage for critical internal Go packages
+test-go-cover: ## Run and enforce coverage for critical high-risk internal Go packages
 	@echo '$(COLOR_BOLD)Running critical-package coverage gate...$(COLOR_RESET)'
 	@if ! command -v $(GO) >/dev/null 2>&1; then \
 		echo '$(COLOR_RED)✗ Go is required for coverage checks$(COLOR_RESET)'; \
@@ -60,15 +69,9 @@ test-go-cover: ## Run and enforce coverage for critical internal Go packages
 	total_profile="$(GO_COVERAGE_CRITICAL_PROFILE)"; \
 	printf 'mode: atomic\n' > "$$total_profile"; \
 	failed=0; \
-	for pkg in $(GO_COVERAGE_CRITICAL_PACKAGES); do \
-		case "$$pkg" in \
-			./internal/db) threshold="$(GO_COVERAGE_MIN_INTERNAL_DB)" ;; \
-			./internal/contracts) threshold="$(GO_COVERAGE_MIN_INTERNAL_CONTRACTS)" ;; \
-			./internal/config) threshold="$(GO_COVERAGE_MIN_INTERNAL_CONFIG)" ;; \
-			./internal/catalog) threshold="$(GO_COVERAGE_MIN_INTERNAL_CATALOG)" ;; \
-			./internal/fsutil) threshold="$(GO_COVERAGE_MIN_INTERNAL_FSUTIL)" ;; \
-			*) echo '$(COLOR_RED)✗ Unknown coverage threshold package: '$$pkg'$(COLOR_RESET)'; exit 1 ;; \
-		esac; \
+	for spec in $(GO_COVERAGE_CRITICAL_SPECS); do \
+		pkg="$${spec%:*}"; \
+		threshold="$${spec##*:}"; \
 		profile="$(GO_COVERAGE_ARTIFACT_DIR)/$$(printf '%s' "$$pkg" | tr '/.' '__').out"; \
 		output="$$( $(GO) test -covermode=atomic -coverprofile "$$profile" "$$pkg" 2>&1 )" || { \
 			printf '%s\n' "$$output"; \
@@ -76,7 +79,7 @@ test-go-cover: ## Run and enforce coverage for critical internal Go packages
 			exit 1; \
 		}; \
 		printf '%s\n' "$$output"; \
-		coverage="$$(printf '%s\n' "$$output" | awk '/coverage:/ {for (i = 1; i <= NF; i++) if ($$i == "coverage:") {gsub("%", "", $$(i+1)); print $$(i+1)}}' | tail -n1)"; \
+		coverage="$$( $(GO) tool cover -func "$$profile" | awk '/^total:/ {gsub("%", "", $$3); print $$3}' )"; \
 		if [ -z "$$coverage" ]; then \
 			echo '$(COLOR_RED)✗ Unable to determine coverage for '$$pkg'$(COLOR_RESET)'; \
 			exit 1; \
@@ -95,7 +98,7 @@ test-go-cover: ## Run and enforce coverage for critical internal Go packages
 	fi
 
 .PHONY: coverage-report
-coverage-report: test-go-cover ## Print detailed coverage report for critical internal packages
+coverage-report: test-go-cover ## Print detailed coverage report for critical high-risk internal packages
 	@echo '$(COLOR_BOLD)Detailed coverage report: $(GO_COVERAGE_CRITICAL_PROFILE)$(COLOR_RESET)'
 	@$(GO) tool cover -func "$(GO_COVERAGE_CRITICAL_PROFILE)"
 
