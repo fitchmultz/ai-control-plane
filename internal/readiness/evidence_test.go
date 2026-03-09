@@ -23,7 +23,6 @@ package readiness
 
 import (
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +55,7 @@ func TestRunContextGeneratesArtifactsAndVerifierPasses(t *testing.T) {
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,
 		BundleVersion: bundleVersion,
-	}, io.Discard, io.Discard)
+	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}
@@ -119,7 +118,7 @@ func TestRunContextSkipsProductionWithoutSecrets(t *testing.T) {
 		BundleVersion:     bundleVersion,
 		IncludeProduction: true,
 		SecretsEnvFile:    filepath.Join(repoRoot, "missing.env"),
-	}, io.Discard, io.Discard)
+	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}
@@ -166,7 +165,7 @@ func TestVerifyRunDetectsInventoryMismatch(t *testing.T) {
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,
 		BundleVersion: bundleVersion,
-	}, io.Discard, io.Discard)
+	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}

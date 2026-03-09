@@ -20,7 +20,10 @@
 //   - Exported keys are redacted unless ShowKey is explicitly enabled.
 package onboard
 
-import "strings"
+import (
+	"io"
+	"strings"
+)
 
 func renderSummary(state runState) string {
 	keyAlias := ""
@@ -75,4 +78,13 @@ func redactKey(key string) string {
 		return "***"
 	}
 	return key[:8] + "..." + key[len(key)-4:]
+}
+
+func WriteHuman(stdout io.Writer, stderr io.Writer, result Result) {
+	if strings.TrimSpace(result.Stdout) != "" {
+		fprintf(stdout, "%s", result.Stdout)
+	}
+	if strings.TrimSpace(result.Stderr) != "" {
+		fprintf(stderr, "%s", result.Stderr)
+	}
 }

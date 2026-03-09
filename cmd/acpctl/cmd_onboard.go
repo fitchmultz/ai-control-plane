@@ -21,8 +21,10 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/onboard"
 )
 
@@ -76,8 +78,10 @@ func bindOnboardOptions(bindCtx commandBindContext, input parsedCommandInput) (a
 	}, nil
 }
 
-func runOnboard(ctx context.Context, _ commandRunContext, raw any) int {
+func runOnboard(ctx context.Context, runCtx commandRunContext, raw any) int {
+	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "onboard")))
 	result := onboard.Run(ctx, raw.(onboard.Options))
+	onboard.WriteHuman(runCtx.Stdout, runCtx.Stderr, result)
 	return result.ExitCode
 }
 

@@ -1,14 +1,14 @@
-// Package contracts validates tracked governance configuration contracts.
+// governance.go - Governance contract loading and validation.
 //
 // Purpose:
 //
 //	Own the typed loading and validation of detection, SIEM, and approved-model
-//	contracts outside the CLI layer.
+//	governance contracts outside the CLI layer.
 //
 // Responsibilities:
 //   - Load detection and SIEM contract files from YAML.
 //   - Validate detection rule structure and approved-model placeholders.
-//   - Validate SIEM coverage parity and normalized schema mappings.
+//   - Validate SIEM coverage parity and normalized governance mappings.
 //
 // Scope:
 //   - Read-only contract validation for committed repository configuration.

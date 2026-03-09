@@ -22,9 +22,11 @@ package bundle
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,6 +36,7 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 )
 
 // Builder handles bundle construction.
@@ -51,7 +54,13 @@ func NewBuilder(repoRoot string, verbose bool) *Builder {
 }
 
 // Build creates a release bundle from the plan.
-func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
+func (b *Builder) Build(ctx context.Context, plan *Plan) error {
+	logger := logging.FromContext(ctx).With(
+		slog.String("component", "bundle"),
+		slog.String("workflow", "release_bundle_build"),
+		slog.String("bundle_path", plan.BundlePath),
+	)
+	logger.Info("workflow.start", slog.String("output_dir", plan.OutputDir))
 	if err := fsutil.EnsurePrivateDir(plan.OutputDir); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
@@ -68,10 +77,10 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 	}
 
 	if b.verbose {
-		fmt.Fprintf(stdout, "Staging directory: %s\n", stageDir)
+		logger.Info("stage.directory", slog.String("path", stageDir))
 	}
 
-	if err := b.copyPayloadFiles(payloadDir, stdout); err != nil {
+	if err := b.copyPayloadFiles(ctx, payloadDir); err != nil {
 		return err
 	}
 
@@ -96,10 +105,15 @@ func (b *Builder) Build(plan *Plan, stdout io.Writer) error {
 		return fmt.Errorf("failed to create checksum: %w", err)
 	}
 
+	logger.Info("workflow.complete", slog.String("bundle_path", plan.BundlePath))
 	return nil
 }
 
-func (b *Builder) copyPayloadFiles(payloadDir string, stdout io.Writer) error {
+func (b *Builder) copyPayloadFiles(ctx context.Context, payloadDir string) error {
+	logger := logging.FromContext(ctx).With(
+		slog.String("component", "bundle"),
+		slog.String("step", "copy_payload_files"),
+	)
 	for _, relPath := range CanonicalPaths {
 		src := filepath.Join(b.repoRoot, relPath)
 		dst := filepath.Join(payloadDir, relPath)
@@ -110,7 +124,7 @@ func (b *Builder) copyPayloadFiles(payloadDir string, stdout io.Writer) error {
 			return fmt.Errorf("failed to copy %s: %w", relPath, err)
 		}
 		if b.verbose {
-			fmt.Fprintf(stdout, "  Copying: %s\n", relPath)
+			logger.Info("payload.file_copied", slog.String("path", relPath))
 		}
 	}
 	return nil

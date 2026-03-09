@@ -19,7 +19,7 @@
 package bundle
 
 import (
-	"io"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,7 +92,7 @@ func TestVerifierVerify_ReportsPayloadChecksumFailure(t *testing.T) {
 		OutputDir:  outputDir,
 		BundlePath: filepath.Join(outputDir, "bundle.tar.gz"),
 	}
-	if err := NewBuilder(repoRoot, false).Build(plan, io.Discard); err != nil {
+	if err := NewBuilder(repoRoot, false).Build(context.Background(), plan); err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
 

@@ -14,6 +14,7 @@ The baseline deployment target is a **single Linux host**. Kubernetes and Terraf
 
 - **Makefile + `mk/*.mk`**: canonical task orchestration for install, run, test, validation, security, and release workflows.
 - **`acpctl` (`cmd/acpctl`, `internal/*`)**: typed operator CLI for status, health, doctor checks, security gates, key operations, and release bundles.
+- **`internal/logging`**: shared structured workflow-event logging for typed operator flows; final human renderers stay with commands and report packages.
 
 ### Runtime control plane
 
@@ -27,6 +28,8 @@ The baseline deployment target is a **single Linux host**. Kubernetes and Terraf
 
 - **Policy configuration** in `demo/config/` (approved models, budgets/rate limits, detection rules, webhook and SIEM mappings).
 - **Validation contracts** in CLI and Make targets (`lint-*`, `validate-*`, security gates, health checks).
+- **`internal/validation`**: deployment-surface and profile-aware configuration validation.
+- **`internal/contracts`**: governance-data contract validation for detections, SIEM mappings, and approved-model alignment.
 
 ### Deployment assets
 

@@ -16,9 +16,9 @@
 package bundle
 
 import (
+	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -317,8 +317,7 @@ func TestBuilder_Build(t *testing.T) {
 	}
 
 	builder := NewBuilder(tmpDir, false)
-	var output strings.Builder
-	err = builder.Build(plan, &output)
+	err = builder.Build(context.Background(), plan)
 	if err != nil {
 		t.Errorf("Builder.Build() error = %v", err)
 	}
@@ -365,15 +364,13 @@ func TestVerifier_Verify(t *testing.T) {
 	}
 
 	builder := NewBuilder(tmpDir, false)
-	var buildOutput strings.Builder
-	if err := builder.Build(plan, &buildOutput); err != nil {
+	if err := builder.Build(context.Background(), plan); err != nil {
 		t.Fatalf("Failed to build bundle: %v", err)
 	}
 
 	// Now verify it
 	verifier := NewVerifier(false)
-	var verifyOutput strings.Builder
-	result, err := verifier.Verify(plan.BundlePath, &verifyOutput)
+	result, err := verifier.Verify(context.Background(), plan.BundlePath)
 	if err != nil {
 		t.Errorf("Verifier.Verify() error = %v", err)
 	}
@@ -401,8 +398,7 @@ func TestVerifier_Verify(t *testing.T) {
 
 func TestVerifier_Verify_MissingBundle(t *testing.T) {
 	verifier := NewVerifier(false)
-	var output strings.Builder
-	_, err := verifier.Verify("/nonexistent/bundle.tar.gz", &output)
+	_, err := verifier.Verify(context.Background(), "/nonexistent/bundle.tar.gz")
 	if err == nil {
 		t.Error("Verifier.Verify() should error for missing bundle")
 	}
@@ -422,8 +418,7 @@ func TestVerifier_Verify_MissingSidecar(t *testing.T) {
 	}
 
 	verifier := NewVerifier(false)
-	var output strings.Builder
-	_, err = verifier.Verify(bundlePath, &output)
+	_, err = verifier.Verify(context.Background(), bundlePath)
 	if err == nil {
 		t.Error("Verifier.Verify() should error for missing sidecar")
 	}

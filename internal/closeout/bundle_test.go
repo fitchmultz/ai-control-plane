@@ -22,7 +22,6 @@ package closeout
 
 import (
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -155,7 +154,7 @@ func writeReadinessRunFixture(t *testing.T, repoRoot string) string {
 		OutputRoot:    outputRoot,
 		MakeBin:       makeBin,
 		BundleVersion: bundleVersion,
-	}, io.Discard, io.Discard)
+	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}

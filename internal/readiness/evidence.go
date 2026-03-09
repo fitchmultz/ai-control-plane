@@ -33,7 +33,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,6 +42,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/artifactrun"
 	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
@@ -125,10 +126,14 @@ func NewVerifier() *Verifier {
 }
 
 // RunContext executes the configured readiness gates and writes artifacts.
-func RunContext(ctx context.Context, opts Options, stdout io.Writer, stderr io.Writer) (*Summary, error) {
+func RunContext(ctx context.Context, opts Options) (*Summary, error) {
 	if strings.TrimSpace(opts.RepoRoot) == "" {
 		return nil, fmt.Errorf("repo root is required")
 	}
+	logger := logging.FromContext(ctx).With(
+		slog.String("component", "readiness"),
+		slog.String("workflow", "evidence"),
+	)
 	if strings.TrimSpace(opts.OutputRoot) == "" {
 		opts.OutputRoot = filepath.Join(opts.RepoRoot, "demo", "logs", "evidence")
 	}
@@ -166,10 +171,10 @@ func RunContext(ctx context.Context, opts Options, stdout io.Writer, stderr io.W
 		OverallStatus:      "PASS",
 	}
 	if opts.IncludeProduction && !productionEnabled {
-		fmt.Fprintf(stdout, "Production gate requested but secrets file not found: %s\n", opts.SecretsEnvFile)
+		logger.Warn("gate.production_skipped", slog.String("secrets_env_file", opts.SecretsEnvFile), slog.String("reason", "secrets file not found"))
 	}
 
-	for index, gate := range gates {
+	for _, gate := range gates {
 		result := GateResult{
 			ID:          gate.ID,
 			Title:       gate.Title,
@@ -184,6 +189,7 @@ func RunContext(ctx context.Context, opts Options, stdout io.Writer, stderr io.W
 		if summary.OverallStatus == "FAIL" {
 			result.Status = "SKIPPED"
 			result.Notes = appendNote(result.Notes, "Earlier required gate failed; this gate was not executed.")
+			logger.Warn("gate.skipped", slog.String("gate_id", gate.ID), slog.String("reason", "earlier required gate failed"))
 			summary.SkippedGateCount++
 			summary.GateResults = append(summary.GateResults, result)
 			continue
@@ -191,17 +197,15 @@ func RunContext(ctx context.Context, opts Options, stdout io.Writer, stderr io.W
 		if !gate.Required && !productionEnabled && gate.ID == "production_ci" {
 			result.Status = "SKIPPED"
 			result.Notes = appendNote(result.Notes, fmt.Sprintf("Production gate skipped because secrets file is unavailable: %s", opts.SecretsEnvFile))
+			logger.Warn("gate.skipped", slog.String("gate_id", gate.ID), slog.String("reason", "production secrets unavailable"))
 			summary.SkippedGateCount++
 			summary.GateResults = append(summary.GateResults, result)
 			continue
 		}
-		if index > 0 {
-			fmt.Fprintln(stdout, "")
-		}
-		fmt.Fprintf(stdout, "[%s] %s\n", gate.ID, gate.Title)
 		startedAt := nowUTC()
 		result.StartedAtUTC = startedAt.Format(time.RFC3339)
-		status, finishedAt, runErr := gateExecutor(ctx, opts.RepoRoot, opts.MakeBin, gate, result.LogPath, stdout, stderr)
+		logger.Info("gate.start", slog.String("gate_id", gate.ID), slog.String("title", gate.Title), slog.String("log_path", result.LogPath))
+		status, finishedAt, runErr := gateExecutor(ctx, opts.RepoRoot, opts.MakeBin, gate, result.LogPath)
 		result.Status = status
 		result.FinishedAtUTC = finishedAt.Format(time.RFC3339)
 		result.Duration = finishedAt.Sub(startedAt).Round(time.Second).String()
@@ -209,8 +213,11 @@ func RunContext(ctx context.Context, opts Options, stdout io.Writer, stderr io.W
 			result.Notes = appendNote(result.Notes, runErr.Error())
 		}
 		if result.Status == "FAIL" {
+			logger.Error("gate.complete", slog.String("gate_id", gate.ID), slog.String("status", result.Status), slog.String("duration", result.Duration), logging.Err(runErr))
 			summary.FailingGateCount++
 			summary.OverallStatus = "FAIL"
+		} else {
+			logger.Info("gate.complete", slog.String("gate_id", gate.ID), slog.String("status", result.Status), slog.String("duration", result.Duration))
 		}
 		summary.GateResults = append(summary.GateResults, result)
 	}
@@ -218,6 +225,7 @@ func RunContext(ctx context.Context, opts Options, stdout io.Writer, stderr io.W
 	if err := persistRun(opts.OutputRoot, summary); err != nil {
 		return nil, err
 	}
+	logger.Info("workflow.complete", slog.String("run_id", summary.RunID), slog.String("run_directory", summary.RunDirectory), slog.String("overall_status", summary.OverallStatus))
 	return summary, nil
 }
 
@@ -246,7 +254,7 @@ func persistRun(outputRoot string, summary *Summary) error {
 	return writeArtifacts(summary.RunDirectory, summary)
 }
 
-func executeGate(ctx context.Context, repoRoot string, makeBin string, gate gateSpec, logPath string, stdout io.Writer, stderr io.Writer) (string, time.Time, error) {
+func executeGate(ctx context.Context, repoRoot string, makeBin string, gate gateSpec, logPath string) (string, time.Time, error) {
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fsutil.PrivateFilePerm)
 	if err != nil {
 		return "FAIL", time.Now().UTC(), fmt.Errorf("create log file: %w", err)
@@ -257,15 +265,13 @@ func executeGate(ctx context.Context, repoRoot string, makeBin string, gate gate
 	}
 	defer logFile.Close()
 
-	logWriter := io.MultiWriter(stdout, logFile)
-	errWriter := io.MultiWriter(stderr, logFile)
 	res := proc.Run(ctx, proc.Request{
 		Name:    makeBin,
 		Args:    gate.Command,
 		Dir:     repoRoot,
 		Env:     []string{"READINESS_EVIDENCE_ACTIVE=1"},
-		Stdout:  logWriter,
-		Stderr:  errWriter,
+		Stdout:  logFile,
+		Stderr:  logFile,
 		Timeout: 30 * time.Minute,
 	})
 	finishedAt := time.Now().UTC()

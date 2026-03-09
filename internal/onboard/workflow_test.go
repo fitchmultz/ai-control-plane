@@ -17,7 +17,6 @@
 package onboard
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -41,20 +40,16 @@ func TestRun_InvalidToolReturnsUsage(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeEnvFixture(t, repoRoot)
 
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
 	result := Run(context.Background(), Options{
 		RepoRoot: repoRoot,
 		Tool:     "invalid-tool",
-		Stdout:   stdout,
-		Stderr:   stderr,
 	})
 
 	if result.ExitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage exit, got %d", result.ExitCode)
 	}
-	if !strings.Contains(stderr.String(), "unsupported tool") {
-		t.Fatalf("expected explicit error, got %s", stderr.String())
+	if !strings.Contains(result.Stderr, "unsupported tool") {
+		t.Fatalf("expected explicit error, got %s", result.Stderr)
 	}
 }
 
@@ -62,8 +57,6 @@ func TestRun_RedactsGeneratedKeyByDefault(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeEnvFixture(t, repoRoot)
 
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
 	result := Run(context.Background(), Options{
 		RepoRoot: repoRoot,
 		Tool:     "codex",
@@ -72,8 +65,6 @@ func TestRun_RedactsGeneratedKeyByDefault(t *testing.T) {
 		Budget:   "10.00",
 		Host:     "127.0.0.1",
 		Port:     "4000",
-		Stdout:   stdout,
-		Stderr:   stderr,
 		KeyGenerator: fakeKeyGenerator{generated: GeneratedKey{
 			Alias: "codex-cli",
 			Key:   "sk-test-full-key-1234567890-abcdef",
@@ -81,13 +72,13 @@ func TestRun_RedactsGeneratedKeyByDefault(t *testing.T) {
 	})
 
 	if result.ExitCode != exitcodes.ACPExitSuccess {
-		t.Fatalf("expected success, got %d stderr=%s", result.ExitCode, stderr.String())
+		t.Fatalf("expected success, got %d stderr=%s", result.ExitCode, result.Stderr)
 	}
-	if !strings.Contains(stdout.String(), `export OPENAI_API_KEY="sk-test-...cdef"`) {
-		t.Fatalf("expected redacted key, got %s", stdout.String())
+	if !strings.Contains(result.Stdout, `export OPENAI_API_KEY="sk-test-...cdef"`) {
+		t.Fatalf("expected redacted key, got %s", result.Stdout)
 	}
-	if strings.Contains(stdout.String(), "sk-test-full-key-1234567890-abcdef") {
-		t.Fatalf("expected full key to stay hidden, got %s", stdout.String())
+	if strings.Contains(result.Stdout, "sk-test-full-key-1234567890-abcdef") {
+		t.Fatalf("expected full key to stay hidden, got %s", result.Stdout)
 	}
 }
 
@@ -120,8 +111,6 @@ func TestRun_VerifyChecksGatewayEndpoints(t *testing.T) {
 		t.Fatalf("unexpected server URL: %s", server.URL)
 	}
 
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
 	result := Run(context.Background(), Options{
 		RepoRoot: repoRoot,
 		Tool:     "codex",
@@ -131,8 +120,6 @@ func TestRun_VerifyChecksGatewayEndpoints(t *testing.T) {
 		Host:     host,
 		Port:     port,
 		Verify:   true,
-		Stdout:   stdout,
-		Stderr:   stderr,
 		KeyGenerator: fakeKeyGenerator{generated: GeneratedKey{
 			Alias: "verify-key",
 			Key:   "sk-test-full-key-1234567890-abcdef",
@@ -141,7 +128,7 @@ func TestRun_VerifyChecksGatewayEndpoints(t *testing.T) {
 	})
 
 	if result.ExitCode != exitcodes.ACPExitSuccess {
-		t.Fatalf("expected success, got %d stderr=%s", result.ExitCode, stderr.String())
+		t.Fatalf("expected success, got %d stderr=%s", result.ExitCode, result.Stderr)
 	}
 	if !sawHealth || !sawModels {
 		t.Fatalf("expected both gateway checks, health=%t models=%t", sawHealth, sawModels)

@@ -57,6 +57,8 @@ type Options struct {
 
 type Result struct {
 	ExitCode int
+	Stdout   string
+	Stderr   string
 }
 
 type KeyGenerator interface {

@@ -24,13 +24,16 @@ package bundle
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 )
 
 // Verifier handles bundle verification
@@ -53,8 +56,12 @@ type VerificationResult struct {
 }
 
 // Verify verifies a release bundle
-func (v *Verifier) Verify(bundlePath string, stdout io.Writer) (*VerificationResult, error) {
+func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*VerificationResult, error) {
 	result := &VerificationResult{}
+	logger := logging.FromContext(ctx).With(
+		slog.String("component", "bundle"),
+		slog.String("workflow", "release_bundle_verify"),
+	)
 
 	// Resolve to absolute path
 	if !filepath.IsAbs(bundlePath) {
@@ -85,12 +92,12 @@ func (v *Verifier) Verify(bundlePath string, stdout io.Writer) (*VerificationRes
 	}
 
 	if v.verbose {
-		fmt.Fprintf(stdout, "Expected: %s\n", expectedHash)
-		fmt.Fprintf(stdout, "Actual:   %s\n", actualHash)
+		logger.Info("bundle.sidecar_hash", slog.String("expected", expectedHash), slog.String("actual", actualHash))
 	}
 
 	if expectedHash != actualHash {
 		result.Errors = append(result.Errors, "bundle tarball checksum mismatch - possible tampering")
+		logger.Error("workflow.complete", slog.String("status", "fail"), slog.String("reason", "checksum mismatch"))
 		return result, nil
 	}
 	result.SidecarValid = true
@@ -126,10 +133,12 @@ func (v *Verifier) Verify(bundlePath string, stdout io.Writer) (*VerificationRes
 	sha256sumsPath := filepath.Join(extractDir, "sha256sums.txt")
 	if err := v.verifyChecksums(payloadDir, sha256sumsPath); err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("payload checksum verification failed: %v", err))
+		logger.Error("workflow.complete", slog.String("status", "fail"), logging.Err(err))
 		return result, nil
 	}
 	result.PayloadValid = true
 
+	logger.Info("workflow.complete", slog.String("status", "pass"), slog.String("bundle_path", bundlePath))
 	return result, nil
 }
 

@@ -24,11 +24,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
@@ -101,6 +103,7 @@ func bindReleaseBundleVerifyOptions(_ commandBindContext, input parsedCommandInp
 func runReleaseBundleBuildTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	config := raw.(*bundle.Config)
 	out := output.New()
+	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "release_bundle_build")))
 
 	if err := bundle.ValidateVersion(config.Version); err != nil {
 		fmt.Fprintln(runCtx.Stderr, err)
@@ -131,7 +134,7 @@ func runReleaseBundleBuildTyped(ctx context.Context, runCtx commandRunContext, r
 
 	fmt.Fprint(runCtx.Stdout, out.Bold("Assembling payload...")+"\n")
 	builderInstance := bundle.NewBuilder(runCtx.RepoRoot, config.Verbose)
-	if err := builderInstance.Build(plan, runCtx.Stdout); err != nil {
+	if err := builderInstance.Build(ctx, plan); err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
@@ -154,9 +157,10 @@ func runReleaseBundleBuildTyped(ctx context.Context, runCtx commandRunContext, r
 	return exitcodes.ACPExitSuccess
 }
 
-func runReleaseBundleVerifyTyped(_ context.Context, runCtx commandRunContext, raw any) int {
+func runReleaseBundleVerifyTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	config := raw.(*bundle.Config)
 	out := output.New()
+	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "release_bundle_verify")))
 
 	bundlePath := config.Bundle
 	if !filepath.IsAbs(bundlePath) {
@@ -168,7 +172,7 @@ func runReleaseBundleVerifyTyped(_ context.Context, runCtx commandRunContext, ra
 	fmt.Fprintf(runCtx.Stdout, "  Bundle: %s\n", bundlePath)
 
 	verifier := bundle.NewVerifier(config.Verbose)
-	result, err := verifier.Verify(bundlePath, runCtx.Stdout)
+	result, err := verifier.Verify(ctx, bundlePath)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		if os.IsNotExist(err) {

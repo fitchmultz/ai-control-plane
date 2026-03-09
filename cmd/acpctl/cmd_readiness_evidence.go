@@ -23,12 +23,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/mitchfultz/ai-control-plane/internal/bundle"
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/readiness"
 )
@@ -107,9 +109,10 @@ func bindReadinessEvidenceVerifyOptions(bindCtx commandBindContext, input parsed
 func runReadinessEvidenceRunTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
 	options := raw.(readiness.Options)
+	ctx = logging.WithLogger(ctx, runCtx.Logger.With(slog.String("workflow", "readiness_evidence")))
 
 	fmt.Fprint(runCtx.Stdout, out.Bold("Generating readiness evidence")+"\n")
-	summary, err := readiness.RunContext(ctx, options, runCtx.Stdout, runCtx.Stderr)
+	summary, err := readiness.RunContext(ctx, options)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime

@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/keygen"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 )
 
 type GatewayKeyGenerator struct {
@@ -40,50 +42,53 @@ type GatewayKeyGenerator struct {
 
 func Run(ctx context.Context, opts Options) Result {
 	opts = withDefaults(opts)
+	logger := logging.FromContext(ctx).With(slog.String("component", "onboard"))
 	if opts.Tool == "" || isHelpToken(opts.Tool) {
-		printMainHelp(opts.Stdout)
-		return Result{ExitCode: exitcodes.ACPExitSuccess}
+		var help strings.Builder
+		printMainHelp(&help)
+		return Result{ExitCode: exitcodes.ACPExitSuccess, Stdout: help.String()}
 	}
+	logger = logger.With(slog.String("tool", opts.Tool))
+	logger.Info("workflow.start", slog.String("mode", opts.Mode))
 	if opts.Mode == "help" {
-		printMainHelp(opts.Stdout)
-		printToolHelp(opts.Stdout, opts.Tool)
-		return Result{ExitCode: exitcodes.ACPExitSuccess}
+		var help strings.Builder
+		printMainHelp(&help)
+		printToolHelp(&help, opts.Tool)
+		return Result{ExitCode: exitcodes.ACPExitSuccess, Stdout: help.String()}
 	}
 
 	resolved, err := resolveDefaults(opts)
 	if err != nil {
-		fprintf(opts.Stderr, "ERROR: %v\n", err)
-		return Result{ExitCode: exitcodes.ACPExitUsage}
+		logger.Error("workflow.resolve_defaults_failed", logging.Err(err))
+		return Result{ExitCode: exitcodes.ACPExitUsage, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
 	}
 	prereqs, err := loadPrerequisites(resolved)
 	if err != nil {
-		fprintf(resolved.Stderr, "ERROR: %v\n", err)
-		return Result{ExitCode: exitcodes.ACPExitPrereq}
+		logger.Error("workflow.prereq_failed", logging.Err(err))
+		return Result{ExitCode: exitcodes.ACPExitPrereq, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
 	}
 
 	state, err := prepareRunState(ctx, resolved, prereqs)
 	if err != nil {
-		fprintf(resolved.Stderr, "ERROR: %v\n", err)
-		return Result{ExitCode: exitcodes.ACPExitDomain}
+		logger.Error("workflow.prepare_state_failed", logging.Err(err))
+		return Result{ExitCode: exitcodes.ACPExitDomain, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
 	}
 	if err := verifySubscriptionPrereq(ctx, state); err != nil {
-		fprintf(state.Options.Stderr, "WARN: %v\n", err)
-		return Result{ExitCode: exitcodes.ACPExitDomain}
+		logger.Warn("workflow.subscription_prereq_failed", logging.Err(err))
+		return Result{ExitCode: exitcodes.ACPExitDomain, Stderr: fmt.Sprintf("WARN: %v\n", err)}
 	}
-
-	fprintf(state.Options.Stdout, "%s", renderSummary(state))
 
 	if err := verifyOnboarding(ctx, state); err != nil {
-		fprintf(state.Options.Stderr, "ERROR: %v\n", err)
-		return Result{ExitCode: exitcodes.ACPExitDomain}
+		logger.Error("workflow.verify_failed", logging.Err(err))
+		return Result{ExitCode: exitcodes.ACPExitDomain, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
 	}
 	if err := maybeWriteCodexConfig(state); err != nil {
-		fprintf(state.Options.Stderr, "ERROR: %v\n", err)
-		return Result{ExitCode: exitcodes.ACPExitRuntime}
+		logger.Error("workflow.config_write_failed", logging.Err(err))
+		return Result{ExitCode: exitcodes.ACPExitRuntime, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
 	}
 
-	fprintf(state.Options.Stdout, "Onboarding complete.\n")
-	return Result{ExitCode: exitcodes.ACPExitSuccess}
+	logger.Info("workflow.complete", slog.String("mode", state.Options.Mode), slog.String("alias", state.GeneratedAlias))
+	return Result{ExitCode: exitcodes.ACPExitSuccess, Stdout: renderSummary(state) + "Onboarding complete.\n"}
 }
 
 func prepareRunState(ctx context.Context, opts Options, prereqs prerequisites) (runState, error) {

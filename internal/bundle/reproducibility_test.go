@@ -19,7 +19,7 @@ package bundle
 import (
 	"archive/tar"
 	"compress/gzip"
-	"io"
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -68,7 +68,7 @@ func TestBuilderBuild_DeterministicTarball(t *testing.T) {
 		OutputDir:  outputDir,
 		BundlePath: filepath.Join(outputDir, "first.tar.gz"),
 	}
-	if err := builder.Build(plan1, io.Discard); err != nil {
+	if err := builder.Build(context.Background(), plan1); err != nil {
 		t.Fatalf("first build failed: %v", err)
 	}
 	firstHash, err := ComputeFileHash(plan1.BundlePath)
@@ -90,7 +90,7 @@ func TestBuilderBuild_DeterministicTarball(t *testing.T) {
 		OutputDir:  outputDir,
 		BundlePath: filepath.Join(outputDir, "second.tar.gz"),
 	}
-	if err := builder.Build(plan2, io.Discard); err != nil {
+	if err := builder.Build(context.Background(), plan2); err != nil {
 		t.Fatalf("second build failed: %v", err)
 	}
 	secondHash, err := ComputeFileHash(plan2.BundlePath)
@@ -156,7 +156,7 @@ func TestVerifierVerify_InvalidSidecarFormat(t *testing.T) {
 	}
 
 	verifier := NewVerifier(false)
-	_, err := verifier.Verify(bundlePath, io.Discard)
+	_, err := verifier.Verify(context.Background(), bundlePath)
 	if err == nil {
 		t.Fatal("expected verifier to reject malformed sidecar")
 	}
@@ -187,7 +187,7 @@ func TestBuilderBuild_InstallManifestSorted(t *testing.T) {
 	}
 
 	builder := NewBuilder(repoRoot, false)
-	if err := builder.Build(plan, io.Discard); err != nil {
+	if err := builder.Build(context.Background(), plan); err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
 
