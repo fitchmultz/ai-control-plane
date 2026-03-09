@@ -41,7 +41,9 @@ func TestDBConnectableCheckRunMissingRuntime(t *testing.T) {
 
 func TestDBConnectableCheckRunAmbiguousConfig(t *testing.T) {
 	result := (dbConnectableCheck{}).Run(context.Background(), Options{
-		RuntimeReport: runtimeReportFor("database", status.ComponentDetails{}, status.HealthLevelUnhealthy, "Database configuration is ambiguous"),
+		RuntimeReport: runtimeReportFor("database", status.ComponentDetails{
+			LookupError: status.LookupErrorDatabaseConfigAmbiguous,
+		}, status.HealthLevelUnhealthy, "Database configuration is ambiguous"),
 	})
 
 	if result.Severity != SeverityPrereq {

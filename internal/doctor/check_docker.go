@@ -34,7 +34,7 @@ var runDockerInfo = func(ctx context.Context) proc.Result {
 	return proc.Run(ctx, proc.Request{Name: "docker", Args: []string{"info"}})
 }
 
-type dockerAvailableCheck struct{}
+type dockerAvailableCheck struct{ noFixCheck }
 
 func (c dockerAvailableCheck) ID() string { return "docker_available" }
 
@@ -65,8 +65,4 @@ func (c dockerAvailableCheck) Run(ctx context.Context, opts Options) CheckResult
 	}
 
 	return newCheckResult(c.ID(), "Docker Available", status.HealthLevelHealthy, SeverityDomain, "Docker is available and daemon is accessible")
-}
-
-func (c dockerAvailableCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return noopFix(ctx, opts)
 }

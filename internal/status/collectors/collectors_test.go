@@ -113,6 +113,9 @@ func TestDatabaseCollectorCoversConfigErrorRuntimeErrorSchemaWarningAndHealthy(t
 	if configStatus.Level != status.HealthLevelUnhealthy || configStatus.Message != "Database configuration is ambiguous" {
 		t.Fatalf("unexpected config error status: %+v", configStatus)
 	}
+	if configStatus.Details.LookupError != status.LookupErrorDatabaseConfigAmbiguous {
+		t.Fatalf("expected lookup error %q, got %+v", status.LookupErrorDatabaseConfigAmbiguous, configStatus.Details)
+	}
 	if configReader.summaryCalls != 0 {
 		t.Fatalf("expected config error to short-circuit summary collection, got %d summary call(s)", configReader.summaryCalls)
 	}

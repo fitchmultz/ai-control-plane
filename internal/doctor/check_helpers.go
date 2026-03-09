@@ -87,6 +87,21 @@ func withComponentStatus(result CheckResult, component status.ComponentStatus) C
 	return result
 }
 
+func componentCheckResult(id string, name string, component status.ComponentStatus, severity Severity) CheckResult {
+	return withComponentStatus(
+		newCheckResult(id, name, component.Level, severity, component.Message),
+		component,
+	)
+}
+
+func runtimeComponentCheck(opts Options, id string, name string, componentKey string, componentLabel string, adapt func(status.ComponentStatus) CheckResult) CheckResult {
+	component, ok := runtimeComponent(opts, componentKey)
+	if !ok {
+		return runtimeInspectionMissing(id, name, componentLabel)
+	}
+	return adapt(component)
+}
+
 func runtimeInspectionMissing(id string, name string, component string) CheckResult {
 	return newCheckResult(
 		id,
@@ -97,6 +112,8 @@ func runtimeInspectionMissing(id string, name string, component string) CheckRes
 	)
 }
 
-func noopFix(context.Context, Options) (bool, string, error) {
+type noFixCheck struct{}
+
+func (noFixCheck) Fix(context.Context, Options) (bool, string, error) {
 	return false, "", nil
 }

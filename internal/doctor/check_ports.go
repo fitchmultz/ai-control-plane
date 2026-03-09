@@ -29,7 +29,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type portsFreeCheck struct{}
+type portsFreeCheck struct{ noFixCheck }
 
 func (c portsFreeCheck) ID() string { return "ports_free" }
 
@@ -78,10 +78,6 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 			RequiredPorts: ports,
 		},
 	)
-}
-
-func (c portsFreeCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return noopFix(ctx, opts)
 }
 
 func isPortOccupied(ctx context.Context, host string, port int) bool {

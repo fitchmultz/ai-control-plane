@@ -23,33 +23,23 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type gatewayHealthyCheck struct{}
+type gatewayHealthyCheck struct{ noFixCheck }
 
 func (c gatewayHealthyCheck) ID() string { return "gateway_healthy" }
 
-func (c gatewayHealthyCheck) Run(ctx context.Context, opts Options) CheckResult {
-	component, ok := runtimeComponent(opts, "gateway")
-	if !ok {
-		return runtimeInspectionMissing(c.ID(), "Gateway Healthy", "Gateway")
-	}
+func (c gatewayHealthyCheck) Run(_ context.Context, opts Options) CheckResult {
+	return runtimeComponentCheck(opts, c.ID(), "Gateway Healthy", "gateway", "Gateway", func(component status.ComponentStatus) CheckResult {
+		if !component.Details.MasterKeyConfigured {
+			return withCheckDetails(
+				newCheckResult(c.ID(), "Gateway Healthy", status.HealthLevelUnhealthy, SeverityPrereq, "LITELLM_MASTER_KEY not set; cannot run authorized gateway check"),
+				component.Details,
+				"Set LITELLM_MASTER_KEY in demo/.env",
+				"Or export it in your shell environment",
+			)
+		}
 
-	if !component.Details.MasterKeyConfigured {
-		return withCheckDetails(
-			newCheckResult(c.ID(), "Gateway Healthy", status.HealthLevelUnhealthy, SeverityPrereq, "LITELLM_MASTER_KEY not set; cannot run authorized gateway check"),
-			component.Details,
-			"Set LITELLM_MASTER_KEY in demo/.env",
-			"Or export it in your shell environment",
-		)
-	}
-
-	return withComponentStatus(
-		newCheckResult(c.ID(), "Gateway Healthy", component.Level, severityForLevel(component.Level), component.Message),
-		component,
-	)
-}
-
-func (c gatewayHealthyCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return noopFix(ctx, opts)
+		return componentCheckResult(c.ID(), "Gateway Healthy", component, severityForLevel(component.Level))
+	})
 }
 
 func severityForLevel(level status.HealthLevel) Severity {

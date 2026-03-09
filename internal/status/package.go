@@ -50,6 +50,8 @@ const (
 	HealthLevelUnknown   HealthLevel = "unknown"
 )
 
+const LookupErrorDatabaseConfigAmbiguous = "database_config_ambiguous"
+
 // ComponentDetails captures typed supplemental runtime details.
 type ComponentDetails struct {
 	Mode                   string   `json:"mode,omitempty"`

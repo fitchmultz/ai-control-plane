@@ -61,10 +61,10 @@ func (c envVarsSetCheck) Fix(ctx context.Context, opts Options) (bool, string, e
 	envPath := envStatus.Path
 	examplePath := filepath.Join(opts.RepoRoot, "demo", ".env.example")
 	if envStatus.Exists {
-		return noopFix(ctx, opts)
+		return false, "", nil
 	}
 	if _, err := os.Stat(examplePath); err != nil {
-		return noopFix(ctx, opts)
+		return false, "", nil
 	}
 	content, err := os.ReadFile(examplePath)
 	if err != nil {

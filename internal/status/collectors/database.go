@@ -47,7 +47,9 @@ func (c DatabaseCollector) Name() string {
 // Collect gathers database status information.
 func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
 	if c.runtime.ConfigError() != nil {
-		return componentStatus(c.Name(), status.HealthLevelUnhealthy, "Database configuration is ambiguous", status.ComponentDetails{},
+		return componentStatus(c.Name(), status.HealthLevelUnhealthy, "Database configuration is ambiguous", status.ComponentDetails{
+			LookupError: status.LookupErrorDatabaseConfigAmbiguous,
+		},
 			"Set ACP_DATABASE_MODE=embedded for the local demo stack",
 			"Or set ACP_DATABASE_MODE=external when using DATABASE_URL",
 		)

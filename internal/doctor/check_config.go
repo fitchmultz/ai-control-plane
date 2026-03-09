@@ -27,7 +27,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type configValidCheck struct{}
+type configValidCheck struct{ noFixCheck }
 
 func (c configValidCheck) ID() string { return "config_valid" }
 
@@ -57,8 +57,4 @@ func (c configValidCheck) Run(ctx context.Context, opts Options) CheckResult {
 		)
 	}
 	return newCheckResult(c.ID(), "Config Valid", status.HealthLevelHealthy, SeverityDomain, "Deployment configuration files are present")
-}
-
-func (c configValidCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return noopFix(ctx, opts)
 }

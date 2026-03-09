@@ -28,28 +28,18 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type dbConnectableCheck struct{}
+type dbConnectableCheck struct{ noFixCheck }
 
 func (c dbConnectableCheck) ID() string { return "db_connectable" }
 
-func (c dbConnectableCheck) Run(ctx context.Context, opts Options) CheckResult {
-	component, ok := runtimeComponent(opts, "database")
-	if !ok {
-		return runtimeInspectionMissing(c.ID(), "Database Connectable", "Database")
-	}
-
-	return withComponentStatus(
-		newCheckResult(c.ID(), "Database Connectable", component.Level, databaseSeverity(component), component.Message),
-		component,
-	)
-}
-
-func (c dbConnectableCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
-	return noopFix(ctx, opts)
+func (c dbConnectableCheck) Run(_ context.Context, opts Options) CheckResult {
+	return runtimeComponentCheck(opts, c.ID(), "Database Connectable", "database", "Database", func(component status.ComponentStatus) CheckResult {
+		return componentCheckResult(c.ID(), "Database Connectable", component, databaseSeverity(component))
+	})
 }
 
 func databaseSeverity(component status.ComponentStatus) Severity {
-	if component.Message == "Database configuration is ambiguous" {
+	if component.Details.LookupError == status.LookupErrorDatabaseConfigAmbiguous {
 		return SeverityPrereq
 	}
 	return severityForLevel(component.Level)
