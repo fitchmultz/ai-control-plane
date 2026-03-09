@@ -979,7 +979,7 @@ DEMO_REVEAL_SECRETS=1 ./scenario_1_api_path.sh --verbose
 2. **Never paste `--reveal-secrets` output into tickets/chat**
 3. **Always validate before sharing:**
    ```bash
-   # Check for leaked secrets before sharing logs
+   # Check tracked repository content for leaked secrets before sharing logs
    make secrets-audit
    
    # If audit finds leaks, redact them:
@@ -997,7 +997,7 @@ DEMO_REVEAL_SECRETS=1 ./scenario_1_api_path.sh --verbose
 # Safe to include in tickets (redacted by default)
 ./scenario_1_api_path.sh --verbose > incident-repro.txt
 
-# Verify no secrets leaked before attaching
+# Verify no tracked repository content leaked before attaching
 LOGS_DIR=./ make secrets-audit
 ```
 
@@ -1445,16 +1445,16 @@ docker compose -f demo/docker-compose.yml logs --tail=100 litellm
 - When using subscription mode (Claude Code OAuth), tokens may appear in logs
 - Never commit logs to version control
 - Review logs before sharing
-- Use `make secrets-audit` to check for token leakage before sharing
+- Use `make secrets-audit` to check tracked repository content for token leakage before sharing
 
 **Secrets Audit:**
 ```bash
-# Run comprehensive audit before sharing logs
+# Run the tracked-file audit before sharing repository content
 make secrets-audit
 
 # Note:
 # - make tls-verify is a manual-check stub in this open-source release (exit code 2)
-# - make secrets-audit performs the automated repository/runtime scan
+# - make secrets-audit applies docs/policy/SECRET_SCAN_POLICY.json to tracked files only
 ```
 
 **Log Cleanup:**
