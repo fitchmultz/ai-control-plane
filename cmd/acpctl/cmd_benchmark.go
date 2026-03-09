@@ -251,14 +251,5 @@ func printBenchmarkSummary(out *os.File, summary *performance.Summary) {
 }
 
 func runBenchmarkCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	invocation, err := parseInvocation(append([]string{"benchmark"}, args...))
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitUsage
-	}
-	if len(args) == 0 {
-		printCommandHelp(stdout, invocation.Path)
-		return exitcodes.ACPExitUsage
-	}
-	return executeInvocation(ctx, invocation, stdout, stderr)
+	return runCommandGroupPath(ctx, []string{"benchmark"}, args, stdout, stderr)
 }

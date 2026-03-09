@@ -200,25 +200,5 @@ func ciWaitPendingMessage(component string, pending status.ComponentStatus) stri
 }
 
 func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	spec := ciWaitCommandSpec()
-	input, helpOnly, err := parseLeafInput(spec, args)
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitUsage
-	}
-	if helpOnly {
-		printCommandHelp(stdout, []*commandSpec{acpctlCommandSpec(), ciCommandSpec(), spec})
-		return exitcodes.ACPExitSuccess
-	}
-	opts, err := bindCIWaitOptions(commandBindContext{RepoRoot: detectRepoRootWithContext(ctx)}, input)
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitUsage
-	}
-	return executeCIWaitCommand(ctx, commandRunContext{
-		RepoRoot: detectRepoRootWithContext(ctx),
-		Stdout:   stdout,
-		Stderr:   stderr,
-		Logger:   buildCommandLogger(stderr, []*commandSpec{acpctlCommandSpec(), ciCommandSpec(), spec}),
-	}, opts)
+	return runCommandPath(ctx, []string{"ci", "wait"}, args, stdout, stderr)
 }

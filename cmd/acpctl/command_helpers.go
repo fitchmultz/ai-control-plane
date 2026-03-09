@@ -85,3 +85,13 @@ func runCommandPath(ctx context.Context, prefix []string, args []string, stdout 
 	}
 	return executeInvocation(ctx, invocation, stdout, stderr)
 }
+
+func runCommandGroupPath(ctx context.Context, prefix []string, args []string, stdout *os.File, stderr *os.File) int {
+	if len(args) == 0 {
+		if path, err := findCommandPath(prefix); err == nil {
+			printCommandHelp(stdout, path)
+		}
+		return exitcodes.ACPExitUsage
+	}
+	return runCommandPath(ctx, prefix, args, stdout, stderr)
+}
