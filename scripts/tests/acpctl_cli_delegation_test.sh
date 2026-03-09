@@ -19,6 +19,10 @@ set -euo pipefail
 # Invariants/Assumptions:
 #   - Tests run in a temp fixture and do not invoke real make targets.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
 show_help() {
     cat <<'EOF'
 Usage: acpctl_cli_delegation_test.sh [OPTIONS]
@@ -35,35 +39,22 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(test_repo_root)"
 SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/acpctl.sh"
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+test_fixture_init acpctl-cli-delegation-test
+TMP_DIR="${TEST_TMP_ROOT}"
 
 CAPTURE_FILE="${TMP_DIR}/make-args.txt"
 ACPCTL_BIN_TEST="${TMP_DIR}/acpctl-bin"
 GO_SHIM="${TMP_DIR}/acpctl-go-shim.sh"
-MAKE_STUB="${TMP_DIR}/make-stub.sh"
+MAKE_STUB_DIR="${TMP_DIR}/bin"
+MAKE_STUB="${MAKE_STUB_DIR}/make-stub.sh"
 
-go build -trimpath -o "${ACPCTL_BIN_TEST}" "${REPO_ROOT}/cmd/acpctl"
-
-cat >"${GO_SHIM}" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-exec "${ACPCTL_BIN_TEST}" "\$@"
-EOF
-chmod +x "${GO_SHIM}"
-
-cat >"${MAKE_STUB}" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-capture_file="${ACPCTL_TEST_CAPTURE_FILE:?missing ACPCTL_TEST_CAPTURE_FILE}"
-printf '%s\n' "$@" >"${capture_file}"
-exit 0
-EOF
-chmod +x "${MAKE_STUB}"
+mkdir -p "${MAKE_STUB_DIR}"
+test_build_acpctl_binary "${ACPCTL_BIN_TEST}"
+test_create_exec_shim "${ACPCTL_BIN_TEST}" "${GO_SHIM}"
+test_install_stub "make_capture_stub.sh" "${MAKE_STUB_DIR}" "make-stub.sh"
 
 run_with_make_stub() {
     : >"${CAPTURE_FILE}"
@@ -100,8 +91,4 @@ ACPCTL_BIN="${GO_SHIM}" \
     ACPCTL_MAKE_BIN="${TMP_DIR}/missing-make" \
     ACP_REPO_ROOT="${REPO_ROOT}" \
     "${SCRIPT_UNDER_TEST}" deploy up >/dev/null 2>&1 || missing_rc=$?
-if [[ "${missing_rc}" -ne 2 ]]; then
-    printf '  ✗ missing ACPCTL_MAKE_BIN should exit 2 (got %s)\n' "${missing_rc}"
-    exit 1
-fi
-printf '  ✓ missing ACPCTL_MAKE_BIN exits 2\n'
+test_assert_exit_code "${missing_rc}" "2" "missing ACPCTL_MAKE_BIN exits 2" || exit 1

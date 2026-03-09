@@ -19,6 +19,10 @@ set -euo pipefail
 # Invariants/Assumptions:
 #   - Tests do not require network access.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
 show_help() {
     cat <<'EOF'
 Usage: onboard_export_contract_test.sh [OPTIONS]
@@ -35,24 +39,12 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SOURCE_SCRIPT="${PROJECT_ROOT}/scripts/libexec/onboard_impl.sh"
+test_fixture_init onboard-export-contract-test
+TMP_ROOT="${TEST_TMP_ROOT}"
+test_fixture_repo_init "${TMP_ROOT}"
+test_fixture_copy_libexec "onboard_impl.sh"
 
-TMP_ROOT="$(mktemp -d)"
-trap 'rm -rf "${TMP_ROOT}"' EXIT
-
-TEST_REPO="${TMP_ROOT}/repo"
-TEST_BIN_DIR="${TEST_REPO}/.bin"
-TEST_SCRIPT_DIR="${TEST_REPO}/scripts/libexec"
-TEST_DEMO_DIR="${TEST_REPO}/demo"
-TEST_STUB_BIN_DIR="${TMP_ROOT}/bin"
-mkdir -p "${TEST_BIN_DIR}" "${TEST_SCRIPT_DIR}" "${TEST_DEMO_DIR}" "${TEST_STUB_BIN_DIR}"
-
-cp "${SOURCE_SCRIPT}" "${TEST_SCRIPT_DIR}/onboard_impl.sh"
-chmod +x "${TEST_SCRIPT_DIR}/onboard_impl.sh"
-
-cat >"${TEST_DEMO_DIR}/.env" <<EOF
+test_write_fixture_env <<EOF
 EVIL=\$(touch "${TMP_ROOT}/env-pwned")
 LITELLM_MASTER_KEY=sk-master-test-12345
 EOF
@@ -115,15 +107,7 @@ run_onboard() {
 }
 
 assert_contains() {
-    local haystack="$1"
-    local needle="$2"
-    local description="$3"
-    if grep -Fq "${needle}" <<<"${haystack}"; then
-        printf '  ✓ %s\n' "${description}"
-    else
-        printf '  ✗ %s\n' "${description}"
-        exit 1
-    fi
+    test_assert_contains "$1" "$2" "$3" || exit 1
 }
 
 printf 'Onboard Export Contract Test\n'

@@ -19,6 +19,10 @@ set -euo pipefail
 # Invariants/Assumptions:
 #   - Tests operate on tracked compose files only.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
 show_help() {
     cat <<'EOF'
 Usage: compose_slot_isolation_test.sh [OPTIONS]
@@ -35,8 +39,7 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(test_repo_root)"
 COMPOSE_FILE="${REPO_ROOT}/demo/docker-compose.yml"
 
 printf 'Compose Slot Isolation Test\n'

@@ -19,14 +19,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-ENV_FILE="${REPO_ROOT}/demo/.env"
+# shellcheck source=scripts/libexec/common.sh
+source "${SCRIPT_DIR}/common.sh"
 
-ACP_EXIT_SUCCESS=0
-ACP_EXIT_DOMAIN=1
-ACP_EXIT_PREREQ=2
-ACP_EXIT_RUNTIME=3
-ACP_EXIT_USAGE=64
+REPO_ROOT="$(bridge_repo_root)"
+ENV_FILE="${REPO_ROOT}/demo/.env"
 
 HOST="${GATEWAY_HOST:-127.0.0.1}"
 PORT="${LITELLM_PORT:-4000}"
@@ -57,23 +54,7 @@ Fallback (org blocks remote device login):
 EOF
 }
 
-log_info() { printf 'INFO: %s\n' "$*"; }
-log_error() { printf 'ERROR: %s\n' "$*" >&2; }
-
-resolve_acpctl_bin() {
-    if [ -x "${REPO_ROOT}/.bin/acpctl" ]; then
-        ACPCTL_BIN="${REPO_ROOT}/.bin/acpctl"
-    elif [ -x "${REPO_ROOT}/acpctl" ]; then
-        ACPCTL_BIN="${REPO_ROOT}/acpctl"
-    elif command -v acpctl >/dev/null 2>&1; then
-        ACPCTL_BIN="acpctl"
-    else
-        log_error "acpctl binary not found. Run: make install-binary"
-        exit "${ACP_EXIT_PREREQ}"
-    fi
-}
-
-safe_env_get() {
+chatgpt_login_safe_env_get() {
     local key="$1"
 
     if [ -n "${!key:-}" ]; then
@@ -84,21 +65,9 @@ safe_env_get() {
     "${ACPCTL_BIN}" env get --file "${ENV_FILE}" "${key}"
 }
 
-resolve_compose_cmd() {
-    if docker compose version >/dev/null 2>&1; then
-        printf 'docker compose'
-        return
-    fi
-    if command -v docker-compose >/dev/null 2>&1; then
-        printf 'docker-compose'
-        return
-    fi
-    printf ''
-}
-
 resolve_litellm_container() {
     local compose_cmd
-    compose_cmd="$(resolve_compose_cmd)"
+    compose_cmd="$(bridge_detect_compose_bin_optional)"
     if [ -n "${compose_cmd}" ]; then
         local container_id
         container_id="$(
@@ -121,14 +90,14 @@ resolve_litellm_container() {
 
 ensure_chatgpt_overlay_running() {
     if ! command -v docker >/dev/null 2>&1; then
-        log_error "docker is required"
+        bridge_log_error "docker is required"
         return 1
     fi
 
     local compose_cmd
-    compose_cmd="$(resolve_compose_cmd)"
+    compose_cmd="$(bridge_detect_compose_bin_optional)"
     if [ -z "${compose_cmd}" ]; then
-        log_error "docker compose (or docker-compose) is required"
+        bridge_log_error "docker compose (or docker-compose) is required"
         return 1
     fi
 
@@ -139,11 +108,11 @@ ensure_chatgpt_overlay_running() {
     local mounts
     mounts="$(docker inspect "${container_id}" --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}' 2>/dev/null || true)"
     if printf '%s' "${mounts}" | grep -q 'litellm-chatgpt.yaml'; then
-        log_info "ChatGPT compose overlay already active"
+        bridge_log_info "ChatGPT compose overlay already active"
         return 0
     fi
 
-    log_info "Switching LiteLLM to ChatGPT overlay config"
+    bridge_log_info "Switching LiteLLM to ChatGPT overlay config"
     (
         cd "${REPO_ROOT}/demo" &&
             ${compose_cmd} -f docker-compose.yml -f docker-compose.chatgpt.yml up -d litellm
@@ -207,26 +176,26 @@ while [ $# -gt 0 ]; do
         exit "${ACP_EXIT_SUCCESS}"
         ;;
     *)
-        log_error "Unknown option: $1"
+        bridge_log_error "Unknown option: $1"
         exit "${ACP_EXIT_USAGE}"
         ;;
     esac
 done
 
 if [ ! -f "${ENV_FILE}" ]; then
-    log_error "Missing ${ENV_FILE}. Run: make install-env"
+    bridge_log_error "Missing ${ENV_FILE}. Run: make install-env"
     exit "${ACP_EXIT_PREREQ}"
 fi
 
 if ! command -v curl >/dev/null 2>&1; then
-    log_error "curl is required"
+    bridge_log_error "curl is required"
     exit "${ACP_EXIT_PREREQ}"
 fi
 
-resolve_acpctl_bin
+ACPCTL_BIN="$(bridge_acpctl_bin)" || exit $?
 
-if ! LITELLM_MASTER_KEY="$(safe_env_get LITELLM_MASTER_KEY 2>/dev/null)"; then
-    log_error "LITELLM_MASTER_KEY is required in demo/.env"
+if ! LITELLM_MASTER_KEY="$(chatgpt_login_safe_env_get LITELLM_MASTER_KEY 2>/dev/null)"; then
+    bridge_log_error "LITELLM_MASTER_KEY is required in demo/.env"
     exit "${ACP_EXIT_PREREQ}"
 fi
 
@@ -251,20 +220,20 @@ for _ in $(seq 1 60); do
 done
 
 if [ "${health_code}" != "200" ] && [ "${health_code}" != "401" ]; then
-    log_error "Gateway health check failed: ${BASE_URL}/health -> HTTP ${health_code}"
+    bridge_log_error "Gateway health check failed: ${BASE_URL}/health -> HTTP ${health_code}"
     exit "${ACP_EXIT_DOMAIN}"
 fi
-log_info "Gateway health endpoint reachable (HTTP ${health_code})"
+bridge_log_info "Gateway health endpoint reachable (HTTP ${health_code})"
 
 models_response="$(curl -sS \
     -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
     "${BASE_URL}/v1/models")"
 if ! printf '%s' "${models_response}" | grep -q "\"${MODEL}\""; then
-    log_error "Model alias '${MODEL}' not found in /v1/models"
-    log_error "Confirm overlay file is present: demo/config/litellm-chatgpt.yaml"
+    bridge_log_error "Model alias '${MODEL}' not found in /v1/models"
+    bridge_log_error "Confirm overlay file is present: demo/config/litellm-chatgpt.yaml"
     exit "${ACP_EXIT_DOMAIN}"
 fi
-log_info "Model alias '${MODEL}' is present"
+bridge_log_info "Model alias '${MODEL}' is present"
 
 request_payload="$(
     cat <<EOF
@@ -284,14 +253,14 @@ printf '%s\n' "${response}" | cut -c1-600
 printf '\n'
 
 if printf '%s' "${response}" | grep -qi "visit"; then
-    log_info "Device-flow login prompt detected. Complete OAuth in your browser, then rerun this target."
+    bridge_log_info "Device-flow login prompt detected. Complete OAuth in your browser, then rerun this target."
     exit "${ACP_EXIT_SUCCESS}"
 fi
 
 if printf '%s' "${response}" | grep -q "\"output\""; then
-    log_info "ChatGPT provider request succeeded. Gateway-side ChatGPT auth appears active."
+    bridge_log_info "ChatGPT provider request succeeded. Gateway-side ChatGPT auth appears active."
     exit "${ACP_EXIT_SUCCESS}"
 fi
 
-log_error "Unexpected response; inspect LiteLLM logs: make logs-litellm"
+bridge_log_error "Unexpected response; inspect LiteLLM logs: make logs-litellm"
 exit "${ACP_EXIT_DOMAIN}"

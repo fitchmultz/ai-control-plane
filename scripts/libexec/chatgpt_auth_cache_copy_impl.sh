@@ -21,13 +21,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=scripts/libexec/common.sh
+source "${SCRIPT_DIR}/common.sh"
 
-ACP_EXIT_SUCCESS=0
-ACP_EXIT_DOMAIN=1
-ACP_EXIT_PREREQ=2
-ACP_EXIT_RUNTIME=3
-ACP_EXIT_USAGE=64
+REPO_ROOT="$(bridge_repo_root)"
 
 AUTH_FILE="${HOME}/.codex/auth.json"
 CONTAINER=""
@@ -59,21 +56,6 @@ Exit codes:
 EOF
 }
 
-log_info() { printf 'INFO: %s\n' "$*"; }
-log_error() { printf 'ERROR: %s\n' "$*" >&2; }
-
-resolve_compose_cmd() {
-    if docker compose version >/dev/null 2>&1; then
-        printf 'docker compose'
-        return
-    fi
-    if command -v docker-compose >/dev/null 2>&1; then
-        printf 'docker-compose'
-        return
-    fi
-    printf ''
-}
-
 resolve_target_container() {
     if [ -n "${CONTAINER}" ]; then
         printf '%s\n' "${CONTAINER}"
@@ -81,7 +63,7 @@ resolve_target_container() {
     fi
 
     local compose_cmd
-    compose_cmd="$(resolve_compose_cmd)"
+    compose_cmd="$(bridge_detect_compose_bin_optional)"
     if [ -n "${compose_cmd}" ]; then
         local container_id
         container_id="$(
@@ -116,25 +98,25 @@ while [ $# -gt 0 ]; do
         exit "${ACP_EXIT_SUCCESS}"
         ;;
     *)
-        log_error "Unknown option: $1"
+        bridge_log_error "Unknown option: $1"
         exit "${ACP_EXIT_USAGE}"
         ;;
     esac
 done
 
 if ! command -v jq >/dev/null 2>&1; then
-    log_error "jq is required"
+    bridge_log_error "jq is required"
     exit "${ACP_EXIT_PREREQ}"
 fi
 
 if [ ! -f "${AUTH_FILE}" ]; then
-    log_error "Auth cache file not found: ${AUTH_FILE}"
-    log_error "Run 'codex login' locally first (browser-capable machine)."
+    bridge_log_error "Auth cache file not found: ${AUTH_FILE}"
+    bridge_log_error "Run 'codex login' locally first (browser-capable machine)."
     exit "${ACP_EXIT_PREREQ}"
 fi
 
 if [ ! -s "${AUTH_FILE}" ]; then
-    log_error "Auth cache file is empty: ${AUTH_FILE}"
+    bridge_log_error "Auth cache file is empty: ${AUTH_FILE}"
     exit "${ACP_EXIT_DOMAIN}"
 fi
 
@@ -156,20 +138,20 @@ elif jq -e '.access_token and .refresh_token and .id_token' "${AUTH_FILE}" >/dev
     jq '{access_token, refresh_token, id_token, account_id: (.account_id // null), expires_at: (.expires_at // null)}' \
         "${AUTH_FILE}" >"${normalized_auth_file}"
 else
-    log_error "Unsupported auth cache schema in ${AUTH_FILE}"
-    log_error "Expected Codex auth schema (.tokens.*) or LiteLLM ChatGPT schema (.access_token)."
+    bridge_log_error "Unsupported auth cache schema in ${AUTH_FILE}"
+    bridge_log_error "Expected Codex auth schema (.tokens.*) or LiteLLM ChatGPT schema (.access_token)."
     exit "${ACP_EXIT_DOMAIN}"
 fi
 
 if [ -f "${DEST_FILE}" ]; then
     backup_file="${DEST_FILE}.bak.$(date +%Y%m%d%H%M%S)"
     cp "${DEST_FILE}" "${backup_file}"
-    log_info "Backed up existing cache to ${backup_file}"
+    bridge_log_info "Backed up existing cache to ${backup_file}"
 fi
 
 cp "${normalized_auth_file}" "${DEST_FILE}"
 chmod 600 "${DEST_FILE}"
-log_info "Wrote normalized auth cache to ${DEST_FILE}"
+bridge_log_info "Wrote normalized auth cache to ${DEST_FILE}"
 
 if command -v docker >/dev/null 2>&1; then
     target_container="$(resolve_target_container)"
@@ -180,25 +162,25 @@ if command -v docker >/dev/null 2>&1; then
     fi
     if [ "${container_state}" = "true" ]; then
         container_home="$(docker exec "${target_container}" sh -lc 'printf "%s" "${HOME:-/root}"' 2>/dev/null)" || {
-            log_error "Failed to resolve home directory in running LiteLLM container"
+            bridge_log_error "Failed to resolve home directory in running LiteLLM container"
             exit "${ACP_EXIT_RUNTIME}"
         }
         if [ -n "${container_home}" ]; then
             live_dest_dir="${container_home}/.config/litellm/chatgpt"
             live_dest_file="${live_dest_dir}/auth.json"
             docker exec "${target_container}" sh -lc "mkdir -p '${live_dest_dir}'" >/dev/null 2>&1 || {
-                log_error "Failed to create live auth cache directory in ${target_container}"
+                bridge_log_error "Failed to create live auth cache directory in ${target_container}"
                 exit "${ACP_EXIT_RUNTIME}"
             }
             docker exec -i "${target_container}" sh -lc "cat > '${live_dest_file}'" <"${normalized_auth_file}" || {
-                log_error "Failed to copy live auth cache into ${target_container}"
+                bridge_log_error "Failed to copy live auth cache into ${target_container}"
                 exit "${ACP_EXIT_RUNTIME}"
             }
             docker exec "${target_container}" sh -lc "chmod 600 '${live_dest_file}'" >/dev/null 2>&1 || {
-                log_error "Failed to set live auth cache permissions in ${target_container}"
+                bridge_log_error "Failed to set live auth cache permissions in ${target_container}"
                 exit "${ACP_EXIT_RUNTIME}"
             }
-            log_info "Live sync complete for ${target_container}:${live_dest_file}"
+            bridge_log_info "Live sync complete for ${target_container}:${live_dest_file}"
         fi
     fi
 fi

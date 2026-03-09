@@ -19,6 +19,10 @@ set -euo pipefail
 # Invariants/Assumptions:
 #   - Tests do not require Docker or make delegation.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
 show_help() {
     cat <<'EOF'
 Usage: acpctl_cli_help_test.sh [OPTIONS]
@@ -35,56 +39,33 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(test_repo_root)"
 SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/acpctl.sh"
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+test_fixture_init acpctl-cli-help-test
+TMP_DIR="${TEST_TMP_ROOT}"
 
 ACPCTL_BIN_TEST="${TMP_DIR}/acpctl-bin"
 GO_SHIM="${TMP_DIR}/acpctl-go-shim.sh"
 
-go build -trimpath -o "${ACPCTL_BIN_TEST}" "${REPO_ROOT}/cmd/acpctl"
-
-cat >"${GO_SHIM}" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-exec "${ACPCTL_BIN_TEST}" "\$@"
-EOF
-chmod +x "${GO_SHIM}"
-
-assert_contains() {
-    local haystack="$1"
-    local needle="$2"
-    local description="$3"
-    if grep -Fq "${needle}" <<<"${haystack}"; then
-        printf '  ✓ %s\n' "${description}"
-    else
-        printf '  ✗ %s\n' "${description}"
-        exit 1
-    fi
-}
+test_build_acpctl_binary "${ACPCTL_BIN_TEST}"
+test_create_exec_shim "${ACPCTL_BIN_TEST}" "${GO_SHIM}"
 
 printf 'ACPCTL CLI Help Contract Test\n'
 printf '=============================\n'
 
 help_output="$(ACPCTL_BIN="${GO_SHIM}" "${SCRIPT_UNDER_TEST}" --help 2>&1)"
-assert_contains "${help_output}" "Usage: acpctl" "--help includes usage"
-assert_contains "${help_output}" "Commands:" "--help includes Commands section"
-assert_contains "${help_output}" "Examples:" "--help includes Examples section"
-assert_contains "${help_output}" "env" "--help lists env command"
-assert_contains "${help_output}" "chargeback" "--help lists chargeback command"
-assert_contains "${help_output}" "deploy" "--help lists deploy command"
-assert_contains "${help_output}" "validate" "--help lists validate command"
-assert_contains "${help_output}" "db" "--help lists db command"
-assert_contains "${help_output}" "key" "--help lists key command"
-assert_contains "${help_output}" "doctor" "--help lists doctor command"
+test_assert_contains "${help_output}" "Usage: acpctl" "--help includes usage" || exit 1
+test_assert_contains "${help_output}" "Commands:" "--help includes Commands section" || exit 1
+test_assert_contains "${help_output}" "Examples:" "--help includes Examples section" || exit 1
+test_assert_contains "${help_output}" "env" "--help lists env command" || exit 1
+test_assert_contains "${help_output}" "chargeback" "--help lists chargeback command" || exit 1
+test_assert_contains "${help_output}" "deploy" "--help lists deploy command" || exit 1
+test_assert_contains "${help_output}" "validate" "--help lists validate command" || exit 1
+test_assert_contains "${help_output}" "db" "--help lists db command" || exit 1
+test_assert_contains "${help_output}" "key" "--help lists key command" || exit 1
+test_assert_contains "${help_output}" "doctor" "--help lists doctor command" || exit 1
 
 unknown_rc=0
 ACPCTL_BIN="${GO_SHIM}" "${SCRIPT_UNDER_TEST}" unknown-command >/dev/null 2>&1 || unknown_rc=$?
-if [[ "${unknown_rc}" -ne 64 ]]; then
-    printf '  ✗ unknown command should exit 64 (got %s)\n' "${unknown_rc}"
-    exit 1
-fi
-printf '  ✓ unknown command exits 64\n'
+test_assert_exit_code "${unknown_rc}" "64" "unknown command exits 64" || exit 1

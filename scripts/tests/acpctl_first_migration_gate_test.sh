@@ -22,7 +22,10 @@ set -euo pipefail
 #   - Exit code 0 means policy checks passed; 1 means policy violation.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
+REPO_ROOT="$(test_repo_root)"
 cd "$REPO_ROOT"
 
 MAX_NEW_SCRIPT_LINES=250
@@ -85,35 +88,24 @@ is_changed_operator_script() {
 has_acpctl_delegation() {
     local path="$1"
     awk '
-        BEGIN { heredoc="" }
+        /^[[:space:]]*#/ { next }
         {
-            if (heredoc != "") {
-                if ($0 == heredoc) {
-                    heredoc=""
-                }
-                next
-            }
-
-            if (match($0, /<<[-]?[[:space:]]*["'\''"]?([A-Za-z_][A-Za-z0-9_]*)["'\''"]?/, m)) {
-                heredoc=m[1]
-                next
-            }
-
-            if ($0 ~ /^[[:space:]]*#/) {
-                next
-            }
-
-            if ($0 ~ /(^|[[:space:];|&()])exec[[:space:]].*(scripts\/acpctl\.sh|acpctl)([[:space:]]|$)/) {
+            if ($0 ~ /bridge_acpctl_bin[[:space:]]*\)/ || $0 ~ /bridge_acpctl_bin[[:space:]]*$/) {
                 found=1
                 exit
             }
 
-            if ($0 ~ /(^|[[:space:];|&()])scripts\/acpctl\.sh([[:space:]]|$)/) {
+            if ($0 ~ /exec[[:space:]].*(scripts\/acpctl\.sh|acpctl)([[:space:]]|$)/) {
                 found=1
                 exit
             }
 
-            if ($0 ~ /(^|[[:space:];|&()])acpctl([[:space:]]|$)/ && $0 ~ /\$@/) {
+            if ($0 ~ /scripts\/acpctl\.sh([[:space:]]|$)/) {
+                found=1
+                exit
+            }
+
+            if ($0 ~ /acpctl([[:space:]]|$)/ && $0 ~ /\$@/) {
                 found=1
                 exit
             }

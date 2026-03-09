@@ -27,6 +27,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/tests/test_helpers.sh
+source "${SCRIPT_DIR}/test_helpers.sh"
+
 show_help() {
     cat <<'EOF'
 Usage: make_env_scope_test.sh [OPTIONS]
@@ -43,12 +47,11 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(test_repo_root)"
 VARIABLES_MK="${REPO_ROOT}/mk/variables.mk"
 
-TMP_ROOT="$(mktemp -d)"
-trap 'rm -rf "${TMP_ROOT}"' EXIT
+test_fixture_init make-env-scope-test
+TMP_ROOT="${TEST_TMP_ROOT}"
 
 FIXTURE="${TMP_ROOT}/fixture"
 STUB_BIN="${TMP_ROOT}/bin"

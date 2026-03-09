@@ -20,29 +20,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-export ACP_REPO_ROOT="${ACP_REPO_ROOT:-${REPO_ROOT}}"
+# shellcheck source=scripts/libexec/common.sh
+source "${SCRIPT_DIR}/libexec/common.sh"
 
-if [ -n "${ACPCTL_BIN:-}" ]; then
-    if [ -x "${ACPCTL_BIN}" ]; then
-        exec "${ACPCTL_BIN}" "$@"
-    fi
-
-    printf 'ERROR: ACPCTL_BIN is set but not executable: %s\n' "${ACPCTL_BIN}" >&2
-    exit 2
-fi
-
-if [ -x "${REPO_ROOT}/.bin/acpctl" ]; then
-    exec "${REPO_ROOT}/.bin/acpctl" "$@"
-fi
-
-if [ -x "${REPO_ROOT}/acpctl" ]; then
-    exec "${REPO_ROOT}/acpctl" "$@"
-fi
-
-if command -v acpctl >/dev/null 2>&1; then
-    exec acpctl "$@"
-fi
-
-printf 'ERROR: acpctl binary not found. Run: make install-binary\n' >&2
-exit 2
+export ACP_REPO_ROOT="${ACP_REPO_ROOT:-$(bridge_repo_root)}"
+ACPCTL_RESOLVED_BIN="$(bridge_acpctl_bin)" || exit $?
+exec "${ACPCTL_RESOLVED_BIN}" "$@"
