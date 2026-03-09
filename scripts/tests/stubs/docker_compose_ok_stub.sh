@@ -22,16 +22,16 @@
 set -euo pipefail
 
 case "${1:-}" in
-    compose)
-        [[ "${2:-}" == "version" ]] && exit 0
-        ;;
-    inspect)
-        printf '/tmp/litellm-chatgpt.yaml -> /app/config.yaml\n'
-        exit 0
-        ;;
-    logs)
-        exit 0
-        ;;
+compose)
+    [[ "${2:-}" == "version" ]] && exit 0
+    ;;
+inspect)
+    printf '/tmp/litellm-chatgpt.yaml -> /app/config.yaml\n'
+    exit 0
+    ;;
+logs)
+    exit 0
+    ;;
 esac
 
 exit 0
