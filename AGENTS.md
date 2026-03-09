@@ -87,6 +87,7 @@ make health      # Verify services
 - **Fix root cause:** If the same issue appears elsewhere, fix all occurrences
 - **Canonical subprocess execution:** Operator-facing subprocesses should use `internal/proc` with caller context propagation and bounded deadlines; avoid bare `exec.Command` in CLI/internal execution paths
 - **Canonical deployment scan scope:** `internal/policy` owns recursive deployment/config surface traversal plus shared target/YAML helpers; expand scope there and reuse those helpers from `internal/security` and `internal/validation` instead of reimplementing walkers or YAML access
+- **Repository policy documents:** repo-hygiene and source-control validation policies belong in tracked JSON under `docs/policy/`, with schema-specific loading and enforcement kept in `internal/security`
 - **Runtime health contract:** route gateway and database health through the typed `internal/gateway` and `internal/db` services, then adapt operator output in `internal/status` / `internal/doctor`; do not reintroduce collector-local HTTP probes or `docker exec psql` helpers
 - **Runtime inspection ownership:** `internal/runtimeinspect` composes shared runtime inspection for `status`, `health`, `doctor`, and `ci wait`; extend readiness/collector wiring there instead of rebuilding per-command polling or interpretation
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified

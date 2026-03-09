@@ -196,10 +196,11 @@ grep -i "bearer" demo/logs/litellm.log
 ```
 
 The secrets audit (`make secrets-audit`) is the recommended approach as it:
-- Scans all mounted logs, backups, and build contexts
-- Detects multiple leak patterns (Authorization headers, Bearer tokens, API keys, JWTs)
+- Applies the tracked policy in `docs/policy/SECRET_SCAN_POLICY.json`
+- Scans tracked repository files deterministically for secret-bearing paths and high-confidence secret signatures
+- Detects the policy-defined high-confidence patterns such as private keys and committed API tokens
 - Never prints raw secrets in output
-- Fails fast on first confirmed leak
+- Reports deterministic sorted findings for CI
 - Is automatically run during `make lint` and `make ci`
 
 If leaks are found, redact the log file:
