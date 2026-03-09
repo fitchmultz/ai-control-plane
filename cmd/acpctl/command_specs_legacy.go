@@ -272,11 +272,10 @@ func hostCommandSpec() *commandSpec {
 
 func smokeCommandSpec() *commandSpec {
 	return &commandSpec{
-		Name:              "smoke",
-		Summary:           "Run runtime production smoke checks",
-		Description:       "Run runtime production smoke checks.",
-		AllowTrailingArgs: true,
-		Backend:           legacyNativeBackend(runSmokeTestCommand),
+		Name:        "smoke",
+		Summary:     "Run truthful runtime smoke checks",
+		Description: "Run truthful runtime smoke checks against the active ACP deployment.",
+		Backend:     legacyNativeBackend(runSmokeTestCommand),
 	}
 }
 
@@ -323,15 +322,15 @@ func terraformCommandSpec() *commandSpec {
 func helmCommandSpec() *commandSpec {
 	return &commandSpec{
 		Name:        "helm",
-		Summary:     "Helm chart validation and smoke tests",
-		Description: "Helm chart validation and smoke tests.",
+		Summary:     "Helm chart validation and smoke gates",
+		Description: "Helm chart validation and smoke gates.",
 		Examples: []string{
 			"acpctl helm validate",
 			"acpctl helm smoke",
 		},
 		Children: []*commandSpec{
-			{Name: "validate", Summary: "Validate Helm chart", Description: "Validate Helm chart.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runHelmValidateCommand)},
-			{Name: "smoke", Summary: "Run Helm production smoke tests", Description: "Run Helm production smoke tests.", AllowTrailingArgs: true, Backend: legacyNativeBackend(runHelmSmokeCommand)},
+			{Name: "validate", Summary: "Validate Helm deployment surfaces", Description: "Validate Helm deployment surfaces and run helm lint.", Backend: legacyNativeBackend(runHelmValidateCommand)},
+			{Name: "smoke", Summary: "Run truthful Helm smoke validation", Description: "Run truthful Helm smoke validation for repository-managed deployment surfaces.", Backend: legacyNativeBackend(runHelmSmokeCommand)},
 		},
 	}
 }
