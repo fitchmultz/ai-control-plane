@@ -91,22 +91,28 @@ func validateSupplyChainCommandSpec() *commandSpec {
 
 func runSecretsAuditTyped(ctx context.Context, runCtx commandRunContext, _ any) int {
 	out := output.New()
+	logger := workflowLogger(runCtx, "validate_secrets_audit")
+	workflowStart(logger)
 	trackedFiles, err := security.ListTrackedFiles(ctx, runCtx.RepoRoot)
 	if err != nil {
+		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, out.Fail("Secrets audit could not enumerate tracked files: %v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
 	findings, err := security.AuditTrackedSecrets(runCtx.RepoRoot, trackedFiles)
 	if err != nil {
+		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, out.Fail("Secrets audit failed: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Secrets Audit ==="))
 	fmt.Fprintln(runCtx.Stdout, "Scanning tracked files for likely public-repo secret leaks...")
 	if len(findings) == 0 {
+		workflowComplete(logger, "tracked_files", len(trackedFiles), "findings", 0)
 		fmt.Fprintln(runCtx.Stdout, out.Green("Secrets audit passed"))
 		return exitcodes.ACPExitSuccess
 	}
+	workflowWarn(logger, "tracked_files", len(trackedFiles), "findings", len(findings))
 	for _, finding := range findings {
 		if finding.Line > 0 {
 			fmt.Fprintf(runCtx.Stdout, "%s:%d [%s] %s\n", finding.Path, finding.Line, finding.RuleID, finding.Message)
@@ -119,16 +125,21 @@ func runSecretsAuditTyped(ctx context.Context, runCtx commandRunContext, _ any) 
 }
 
 func runValidatePublicHygieneTyped(ctx context.Context, runCtx commandRunContext, _ any) int {
+	logger := workflowLogger(runCtx, "validate_public_hygiene")
+	workflowStart(logger)
 	trackedFiles, err := security.ListTrackedFiles(ctx, runCtx.RepoRoot)
 	if err != nil {
+		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitPrereq
 	}
 	violations := security.ValidatePublicHygiene(trackedFiles)
 	if len(violations) == 0 {
+		workflowComplete(logger, "tracked_files", len(trackedFiles), "violations", 0)
 		fmt.Fprintln(runCtx.Stdout, "Public-release tracked file hygiene passed")
 		return exitcodes.ACPExitSuccess
 	}
+	workflowWarn(logger, "tracked_files", len(trackedFiles), "violations", len(violations))
 	fmt.Fprintln(runCtx.Stderr, "Local-only files are tracked and block public release:")
 	for _, violation := range violations {
 		fmt.Fprintln(runCtx.Stderr, violation)
@@ -138,15 +149,20 @@ func runValidatePublicHygieneTyped(ctx context.Context, runCtx commandRunContext
 }
 
 func runValidateLicenseTyped(_ context.Context, runCtx commandRunContext, _ any) int {
+	logger := workflowLogger(runCtx, "validate_license_policy")
+	workflowStart(logger)
 	findings, err := security.ValidateLicensePolicy(runCtx.RepoRoot)
 	if err != nil {
+		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitRuntime
 	}
 	if len(findings) == 0 {
+		workflowComplete(logger, "findings", 0)
 		fmt.Fprintln(runCtx.Stdout, "License boundary check passed")
 		return exitcodes.ACPExitSuccess
 	}
+	workflowWarn(logger, "findings", len(findings))
 	fmt.Fprintln(runCtx.Stderr, "Restricted LiteLLM enterprise references detected outside docs:")
 	for _, finding := range findings {
 		fmt.Fprintln(runCtx.Stderr, finding)
@@ -155,15 +171,20 @@ func runValidateLicenseTyped(_ context.Context, runCtx commandRunContext, _ any)
 }
 
 func runValidateSupplyChainTyped(_ context.Context, runCtx commandRunContext, _ any) int {
+	logger := workflowLogger(runCtx, "validate_supply_chain")
+	workflowStart(logger)
 	findings, err := security.ValidateSupplyChainPolicy(runCtx.RepoRoot)
 	if err != nil {
+		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitRuntime
 	}
 	if len(findings) == 0 {
+		workflowComplete(logger, "findings", 0)
 		fmt.Fprintln(runCtx.Stdout, "Supply-chain policy and digest pinning baseline passed")
 		return exitcodes.ACPExitSuccess
 	}
+	workflowWarn(logger, "findings", len(findings))
 	fmt.Fprintln(runCtx.Stderr, "Supply-chain policy violations detected:")
 	for _, finding := range findings {
 		fmt.Fprintln(runCtx.Stderr, finding)

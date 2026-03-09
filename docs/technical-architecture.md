@@ -14,7 +14,7 @@ The baseline deployment target is a **single Linux host**. Kubernetes and Terraf
 
 - **Makefile + `mk/*.mk`**: canonical task orchestration for install, run, test, validation, security, and release workflows.
 - **`acpctl` (`cmd/acpctl`, `internal/*`)**: typed operator CLI for status, health, doctor checks, security gates, key operations, and release bundles.
-- **`internal/logging`**: shared structured workflow-event logging for typed operator flows; final human renderers stay with commands and report packages.
+- **`internal/logging` + `cmd/acpctl` workflow helpers**: shared structured workflow-event logging for typed operator flows; native command handlers emit `workflow.start|complete|failed|warn` events while final human renderers stay with commands and report packages.
 
 ### Runtime control plane
 

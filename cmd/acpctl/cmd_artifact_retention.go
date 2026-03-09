@@ -98,6 +98,8 @@ func bindArtifactRetentionOptions(bindCtx commandBindContext, input parsedComman
 func runArtifactRetention(_ context.Context, runCtx commandRunContext, raw any) int {
 	config := raw.(artifactRetentionConfig)
 	out := output.New()
+	logger := workflowLogger(runCtx, "artifact_retention", "mode", config.Mode, "keep_evidence", config.KeepEvidence, "keep_bundles", config.KeepBundles)
+	workflowStart(logger, "repo_root", config.RepoRoot)
 	evidenceRoot := filepath.Join(config.RepoRoot, "handoff-packet", "evidence")
 	bundleRoot := filepath.Join(config.RepoRoot, "demo", "logs", "release-bundles")
 
@@ -105,16 +107,19 @@ func runArtifactRetention(_ context.Context, runCtx commandRunContext, raw any) 
 	bundleBasesOrdered := collectBundleBases(bundleRoot)
 	evidenceStale := computeStaleEvidence(evidenceOrdered, config.KeepEvidence, evidenceRoot)
 	bundleFilesStale := computeStaleBundles(bundleBasesOrdered, config.KeepBundles, bundleRoot)
+	logger.Info("workflow.scan_complete", "stale_evidence_dirs", len(evidenceStale), "stale_bundle_files", len(bundleFilesStale))
 
 	printStaleSummary(runCtx.Stdout, out, config, evidenceStale, bundleFilesStale)
 
 	if config.Mode == "check" {
 		if len(evidenceStale) > 0 || len(bundleFilesStale) > 0 {
+			workflowWarn(logger, "status", "stale_artifacts_detected")
 			fmt.Fprintln(runCtx.Stdout, "")
 			fmt.Fprintln(runCtx.Stdout, out.Fail("Retention check failed."))
 			fmt.Fprintln(runCtx.Stdout, "Run: acpctl deploy artifact-retention --apply")
 			return exitcodes.ACPExitDomain
 		}
+		workflowComplete(logger, "status", "clean")
 		return exitcodes.ACPExitSuccess
 	}
 
@@ -127,6 +132,7 @@ func runArtifactRetention(_ context.Context, runCtx commandRunContext, raw any) 
 
 	fmt.Fprintln(runCtx.Stdout, "")
 	fmt.Fprintln(runCtx.Stdout, out.Green("Retention cleanup applied successfully."))
+	workflowComplete(logger, "deleted_evidence_dirs", len(evidenceStale), "deleted_bundle_files", len(bundleFilesStale))
 	return exitcodes.ACPExitSuccess
 }
 

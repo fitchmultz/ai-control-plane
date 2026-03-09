@@ -84,13 +84,17 @@ func smokeCommandSpec() *commandSpec {
 func runSmokeTest(ctx context.Context, runCtx commandRunContext, raw any) int {
 	options := raw.(smokeOptions)
 	out := output.New()
+	logger := workflowLogger(runCtx, "runtime_smoke", "verbose", options.Verbose)
+	workflowStart(logger)
 	if !prereq.CommandExists("docker") {
+		workflowFailure(logger, fmt.Errorf("docker not found"))
 		fmt.Fprintln(runCtx.Stderr, out.Fail("Docker not found"))
 		fmt.Fprintln(runCtx.Stderr, "Install Docker from https://docs.docker.com/get-docker/")
 		return exitcodes.ACPExitPrereq
 	}
 
 	if runCtx.RepoRoot == "" {
+		workflowFailure(logger, fmt.Errorf("repository root not detected"))
 		fmt.Fprintln(runCtx.Stderr, out.Fail("Failed to detect repository root"))
 		return exitcodes.ACPExitRuntime
 	}
@@ -105,24 +109,29 @@ func runSmokeTest(ctx context.Context, runCtx commandRunContext, raw any) int {
 		RepoRoot: runCtx.RepoRoot,
 		Wide:     options.Verbose,
 	})
+	logger.Info("workflow.report_collected", "overall", report.Overall)
 
 	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Runtime Smoke Checks ==="))
 	if err := report.WriteHuman(runCtx.Stdout, options.Verbose); err != nil {
+		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to render smoke output: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
 	if errors.Is(smokeCtx.Err(), context.DeadlineExceeded) {
+		workflowFailure(logger, smokeCtx.Err(), "status", "timeout")
 		fmt.Fprintln(runCtx.Stderr, out.Fail("Smoke check timed out"))
 		return exitcodes.ACPExitRuntime
 	}
 	if errors.Is(smokeCtx.Err(), context.Canceled) {
+		workflowFailure(logger, smokeCtx.Err(), "status", "canceled")
 		fmt.Fprintln(runCtx.Stderr, out.Fail("Smoke check canceled"))
 		return exitcodes.ACPExitRuntime
 	}
 
 	readiness := runtimeinspect.EvaluateReadiness(report, runtimeinspect.DefaultReadinessComponents)
 	if !readiness.Ready {
+		workflowWarn(logger, "status", "not_ready", "missing_components", readiness.Missing)
 		fmt.Fprintln(runCtx.Stderr, out.Fail("Runtime smoke failed: required components are not ready"))
 		for _, name := range readiness.Missing {
 			component, ok := readiness.Pending[name]
@@ -138,12 +147,15 @@ func runSmokeTest(ctx context.Context, runCtx commandRunContext, raw any) int {
 
 	switch report.Overall {
 	case status.HealthLevelHealthy:
+		workflowComplete(logger, "status", "healthy")
 		fmt.Fprintln(runCtx.Stdout, out.Green("Runtime smoke checks passed"))
 		return exitcodes.ACPExitSuccess
 	case status.HealthLevelWarning, status.HealthLevelUnhealthy:
+		workflowWarn(logger, "status", string(report.Overall))
 		fmt.Fprintln(runCtx.Stderr, out.Fail("Runtime smoke checks failed"))
 		return exitcodes.ACPExitDomain
 	default:
+		workflowFailure(logger, fmt.Errorf("unknown runtime smoke status: %s", string(report.Overall)))
 		fmt.Fprintln(runCtx.Stderr, out.Fail("Runtime smoke returned unknown status"))
 		return exitcodes.ACPExitRuntime
 	}

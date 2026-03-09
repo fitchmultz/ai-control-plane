@@ -146,6 +146,8 @@ func bindBenchmarkBaselineOptions(_ commandBindContext, input parsedCommandInput
 
 func runBenchmarkBaseline(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(benchmarkBaselineOptions)
+	logger := workflowLogger(runCtx, "benchmark_baseline", "model", opts.Model, "profile", opts.Profile, "json", opts.JSON)
+	workflowStart(logger, "gateway_url", opts.GatewayURL, "requests", opts.Requests, "concurrency", opts.Concurrency)
 	runnerOpts := performance.BaselineOptions{
 		GatewayURL:     opts.GatewayURL,
 		MasterKey:      opts.MasterKey,
@@ -158,13 +160,16 @@ func runBenchmarkBaseline(ctx context.Context, runCtx commandRunContext, raw any
 		HTTPTimeout:    30 * time.Second,
 	}
 	if opts.Profile != "" {
+		logger.Info("workflow.profile_resolve", "profile", opts.Profile)
 		catalog, err := performance.LoadProfileCatalog(filepath.Join(runCtx.RepoRoot, benchmarkProfileConfigRelativePath))
 		if err != nil {
+			workflowFailure(logger, err)
 			fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
 		profile, err := catalog.ResolveProfile(opts.Profile)
 		if err != nil {
+			workflowFailure(logger, err)
 			fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 			return exitcodes.ACPExitUsage
 		}
@@ -182,6 +187,7 @@ func runBenchmarkBaseline(ctx context.Context, runCtx commandRunContext, raw any
 
 	summary, err := benchmarkRunner(ctx, runnerOpts)
 	if err != nil {
+		workflowFailure(logger, err)
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
 			fmt.Fprintln(runCtx.Stderr, "Error: benchmark timed out")
@@ -195,6 +201,7 @@ func runBenchmarkBaseline(ctx context.Context, runCtx commandRunContext, raw any
 	if opts.JSON {
 		payload, err := json.MarshalIndent(summary, "", "  ")
 		if err != nil {
+			workflowFailure(logger, err)
 			fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 			return exitcodes.ACPExitRuntime
 		}
@@ -202,6 +209,7 @@ func runBenchmarkBaseline(ctx context.Context, runCtx commandRunContext, raw any
 	} else {
 		printBenchmarkSummary(runCtx.Stdout, summary)
 	}
+	workflowComplete(logger, "failures", summary.Failures, "successes", summary.Successes, "duration", summary.Duration)
 	if summary.Failures > 0 {
 		return exitcodes.ACPExitDomain
 	}

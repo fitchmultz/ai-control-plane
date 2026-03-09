@@ -110,7 +110,7 @@ func helmGateCommandSpec(name string, summary string, description string, config
 }
 
 func runHelmGateCommand(ctx context.Context, runCtx commandRunContext, raw any) int {
-	return runHelmGate(ctx, runCtx.Stdout, runCtx.Stderr, runCtx.RepoRoot, raw.(helmGateConfig))
+	return runHelmGate(ctx, runCtx, raw.(helmGateConfig))
 }
 
 func runHelmValidateCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
@@ -121,9 +121,15 @@ func runHelmSmokeCommand(ctx context.Context, args []string, stdout *os.File, st
 	return runTypedCommandAdapter(ctx, []string{"helm", "smoke"}, args, stdout, stderr)
 }
 
-func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, repoRoot string, config helmGateConfig) int {
+func runHelmGate(ctx context.Context, runCtx commandRunContext, config helmGateConfig) int {
 	out := output.New()
+	logger := workflowLogger(runCtx, "helm_gate", "title", config.title)
+	workflowStart(logger)
+	stdout := runCtx.Stdout
+	stderr := runCtx.Stderr
+	repoRoot := runCtx.RepoRoot
 	if repoRoot == "" {
+		workflowFailure(logger, fmt.Errorf("repository root not detected"))
 		fmt.Fprintln(stderr, out.Fail("Failed to detect repository root"))
 		return exitcodes.ACPExitRuntime
 	}
@@ -132,10 +138,12 @@ func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, repoRoot
 
 	issues, err := validation.ValidateHelmSurfaces(repoRoot)
 	if err != nil {
+		workflowFailure(logger, err)
 		fmt.Fprintf(stderr, out.Fail("Helm validation failed: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 	if len(issues) > 0 {
+		workflowWarn(logger, "status", "surface_validation_failed", "issues", len(issues))
 		fmt.Fprintln(stderr, out.Fail("Helm deployment surface validation failed"))
 		for _, issue := range issues {
 			fmt.Fprintf(stderr, "  - %s\n", issue)
@@ -145,6 +153,7 @@ func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, repoRoot
 
 	result := runHelmLint(ctx, repoRoot, stdout, stderr)
 	if result.Err != nil {
+		workflowFailure(logger, result.Err)
 		switch {
 		case proc.IsNotFound(result.Err):
 			fmt.Fprintln(stderr, out.Fail("helm not found in PATH"))
@@ -164,5 +173,6 @@ func runHelmGate(ctx context.Context, stdout *os.File, stderr *os.File, repoRoot
 	}
 
 	fmt.Fprintln(stdout, out.Green(config.successMessage))
+	workflowComplete(logger, "status", "passed")
 	return exitcodes.ACPExitSuccess
 }

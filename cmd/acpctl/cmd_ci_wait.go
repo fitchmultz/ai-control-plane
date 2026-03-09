@@ -101,9 +101,12 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 	opts := raw.(ciWaitOptions)
 
 	out := output.New()
+	logger := workflowLogger(runCtx, "ci_wait", "timeout", opts.Timeout.String(), "interval", opts.Interval.String(), "verbose", opts.Verbose)
+	workflowStart(logger)
 
 	// Prerequisite checks
 	if !prereq.CommandExists("docker") {
+		workflowFailure(logger, fmt.Errorf("docker not found"))
 		fmt.Fprintln(runCtx.Stderr, out.Fail("docker not found"))
 		return exitcodes.ACPExitPrereq
 	}
@@ -132,6 +135,7 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 			}
 			component, ok := report.Components[name]
 			if ok && component.Level == status.HealthLevelHealthy {
+				logger.Info("workflow.component_ready", "component", name)
 				fmt.Fprintln(runCtx.Stdout, out.Pass(ciWaitReadyMessage(name)))
 				reportedReady[name] = struct{}{}
 				continue
@@ -148,6 +152,7 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 		if runtimeinspect.EvaluateReadiness(report, runtimeinspect.DefaultReadinessComponents).Ready {
 			fmt.Fprintln(runCtx.Stdout)
 			fmt.Fprintln(runCtx.Stdout, out.Green("All services are healthy and ready"))
+			workflowComplete(logger, "status", "ready")
 			return exitcodes.ACPExitSuccess
 		}
 
@@ -155,9 +160,11 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 		case <-waitCtx.Done():
 			fmt.Fprintln(runCtx.Stdout)
 			if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				workflowFailure(logger, ctx.Err(), "status", "canceled")
 				fmt.Fprintln(runCtx.Stderr, out.Fail("CI wait canceled"))
 				return exitcodes.ACPExitRuntime
 			}
+			workflowWarn(logger, "status", "timeout")
 			fmt.Fprintf(runCtx.Stdout, out.Fail("Timeout: Services did not become healthy within %s\n"), opts.Timeout)
 			statusCtx, statusCancel := context.WithTimeout(ctx, 5*time.Second)
 			defer statusCancel()
@@ -166,6 +173,7 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 				fmt.Fprintln(runCtx.Stdout)
 				fmt.Fprintln(runCtx.Stdout, "Current runtime status:")
 				if err := finalReport.WriteHuman(runCtx.Stdout, true); err != nil {
+					workflowFailure(logger, err)
 					fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to render runtime status: %v\n"), err)
 					return exitcodes.ACPExitRuntime
 				}
@@ -215,5 +223,6 @@ func runCIWaitCommand(ctx context.Context, args []string, stdout *os.File, stder
 		RepoRoot: detectRepoRootWithContext(ctx),
 		Stdout:   stdout,
 		Stderr:   stderr,
+		Logger:   buildCommandLogger(stderr, []*commandSpec{acpctlCommandSpec(), ciCommandSpec(), spec}),
 	}, opts)
 }
