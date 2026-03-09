@@ -723,7 +723,7 @@ After any upgrade or rollback, capture the following:
 
 4. **Validate**: Run smoke tests
    ```bash
-   make helm-smoke NAMESPACE=<namespace> RELEASE=<release>
+   make helm-smoke
    ```
 
 5. **Rollback** (if needed):
@@ -945,14 +945,12 @@ make prod-smoke-local-tls
 
 For existing deployment:
 ```bash
-export LITELLM_MASTER_KEY=your-master-key
-make prod-smoke PUBLIC_URL=https://gateway.example.com
+make prod-smoke
 ```
 
-For Helm deployment:
+For repository Helm artifacts:
 ```bash
-export LITELLM_MASTER_KEY=your-master-key
-make helm-smoke NAMESPACE=acp RELEASE=acp
+make helm-smoke
 ```
 
 **6. Health Check**:
@@ -967,11 +965,15 @@ make db-status
 
 ### Smoke Test Reference
 
-The production smoke tests validate:
+The runtime smoke tests validate:
 
 | Check | Description | Failure Indication |
 |-------|-------------|-------------------|
-| Health endpoint | Gateway reachable | Network/DNS issues |
+| Health endpoint | Gateway reachable | Network/runtime issues |
+| Authorized models check | `/v1/models` returns authorized HTTP 200 with `LITELLM_MASTER_KEY` | Missing auth or inference surface drift |
+| Database readiness | Runtime database collector is healthy | DB unavailable or misconfigured |
+
+`make helm-smoke` is a separate repository gate: it validates tracked Helm surfaces and runs `helm lint`. It does not inspect a live cluster.
 | Auth enforcement | No anonymous access | Security misconfiguration |
 | Models configured | At least one model available | Config issue |
 | Virtual key generation | Admin API working | Auth/database issue |

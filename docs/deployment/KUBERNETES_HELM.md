@@ -95,8 +95,8 @@ make ci-nightly
 # On-demand heavy security/image checks
 make ci-manual-heavy
 
-# Optional runtime smoke against your planned public URL
-make prod-smoke PUBLIC_URL=https://gateway.example.com
+# Optional runtime smoke against the active runtime configuration
+make prod-smoke
 ```
 
 **Apply results to Helm values:** use runtime and smoke evidence to tune resource `requests`, `limits`, and replica counts.
@@ -520,44 +520,29 @@ monitoring:
 
 ### Production Smoke Tests
 
-Validate your Helm deployment using the production smoke test harness. This performs runtime validation of the deployment contract without requiring ingress to be configured.
+Validate the repository-managed Helm artifacts with the Helm smoke gate before promoting a deployment. This is a real pass/fail gate over tracked Helm surfaces and `helm lint`.
 
 **Prerequisites:**
-- `kubectl` configured for the target cluster
-- `LITELLM_MASTER_KEY` environment variable set
+- `helm` installed in `PATH`
 
 **Basic Usage:**
 ```bash
-# Validate via port-forward (no ingress required)
-export LITELLM_MASTER_KEY=your-master-key
-make helm-smoke NAMESPACE=acp RELEASE=acp
-```
-
-**With Public URL:**
-```bash
-# Test both port-forward and public ingress
-export LITELLM_MASTER_KEY=your-master-key
-make helm-smoke NAMESPACE=acp RELEASE=acp \
-  PUBLIC_URL=https://gateway.example.com
+make helm-smoke
 ```
 
 **What it validates:**
-1. **Gateway reachability**: Health endpoint responds
-2. **Auth enforcement**: No anonymous access to protected endpoints
-3. **Models configured**: At least one model is available
-4. **Virtual key generation**: Admin API works with master key
-5. **Key validation**: Generated keys work on public endpoints
-6. **Request path**: Full request cycle (when mock models configured)
+1. **Helm structure**: Chart, schema, values, and templates parse correctly
+2. **Helm contracts**: Production/demo values files match the published contract
+3. **Helm lint**: `helm lint deploy/helm/ai-control-plane` passes
 
 **CI Integration:**
 ```bash
 # Extended CI includes production smoke tests
 make ci-nightly
 
-# Optional Kubernetes production profile checks via enterprise gate
+# Optional enterprise production profile checks via host contract gate
 CI_PRODUCTION_K8S=1 make ci-nightly \
-  SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env \
-  NAMESPACE=acp RELEASE=acp
+  SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
 ```
 
 See [Production Handoff Runbook](./PRODUCTION_HANDOFF_RUNBOOK.md) for full operational procedures.

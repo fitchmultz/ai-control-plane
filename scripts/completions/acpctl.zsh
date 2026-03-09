@@ -66,7 +66,7 @@ _acpctl_commands() {
         "health:Run service health checks"
         "doctor:Environment preflight diagnostics"
         "benchmark:Lightweight local performance baseline"
-        "smoke:Run runtime production smoke checks"
+        "smoke:Run truthful runtime smoke checks"
         "completion:Generate shell completion scripts"
         "onboard:Configure local tools to route through the gateway"
         "deploy:Service lifecycle, release, and deployment operations"
@@ -76,7 +76,7 @@ _acpctl_commands() {
         "host:Host-first deployment and operations"
         "demo:Demo scenario, preset, and snapshot operations"
         "terraform:Terraform provisioning workflow helpers"
-        "helm:Helm chart validation and smoke tests"
+        "helm:Helm chart validation and smoke gates"
         "bridge:Execute mapped legacy script implementations directly"
         "help:Show this help message"
     )
@@ -228,8 +228,8 @@ _acpctl_terraform() {
 
 _acpctl_helm() {
     local subcmds=(
-        "validate:Validate Helm chart"
-        "smoke:Run Helm production smoke tests"
+        "validate:Validate Helm deployment surfaces"
+        "smoke:Run truthful Helm smoke validation"
     )
     _describe -t commands 'helm subcommands' subcmds "$@"
 }

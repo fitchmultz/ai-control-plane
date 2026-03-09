@@ -89,6 +89,7 @@ make health      # Verify services
 - **Canonical deployment scan scope:** `internal/policy` owns recursive deployment/config surface traversal plus shared target/YAML helpers; expand scope there and reuse those helpers from `internal/security` and `internal/validation` instead of reimplementing walkers or YAML access
 - **Runtime health contract:** route gateway and database health through the typed `internal/gateway` and `internal/db` services, then adapt operator output in `internal/status` / `internal/doctor`; do not reintroduce collector-local HTTP probes or `docker exec psql` helpers
 - **Runtime inspection ownership:** `internal/runtimeinspect` composes shared runtime inspection for `status`, `health`, `doctor`, and `ci wait`; extend readiness/collector wiring there instead of rebuilding per-command polling or interpretation
+- **Smoke gate contract:** `acpctl smoke` / `make prod-smoke*` must be truthful runtime gates backed by `internal/runtimeinspect` and fail on gateway auth/models/database readiness drift; `acpctl helm smoke` / `make helm-smoke` must validate repository-managed Helm surfaces plus `helm lint` only and must not imply live-cluster probing or accept no-op cluster arguments
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
