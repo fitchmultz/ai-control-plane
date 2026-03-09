@@ -96,18 +96,22 @@ func (e *ExecError) Unwrap() error {
 }
 
 func (e *ExecError) command() string {
-	if len(e.Args) == 0 {
-		return e.Name
+	name := strings.TrimSpace(e.Name)
+	if name == "" {
+		name = "subprocess"
 	}
-	return e.Name + " " + strings.Join(e.Args, " ")
+	if len(e.Args) == 0 {
+		return name
+	}
+	return name + " " + strings.Join(e.Args, " ")
 }
 
 func Run(ctx context.Context, req Request) Result {
 	if ctx == nil {
-		panic("proc.Run: nil context")
+		return invalidStartResult(req, errors.New("proc.Run requires a non-nil context"))
 	}
 	if strings.TrimSpace(req.Name) == "" {
-		panic("proc.Run: empty command name")
+		return invalidStartResult(req, errors.New("proc.Run requires a non-empty command name"))
 	}
 
 	runCtx, cancel, effectiveTimeout := withTimeout(ctx, req.Timeout)
@@ -154,6 +158,19 @@ func Run(ctx context.Context, req Request) Result {
 		result.ExitCode = -1
 	}
 	return result
+}
+
+func invalidStartResult(req Request, err error) Result {
+	return Result{
+		Err: &ExecError{
+			Name:     strings.TrimSpace(req.Name),
+			Args:     append([]string(nil), req.Args...),
+			Kind:     KindStart,
+			ExitCode: -1,
+			Err:      err,
+		},
+		ExitCode: -1,
+	}
 }
 
 func withTimeout(ctx context.Context, requested time.Duration) (context.Context, context.CancelFunc, time.Duration) {
@@ -227,6 +244,10 @@ func IsCanceled(err error) bool {
 
 func IsNotFound(err error) bool {
 	return hasKind(err, KindNotFound)
+}
+
+func IsStart(err error) bool {
+	return hasKind(err, KindStart)
 }
 
 func IsExit(err error) bool {

@@ -111,6 +111,27 @@ func TestRunHelmSmokeCommandReturnsDomainFailureWhenLintFails(t *testing.T) {
 	}
 }
 
+func TestRunHelmSmokeCommandReturnsRuntimeWhenLintCannotStart(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeProductionValidationFixtureRepo(t, repoRoot)
+	restore := stubHelmLint(t, proc.Result{
+		Err: &proc.ExecError{Name: "helm", Args: []string{"lint"}, Kind: proc.KindStart, ExitCode: -1, Err: fmt.Errorf("proc.Run requires a non-empty command name")},
+	})
+	defer restore()
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runHelmSmokeCommand(context.Background(), nil, stdout, stderr)
+	})
+
+	if exitCode != exitcodes.ACPExitRuntime {
+		t.Fatalf("expected runtime failure, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+	if got := readFile(t, stderr); !stringsContainAll(got, "helm lint could not start") {
+		t.Fatalf("expected helm lint start failure output, got %s", got)
+	}
+}
+
 func TestRunHelmSmokeCommandRejectsUnsupportedArguments(t *testing.T) {
 	stdout, stderr := newTestFiles(t)
 	exitCode := runHelmSmokeCommand(context.Background(), []string{"NAMESPACE=acp"}, stdout, stderr)
