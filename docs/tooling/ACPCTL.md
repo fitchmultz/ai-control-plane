@@ -22,6 +22,23 @@
 
 ## Command Surface
 
+### Fast Runtime Triage Path
+
+For the highest-signal local operator check sequence, use:
+
+```bash
+./scripts/acpctl.sh status
+./scripts/acpctl.sh health
+./scripts/acpctl.sh smoke
+./scripts/acpctl.sh doctor
+```
+
+Use those commands in this order:
+- `status` for the broad aggregated picture
+- `health` for direct service-health reporting
+- `smoke` for truthful runtime gate behavior
+- `doctor` for actionable environment remediation guidance
+
 Primary entrypoints:
 - Make targets: `make <target>`
 - Shell wrapper: `./scripts/acpctl.sh` (auto-resolves repo-local binary, repo-root binary, or PATH binary; exits 2 with install guidance if none are found)

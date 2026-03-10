@@ -20,7 +20,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -28,7 +27,6 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
-	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
@@ -86,17 +84,11 @@ func runSmokeTest(ctx context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
 	logger := workflowLogger(runCtx, "runtime_smoke", "verbose", options.Verbose)
 	workflowStart(logger)
-	if !prereq.CommandExists("docker") {
-		workflowFailure(logger, fmt.Errorf("docker not found"))
-		fmt.Fprintln(runCtx.Stderr, out.Fail("Docker not found"))
-		fmt.Fprintln(runCtx.Stderr, "Install Docker from https://docs.docker.com/get-docker/")
-		return exitcodes.ACPExitPrereq
+	if ok, code := requireDockerRuntime(runCtx, logger, out); !ok {
+		return code
 	}
-
-	if runCtx.RepoRoot == "" {
-		workflowFailure(logger, fmt.Errorf("repository root not detected"))
-		fmt.Fprintln(runCtx.Stderr, out.Fail("Failed to detect repository root"))
-		return exitcodes.ACPExitRuntime
+	if ok, code := requireRuntimeRepoRoot(runCtx, logger, out); !ok {
+		return code
 	}
 
 	inspector := newSmokeInspector(runCtx.RepoRoot)
@@ -110,23 +102,11 @@ func runSmokeTest(ctx context.Context, runCtx commandRunContext, raw any) int {
 		Wide:     options.Verbose,
 	})
 	logger.Info("workflow.report_collected", "overall", report.Overall)
-
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Runtime Smoke Checks ==="))
-	if err := report.WriteHuman(runCtx.Stdout, options.Verbose); err != nil {
-		workflowFailure(logger, err)
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to render smoke output: %v\n"), err)
-		return exitcodes.ACPExitRuntime
+	if code := writeRuntimeReport(runCtx.Stdout, runCtx.Stderr, logger, out, "=== Runtime Smoke Checks ===", report, options.Verbose); code != exitcodes.ACPExitSuccess {
+		return code
 	}
-
-	if errors.Is(smokeCtx.Err(), context.DeadlineExceeded) {
-		workflowFailure(logger, smokeCtx.Err(), "status", "timeout")
-		fmt.Fprintln(runCtx.Stderr, out.Fail("Smoke check timed out"))
-		return exitcodes.ACPExitRuntime
-	}
-	if errors.Is(smokeCtx.Err(), context.Canceled) {
-		workflowFailure(logger, smokeCtx.Err(), "status", "canceled")
-		fmt.Fprintln(runCtx.Stderr, out.Fail("Smoke check canceled"))
-		return exitcodes.ACPExitRuntime
+	if handled, code := runtimeCommandContextResult(smokeCtx, logger, out, "Smoke check timed out", "Smoke check canceled", runCtx.Stderr); handled {
+		return code
 	}
 
 	readiness := runtimeinspect.EvaluateReadiness(report, runtimeinspect.DefaultReadinessComponents)
