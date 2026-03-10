@@ -24,8 +24,10 @@ package proc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -188,4 +190,42 @@ func TestACPExitCodeMappings(t *testing.T) {
 
 func filepathDoesNotExist() string {
 	return "/definitely/missing/acpctl-proc-helper"
+}
+
+func TestValidateExecutable(t *testing.T) {
+	t.Run("missing path", func(t *testing.T) {
+		err := ValidateExecutable(filepath.Join(t.TempDir(), "missing-tool"))
+		if !errors.Is(err, ErrExecutableNotFound) {
+			t.Fatalf("expected not-found classification, got %v", err)
+		}
+	})
+
+	t.Run("directory path", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ValidateExecutable(dir)
+		if !errors.Is(err, ErrExecutableIsDirectory) {
+			t.Fatalf("expected directory classification, got %v", err)
+		}
+	})
+
+	t.Run("non-executable file", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "tool.sh")
+		if err := os.WriteFile(file, []byte("#!/usr/bin/env bash\nexit 0\n"), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+		err := ValidateExecutable(file)
+		if !errors.Is(err, ErrExecutableNotExecutable) {
+			t.Fatalf("expected non-executable classification, got %v", err)
+		}
+	})
+
+	t.Run("executable file", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "tool.sh")
+		if err := os.WriteFile(file, []byte("#!/usr/bin/env bash\nexit 0\n"), 0o755); err != nil {
+			t.Fatalf("failed to write executable test file: %v", err)
+		}
+		if err := ValidateExecutable(file); err != nil {
+			t.Fatalf("expected executable file to validate, got %v", err)
+		}
+	})
 }

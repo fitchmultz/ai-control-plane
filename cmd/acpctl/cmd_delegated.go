@@ -21,12 +21,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
@@ -38,7 +34,7 @@ const makeTargetTimeout = 30 * time.Minute
 
 func runMakeTarget(ctx context.Context, target string, makeArgs []string, stdout *os.File, stderr *os.File) int {
 	makeBin := config.NewLoader().Tooling().MakeBinary
-	if err := ensureExecutable(makeBin); err != nil {
+	if err := proc.ValidateExecutable(makeBin); err != nil {
 		fmt.Fprintf(stderr, "Error: make executable not found or not executable: %s\n", makeBin)
 		return exitcodes.ACPExitPrereq
 	}
@@ -54,35 +50,14 @@ func runMakeTarget(ctx context.Context, target string, makeArgs []string, stdout
 		Timeout: makeTargetTimeout,
 	})
 	if res.Err != nil {
-		switch {
-		case proc.IsNotFound(res.Err):
-			fmt.Fprintf(stderr, "Error: make executable not found: %s\n", makeBin)
-		case proc.IsTimeout(res.Err):
-			fmt.Fprintf(stderr, "Error: make target %q timed out\n", target)
-		case proc.IsCanceled(res.Err):
-			fmt.Fprintf(stderr, "Error: make target %q canceled\n", target)
-		}
-		return proc.ACPExitCode(res.Err)
+		message, code := classifyProcFailure(res.Err, procFailureMessages{
+			NotFound: fmt.Sprintf("make executable not found: %s", makeBin),
+			Timeout:  fmt.Sprintf("make target %q timed out", target),
+			Canceled: fmt.Sprintf("make target %q canceled", target),
+		})
+		fmt.Fprintf(stderr, "Error: %s\n", message)
+		return code
 	}
 
 	return exitcodes.ACPExitSuccess
-}
-
-func ensureExecutable(command string) error {
-	if strings.ContainsRune(command, filepath.Separator) {
-		info, err := os.Stat(command)
-		if err != nil {
-			return err
-		}
-		if info.Mode().IsDir() {
-			return errors.New("command path is a directory")
-		}
-		if info.Mode()&0o111 == 0 {
-			return errors.New("command path is not executable")
-		}
-		return nil
-	}
-
-	_, err := exec.LookPath(command)
-	return err
 }

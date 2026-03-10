@@ -152,22 +152,17 @@ func runHelmGate(ctx context.Context, runCtx commandRunContext, config helmGateC
 	result := runHelmLint(ctx, repoRoot, stdout, stderr)
 	if result.Err != nil {
 		workflowFailure(logger, result.Err)
-		switch {
-		case proc.IsNotFound(result.Err):
-			fmt.Fprintln(stderr, out.Fail("helm not found in PATH"))
-		case proc.IsTimeout(result.Err):
-			fmt.Fprintln(stderr, out.Fail("helm lint timed out"))
-		case proc.IsCanceled(result.Err):
-			fmt.Fprintln(stderr, out.Fail("helm lint canceled"))
-		case proc.IsStart(result.Err):
-			fmt.Fprintf(stderr, out.Fail("helm lint could not start: %v\n"), result.Err)
-		default:
-			fmt.Fprintln(stderr, out.Fail("helm lint failed"))
-			if proc.IsExit(result.Err) {
-				return exitcodes.ACPExitDomain
-			}
-		}
-		return proc.ACPExitCode(result.Err)
+		message, code := classifyProcFailure(result.Err, procFailureMessages{
+			NotFound:         "helm not found in PATH",
+			Timeout:          "helm lint timed out",
+			Canceled:         "helm lint canceled",
+			StartFormat:      "helm lint could not start: %v",
+			Exit:             "helm lint failed",
+			ExitCodeOverride: exitcodes.ACPExitDomain,
+			Fallback:         "helm lint failed",
+		})
+		fmt.Fprintln(stderr, out.Fail(message))
+		return code
 	}
 
 	fmt.Fprintln(stdout, out.Green(config.successMessage))

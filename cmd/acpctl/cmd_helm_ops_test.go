@@ -132,6 +132,26 @@ func TestRunHelmSmokeCommandReturnsRuntimeWhenLintCannotStart(t *testing.T) {
 	}
 }
 
+func TestClassifyProcFailure_ExitOverrideWins(t *testing.T) {
+	message, code := classifyProcFailure(&proc.ExecError{
+		Name:     "helm",
+		Args:     []string{"lint"},
+		Kind:     proc.KindExit,
+		ExitCode: 1,
+		Err:      fmt.Errorf("exit status 1"),
+	}, procFailureMessages{
+		Exit:             "helm lint failed",
+		ExitCodeOverride: exitcodes.ACPExitDomain,
+	})
+
+	if message != "helm lint failed" {
+		t.Fatalf("expected exit message, got %q", message)
+	}
+	if code != exitcodes.ACPExitDomain {
+		t.Fatalf("expected override exit code, got %d", code)
+	}
+}
+
 func TestRunHelmSmokeCommandRejectsUnsupportedArguments(t *testing.T) {
 	stdout, stderr := newTestFiles(t)
 	exitCode := runHelmSmokeCommand(context.Background(), []string{"NAMESPACE=acp"}, stdout, stderr)

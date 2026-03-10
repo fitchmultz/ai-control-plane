@@ -164,11 +164,5 @@ func runPilotCloseoutBundleVerifyTyped(_ context.Context, runCtx commandRunConte
 }
 
 func runPilotCloseoutBundleCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	if len(args) == 0 {
-		if path, err := findCommandPath([]string{"deploy", "pilot-closeout-bundle"}); err == nil {
-			printCommandHelp(stdout, path)
-		}
-		return exitcodes.ACPExitUsage
-	}
-	return runCommandPath(ctx, []string{"deploy", "pilot-closeout-bundle"}, args, stdout, stderr)
+	return runCommandGroupPath(ctx, []string{"deploy", "pilot-closeout-bundle"}, args, stdout, stderr)
 }

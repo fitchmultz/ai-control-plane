@@ -49,22 +49,21 @@ func runBridgeScript(
 	}
 
 	scriptPath := filepath.Join(repoRoot, relativePath)
-	info, err := os.Stat(scriptPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+	if err := proc.ValidateExecutable(scriptPath); err != nil {
+		switch {
+		case errors.Is(err, proc.ErrExecutableNotFound):
 			fmt.Fprintf(stderr, "Error: bridge script not found: %s\n", scriptPath)
 			return exitcodes.ACPExitPrereq
+		case errors.Is(err, proc.ErrExecutableIsDirectory):
+			fmt.Fprintf(stderr, "Error: bridge script path is a directory: %s\n", scriptPath)
+			return exitcodes.ACPExitPrereq
+		case errors.Is(err, proc.ErrExecutableNotExecutable):
+			fmt.Fprintf(stderr, "Error: bridge script is not executable: %s\n", scriptPath)
+			return exitcodes.ACPExitPrereq
+		default:
+			fmt.Fprintf(stderr, "Error: failed to validate bridge script %s: %v\n", scriptPath, err)
 		}
-		fmt.Fprintf(stderr, "Error: failed to stat bridge script %s: %v\n", scriptPath, err)
 		return exitcodes.ACPExitRuntime
-	}
-	if info.IsDir() {
-		fmt.Fprintf(stderr, "Error: bridge script path is a directory: %s\n", scriptPath)
-		return exitcodes.ACPExitPrereq
-	}
-	if info.Mode()&0o111 == 0 {
-		fmt.Fprintf(stderr, "Error: bridge script is not executable: %s\n", scriptPath)
-		return exitcodes.ACPExitPrereq
 	}
 
 	res := proc.Run(ctx, proc.Request{
@@ -78,15 +77,13 @@ func runBridgeScript(
 		Timeout: bridgeScriptTimeout,
 	})
 	if res.Err != nil {
-		switch {
-		case proc.IsNotFound(res.Err):
-			fmt.Fprintln(stderr, "Error: bash executable not found")
-		case proc.IsTimeout(res.Err):
-			fmt.Fprintf(stderr, "Error: bridge script %q timed out\n", commandName)
-		case proc.IsCanceled(res.Err):
-			fmt.Fprintf(stderr, "Error: bridge script %q canceled\n", commandName)
-		}
-		return proc.ACPExitCode(res.Err)
+		message, code := classifyProcFailure(res.Err, procFailureMessages{
+			NotFound: "bash executable not found",
+			Timeout:  fmt.Sprintf("bridge script %q timed out", commandName),
+			Canceled: fmt.Sprintf("bridge script %q canceled", commandName),
+		})
+		fmt.Fprintf(stderr, "Error: %s\n", message)
+		return code
 	}
 
 	return exitcodes.ACPExitSuccess

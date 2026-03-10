@@ -31,6 +31,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -38,6 +39,12 @@ import (
 )
 
 const DefaultTimeout = 30 * time.Second
+
+var (
+	ErrExecutableNotFound      = errors.New("executable not found")
+	ErrExecutableIsDirectory   = errors.New("executable path is a directory")
+	ErrExecutableNotExecutable = errors.New("executable path is not executable")
+)
 
 type ErrorKind string
 
@@ -158,6 +165,32 @@ func Run(ctx context.Context, req Request) Result {
 		result.ExitCode = -1
 	}
 	return result
+}
+
+func ValidateExecutable(command string) error {
+	trimmed := strings.TrimSpace(command)
+	if trimmed == "" {
+		return fmt.Errorf("%w: empty command", ErrExecutableNotFound)
+	}
+
+	if strings.ContainsRune(trimmed, filepath.Separator) {
+		info, err := os.Stat(trimmed)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrExecutableNotFound, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("%w: %s", ErrExecutableIsDirectory, trimmed)
+		}
+		if info.Mode()&0o111 == 0 {
+			return fmt.Errorf("%w: %s", ErrExecutableNotExecutable, trimmed)
+		}
+		return nil
+	}
+
+	if _, err := exec.LookPath(trimmed); err != nil {
+		return fmt.Errorf("%w: %v", ErrExecutableNotFound, err)
+	}
+	return nil
 }
 
 func invalidStartResult(req Request, err error) Result {
