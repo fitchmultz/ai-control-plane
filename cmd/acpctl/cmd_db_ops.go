@@ -31,13 +31,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
-	"github.com/mitchfultz/ai-control-plane/internal/db"
-	"github.com/mitchfultz/ai-control-plane/internal/docker"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
-	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 )
 
@@ -98,18 +94,13 @@ func bindDBRestoreOptions(_ commandBindContext, input parsedCommandInput) (any, 
 func runDBBackup(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(dbBackupOptions)
 	customName := opts.BackupName
-	backupDir := config.NewLoader().Tooling().BackupDir
 
 	out := output.New()
 	logger := workflowLogger(runCtx, "db_backup")
 	workflowStart(logger)
 
 	repoRoot := runCtx.RepoRoot
-	if backupDir == "" {
-		backupDir = repopath.DemoBackupsPath(repoRoot)
-	} else {
-		backupDir = resolveRepoInput(repoRoot, backupDir)
-	}
+	backupDir := resolveBackupDir(repoRoot)
 
 	backupFile, err := resolveBackupOutputPath(backupDir, customName)
 	if err != nil {
@@ -118,46 +109,36 @@ func runDBBackup(ctx context.Context, runCtx commandRunContext, raw any) int {
 		return exitcodes.ACPExitUsage
 	}
 
-	if err := checkDBPrereqs(); err != nil {
+	if err := ensureBackupDir(backupDir); err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to create backup directory: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+	if err := requireDBWorkflowPrereqs(repoRoot); err != nil {
 		workflowFailure(logger, err)
 		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
-	if err := fsutil.EnsurePrivateDir(backupDir); err != nil {
-		workflowFailure(logger, err)
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to create backup directory: %v\n"), err)
-		return exitcodes.ACPExitRuntime
-	}
-
-	if _, err := docker.NewCompose(docker.DefaultProjectDir(repoRoot)); err != nil {
-		workflowFailure(logger, err)
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Docker Compose not available: %v\n"), err)
-		return exitcodes.ACPExitPrereq
-	}
-
-	connector := db.NewConnector(repoRoot)
-	defer connector.Close()
-	runtimeService := db.NewRuntimeService(connector)
-	adminService, err := db.NewAdminService(connector)
+	services, err := openDBServices(repoRoot)
 	if err != nil {
 		workflowFailure(logger, err)
 		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
-	logger = workflowLogger(runCtx, "db_backup", "mode", connector.Mode(), "backup_file", backupFile)
+	defer services.Close()
+	logger = workflowLogger(runCtx, "db_backup", "mode", services.Mode, "backup_file", backupFile)
 
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Database Backup ==="))
-	fmt.Fprintf(runCtx.Stdout, "Backing up database: %s\n", connector.Mode())
-	fmt.Fprintf(runCtx.Stdout, "Backup file: %s\n", backupFile)
+	printDBWorkflowHeader(runCtx.Stdout, out, "=== Database Backup ===", map[string]string{
+		"Database":    services.Mode,
+		"Backup file": backupFile,
+	})
 
-	if !runtimeService.IsAccessible(ctx) {
-		workflowWarn(logger, "reason", "database inaccessible")
-		fmt.Fprintln(runCtx.Stderr, out.Fail("PostgreSQL is not accepting connections"))
-		return exitcodes.ACPExitPrereq
+	if code := requireAccessibleDatabase(ctx, runCtx, logger, out, services.Runtime); code != exitcodes.ACPExitSuccess {
+		return code
 	}
 
-	sql, err := adminService.Backup(ctx)
+	sql, err := services.Admin.Backup(ctx)
 	if err != nil {
 		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, out.Fail("Backup failed: %v\n"), err)
@@ -175,16 +156,17 @@ func runDBBackup(ctx context.Context, runCtx commandRunContext, raw any) int {
 		fileInfo = nil
 	}
 
-	fmt.Fprintln(runCtx.Stdout, out.Green("Backup completed successfully!"))
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprintf(runCtx.Stdout, "  Location: %s\n", backupFile)
-	if fileInfo != nil {
-		fmt.Fprintf(runCtx.Stdout, "  Size: %d bytes\n", fileInfo.Size())
+	details := map[string]any{
+		"Location": backupFile,
 	}
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprintln(runCtx.Stdout, "To restore this backup:")
-	fmt.Fprintln(runCtx.Stdout, "  make db-restore")
-	fmt.Fprintf(runCtx.Stdout, "  # Or: acpctl db restore %s\n", backupFile)
+	if fileInfo != nil {
+		details["Size"] = fmt.Sprintf("%d bytes", fileInfo.Size())
+	}
+	printDBWorkflowSuccess(runCtx.Stdout, out, "Backup completed successfully!", details)
+	fmt.Fprintln(runCtx.Stdout)
+	fmt.Fprintln(runCtx.Stdout, "Next step")
+	printCommandNextStep(runCtx.Stdout, "Make", "make db-restore")
+	printCommandNextStep(runCtx.Stdout, "CLI", "acpctl db restore "+backupFile)
 	if fileInfo != nil {
 		workflowComplete(logger, "bytes", fileInfo.Size())
 	} else {
@@ -202,7 +184,7 @@ func runDBRestore(ctx context.Context, runCtx commandRunContext, raw any) int {
 	workflowStart(logger)
 
 	if backupFile == "" {
-		backupDir := repopath.DemoBackupsPath(runCtx.RepoRoot)
+		backupDir := resolveBackupDir(runCtx.RepoRoot)
 		latest, err := findLatestBackup(backupDir)
 		if err != nil {
 			workflowFailure(logger, err)
@@ -236,46 +218,39 @@ func runDBRestore(ctx context.Context, runCtx commandRunContext, raw any) int {
 	}
 	defer gzipReader.Close()
 
-	if err := checkDBPrereqs(); err != nil {
+	if err := requireDBWorkflowPrereqs(runCtx.RepoRoot); err != nil {
 		workflowFailure(logger, err)
 		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
 
-	if _, err := docker.NewCompose(docker.DefaultProjectDir(runCtx.RepoRoot)); err != nil {
-		workflowFailure(logger, err)
-		fmt.Fprintf(runCtx.Stderr, out.Fail("Docker Compose not available: %v\n"), err)
-		return exitcodes.ACPExitPrereq
-	}
-
-	connector := db.NewConnector(runCtx.RepoRoot)
-	defer connector.Close()
-	runtimeService := db.NewRuntimeService(connector)
-	adminService, err := db.NewAdminService(connector)
+	services, err := openDBServices(runCtx.RepoRoot)
 	if err != nil {
 		workflowFailure(logger, err)
 		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
 		return exitcodes.ACPExitPrereq
 	}
-	logger = workflowLogger(runCtx, "db_restore", "mode", connector.Mode(), "backup_file", backupFile)
+	defer services.Close()
+	logger = workflowLogger(runCtx, "db_restore", "mode", services.Mode, "backup_file", backupFile)
 
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Database Restore ==="))
-	fmt.Fprintf(runCtx.Stdout, "Restoring from: %s\n", backupFile)
-	fmt.Fprintln(runCtx.Stdout, "WARNING: This will overwrite the current database!")
+	printDBWorkflowHeader(runCtx.Stdout, out, "=== Database Restore ===", map[string]string{
+		"Restoring from": backupFile,
+		"Warning":        "This will overwrite the current database!",
+	})
 
-	if !runtimeService.IsAccessible(ctx) {
-		workflowWarn(logger, "reason", "database inaccessible")
-		fmt.Fprintln(runCtx.Stderr, out.Fail("PostgreSQL is not accepting connections"))
-		return exitcodes.ACPExitPrereq
+	if code := requireAccessibleDatabase(ctx, runCtx, logger, out, services.Runtime); code != exitcodes.ACPExitSuccess {
+		return code
 	}
 
-	if err := adminService.Restore(ctx, gzipReader); err != nil {
+	if err := services.Admin.Restore(ctx, gzipReader); err != nil {
 		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, out.Fail("Restore failed: %v\n"), err)
 		return exitcodes.ACPExitDomain
 	}
 
-	fmt.Fprintln(runCtx.Stdout, out.Green("Restore completed successfully!"))
+	printDBWorkflowSuccess(runCtx.Stdout, out, "Restore completed successfully!", map[string]any{
+		"Backup file": backupFile,
+	})
 	workflowComplete(logger)
 	return exitcodes.ACPExitSuccess
 }
@@ -284,9 +259,10 @@ func runDBDRDrillTyped(_ context.Context, runCtx commandRunContext, _ any) int {
 	out := output.New()
 	logger := workflowLogger(runCtx, "db_dr_drill")
 	workflowStart(logger)
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Database DR Drill ==="))
-	fmt.Fprintln(runCtx.Stdout, "Running disaster recovery drill...")
-	fmt.Fprintln(runCtx.Stdout, out.Green("DR drill completed successfully"))
+	printDBWorkflowHeader(runCtx.Stdout, out, "=== Database DR Drill ===", map[string]string{
+		"Action": "Running disaster recovery drill...",
+	})
+	printDBWorkflowSuccess(runCtx.Stdout, out, "DR drill completed successfully", nil)
 	workflowComplete(logger)
 	return exitcodes.ACPExitSuccess
 }
