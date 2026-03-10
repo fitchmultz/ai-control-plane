@@ -174,15 +174,17 @@ func bindKeyRevokeOptions(_ commandBindContext, input parsedCommandInput) (any, 
 func runKeyGen(ctx context.Context, runCtx commandRunContext, raw any) int {
 	options := raw.(keyGenOptions)
 	out := output.New()
-
-	if err := keygen.ValidateAlias(options.Alias); err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Invalid alias: %v\n", err)
-		return exitcodes.ACPExitUsage
-	}
-
-	role := keygen.ResolveRole(options.Role)
-	if err := keygen.ValidateRole(role); err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Invalid role: %v\n", err)
+	plan, err := keygen.PlanGenerateRequest(keygen.GenerateRequestConfig{
+		Alias:    options.Alias,
+		Budget:   options.Budget,
+		RPM:      options.RPM,
+		TPM:      options.TPM,
+		Parallel: options.Parallel,
+		Duration: options.Duration,
+		Role:     options.Role,
+	})
+	if err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Invalid key request: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
 
@@ -194,25 +196,8 @@ func runKeyGen(ctx context.Context, runCtx commandRunContext, raw any) int {
 		return exitcodes.ACPExitPrereq
 	}
 
-	models := keygen.GetModelsForRole(role)
-	req := &gateway.GenerateKeyRequest{
-		KeyAlias:       options.Alias,
-		MaxBudget:      options.Budget,
-		BudgetDuration: options.Duration,
-		Models:         models,
-	}
-	if options.RPM > 0 {
-		req.RPMLimit = options.RPM
-	}
-	if options.TPM > 0 {
-		req.TPMLimit = options.TPM
-	}
-	if options.Parallel > 0 {
-		req.MaxParallelRequests = options.Parallel
-	}
-
 	if options.DryRun {
-		return runDryRun(options, role, models, runCtx.Stdout, out)
+		return runDryRun(options, plan, runCtx.Stdout, out)
 	}
 
 	if !prereq.CommandExists("curl") {
@@ -220,47 +205,21 @@ func runKeyGen(ctx context.Context, runCtx commandRunContext, raw any) int {
 		return exitcodes.ACPExitPrereq
 	}
 
-	return generateKey(ctx, options, req, runCtx.Stdout, runCtx.Stderr, out)
+	return generateKey(ctx, plan, runCtx.Stdout, runCtx.Stderr, out)
 }
 
-func runDryRun(config keyGenOptions, role string, models []string, stdout *os.File, out *output.Output) int {
-	fmt.Fprintln(stdout, out.Bold("=== Key Generation (Dry Run) ==="))
-	fmt.Fprintf(stdout, "Alias: %s\n", config.Alias)
-	fmt.Fprintf(stdout, "Budget: $%.2f\n", config.Budget)
-	fmt.Fprintf(stdout, "Duration: %s\n", config.Duration)
-	fmt.Fprintf(stdout, "Role: %s\n", role)
-	fmt.Fprintf(stdout, "Models: %v\n", models)
-	if config.RPM > 0 {
-		fmt.Fprintf(stdout, "RPM: %d\n", config.RPM)
-	}
-	if config.TPM > 0 {
-		fmt.Fprintf(stdout, "TPM: %d\n", config.TPM)
-	}
-	if config.Parallel > 0 {
-		fmt.Fprintf(stdout, "Max Parallel: %d\n", config.Parallel)
-	}
+func runDryRun(config keyGenOptions, plan keygen.GenerateRequestPlan, stdout *os.File, out *output.Output) int {
+	printKeyGenerationPlan(stdout, out, "=== Key Generation (Dry Run) ===", config.Budget, plan)
 	return exitcodes.ACPExitSuccess
 }
 
-func generateKey(ctx context.Context, config keyGenOptions, req *gateway.GenerateKeyRequest, stdout *os.File, stderr *os.File, out *output.Output) int {
+func generateKey(ctx context.Context, plan keygen.GenerateRequestPlan, stdout *os.File, stderr *os.File, out *output.Output) int {
 	masterKey := acpconfig.NewLoader().Gateway(true).MasterKey
 	client := gateway.NewClient(gateway.WithMasterKey(masterKey))
 
-	role := keygen.ResolveRole(config.Role)
-	fmt.Fprintf(stderr, "Generating key '%s' with budget: $%.2f (role: %s)\n", config.Alias, config.Budget, role)
-	if config.RPM > 0 {
-		fmt.Fprintf(stderr, "  RPM limit: %d\n", config.RPM)
-	}
-	if config.TPM > 0 {
-		fmt.Fprintf(stderr, "  TPM limit: %d\n", config.TPM)
-	}
-	if config.Parallel > 0 {
-		fmt.Fprintf(stderr, "  Max parallel: %d\n", config.Parallel)
-	}
-	fmt.Fprintf(stderr, "  Budget duration: %s\n", config.Duration)
-	fmt.Fprintln(stderr, "")
+	printKeyGenerationProgress(stderr, plan)
 
-	resp, err := client.GenerateKey(ctx, req)
+	resp, err := client.GenerateKey(ctx, &plan.Request)
 	if err != nil {
 		fmt.Fprintf(stderr, out.Fail("Key generation failed: %v\n"), err)
 		return exitcodes.ACPExitRuntime
@@ -279,9 +238,7 @@ func runKeyRevoke(_ context.Context, runCtx commandRunContext, raw any) int {
 		return exitcodes.ACPExitPrereq
 	}
 
-	fmt.Fprintf(runCtx.Stdout, "Revoking key: %s\n", config.Alias)
-	fmt.Fprintln(runCtx.Stdout, out.Yellow("Note: Key revocation requires LiteLLM admin API"))
-	fmt.Fprintln(runCtx.Stdout, "This would call DELETE /key/{alias} if supported by LiteLLM")
+	printKeyRevokeNotice(runCtx.Stdout, out, config.Alias)
 
 	return exitcodes.ACPExitSuccess
 }

@@ -23,13 +23,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/doctor"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
-	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
+	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
 )
@@ -40,6 +41,8 @@ type doctorOptions struct {
 	Fix        bool
 	SkipChecks []string
 }
+
+var newDoctorInspector = newRuntimeStatusInspector
 
 func doctorCommandSpec() *commandSpec {
 	return &commandSpec{
@@ -75,20 +78,20 @@ func doctorCommandSpec() *commandSpec {
 
 func runDoctor(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(doctorOptions)
+	out := output.New()
+	logger := ensureWorkflowLogger(runCtx)
 	skipChecks := make(map[string]struct{}, len(opts.SkipChecks))
 	for _, name := range opts.SkipChecks {
 		skipChecks[name] = struct{}{}
 	}
 
-	if runCtx.RepoRoot == "" {
-		fmt.Fprintln(runCtx.Stderr, "Error: failed to detect repository root")
-		return exitcodes.ACPExitRuntime
+	inspector, code := openRuntimeStatusInspector(runCtx, logger, out, newDoctorInspector)
+	if code != exitcodes.ACPExitSuccess {
+		return code
 	}
 	gatewayRuntime := config.NewLoader().Gateway(true)
-	inspector := runtimeinspect.NewInspector(runCtx.RepoRoot)
 	defer inspector.Close()
-	runtimeCtx, runtimeCancel := context.WithTimeout(ctx, 30*time.Second)
-	runtimeReport := inspector.Collect(runtimeCtx, status.Options{RepoRoot: runCtx.RepoRoot, Wide: opts.Wide})
+	runtimeReport, _, runtimeCancel := collectRuntimeStatusReport(ctx, inspector, runCtx.RepoRoot, opts.Wide, 30*time.Second)
 	runtimeCancel()
 
 	diagnosticOpts := doctor.Options{
@@ -106,16 +109,10 @@ func runDoctor(ctx context.Context, runCtx commandRunContext, raw any) int {
 
 	report := doctor.Run(ctx, doctor.DefaultChecks(), diagnosticOpts)
 
-	if opts.JSON {
-		if err := report.WriteJSON(runCtx.Stdout); err != nil {
-			fmt.Fprintf(runCtx.Stderr, "Error: failed to write JSON output: %v\n", err)
-			return exitcodes.ACPExitRuntime
-		}
-	} else {
-		if err := writeDoctorHuman(runCtx.Stdout, report, opts.Wide); err != nil {
-			fmt.Fprintf(runCtx.Stderr, "Error: failed to write output: %v\n", err)
-			return exitcodes.ACPExitRuntime
-		}
+	if code := writeStructuredCommandOutput(runCtx.Stdout, runCtx.Stderr, opts.JSON, report.WriteJSON, func(w io.Writer) error {
+		return writeDoctorHuman(w, report, opts.Wide)
+	}); code != exitcodes.ACPExitSuccess {
+		return code
 	}
 
 	return doctor.ExitCodeForReport(report)
@@ -125,7 +122,7 @@ func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stder
 	return runCommandPath(ctx, []string{"doctor"}, args, stdout, stderr)
 }
 
-func writeDoctorHuman(w *os.File, report doctor.Report, wide bool) error {
+func writeDoctorHuman(w io.Writer, report doctor.Report, wide bool) error {
 	colors := terminal.NewColors()
 	sf := terminal.NewStatusFormatter()
 

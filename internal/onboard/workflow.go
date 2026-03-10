@@ -157,12 +157,17 @@ func (g GatewayKeyGenerator) Generate(ctx context.Context, req KeyRequest) (Gene
 		gateway.WithPort(port),
 		gateway.WithMasterKey(g.MasterKey),
 	)
-	resp, err := client.GenerateKey(ctx, &gateway.GenerateKeyRequest{
-		KeyAlias:       req.Alias,
-		MaxBudget:      budget,
-		BudgetDuration: "30d",
-		Models:         keygen.GetModelsForRole("developer"),
+	plan, err := keygen.PlanGenerateRequest(keygen.GenerateRequestConfig{
+		Alias:    req.Alias,
+		Budget:   budget,
+		Duration: "30d",
+		Role:     "developer",
 	})
+	if err != nil {
+		return GeneratedKey{}, err
+	}
+
+	resp, err := client.GenerateKey(ctx, &plan.Request)
 	if err == nil {
 		return GeneratedKey{Alias: req.Alias, Key: resp.ExtractKey()}, nil
 	}
@@ -170,12 +175,8 @@ func (g GatewayKeyGenerator) Generate(ctx context.Context, req KeyRequest) (Gene
 		return GeneratedKey{}, err
 	}
 	retryAlias := fmt.Sprintf("%s-%s", req.Alias, time.Now().Format("20060102150405"))
-	resp, retryErr := client.GenerateKey(ctx, &gateway.GenerateKeyRequest{
-		KeyAlias:       retryAlias,
-		MaxBudget:      budget,
-		BudgetDuration: "30d",
-		Models:         keygen.GetModelsForRole("developer"),
-	})
+	retryPlan := plan.WithAlias(retryAlias)
+	resp, retryErr := client.GenerateKey(ctx, &retryPlan.Request)
 	if retryErr != nil {
 		return GeneratedKey{}, retryErr
 	}

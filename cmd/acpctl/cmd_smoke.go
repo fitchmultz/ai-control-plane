@@ -33,14 +33,9 @@ import (
 
 const smokeCommandTimeout = 30 * time.Second
 
-type smokeInspector interface {
-	Collect(ctx context.Context, opts status.Options) status.StatusReport
-	Close() error
-}
+type smokeInspector = runtimeStatusInspector
 
-var newSmokeInspector = func(repoRoot string) smokeInspector {
-	return runtimeinspect.NewInspector(repoRoot)
-}
+var newSmokeInspector = newRuntimeStatusInspector
 
 type smokeOptions struct {
 	Verbose bool
@@ -87,20 +82,14 @@ func runSmokeTest(ctx context.Context, runCtx commandRunContext, raw any) int {
 	if ok, code := requireDockerRuntime(runCtx, logger, out); !ok {
 		return code
 	}
-	if ok, code := requireRuntimeRepoRoot(runCtx, logger, out); !ok {
+	inspector, code := openRuntimeStatusInspector(runCtx, logger, out, newSmokeInspector)
+	if code != exitcodes.ACPExitSuccess {
 		return code
 	}
-
-	inspector := newSmokeInspector(runCtx.RepoRoot)
 	defer inspector.Close()
 
-	smokeCtx, cancel := context.WithTimeout(ctx, smokeCommandTimeout)
+	report, smokeCtx, cancel := collectRuntimeStatusReport(ctx, inspector, runCtx.RepoRoot, options.Verbose, smokeCommandTimeout)
 	defer cancel()
-
-	report := inspector.Collect(smokeCtx, status.Options{
-		RepoRoot: runCtx.RepoRoot,
-		Wide:     options.Verbose,
-	})
 	logger.Info("workflow.report_collected", "overall", report.Overall)
 	if code := writeRuntimeReport(runCtx.Stdout, runCtx.Stderr, logger, out, "=== Runtime Smoke Checks ===", report, options.Verbose); code != exitcodes.ACPExitSuccess {
 		return code

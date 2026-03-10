@@ -23,11 +23,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
-	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
+	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
 )
@@ -39,14 +40,7 @@ type statusOptions struct {
 	Interval int
 }
 
-type statusInspector interface {
-	Collect(context.Context, status.Options) status.StatusReport
-	Close() error
-}
-
-var newStatusInspector = func(repoRoot string) statusInspector {
-	return runtimeinspect.NewInspector(repoRoot)
-}
+var newStatusInspector = newRuntimeStatusInspector
 
 func statusCommandSpec() *commandSpec {
 	return &commandSpec{
@@ -96,11 +90,12 @@ func bindStatusOptions(_ commandBindContext, input parsedCommandInput) (any, err
 
 func runStatus(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(statusOptions)
-	if runCtx.RepoRoot == "" {
-		fmt.Fprintln(runCtx.Stderr, "Error: failed to detect repository root")
-		return exitcodes.ACPExitRuntime
+	out := output.New()
+	logger := ensureWorkflowLogger(runCtx)
+	inspector, code := openRuntimeStatusInspector(runCtx, logger, out, newStatusInspector)
+	if code != exitcodes.ACPExitSuccess {
+		return code
 	}
-	inspector := newStatusInspector(runCtx.RepoRoot)
 	defer inspector.Close()
 
 	statusOpts := status.Options{
@@ -117,35 +112,19 @@ func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stder
 	return runCommandPath(ctx, []string{"status"}, args, stdout, stderr)
 }
 
-func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspector statusInspector, opts status.Options, jsonOutput bool, wide bool) int {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspector runtimeStatusInspector, opts status.Options, jsonOutput bool, wide bool) int {
+	report, _, cancel := collectRuntimeStatusReport(ctx, inspector, opts.RepoRoot, opts.Wide, 30*time.Second)
 	defer cancel()
 
-	report := inspector.Collect(ctx, opts)
-
-	if jsonOutput {
-		if err := report.WriteJSON(stdout); err != nil {
-			fmt.Fprintf(stderr, "Error: failed to write JSON output: %v\n", err)
-			return exitcodes.ACPExitRuntime
-		}
-	} else {
-		if err := report.WriteHuman(stdout, wide); err != nil {
-			fmt.Fprintf(stderr, "Error: failed to write output: %v\n", err)
-			return exitcodes.ACPExitRuntime
-		}
+	if code := writeStructuredCommandOutput(stdout, stderr, jsonOutput, report.WriteJSON, func(w io.Writer) error {
+		return report.WriteHuman(w, wide)
+	}); code != exitcodes.ACPExitSuccess {
+		return code
 	}
-
-	switch report.Overall {
-	case status.HealthLevelHealthy:
-		return exitcodes.ACPExitSuccess
-	case status.HealthLevelWarning, status.HealthLevelUnhealthy:
-		return exitcodes.ACPExitDomain
-	default:
-		return exitcodes.ACPExitRuntime
-	}
+	return exitCodeForHealthLevel(report.Overall)
 }
 
-func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspector statusInspector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
+func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspector runtimeStatusInspector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
@@ -169,8 +148,7 @@ func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspe
 			fmt.Fprint(stdout, colors.Clear)
 		}
 
-		collectCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		report := inspector.Collect(collectCtx, opts)
+		report, _, cancel := collectRuntimeStatusReport(ctx, inspector, opts.RepoRoot, opts.Wide, 30*time.Second)
 		cancel()
 
 		if ctx.Err() != nil {
@@ -181,16 +159,12 @@ func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspe
 			return exitcodes.ACPExitSuccess
 		}
 
-		if jsonOutput {
-			if err := report.WriteJSON(stdout); err != nil {
-				fmt.Fprintf(stderr, "Error: failed to write JSON output: %v\n", err)
-				return exitcodes.ACPExitRuntime
-			}
-		} else {
-			if err := report.WriteHuman(stdout, wide); err != nil {
-				fmt.Fprintf(stderr, "Error: failed to write output: %v\n", err)
-				return exitcodes.ACPExitRuntime
-			}
+		if code := writeStructuredCommandOutput(stdout, stderr, jsonOutput, report.WriteJSON, func(w io.Writer) error {
+			return report.WriteHuman(w, wide)
+		}); code != exitcodes.ACPExitSuccess {
+			return code
+		}
+		if !jsonOutput {
 			fmt.Fprintf(stdout, "\nWatching (interval: %ds) - Press Ctrl+C to stop\n", interval)
 		}
 

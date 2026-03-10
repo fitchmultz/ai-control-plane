@@ -31,19 +31,13 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
-	"github.com/mitchfultz/ai-control-plane/internal/prereq"
 	"github.com/mitchfultz/ai-control-plane/internal/runtimeinspect"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type ciWaitInspector interface {
-	Collect(ctx context.Context, opts status.Options) status.StatusReport
-	Close() error
-}
+type ciWaitInspector = runtimeStatusInspector
 
-var newCIWaitInspector = func(repoRoot string) ciWaitInspector {
-	return runtimeinspect.NewInspector(repoRoot)
-}
+var newCIWaitInspector = newRuntimeStatusInspector
 
 type ciWaitOptions struct {
 	Timeout  time.Duration
@@ -100,14 +94,13 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 	logger := workflowLogger(runCtx, "ci_wait", "timeout", opts.Timeout.String(), "interval", opts.Interval.String(), "verbose", opts.Verbose)
 	workflowStart(logger)
 
-	// Prerequisite checks
-	if !prereq.CommandExists("docker") {
-		workflowFailure(logger, fmt.Errorf("docker not found"))
-		fmt.Fprintln(runCtx.Stderr, out.Fail("docker not found"))
-		return exitcodes.ACPExitPrereq
+	if ok, code := requireDockerRuntime(runCtx, logger, out); !ok {
+		return code
 	}
-
-	inspector := newCIWaitInspector(runCtx.RepoRoot)
+	inspector, code := openRuntimeStatusInspector(runCtx, logger, out, newCIWaitInspector)
+	if code != exitcodes.ACPExitSuccess {
+		return code
+	}
 	defer inspector.Close()
 
 	fmt.Fprintln(runCtx.Stdout, out.Bold("Waiting for services to become healthy..."))
@@ -162,9 +155,8 @@ func executeCIWaitCommand(ctx context.Context, runCtx commandRunContext, raw any
 			}
 			workflowWarn(logger, "status", "timeout")
 			fmt.Fprintf(runCtx.Stdout, out.Fail("Timeout: Services did not become healthy within %s\n"), opts.Timeout)
-			statusCtx, statusCancel := context.WithTimeout(ctx, 5*time.Second)
+			finalReport, _, statusCancel := collectRuntimeStatusReport(ctx, inspector, runCtx.RepoRoot, true, 5*time.Second)
 			defer statusCancel()
-			finalReport := inspector.Collect(statusCtx, status.Options{RepoRoot: runCtx.RepoRoot, Wide: true})
 			if len(finalReport.Components) > 0 {
 				fmt.Fprintln(runCtx.Stdout)
 				fmt.Fprintln(runCtx.Stdout, "Current runtime status:")
