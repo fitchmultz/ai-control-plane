@@ -2,6 +2,15 @@
 
 This document describes the production-oriented architecture of the AI Control Plane repository and the engineering decisions behind it.
 
+## Reader Guide
+
+If you are reviewing the repository structure itself, focus on these layers:
+
+1. `cmd/acpctl`: public operator command surface, help generation, parsing, dispatch, and command adapters.
+2. `internal/*`: typed domain logic for validation, security, runtime inspection, status, doctor, readiness, release, and closeout flows.
+3. `demo/`: runnable Docker-first reference environment and local config.
+4. `docs/`: scope boundaries, deployment guidance, policy docs, and evidence workflows.
+
 ## 1) System Scope
 
 The repository is a **Docker-first reference implementation** for enterprise AI governance. It is designed to demonstrate practical deployment engineering with repeatable operations, typed tooling, policy controls, and evidence-oriented validation.
@@ -15,6 +24,19 @@ The baseline deployment target is a **single Linux host**. Kubernetes and Terraf
 - **Makefile + `mk/*.mk`**: canonical task orchestration for install, run, test, validation, security, and release workflows.
 - **`acpctl` (`cmd/acpctl`, `internal/*`)**: typed operator CLI for status, health, doctor checks, security gates, key operations, and release bundles.
 - **`internal/logging` + `cmd/acpctl` workflow helpers**: shared structured workflow-event logging for typed operator flows; native command handlers emit `workflow.start|complete|failed|warn` events while final human renderers stay with commands and report packages.
+
+### Command-platform architecture
+
+The CLI is intentionally split so command growth does not turn into parser drift:
+
+- `command_registry.go`: composes the root command tree
+- `command_types.go`: shared command model
+- `command_parse.go`: option/argument parsing
+- `command_help.go`: generated help rendering
+- `command_dispatch.go`: backend dispatch
+- `cmd_*.go`: focused domain command definitions and adapters
+
+This keeps the public command surface declarative and makes it easier to refactor multiple command groups consistently.
 
 ### Runtime control plane
 
@@ -70,8 +92,17 @@ Direct-to-provider usage outside the gateway is treated as a detection-and-respo
 
 - `make release-bundle` produces deployment bundle outputs.
 - `make release-bundle-verify` verifies structure, checksums, and extraction safety.
+- `make readiness-evidence` generates decision-grade readiness artifacts.
+- `make pilot-closeout-bundle` assembles local pilot closeout deliverables.
 
-## 5) CI and Test Strategy (Resource-Aware)
+## 5) Repository Design Goals
+
+- **Typed over ad hoc**: complex operational logic belongs in Go packages, not scattered shell.
+- **Truthful validation**: health, smoke, readiness, and security gates should describe what they actually verify.
+- **Evidence before claims**: docs and commands make validation boundaries explicit.
+- **Host-first baseline**: the mainline path is the Linux Docker deployment that this repo validates directly.
+
+## 6) CI and Test Strategy (Resource-Aware)
 
 The repository uses **tiered checks** to keep default validation fast while preserving deep verification paths:
 
@@ -82,7 +113,7 @@ The repository uses **tiered checks** to keep default validation fast while pres
 
 This split keeps default contribution loops responsive while preserving high-confidence release checks.
 
-## 6) Key Engineering Decisions and Trade-offs
+## 7) Key Engineering Decisions and Trade-offs
 
 ### Host-first default
 
@@ -108,7 +139,7 @@ This split keeps default contribution loops responsive while preserving high-con
 **Why**: reduces environment drift and makes validation straightforward.  
 **Trade-off**: hosted CI wiring is optional and can vary by deployment context.
 
-## 7) Non-Goals
+## 8) Non-Goals
 
 - Not a turnkey managed SaaS offering.
 - Not a guarantee that all AI usage is preventively enforceable.

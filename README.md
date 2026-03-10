@@ -2,6 +2,31 @@
 
 Enterprise AI governance with centralized logging, approved-only model access, and bypass detection.
 
+## Reviewer Path
+
+If you are reviewing this repository for architecture, code quality, or operator discipline, use this short path first:
+
+```bash
+make install-ci
+make ci-pr
+make up-offline
+make health
+./scripts/acpctl.sh doctor
+./scripts/acpctl.sh deploy readiness-evidence run
+```
+
+What this path demonstrates:
+- a deterministic local CI gate with policy, contract, and coverage checks
+- a typed operator surface (`acpctl`) instead of shell-only orchestration
+- a runnable offline environment that does not require provider API keys
+- evidence-oriented workflows for readiness and release review
+
+Where to inspect next:
+- architecture: [`docs/technical-architecture.md`](docs/technical-architecture.md)
+- operator docs: [`docs/tooling/ACPCTL.md`](docs/tooling/ACPCTL.md)
+- validation workflow: [`docs/release/VALIDATION_CHECKLIST.md`](docs/release/VALIDATION_CHECKLIST.md)
+- deployment baseline: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+
 ## Overview
 
 The AI Control Plane is a reference implementation demonstrating centralized governance for AI model usage in enterprise environments. It addresses the critical security challenges organizations face when adopting AI tools:
@@ -89,6 +114,16 @@ Project Color Scheme Applied:
 
 ## Quick Start
 
+### Choose Your Goal
+
+| Goal | Start Here | Why |
+|---|---|---|
+| Validate repo quality quickly | `make ci-pr` | Fast deterministic gate with policy, lint, tests, and command parity |
+| Validate the runnable demo locally | `make up-offline && make health` | Starts the stack without external provider dependencies |
+| Inspect the typed operator surface | `./scripts/acpctl.sh --help` | Shows the canonical command tree and generated help contracts |
+| Review production-oriented deployment guidance | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Host-first deployment contract and optional extensions |
+| Review evidence/release workflows | [`docs/release/READINESS_EVIDENCE_WORKFLOW.md`](docs/release/READINESS_EVIDENCE_WORKFLOW.md) | Demonstrates proof-oriented operational discipline |
+
 ### Quick Validation Path (10 minutes)
 
 If you are evaluating this repository quickly (for architecture, deployment, and operator quality), run:
@@ -109,6 +144,7 @@ Expected outcomes:
 - Services start and pass health checks
 - `make doctor` reports actionable environment diagnostics
 - Release bundle generation succeeds with checksums
+- The repository demonstrates typed operational workflows instead of ad-hoc shell glue
 
 > Generated runtime/evidence artifacts are intentionally local-only and gitignored. See [docs/ARTIFACTS.md](docs/ARTIFACTS.md).
 
@@ -140,7 +176,29 @@ make supply-chain-gate
 # Release artifact workflow
 make release-bundle
 make release-bundle-verify
+make readiness-evidence
+make readiness-evidence-verify
 ```
+
+## Repository Map
+
+The repository is organized to keep operator logic typed, deployment assets explicit, and generated evidence local-only:
+
+- `cmd/acpctl/`: typed CLI surface, parsing/help/dispatch, and command adapters
+- `internal/`: domain packages for validation, security, status, doctor, bundle, readiness, closeout, and runtime inspection
+- `demo/`: Docker Compose stack, local runtime config, and gitignored runtime artifacts
+- `docs/`: architecture, deployment, policy, demo, evidence, and tooling documentation
+- `deploy/`: optional Helm, Terraform, and Ansible tracks
+- `scripts/`: thin compatibility wrappers around the typed operator core
+
+If you are checking whether the repository is engineered deliberately rather than assembled ad hoc, the highest-signal files are:
+
+- [`cmd/acpctl/command_registry.go`](cmd/acpctl/command_registry.go)
+- [`cmd/acpctl/command_dispatch.go`](cmd/acpctl/command_dispatch.go)
+- [`internal/runtimeinspect`](internal/runtimeinspect)
+- [`internal/validation`](internal/validation)
+- [`internal/security`](internal/security)
+- [`internal/readiness`](internal/readiness)
 
 ### Prerequisites
 

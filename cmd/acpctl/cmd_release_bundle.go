@@ -119,23 +119,23 @@ func runReleaseBundleBuildTyped(ctx context.Context, runCtx commandRunContext, r
 		return exitcodes.ACPExitRuntime
 	}
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Building release bundle")+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Version: %s\n", config.Version)
-	fmt.Fprintf(runCtx.Stdout, "  Output: %s\n", plan.BundlePath)
+	printCommandSection(runCtx.Stdout, out, "Building release bundle")
+	printCommandDetail(runCtx.Stdout, "Version", config.Version)
+	printCommandDetail(runCtx.Stdout, "Output", plan.BundlePath)
 
 	if !prereq.CommandExists("tar") {
 		fmt.Fprintln(runCtx.Stderr, out.Fail("tar not found"))
 		return exitcodes.ACPExitPrereq
 	}
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Validating source files...")+"\n")
+	printCommandSection(runCtx.Stdout, out, "Validating source files...")
 	_, err = bundle.ValidateSourceFiles(runCtx.RepoRoot, config.Verbose)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain
 	}
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Assembling payload...")+"\n")
+	printCommandSection(runCtx.Stdout, out, "Assembling payload...")
 	builderInstance := bundle.NewBuilder(runCtx.RepoRoot, config.Verbose)
 	if err := builderInstance.Build(ctx, plan); err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
@@ -148,14 +148,13 @@ func runReleaseBundleBuildTyped(ctx context.Context, runCtx commandRunContext, r
 		sizeStr = bundle.HumanReadableSize(info.Size())
 	}
 
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Bundle build complete"))+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Bundle: %s\n", plan.BundlePath)
-	fmt.Fprintf(runCtx.Stdout, "  Size: %s\n", sizeStr)
-	fmt.Fprintf(runCtx.Stdout, "  Files: %d\n", len(bundle.CanonicalPaths))
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprintln(runCtx.Stdout, "To verify this bundle:")
-	fmt.Fprintf(runCtx.Stdout, "  acpctl deploy release-bundle verify --bundle %s\n", plan.BundlePath)
+	printCommandSuccess(runCtx.Stdout, out, "Bundle build complete")
+	printCommandDetail(runCtx.Stdout, "Bundle", plan.BundlePath)
+	printCommandDetail(runCtx.Stdout, "Size", sizeStr)
+	printCommandDetail(runCtx.Stdout, "Files", len(bundle.CanonicalPaths))
+	fmt.Fprintln(runCtx.Stdout)
+	fmt.Fprintln(runCtx.Stdout, "Next step")
+	printCommandNextStep(runCtx.Stdout, "Verify", "acpctl deploy release-bundle verify --bundle "+plan.BundlePath)
 
 	return exitcodes.ACPExitSuccess
 }
@@ -170,8 +169,8 @@ func runReleaseBundleVerifyTyped(ctx context.Context, runCtx commandRunContext, 
 		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitUsage, nil, "bundle path is required")
 	}
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Verifying release bundle")+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Bundle: %s\n", bundlePath)
+	printCommandSection(runCtx.Stdout, out, "Verifying release bundle")
+	printCommandDetail(runCtx.Stdout, "Bundle", bundlePath)
 
 	verifier := bundle.NewVerifier(config.Verbose)
 	result, err := verifier.Verify(ctx, bundlePath)
@@ -196,14 +195,13 @@ func runReleaseBundleVerifyTyped(ctx context.Context, runCtx commandRunContext, 
 		return exitcodes.ACPExitDomain
 	}
 
-	fmt.Fprintf(runCtx.Stdout, "  %s Tarball checksum verified (sidecar)\n", out.Pass(""))
-	fmt.Fprintf(runCtx.Stdout, "  %s Required bundle structure verified\n", out.Pass(""))
-	fmt.Fprintf(runCtx.Stdout, "  %s Payload checksum verification passed\n", out.Pass(""))
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Bundle verification complete"))+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Files in manifest: %d\n", len(bundle.CanonicalPaths))
-	fmt.Fprintln(runCtx.Stdout, "  Tarball validated: yes")
-	fmt.Fprintln(runCtx.Stdout, "  Payload integrity: verified")
+	printCommandDetail(runCtx.Stdout, "Pass", "Tarball checksum verified (sidecar)")
+	printCommandDetail(runCtx.Stdout, "Pass", "Required bundle structure verified")
+	printCommandDetail(runCtx.Stdout, "Pass", "Payload checksum verification passed")
+	printCommandSuccess(runCtx.Stdout, out, "Bundle verification complete")
+	printCommandDetail(runCtx.Stdout, "Files", len(bundle.CanonicalPaths))
+	printCommandDetail(runCtx.Stdout, "Tarball", "validated")
+	printCommandDetail(runCtx.Stdout, "Payload", "verified")
 
 	return exitcodes.ACPExitSuccess
 }

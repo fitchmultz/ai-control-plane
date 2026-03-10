@@ -31,18 +31,6 @@ import (
 
 const repoRootDetectTimeout = config.DefaultConnectTimeout
 
-// repeatedStringFlag is a flag that can be specified multiple times
-type repeatedStringFlag []string
-
-func (r *repeatedStringFlag) String() string {
-	return strings.Join(*r, ",")
-}
-
-func (r *repeatedStringFlag) Set(value string) error {
-	*r = append(*r, value)
-	return nil
-}
-
 // isHelpToken checks if the argument is a help flag
 func isHelpToken(arg string) bool {
 	switch arg {
@@ -51,11 +39,6 @@ func isHelpToken(arg string) bool {
 	default:
 		return false
 	}
-}
-
-// detectRepoRoot finds the repository root using git or environment variable
-func detectRepoRoot() string {
-	return detectRepoRootWithContext(context.Background())
 }
 
 func detectRepoRootWithContext(ctx context.Context) string {

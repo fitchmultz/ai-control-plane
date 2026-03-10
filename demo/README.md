@@ -32,6 +32,19 @@ Configuration is defined in:
 
 ## Quick Start
 
+### Fastest Reviewer Flow
+
+From the repository root, this is the shortest useful runtime path:
+
+```bash
+make up-offline
+make health
+./scripts/acpctl.sh status
+./scripts/acpctl.sh doctor
+```
+
+This shows the Docker-first runtime, typed operator surface, and offline validation path without requiring provider credentials.
+
 ### Single Machine Mode (Local Demo)
 
 1. **Set up environment variables:**
@@ -51,7 +64,7 @@ Configuration is defined in:
    # Requires LibreChat secrets in demo/.env
    make up
 
-   # Secondary direct compose path
+   # Secondary direct compose path (inspection/debugging only)
    docker compose up -d
    ```
 

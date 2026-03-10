@@ -113,20 +113,19 @@ func runReadinessEvidenceRunTyped(ctx context.Context, runCtx commandRunContext,
 	options := raw.(readiness.Options)
 	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "readiness_evidence")))
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Generating readiness evidence")+"\n")
+	printCommandSection(runCtx.Stdout, out, "Generating readiness evidence")
 	summary, err := readiness.RunContext(ctx, options)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Readiness evidence complete"))+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Run directory: %s\n", summary.RunDirectory)
-	fmt.Fprintf(runCtx.Stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, readiness.SummaryMarkdownName))
-	fmt.Fprintf(runCtx.Stdout, "  Tracker: %s\n", filepath.Join(summary.RunDirectory, readiness.TrackerMarkdownName))
-	fmt.Fprintf(runCtx.Stdout, "  Decision: %s\n", filepath.Join(summary.RunDirectory, readiness.DecisionMarkdownName))
-	fmt.Fprintf(runCtx.Stdout, "  Overall status: %s\n", summary.OverallStatus)
+	printCommandSuccess(runCtx.Stdout, out, "Readiness evidence complete")
+	printCommandDetail(runCtx.Stdout, "Run directory", summary.RunDirectory)
+	printCommandDetail(runCtx.Stdout, "Summary", filepath.Join(summary.RunDirectory, readiness.SummaryMarkdownName))
+	printCommandDetail(runCtx.Stdout, "Tracker", filepath.Join(summary.RunDirectory, readiness.TrackerMarkdownName))
+	printCommandDetail(runCtx.Stdout, "Decision", filepath.Join(summary.RunDirectory, readiness.DecisionMarkdownName))
+	printCommandDetail(runCtx.Stdout, "Overall status", summary.OverallStatus)
 	if summary.OverallStatus != "PASS" {
 		return exitcodes.ACPExitDomain
 	}
@@ -146,8 +145,8 @@ func runReadinessEvidenceVerifyTyped(_ context.Context, runCtx commandRunContext
 		runDir = resolvedRunDir
 	}
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Verifying readiness evidence")+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Run directory: %s\n", runDir)
+	printCommandSection(runCtx.Stdout, out, "Verifying readiness evidence")
+	printCommandDetail(runCtx.Stdout, "Run directory", runDir)
 
 	summary, err := readiness.NewVerifier().VerifyRun(runDir)
 	if err != nil {
@@ -155,11 +154,10 @@ func runReadinessEvidenceVerifyTyped(_ context.Context, runCtx commandRunContext
 		return exitcodes.ACPExitDomain
 	}
 
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Readiness evidence verified"))+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Run ID: %s\n", summary.RunID)
-	fmt.Fprintf(runCtx.Stdout, "  Overall status: %s\n", summary.OverallStatus)
-	fmt.Fprintf(runCtx.Stdout, "  Inventory: %s\n", filepath.Join(runDir, readiness.InventoryFileName))
+	printCommandSuccess(runCtx.Stdout, out, "Readiness evidence verified")
+	printCommandDetail(runCtx.Stdout, "Run ID", summary.RunID)
+	printCommandDetail(runCtx.Stdout, "Overall status", summary.OverallStatus)
+	printCommandDetail(runCtx.Stdout, "Inventory", filepath.Join(runDir, readiness.InventoryFileName))
 	return exitcodes.ACPExitSuccess
 }
 

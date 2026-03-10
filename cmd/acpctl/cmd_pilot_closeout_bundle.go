@@ -119,18 +119,17 @@ func runPilotCloseoutBundleBuildTyped(ctx context.Context, runCtx commandRunCont
 	out := output.New()
 	options := raw.(closeout.Options)
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Building pilot closeout bundle")+"\n")
+	printCommandSection(runCtx.Stdout, out, "Building pilot closeout bundle")
 	summary, err := closeout.Build(ctx, options)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
 
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Pilot closeout bundle complete"))+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Run directory: %s\n", summary.RunDirectory)
-	fmt.Fprintf(runCtx.Stdout, "  Summary: %s\n", filepath.Join(summary.RunDirectory, closeout.SummaryMarkdown))
-	fmt.Fprintf(runCtx.Stdout, "  Inventory: %s\n", filepath.Join(summary.RunDirectory, closeout.InventoryFileName))
+	printCommandSuccess(runCtx.Stdout, out, "Pilot closeout bundle complete")
+	printCommandDetail(runCtx.Stdout, "Run directory", summary.RunDirectory)
+	printCommandDetail(runCtx.Stdout, "Summary", filepath.Join(summary.RunDirectory, closeout.SummaryMarkdown))
+	printCommandDetail(runCtx.Stdout, "Inventory", filepath.Join(summary.RunDirectory, closeout.InventoryFileName))
 	return exitcodes.ACPExitSuccess
 }
 
@@ -147,19 +146,18 @@ func runPilotCloseoutBundleVerifyTyped(_ context.Context, runCtx commandRunConte
 		runDir = resolvedRunDir
 	}
 
-	fmt.Fprint(runCtx.Stdout, out.Bold("Verifying pilot closeout bundle")+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Run directory: %s\n", runDir)
+	printCommandSection(runCtx.Stdout, out, "Verifying pilot closeout bundle")
+	printCommandDetail(runCtx.Stdout, "Run directory", runDir)
 	summary, err := closeout.NewVerifier().VerifyRun(runDir)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain
 	}
 
-	fmt.Fprintln(runCtx.Stdout, "")
-	fmt.Fprint(runCtx.Stdout, out.Green(out.Bold("Pilot closeout bundle verified"))+"\n")
-	fmt.Fprintf(runCtx.Stdout, "  Customer: %s\n", summary.Customer)
-	fmt.Fprintf(runCtx.Stdout, "  Pilot: %s\n", summary.PilotName)
-	fmt.Fprintf(runCtx.Stdout, "  Decision: %s\n", summary.Decision)
+	printCommandSuccess(runCtx.Stdout, out, "Pilot closeout bundle verified")
+	printCommandDetail(runCtx.Stdout, "Customer", summary.Customer)
+	printCommandDetail(runCtx.Stdout, "Pilot", summary.PilotName)
+	printCommandDetail(runCtx.Stdout, "Decision", summary.Decision)
 	return exitcodes.ACPExitSuccess
 }
 

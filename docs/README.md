@@ -2,6 +2,17 @@
 
 This directory is the canonical documentation set for the AI Control Plane reference implementation.
 
+## Fastest Useful Paths
+
+| You are trying to do... | Read this first | Then this |
+|---|---|---|
+| Understand what the repo proves | `../README.md` | `technical-architecture.md` |
+| Run the validated baseline | `DEPLOYMENT.md` | `release/VALIDATION_CHECKLIST.md` |
+| Inspect the typed operator interface | `tooling/ACPCTL.md` | `RUNBOOK.md` |
+| Review enterprise positioning and scope boundaries | `ENTERPRISE_STRATEGY.md` | `GO_TO_MARKET_SCOPE.md` |
+| Review proof/evidence discipline | `evidence/README.md` | `release/READINESS_EVIDENCE_WORKFLOW.md` |
+| Review deployment extensions | `deployment/KUBERNETES_HELM.md` or `deployment/TERRAFORM.md` | `DEPLOYMENT.md` |
+
 ## Deployment Tracks
 
 | Track | Status | Use When | Start Here |
@@ -33,6 +44,7 @@ This directory is the canonical documentation set for the AI Control Plane refer
 ### Engineers running the demo
 
 - **Demo quickstart**: `../demo/README.md`
+- **Repository reviewer path**: `../README.md#reviewer-path`
 - **Validation checklist**: `release/VALIDATION_CHECKLIST.md`
 - **Deployment/topology**: `DEPLOYMENT.md`
 - **Typed operator CLI**: `tooling/ACPCTL.md`
@@ -48,6 +60,13 @@ This directory is the canonical documentation set for the AI Control Plane refer
 - **Budgets and rate limits**: `policy/BUDGETS_AND_RATE_LIMITS.md`
 - **Approved models policy**: `policy/APPROVED_MODELS.md`
 - **Financial governance and chargeback**: `policy/FINANCIAL_GOVERNANCE_AND_CHARGEBACK.md`
+
+## What Reviewers Usually Miss
+
+- `tooling/ACPCTL.md` explains why the repo favors typed operator flows over ad-hoc script sprawl.
+- `technical-architecture.md` is the shortest explanation of how the repo is structured internally.
+- `release/READINESS_EVIDENCE_WORKFLOW.md` and `release/VALIDATION_CHECKLIST.md` show that validation is treated as a product surface, not an afterthought.
+- `ARTIFACTS.md` defines what is generated locally and intentionally kept out of version control.
 ## Index
 
 ### Core docs (top-level)
