@@ -176,55 +176,41 @@ func printValidationContractPaths(stdout *os.File, contracts validationContracts
 
 func runValidateDetectionsTyped(_ context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(validateDetectionsOptions)
-	out := output.New()
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Detection Rules Validation ==="))
-	artifacts, err := loadValidationContracts(runCtx.RepoRoot)
-	if err != nil {
-		return failCommand(runCtx.Stderr, out, mapValidationLoadExitCode(err), err, "detection validation failed")
-	}
-	if opts.Verbose {
-		printValidationContractPaths(runCtx.Stdout, artifacts)
-	}
-	issues := contracts.ValidateDetectionContracts(artifacts.Detections, artifacts.SIEMQueries, artifacts.LiteLLM)
-	if len(issues) > 0 {
-		return failValidation(runCtx.Stderr, out, issues, "Detection validation failed")
-	}
-	validatedCount := 0
-	decisionGradeCount := 0
-	for _, rule := range artifacts.Detections.DetectionRules {
-		if strings.EqualFold(rule.OperationalStatus, "validated") {
-			validatedCount++
+	return withValidationContracts(runCtx, "=== Detection Rules Validation ===", opts.Verbose, "detection validation failed", func(out *output.Output, artifacts validationContracts) int {
+		issues := contracts.ValidateDetectionContracts(artifacts.Detections, artifacts.SIEMQueries, artifacts.LiteLLM)
+		if len(issues) > 0 {
+			return failValidation(runCtx.Stderr, out, issues, "Detection validation failed")
 		}
-		if strings.EqualFold(rule.CoverageTier, "decision-grade") {
-			decisionGradeCount++
+		validatedCount := 0
+		decisionGradeCount := 0
+		for _, rule := range artifacts.Detections.DetectionRules {
+			if strings.EqualFold(rule.OperationalStatus, "validated") {
+				validatedCount++
+			}
+			if strings.EqualFold(rule.CoverageTier, "decision-grade") {
+				decisionGradeCount++
+			}
 		}
-	}
-	fmt.Fprintf(runCtx.Stdout, "Validated %d detection rule(s) (%d validated, %d decision-grade)\n", len(artifacts.Detections.DetectionRules), validatedCount, decisionGradeCount)
-	fmt.Fprintln(runCtx.Stdout, out.Green("Detection rules validation passed"))
-	return exitcodes.ACPExitSuccess
+		fmt.Fprintf(runCtx.Stdout, "Validated %d detection rule(s) (%d validated, %d decision-grade)\n", len(artifacts.Detections.DetectionRules), validatedCount, decisionGradeCount)
+		fmt.Fprintln(runCtx.Stdout, out.Green("Detection rules validation passed"))
+		return exitcodes.ACPExitSuccess
+	})
 }
 
 func runValidateSIEMQueriesTyped(_ context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(validateSIEMQueriesOptions)
-	out := output.New()
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== SIEM Queries Validation ==="))
-	artifacts, err := loadValidationContracts(runCtx.RepoRoot)
-	if err != nil {
-		return failCommand(runCtx.Stderr, out, mapValidationLoadExitCode(err), err, "SIEM query validation failed")
-	}
-	if opts.Verbose {
-		printValidationContractPaths(runCtx.Stdout, artifacts)
-	}
-	issues := contracts.ValidateSIEMContracts(artifacts.Detections, artifacts.SIEMQueries, artifacts.LiteLLM, opts.ValidateSchema)
-	if len(issues) > 0 {
-		return failValidation(runCtx.Stderr, out, issues, "SIEM query validation failed")
-	}
-	fmt.Fprintf(runCtx.Stdout, "Validated %d SIEM mapping(s) against %d enabled detection rule(s)\n", len(artifacts.SIEMQueries.SIEMQueries), contracts.CountEnabledDetectionRules(artifacts.Detections))
-	if opts.ValidateSchema {
-		fmt.Fprintln(runCtx.Stdout, "Schema mapping coverage validated")
-	}
-	fmt.Fprintln(runCtx.Stdout, out.Green("SIEM query validation passed"))
-	return exitcodes.ACPExitSuccess
+	return withValidationContracts(runCtx, "=== SIEM Queries Validation ===", opts.Verbose, "SIEM query validation failed", func(out *output.Output, artifacts validationContracts) int {
+		issues := contracts.ValidateSIEMContracts(artifacts.Detections, artifacts.SIEMQueries, artifacts.LiteLLM, opts.ValidateSchema)
+		if len(issues) > 0 {
+			return failValidation(runCtx.Stderr, out, issues, "SIEM query validation failed")
+		}
+		fmt.Fprintf(runCtx.Stdout, "Validated %d SIEM mapping(s) against %d enabled detection rule(s)\n", len(artifacts.SIEMQueries.SIEMQueries), contracts.CountEnabledDetectionRules(artifacts.Detections))
+		if opts.ValidateSchema {
+			fmt.Fprintln(runCtx.Stdout, "Schema mapping coverage validated")
+		}
+		fmt.Fprintln(runCtx.Stdout, out.Green("SIEM query validation passed"))
+		return exitcodes.ACPExitSuccess
+	})
 }
 
 func runValidateConfigTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
@@ -236,7 +222,7 @@ func runValidateConfigTyped(ctx context.Context, runCtx commandRunContext, raw a
 	options.SecretsEnvFile = opts.SecretsEnvFile
 
 	out := output.New()
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Deployment Configuration Validation ==="))
+	printCommandSection(runCtx.Stdout, out, "=== Deployment Configuration Validation ===")
 	if options.Profile == validation.ConfigValidationProfileProduction {
 		fmt.Fprintf(runCtx.Stdout, "Profile: %s\n", options.Profile)
 		if strings.TrimSpace(options.SecretsEnvFile) != "" {
@@ -255,49 +241,35 @@ func runValidateConfigTyped(ctx context.Context, runCtx commandRunContext, raw a
 }
 
 func runValidateComposeHealthchecksTyped(_ context.Context, runCtx commandRunContext, _ any) int {
-	out := output.New()
-	fmt.Fprintln(runCtx.Stdout, out.Bold("=== Docker Compose Healthchecks Validation ==="))
-	issues, err := validation.ValidateComposeHealthchecks(runCtx.RepoRoot)
-	if err != nil {
-		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitRuntime, err, "Healthcheck validation failed")
-	}
-	if len(issues) == 0 {
-		fmt.Fprintln(runCtx.Stdout, out.Green("Healthcheck validation passed"))
-		return exitcodes.ACPExitSuccess
-	}
-	return failValidation(runCtx.Stderr, out, issues, "Healthcheck validation failed")
+	return runIssueValidation(runCtx, nil, issueValidationConfig{
+		Title:           "=== Docker Compose Healthchecks Validation ===",
+		SuccessMessage:  "Healthcheck validation passed",
+		FailureMessage:  "Healthcheck validation failed",
+		RuntimeErrorMsg: "Healthcheck validation failed",
+		ColorSuccess:    true,
+	}, func() ([]string, error) {
+		return validation.ValidateComposeHealthchecks(runCtx.RepoRoot)
+	})
 }
 
 func runValidateHeadersTyped(_ context.Context, runCtx commandRunContext, _ any) int {
-	issues, err := validation.ValidateGoHeaders(runCtx.RepoRoot)
-	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitRuntime
-	}
-	if len(issues) == 0 {
-		fmt.Fprintln(runCtx.Stdout, "Go header policy validation passed")
-		return exitcodes.ACPExitSuccess
-	}
-	for _, issue := range issues {
-		fmt.Fprintln(runCtx.Stderr, issue)
-	}
-	return exitcodes.ACPExitDomain
+	return runIssueValidation(runCtx, nil, issueValidationConfig{
+		SuccessMessage:  "Go header policy validation passed",
+		FailureMessage:  "Go header policy validation failed",
+		RuntimeErrorMsg: "Go header policy validation failed",
+	}, func() ([]string, error) {
+		return validation.ValidateGoHeaders(runCtx.RepoRoot)
+	})
 }
 
 func runValidateEnvAccessTyped(_ context.Context, runCtx commandRunContext, _ any) int {
-	issues, err := validation.ValidateDirectEnvAccess(runCtx.RepoRoot)
-	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
-		return exitcodes.ACPExitRuntime
-	}
-	if len(issues) == 0 {
-		fmt.Fprintln(runCtx.Stdout, "Direct environment access policy passed")
-		return exitcodes.ACPExitSuccess
-	}
-	for _, issue := range issues {
-		fmt.Fprintln(runCtx.Stderr, issue)
-	}
-	return exitcodes.ACPExitDomain
+	return runIssueValidation(runCtx, nil, issueValidationConfig{
+		SuccessMessage:  "Direct environment access policy passed",
+		FailureMessage:  "Direct environment access policy failed",
+		RuntimeErrorMsg: "Direct environment access policy failed",
+	}, func() ([]string, error) {
+		return validation.ValidateDirectEnvAccess(runCtx.RepoRoot)
+	})
 }
 
 func runValidateDetections(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
