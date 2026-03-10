@@ -51,7 +51,6 @@ Top-level commands:
 - `doctor` - environment preflight diagnostics
 - `benchmark` - local reference-host performance baseline
 - `smoke` - truthful runtime smoke checks
-- `bridge` - compatibility execution of `scripts/libexec/*_impl.sh` workflows
 - `deploy` - service lifecycle, TLS/offline, Helm, readiness-evidence, and release-bundle flows (delegates to Make targets)
 - `validate` - configuration and policy validation flows (typed core checks + selective Make delegation)
 - `db` - database backup, restore, inspection, and DR drill flows
@@ -115,18 +114,6 @@ Examples:
 
 # Attempt auto-remediation
 ./scripts/acpctl.sh doctor --fix
-```
-
-### Bridge Command (compatibility execution)
-```bash
-./scripts/acpctl.sh bridge --help
-```
-
-Bridge currently exists only for a narrow set of compatibility workflows whose implementation still lives under `scripts/libexec/`. Onboarding is now a native root command, with `bridge onboard` retained as a shim for older entrypoints. Use command help for the authoritative surface:
-
-```bash
-./scripts/acpctl.sh bridge --help
-./scripts/acpctl.sh onboard --help
 ```
 
 ### Operator Flows (mixed typed + delegated)
@@ -252,9 +239,9 @@ make ci
 3. Keep shell entrypoints canonical (`./scripts/acpctl.sh`) and remove superseded wrapper scripts.
 4. Update docs and Ralph task artifacts as each migration phase completes.
 
-## Bridge Status
+## Compatibility Status
 
-`acpctl bridge` is a transitional compatibility layer for a small set of shell-backed workflows. Use `./scripts/acpctl.sh bridge --help` for the current supported surface.
+Some workflows still execute bridge-backed implementations under `scripts/libexec/`, but those compatibility paths are internal and are not a primary operator surface. Use the canonical commands such as `host`, `deploy`, and `onboard` instead of calling bridge entrypoints directly.
 
 ## ACPCTL-First Policy Gate
 
@@ -265,7 +252,7 @@ The gate enforces:
 - Changed top-level operator scripts must remain thin wrappers (default limit: 180 LOC).
 - Changed shell scripts fail if newly introduced above complexity threshold (default: 250 LOC), or if they cross that threshold from below.
 
-Legacy operator allowlist has been retired. Compatibility execution is provided via `acpctl bridge` into `scripts/libexec/*_impl.sh` without restoring top-level wrapper scripts.
+Legacy operator allowlist has been retired. Compatibility execution still exists behind canonical typed commands without restoring top-level wrapper scripts.
 
 ## Shell Completions
 
@@ -343,7 +330,6 @@ The completion system provides intelligent suggestions for:
 
 - **Root commands**: All top-level acpctl commands
 - **Group subcommands**: Subcommands for delegated groups (e.g., `deploy up`, `deploy health`)
-- **Bridge scripts**: Available bridge script names
 - **Dynamic values**: Based on repository configuration:
   - Model names: `MODEL=`, `SCENARIO_MODEL=` (parsed from `demo/config/litellm.yaml`)
   - Scenario IDs: `SCENARIO=` (derived from tracked `demo/config/demo_presets.yaml`)

@@ -27,7 +27,7 @@ import (
 
 func TestCommandSpec_ContainsExpectedVisibleRoots(t *testing.T) {
 	registry := buildCommandRegistry()
-	expected := []string{"ci", "completion", "deploy", "validate", "bridge", "onboard", "help"}
+	expected := []string{"ci", "completion", "deploy", "validate", "onboard", "help"}
 	for _, name := range expected {
 		found := false
 		for _, command := range registry.RootCommands {
@@ -45,8 +45,8 @@ func TestCommandSpec_ContainsExpectedVisibleRoots(t *testing.T) {
 func TestCommandSpec_HiddenCommandsStayOutOfVisibleRegistry(t *testing.T) {
 	registry := buildCommandRegistry()
 	for _, command := range registry.RootCommands {
-		if command.Name == "__complete" {
-			t.Fatal("hidden command __complete leaked into visible registry")
+		if command.Name == "__complete" || command.Name == "bridge" {
+			t.Fatalf("hidden command %q leaked into visible registry", command.Name)
 		}
 	}
 }

@@ -23,8 +23,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
+	"log/slog"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
@@ -43,7 +42,7 @@ type statusOptions struct {
 var newStatusInspector = newRuntimeStatusInspector
 
 func statusCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newNativeCommandSpec(nativeCommandConfig{
 		Name:        "status",
 		Summary:     "Aggregated system health overview",
 		Description: "Display aggregated system health status across all domains.",
@@ -67,12 +66,9 @@ func statusCommandSpec() *commandSpec {
 				},
 			},
 		},
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindParsed(bindStatusOptions),
-			NativeRun:  runStatus,
-		},
-	}
+		Bind: bindParsed(bindStatusOptions),
+		Run:  runStatus,
+	})
 }
 
 func bindStatusOptions(input parsedCommandInput) (statusOptions, error) {
@@ -90,42 +86,29 @@ func bindStatusOptions(input parsedCommandInput) (statusOptions, error) {
 
 func runStatus(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(statusOptions)
-	out := output.New()
 	logger := ensureWorkflowLogger(runCtx)
+	if !opts.Watch {
+		return runRuntimeReportCommand(ctx, runCtx, logger, newStatusInspector, runtimeReportCommandConfig{
+			Wide:            opts.Wide,
+			Timeout:         30 * time.Second,
+			TimeoutMessage:  "Status check timed out",
+			CanceledMessage: "Status check canceled",
+		}, func(out *output.Output, report status.StatusReport) int {
+			return writeRuntimeReportOutput(runCtx, logger, out, "", report, opts.JSON, opts.Wide)
+		})
+	}
+	return runStatusWatch(ctx, runCtx, logger, opts)
+}
+
+func runStatusWatch(ctx context.Context, runCtx commandRunContext, logger *slog.Logger, opts statusOptions) int {
+	out := output.New()
 	inspector, code := openRuntimeStatusInspector(runCtx, logger, out, newStatusInspector)
 	if code != exitcodes.ACPExitSuccess {
 		return code
 	}
 	defer inspector.Close()
 
-	statusOpts := status.Options{
-		RepoRoot: runCtx.RepoRoot,
-		Wide:     opts.Wide,
-	}
-	if !opts.Watch {
-		return runStatusOnce(ctx, runCtx.Stdout, runCtx.Stderr, inspector, statusOpts, opts.JSON, opts.Wide)
-	}
-	return runStatusWatch(ctx, runCtx.Stdout, runCtx.Stderr, inspector, statusOpts, opts.JSON, opts.Wide, opts.Interval)
-}
-
-func runStatusCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runCommandPath(ctx, []string{"status"}, args, stdout, stderr)
-}
-
-func runStatusOnce(ctx context.Context, stdout *os.File, stderr *os.File, inspector runtimeStatusInspector, opts status.Options, jsonOutput bool, wide bool) int {
-	report, _, cancel := collectRuntimeStatusReport(ctx, inspector, opts.RepoRoot, opts.Wide, 30*time.Second)
-	defer cancel()
-
-	if code := writeStructuredCommandOutput(stdout, stderr, jsonOutput, report.WriteJSON, func(w io.Writer) error {
-		return report.WriteHuman(w, wide)
-	}); code != exitcodes.ACPExitSuccess {
-		return code
-	}
-	return exitCodeForHealthLevel(report.Overall)
-}
-
-func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspector runtimeStatusInspector, opts status.Options, jsonOutput bool, wide bool, interval int) int {
-	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	ticker := time.NewTicker(time.Duration(opts.Interval) * time.Second)
 	defer ticker.Stop()
 
 	firstRun := true
@@ -134,40 +117,38 @@ func runStatusWatch(ctx context.Context, stdout *os.File, stderr *os.File, inspe
 			select {
 			case <-ticker.C:
 			case <-ctx.Done():
-				if !jsonOutput {
-					fmt.Fprintln(stdout)
-					fmt.Fprintln(stdout, "Watch mode stopped.")
-				}
+				writeWatchTermination(runCtx.Stdout, opts.JSON)
 				return exitcodes.ACPExitSuccess
 			}
 		}
 		firstRun = false
 
-		if !jsonOutput && isTerminal() {
-			colors := terminal.NewColors()
-			fmt.Fprint(stdout, colors.Clear)
+		if !opts.JSON && isTerminal() {
+			fmt.Fprint(runCtx.Stdout, terminal.NewColors().Clear)
 		}
 
-		report, _, cancel := collectRuntimeStatusReport(ctx, inspector, opts.RepoRoot, opts.Wide, 30*time.Second)
-		cancel()
+		report, code, ok := collectRuntimeReportOrExit(ctx, runCtx, logger, out, inspector, runtimeReportCommandConfig{
+			Wide:            opts.Wide,
+			Timeout:         30 * time.Second,
+			TimeoutMessage:  "Status check timed out",
+			CanceledMessage: "Status check canceled",
+		})
+		if !ok {
+			return code
+		}
 
-		if ctx.Err() != nil {
-			if !jsonOutput {
-				fmt.Fprintln(stdout)
-				fmt.Fprintln(stdout, "Watch mode stopped.")
-			}
+		if commandContextCanceled(ctx) {
+			writeWatchTermination(runCtx.Stdout, opts.JSON)
 			return exitcodes.ACPExitSuccess
 		}
 
-		if code := writeStructuredCommandOutput(stdout, stderr, jsonOutput, report.WriteJSON, func(w io.Writer) error {
-			return report.WriteHuman(w, wide)
-		}); code != exitcodes.ACPExitSuccess {
+		if code := writeRuntimeReportOutput(runCtx, logger, out, "", report, opts.JSON, opts.Wide); code != exitcodes.ACPExitSuccess {
 			return code
 		}
-		if !jsonOutput {
-			fmt.Fprintf(stdout, "\nWatching (interval: %ds) - Press Ctrl+C to stop\n", interval)
+		if !opts.JSON {
+			fmt.Fprintf(runCtx.Stdout, "\nWatching (interval: %ds) - Press Ctrl+C to stop\n", opts.Interval)
 		}
 
-		_ = stdout.Sync()
+		_ = runCtx.Stdout.Sync()
 	}
 }

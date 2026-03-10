@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
@@ -45,7 +44,7 @@ type doctorOptions struct {
 var newDoctorInspector = newRuntimeStatusInspector
 
 func doctorCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newNativeCommandSpec(nativeCommandConfig{
 		Name:        "doctor",
 		Summary:     "Environment preflight diagnostics",
 		Description: "Environment preflight diagnostics for AI Control Plane.",
@@ -61,65 +60,53 @@ func doctorCommandSpec() *commandSpec {
 			{Name: "fix", Summary: "Attempt safe auto-remediation", Type: optionValueBool},
 			{Name: "skip-check", ValueName: "CHECK", Summary: "Skip a specific check", Type: optionValueString, Repeatable: true},
 		},
-		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: bindParsedValue(func(input parsedCommandInput) doctorOptions {
-				return doctorOptions{
-					JSON:       input.Bool("json"),
-					Wide:       input.Bool("wide"),
-					Fix:        input.Bool("fix"),
-					SkipChecks: input.Strings("skip-check"),
-				}
-			}),
-			NativeRun: runDoctor,
-		},
-	}
+		Bind: bindParsedValue(func(input parsedCommandInput) doctorOptions {
+			return doctorOptions{
+				JSON:       input.Bool("json"),
+				Wide:       input.Bool("wide"),
+				Fix:        input.Bool("fix"),
+				SkipChecks: input.Strings("skip-check"),
+			}
+		}),
+		Run: runDoctor,
+	})
 }
 
 func runDoctor(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(doctorOptions)
-	out := output.New()
 	logger := ensureWorkflowLogger(runCtx)
 	skipChecks := make(map[string]struct{}, len(opts.SkipChecks))
 	for _, name := range opts.SkipChecks {
 		skipChecks[name] = struct{}{}
 	}
 
-	inspector, code := openRuntimeStatusInspector(runCtx, logger, out, newDoctorInspector)
-	if code != exitcodes.ACPExitSuccess {
-		return code
-	}
-	gatewayRuntime := config.NewLoader().Gateway(true)
-	defer inspector.Close()
-	runtimeReport, _, runtimeCancel := collectRuntimeStatusReport(ctx, inspector, runCtx.RepoRoot, opts.Wide, 30*time.Second)
-	runtimeCancel()
+	return runRuntimeReportCommand(ctx, runCtx, logger, newDoctorInspector, runtimeReportCommandConfig{
+		Wide:            opts.Wide,
+		Timeout:         30 * time.Second,
+		TimeoutMessage:  "Doctor runtime inspection timed out",
+		CanceledMessage: "Doctor runtime inspection canceled",
+	}, func(out *output.Output, runtimeReport status.StatusReport) int {
+		diagnosticOpts := doctor.Options{
+			RepoRoot:      runCtx.RepoRoot,
+			Gateway:       config.NewLoader().Gateway(true),
+			RequiredPorts: config.RequiredPorts(),
+			SkipChecks:    skipChecks,
+			Fix:           opts.Fix,
+			Wide:          opts.Wide,
+			RuntimeReport: &runtimeReport,
+		}
 
-	diagnosticOpts := doctor.Options{
-		RepoRoot:      runCtx.RepoRoot,
-		Gateway:       gatewayRuntime,
-		RequiredPorts: config.RequiredPorts(),
-		SkipChecks:    skipChecks,
-		Fix:           opts.Fix,
-		Wide:          opts.Wide,
-		RuntimeReport: &runtimeReport,
-	}
+		doctorCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		report := doctor.Run(doctorCtx, doctor.DefaultChecks(), diagnosticOpts)
 
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-
-	report := doctor.Run(ctx, doctor.DefaultChecks(), diagnosticOpts)
-
-	if code := writeStructuredCommandOutput(runCtx.Stdout, runCtx.Stderr, opts.JSON, report.WriteJSON, func(w io.Writer) error {
-		return writeDoctorHuman(w, report, opts.Wide)
-	}); code != exitcodes.ACPExitSuccess {
-		return code
-	}
-
-	return doctor.ExitCodeForReport(report)
-}
-
-func runDoctorCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runCommandPath(ctx, []string{"doctor"}, args, stdout, stderr)
+		if code := writeStructuredCommandOutput(runCtx.Stdout, runCtx.Stderr, opts.JSON, report.WriteJSON, func(w io.Writer) error {
+			return writeDoctorHuman(w, report, opts.Wide)
+		}); code != exitcodes.ACPExitSuccess {
+			return code
+		}
+		return doctor.ExitCodeForReport(report)
+	})
 }
 
 func writeDoctorHuman(w io.Writer, report doctor.Report, wide bool) error {

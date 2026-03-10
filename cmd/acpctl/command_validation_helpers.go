@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
@@ -38,6 +39,13 @@ type issueValidationConfig struct {
 	FailureMessage  string
 	RuntimeErrorMsg string
 	ColorSuccess    bool
+}
+
+func mapValidationLoadExitCode(err error) int {
+	if strings.Contains(strings.ToLower(err.Error()), "not found") {
+		return exitcodes.ACPExitPrereq
+	}
+	return exitcodes.ACPExitRuntime
 }
 
 func runIssueValidation(runCtx commandRunContext, logger *slog.Logger, config issueValidationConfig, validate func() ([]string, error)) int {

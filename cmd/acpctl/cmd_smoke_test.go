@@ -57,7 +57,7 @@ func TestRunSmokeTestCommandSucceedsWhenRuntimeIsHealthy(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runSmokeTestCommand(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "smoke")
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -84,7 +84,7 @@ func TestRunSmokeTestCommandFailsWhenAuthIsMissing(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runSmokeTestCommand(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "smoke")
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -111,7 +111,7 @@ func TestRunSmokeTestCommandFailsWhenGatewayIsUnavailable(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runSmokeTestCommand(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "smoke")
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -141,7 +141,7 @@ func TestRunSmokeTestCommandReturnsRuntimeErrorWhenCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runSmokeTestCommand(ctx, nil, stdout, stderr)
+		return runTestCommand(t, ctx, stdout, stderr, "smoke")
 	})
 
 	if exitCode != exitcodes.ACPExitRuntime {
@@ -158,7 +158,7 @@ func TestRunSmokeTestCommandReturnsPrereqWhenDockerMissing(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runSmokeTestCommand(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "smoke")
 	})
 
 	if exitCode != exitcodes.ACPExitPrereq {
@@ -169,11 +169,11 @@ func TestRunSmokeTestCommandReturnsPrereqWhenDockerMissing(t *testing.T) {
 	}
 }
 
-func stubSmokeDeps(t *testing.T, inspector smokeInspector) func() {
+func stubSmokeDeps(t *testing.T, inspector runtimeStatusInspector) func() {
 	t.Helper()
 
 	originalInspector := newSmokeInspector
-	newSmokeInspector = func(string) smokeInspector {
+	newSmokeInspector = func(string) runtimeStatusInspector {
 		return inspector
 	}
 
@@ -194,7 +194,7 @@ func stubSmokeDepsWithoutDocker(t *testing.T) func() {
 	t.Helper()
 
 	originalInspector := newSmokeInspector
-	newSmokeInspector = func(string) smokeInspector {
+	newSmokeInspector = func(string) runtimeStatusInspector {
 		t.Fatal("inspector should not be constructed when docker is missing")
 		return nil
 	}

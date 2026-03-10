@@ -37,7 +37,7 @@ func TestRunValidateDetections_Success(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateDetections(context.Background(), []string{"--verbose"}, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "validate", "detections", "--verbose")
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -54,7 +54,7 @@ func TestRunValidateDetections_FailsOnDuplicateRuleID(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateDetections(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "validate", "detections")
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -72,7 +72,7 @@ func TestRunValidateSIEMQueries_FailsOnMissingDetectionMapping(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateSiemQueries(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "validate", "siem-queries")
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -91,7 +91,7 @@ func TestRunValidateSIEMQueries_SchemaValidation(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateSiemQueries(context.Background(), []string{"--validate-schema"}, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "validate", "siem-queries", "--validate-schema")
 	})
 
 	if exitCode != exitcodes.ACPExitDomain {
@@ -125,7 +125,7 @@ func TestRunValidateConfigProduction_Success(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, repoRoot, func() int {
-		return runValidateConfig(context.Background(), []string{"--production", "--secrets-env-file", secretsPath}, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "validate", "config", "--production", "--secrets-env-file", secretsPath)
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -138,7 +138,7 @@ func TestRunValidateConfigProduction_Success(t *testing.T) {
 
 func TestRunValidateConfigProduction_MissingSecretsFlagValue(t *testing.T) {
 	stdout, stderr := newTestFiles(t)
-	exitCode := runValidateConfig(context.Background(), []string{"--production", "--secrets-env-file"}, stdout, stderr)
+	exitCode := runTestCommand(t, context.Background(), stdout, stderr, "validate", "config", "--production", "--secrets-env-file")
 	if exitCode != exitcodes.ACPExitUsage {
 		t.Fatalf("expected usage exit, got %d", exitCode)
 	}

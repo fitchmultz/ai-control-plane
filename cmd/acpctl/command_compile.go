@@ -181,6 +181,27 @@ func findCommand(path []string) (*commandSpec, error) {
 	return current, nil
 }
 
+func findCommandPath(path []string) ([]*commandSpec, error) {
+	spec, err := loadCommandSpec()
+	if err != nil {
+		return nil, err
+	}
+	nodes := []*commandSpec{spec.Root}
+	current := spec.Root
+	for index, part := range path {
+		next := findChildCommand(current, part)
+		if next == nil {
+			if index == 0 {
+				return nil, &commandLookupError{Kind: "root", Name: part}
+			}
+			return nil, &commandLookupError{Kind: "subcommand", Path: commandPathKey(pathToSpecs(path[:index])), Name: part}
+		}
+		nodes = append(nodes, next)
+		current = next
+	}
+	return nodes, nil
+}
+
 func pathToSpecs(path []string) []*commandSpec {
 	nodes := make([]*commandSpec, 0, len(path))
 	for _, name := range path {

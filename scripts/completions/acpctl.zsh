@@ -48,9 +48,6 @@ _acpctl() {
         helm)
             _acpctl_helm
             ;;
-        bridge)
-            _acpctl_bridge
-            ;;
         *)
             _files
             ;;
@@ -77,7 +74,6 @@ _acpctl_commands() {
         "demo:Demo scenario, preset, and snapshot operations"
         "terraform:Terraform provisioning workflow helpers"
         "helm:Helm chart validation and smoke gates"
-        "bridge:Execute mapped legacy script implementations directly"
         "help:Show this help message"
     )
     _describe -t commands 'acpctl commands' commands "$@"
@@ -232,20 +228,6 @@ _acpctl_helm() {
         "smoke:Run truthful Helm smoke validation"
     )
     _describe -t commands 'helm subcommands' subcmds "$@"
-}
-
-_acpctl_bridge() {
-    local subcmds=(
-        "host_deploy:Host declarative deployment orchestration"
-        "host_install:Systemd host service installation/management"
-        "host_preflight:Host readiness preflight checks"
-        "onboard:Tool onboarding workflows"
-        "prepare_secrets_env:Host secrets contract refresh/sync"
-        "prod_smoke_helm:Helm production smoke workflow"
-        "prod_smoke_test:Runtime production smoke checks"
-        "release_bundle:Deployment release bundle build/verify"
-    )
-    _describe -t commands 'bridge subcommands' subcmds "$@"
 }
 
 compdef _acpctl acpctl

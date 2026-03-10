@@ -465,7 +465,7 @@ Override inventory variables without editing the file:
   --public-url https://gateway.example.com
 ```
 
-The direct script path is a compatibility bridge to the tracked Ansible workflow. It still requires a real local `ansible-playbook` installation.
+The typed command runs the tracked Ansible workflow directly and still requires a real local `ansible-playbook` installation.
 
 ### 4.4 Systemd Host Service Management (Production Recommended)
 

@@ -24,11 +24,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
+	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
 const healthCommandTimeout = 30 * time.Second
@@ -37,12 +37,10 @@ type healthOptions struct {
 	Verbose bool
 }
 
-type healthInspector = runtimeStatusInspector
-
 var newHealthInspector = newRuntimeStatusInspector
 
 func healthCommandSpec() *commandSpec {
-	return &commandSpec{
+	return newNativeCommandSpec(nativeCommandConfig{
 		Name:        "health",
 		Summary:     "Run service health checks",
 		Description: "Run health checks for AI Control Plane services.",
@@ -64,52 +62,40 @@ func healthCommandSpec() *commandSpec {
 				},
 			},
 		},
-		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindParsedValue(func(input parsedCommandInput) healthOptions { return healthOptions{Verbose: input.Bool("verbose")} }),
-			NativeRun:  runHealth,
-		},
-	}
+		Bind: bindParsedValue(func(input parsedCommandInput) healthOptions {
+			return healthOptions{Verbose: input.Bool("verbose")}
+		}),
+		Run: runHealth,
+	})
 }
 
 func runHealth(ctx context.Context, runCtx commandRunContext, raw any) int {
 	opts := raw.(healthOptions)
-	out := output.New()
 	logger := workflowLogger(runCtx, "runtime_health", "verbose", opts.Verbose)
 	workflowStart(logger)
 
-	if ok, code := requireDockerRuntime(runCtx, logger, out); !ok {
-		return code
-	}
-	inspector, code := openRuntimeStatusInspector(runCtx, logger, out, newHealthInspector)
-	if code != exitcodes.ACPExitSuccess {
-		return code
-	}
-	defer inspector.Close()
+	return runRuntimeReportCommand(ctx, runCtx, logger, newHealthInspector, runtimeReportCommandConfig{
+		RequireDocker:   true,
+		Wide:            opts.Verbose,
+		Timeout:         healthCommandTimeout,
+		TimeoutMessage:  "Health check timed out",
+		CanceledMessage: "Health check canceled",
+	}, func(out *output.Output, report status.StatusReport) int {
+		logger.Info("workflow.report_collected", "overall", report.Overall)
+		if code := writeRuntimeReportOutput(runCtx, logger, out, "", report, false, opts.Verbose); code != exitcodes.ACPExitSuccess {
+			return code
+		}
 
-	report, collectCtx, cancel := collectRuntimeStatusReport(ctx, inspector, runCtx.RepoRoot, opts.Verbose, healthCommandTimeout)
-	defer cancel()
-	logger.Info("workflow.report_collected", "overall", report.Overall)
-	if code := writeRuntimeReport(runCtx.Stdout, runCtx.Stderr, logger, out, "", report, opts.Verbose); code != exitcodes.ACPExitSuccess {
-		return code
-	}
-	if handled, code := runtimeCommandContextResult(collectCtx, logger, out, "Health check timed out", "Health check canceled", runCtx.Stderr); handled {
-		return code
-	}
-
-	switch code := exitCodeForHealthLevel(report.Overall); code {
-	case exitcodes.ACPExitSuccess:
-		workflowComplete(logger, "status", "healthy")
-		return code
-	case exitcodes.ACPExitDomain:
-		workflowWarn(logger, "status", string(report.Overall))
-		return code
-	default:
-		workflowFailure(logger, fmt.Errorf("unknown health status: %s", string(report.Overall)))
-		return code
-	}
-}
-
-func runHealthCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {
-	return runCommandPath(ctx, []string{"health"}, args, stdout, stderr)
+		switch code := exitCodeForHealthLevel(report.Overall); code {
+		case exitcodes.ACPExitSuccess:
+			workflowComplete(logger, "status", "healthy")
+			return code
+		case exitcodes.ACPExitDomain:
+			workflowWarn(logger, "status", string(report.Overall))
+			return code
+		default:
+			workflowFailure(logger, fmt.Errorf("unknown health status: %s", string(report.Overall)))
+			return code
+		}
+	})
 }

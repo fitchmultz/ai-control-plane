@@ -13,6 +13,6 @@ Each script that was migrated from shell to Go has a corresponding file here.
 
 ## Migrated Scripts
 
-- health_check.sh → health package (internal/health/)
+- health_check.sh → `acpctl health` runtime inspection path
 - db_backup.sh → cmd_db_ops.go
 - db_restore.sh → cmd_db_ops.go

@@ -92,7 +92,6 @@ fi
 printf '  ✓ validate config --production stays make-independent\n'
 assert_no_delegation "chargeback report help stays make-independent" chargeback report --help
 assert_no_delegation "host preflight help stays make-independent" host preflight --help
-assert_no_delegation "bridge host_preflight help stays make-independent" bridge host_preflight --help
 
 key_output="$(
     ACPCTL_BIN="${GO_SHIM}" \

@@ -58,7 +58,7 @@ func TestRunHealthCommandSucceedsWhenRuntimeIsHealthy(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runHealthCommand(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "health")
 	})
 
 	if exitCode != exitcodes.ACPExitSuccess {
@@ -87,7 +87,7 @@ func TestRunHealthCommandReturnsRuntimeErrorWhenCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runHealthCommand(ctx, nil, stdout, stderr)
+		return runTestCommand(t, ctx, stdout, stderr, "health")
 	})
 
 	if exitCode != exitcodes.ACPExitRuntime {
@@ -104,7 +104,7 @@ func TestRunHealthCommandReturnsPrereqWhenDockerMissing(t *testing.T) {
 
 	stdout, stderr := newTestFiles(t)
 	exitCode := withRepoRoot(t, t.TempDir(), func() int {
-		return runHealthCommand(context.Background(), nil, stdout, stderr)
+		return runTestCommand(t, context.Background(), stdout, stderr, "health")
 	})
 
 	if exitCode != exitcodes.ACPExitPrereq {
@@ -115,11 +115,11 @@ func TestRunHealthCommandReturnsPrereqWhenDockerMissing(t *testing.T) {
 	}
 }
 
-func stubHealthDeps(t *testing.T, inspector healthInspector) func() {
+func stubHealthDeps(t *testing.T, inspector runtimeStatusInspector) func() {
 	t.Helper()
 
 	originalInspector := newHealthInspector
-	newHealthInspector = func(string) healthInspector {
+	newHealthInspector = func(string) runtimeStatusInspector {
 		return inspector
 	}
 
@@ -140,7 +140,7 @@ func stubHealthDepsWithoutDocker(t *testing.T) func() {
 	t.Helper()
 
 	originalInspector := newHealthInspector
-	newHealthInspector = func(string) healthInspector {
+	newHealthInspector = func(string) runtimeStatusInspector {
 		t.Fatal("inspector should not be constructed when docker is missing")
 		return nil
 	}
