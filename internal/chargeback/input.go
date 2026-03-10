@@ -69,7 +69,7 @@ func NewReportWorkflowInput(command ReportCommandInput, env Environment, repoRoo
 	}
 	return ReportWorkflowInput{
 		Request: ReportRequest{
-			ReportMonth:          strings.TrimSpace(command.ReportMonth),
+			ReportMonth:          textutil.Trim(command.ReportMonth),
 			Format:               format,
 			ArchiveDir:           textutil.DefaultIfBlank(command.ArchiveDir, defaultArchiveDir),
 			VarianceThreshold:    varianceThreshold,
@@ -211,11 +211,12 @@ func BuildPayload(request PayloadRequest) ([]byte, error) {
 }
 
 func parseReportFormat(raw string, allowAll bool) (ReportFormat, error) {
-	switch ReportFormat(strings.ToLower(strings.TrimSpace(raw))) {
+	normalized := textutil.LowerTrim(raw)
+	switch ReportFormat(normalized) {
 	case "":
 		return defaultReportFormat, nil
 	case ReportFormatMarkdown, ReportFormatJSON, ReportFormatCSV:
-		return ReportFormat(strings.ToLower(strings.TrimSpace(raw))), nil
+		return ReportFormat(normalized), nil
 	case ReportFormatAll:
 		if allowAll {
 			return ReportFormatAll, nil
@@ -228,7 +229,7 @@ func parseReportFormat(raw string, allowAll bool) (ReportFormat, error) {
 }
 
 func parsePayloadTarget(raw string) (PayloadTarget, error) {
-	switch PayloadTarget(strings.ToLower(strings.TrimSpace(raw))) {
+	switch PayloadTarget(textutil.LowerTrim(raw)) {
 	case PayloadTargetGeneric:
 		return PayloadTargetGeneric, nil
 	case PayloadTargetSlack:
@@ -239,7 +240,7 @@ func parsePayloadTarget(raw string) (PayloadTarget, error) {
 }
 
 func parseOptionalFloat(raw string, fallback float64, field string) (float64, error) {
-	trimmed := strings.TrimSpace(raw)
+	trimmed := textutil.Trim(raw)
 	if trimmed == "" {
 		return fallback, nil
 	}
@@ -275,7 +276,7 @@ func decodeAnomalies(raw string) ([]Anomaly, error) {
 }
 
 func decodeJSONArray(raw string, target any) error {
-	trimmed := strings.TrimSpace(raw)
+	trimmed := textutil.Trim(raw)
 	if trimmed == "" {
 		trimmed = "[]"
 	}
@@ -288,12 +289,12 @@ func envString(env Environment, key string) string {
 	if env == nil {
 		return ""
 	}
-	return env.String(key)
+	return textutil.Trim(env.String(key))
 }
 
 func envFloat(env Environment, key string, fallback float64) float64 {
-	raw := strings.TrimSpace(envString(env, key))
-	if raw == "" || strings.EqualFold(raw, "N/A") {
+	raw := envString(env, key)
+	if raw == "" || textutil.EqualFoldTrimmed(raw, "N/A") {
 		return fallback
 	}
 	value, err := strconv.ParseFloat(raw, 64)
@@ -304,8 +305,8 @@ func envFloat(env Environment, key string, fallback float64) float64 {
 }
 
 func envInt64(env Environment, key string, fallback int64) int64 {
-	raw := strings.TrimSpace(envString(env, key))
-	if raw == "" || strings.EqualFold(raw, "N/A") {
+	raw := envString(env, key)
+	if raw == "" || textutil.EqualFoldTrimmed(raw, "N/A") {
 		return fallback
 	}
 	value, err := strconv.ParseInt(raw, 10, 64)
@@ -316,11 +317,11 @@ func envInt64(env Environment, key string, fallback int64) int64 {
 }
 
 func envBool(env Environment, key string, fallback bool) bool {
-	raw := strings.TrimSpace(envString(env, key))
+	raw := envString(env, key)
 	if raw == "" {
 		return fallback
 	}
-	switch strings.ToLower(raw) {
+	switch textutil.LowerTrim(raw) {
 	case "1", "true", "yes", "y", "on":
 		return true
 	case "0", "false", "no", "n", "off":

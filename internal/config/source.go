@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/envfile"
 	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
@@ -82,7 +81,7 @@ func (l *Loader) WithRepoRoot(repoRoot string) *Loader {
 		l = NewLoader()
 	}
 	clone := *l
-	clone.repoRoot = strings.TrimSpace(repoRoot)
+	clone.repoRoot = textutil.Trim(repoRoot)
 	clone.repoRootLoaded = clone.repoRoot != ""
 	clone.repoRootErr = nil
 	clone.repoFile = nil
@@ -128,7 +127,7 @@ func (l *Loader) repoSource() (lookupSource, error) {
 		return l.repoFile, nil
 	}
 	repoRoot, err := l.RepoRoot(context.Background())
-	if err != nil || strings.TrimSpace(repoRoot) == "" {
+	if err != nil || textutil.IsBlank(repoRoot) {
 		return nil, err
 	}
 	l.repoFile = fileEnvSource{path: repopath.DemoEnvPath(repoRoot)}
@@ -148,13 +147,13 @@ func (l *Loader) LookupRepoAware(key string) (string, bool, error) {
 // String returns a process-only trimmed string.
 func (l *Loader) String(key string) string {
 	value, _, _ := l.LookupProcess(key)
-	return strings.TrimSpace(value)
+	return textutil.Trim(value)
 }
 
 // RepoAwareString returns a trimmed string with repo-local fallback.
 func (l *Loader) RepoAwareString(key string) string {
 	value, _, _ := l.LookupRepoAware(key)
-	return strings.TrimSpace(value)
+	return textutil.Trim(value)
 }
 
 // StringDefault returns a trimmed process-only string or the provided fallback.
@@ -233,7 +232,7 @@ func (l *Loader) RepoRoot(ctx context.Context) (string, error) {
 		}
 		return "", err
 	}
-	root := strings.TrimSpace(res.Stdout)
+	root := textutil.Trim(res.Stdout)
 	if root == "" {
 		err := fmt.Errorf("detect repository root: git returned empty output")
 		if l != nil {
@@ -257,7 +256,7 @@ func (l *Loader) RequireRepoRoot(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve repo root: %w", err)
 	}
-	if strings.TrimSpace(repoRoot) == "" {
+	if textutil.IsBlank(repoRoot) {
 		return "", fmt.Errorf("resolve repo root: empty path")
 	}
 	return repoRoot, nil

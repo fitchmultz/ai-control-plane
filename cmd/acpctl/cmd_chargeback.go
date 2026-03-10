@@ -68,7 +68,7 @@ func chargebackCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Bind: bindChargebackReportOptions,
+				Bind: bindParsedValue(bindChargebackReportOptions),
 				Run:  runChargebackReportCommand,
 			}),
 			newNativeCommandSpec(nativeCommandConfig{
@@ -113,7 +113,7 @@ func chargebackCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Bind: bindChargebackRenderOptions,
+				Bind: bindParsedValue(bindChargebackRenderOptions),
 				Run:  runChargebackRenderCommand,
 			}),
 			newNativeCommandSpec(nativeCommandConfig{
@@ -142,7 +142,7 @@ func chargebackCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Bind: bindChargebackPayloadOptions,
+				Bind: bindParsedValue(bindChargebackPayloadOptions),
 				Run:  runChargebackPayloadCommand,
 			}),
 		},

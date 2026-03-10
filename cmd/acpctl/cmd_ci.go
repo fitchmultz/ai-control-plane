@@ -57,7 +57,7 @@ func ciCommandSpec() *commandSpec {
 					{Name: "path", ValueName: "PATH", Summary: "Add a changed path explicitly", Type: optionValueString, Repeatable: true},
 					{Name: "quiet", Short: "q", Summary: "Print no informational output", Type: optionValueBool},
 				},
-				Bind: bindCIShouldRunRuntimeOptions,
+				Bind: bindParsed(bindCIShouldRunRuntimeOptions),
 				Run:  runCIShouldRunRuntime,
 			}),
 			ciWaitCommandSpec(),
@@ -65,13 +65,13 @@ func ciCommandSpec() *commandSpec {
 	}
 }
 
-func bindCIShouldRunRuntimeOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+func bindCIShouldRunRuntimeOptions(input parsedCommandInput) (ciShouldRunRuntimeOptions, error) {
 	opts := ciShouldRunRuntimeOptions{
 		Paths: input.Strings("path"),
 		Quiet: input.Bool("quiet"),
 	}
 	if err := ci.ValidateDecisionArgs(opts.Paths); err != nil {
-		return nil, err
+		return ciShouldRunRuntimeOptions{}, err
 	}
 	return opts, nil
 }

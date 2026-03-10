@@ -63,14 +63,14 @@ func doctorCommandSpec() *commandSpec {
 		},
 		Backend: commandBackend{
 			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+			NativeBind: bindParsedValue(func(input parsedCommandInput) doctorOptions {
 				return doctorOptions{
 					JSON:       input.Bool("json"),
 					Wide:       input.Bool("wide"),
 					Fix:        input.Bool("fix"),
 					SkipChecks: input.Strings("skip-check"),
-				}, nil
-			},
+				}
+			}),
 			NativeRun: runDoctor,
 		},
 	}

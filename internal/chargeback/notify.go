@@ -29,8 +29,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 type WebhookNotifier struct {
@@ -38,14 +39,14 @@ type WebhookNotifier struct {
 }
 
 func (n WebhookNotifier) Notify(ctx context.Context, config NotificationConfig, data ReportData) error {
-	if strings.TrimSpace(config.GenericWebhookURL) == "" && strings.TrimSpace(config.SlackWebhookURL) == "" {
+	if textutil.IsBlank(config.GenericWebhookURL) && textutil.IsBlank(config.SlackWebhookURL) {
 		return nil
 	}
 	client := n.Client
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
-	if strings.TrimSpace(config.GenericWebhookURL) != "" {
+	if !textutil.IsBlank(config.GenericWebhookURL) {
 		payload, err := BuildGenericWebhookPayload(GenericWebhookInput{
 			Event:       defaultGenericNotificationEvent,
 			ReportMonth: data.Input.ReportMonth,
@@ -61,7 +62,7 @@ func (n WebhookNotifier) Notify(ctx context.Context, config NotificationConfig, 
 			return fmt.Errorf("send generic notification: %w", err)
 		}
 	}
-	if strings.TrimSpace(config.SlackWebhookURL) != "" {
+	if !textutil.IsBlank(config.SlackWebhookURL) {
 		color := defaultSlackColor
 		if data.VarianceExceeded {
 			color = "danger"

@@ -21,6 +21,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 func TestDatabaseModeHelpers(t *testing.T) {
@@ -165,7 +167,7 @@ func TestGatewayHelperFunctions(t *testing.T) {
 	if defaultPortForScheme("https") != 443 || defaultPortForScheme("http") != DefaultLiteLLMPort {
 		t.Fatalf("unexpected default ports: https=%d http=%d", defaultPortForScheme("https"), defaultPortForScheme("http"))
 	}
-	if value := firstNonEmpty("", " alpha ", "beta"); value != "alpha" {
-		t.Fatalf("firstNonEmpty() = %q", value)
+	if value := textutil.FirstNonBlank("", " alpha ", "beta"); value != "alpha" {
+		t.Fatalf("FirstNonBlank() = %q", value)
 	}
 }

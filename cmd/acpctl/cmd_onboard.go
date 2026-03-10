@@ -54,28 +54,26 @@ func onboardCommandSpec() *commandSpec {
 			{Name: "show-key", Summary: "Display generated key material", Type: optionValueBool},
 		},
 		Backend: commandBackend{
-			Kind:       commandBackendNative,
-			NativeBind: bindOnboardOptions,
-			NativeRun:  runOnboard,
+			Kind: commandBackendNative,
+			NativeBind: bindRepoParsed(func(bindCtx commandBindContext, input parsedCommandInput) (onboard.Options, error) {
+				return onboard.Options{
+					RepoRoot:    bindCtx.RepoRoot,
+					Tool:        input.NormalizedArgument(0),
+					Mode:        input.NormalizedString("mode"),
+					Alias:       input.NormalizedString("alias"),
+					Budget:      input.NormalizedString("budget"),
+					Model:       input.NormalizedString("model"),
+					Host:        input.NormalizedString("host"),
+					Port:        input.NormalizedString("port"),
+					UseTLS:      input.Bool("tls"),
+					Verify:      input.Bool("verify"),
+					WriteConfig: input.Bool("write-config"),
+					ShowKey:     input.Bool("show-key"),
+				}, nil
+			}),
+			NativeRun: runOnboard,
 		},
 	}
-}
-
-func bindOnboardOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
-	return onboard.Options{
-		RepoRoot:    bindCtx.RepoRoot,
-		Tool:        input.Argument(0),
-		Mode:        input.String("mode"),
-		Alias:       input.String("alias"),
-		Budget:      input.String("budget"),
-		Model:       input.String("model"),
-		Host:        input.String("host"),
-		Port:        input.String("port"),
-		UseTLS:      input.Bool("tls"),
-		Verify:      input.Bool("verify"),
-		WriteConfig: input.Bool("write-config"),
-		ShowKey:     input.Bool("show-key"),
-	}, nil
 }
 
 func runOnboard(ctx context.Context, runCtx commandRunContext, raw any) int {

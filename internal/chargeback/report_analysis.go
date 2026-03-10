@@ -27,8 +27,9 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 func resolveMonthRange(reportMonth string, now time.Time) (MonthRange, error) {
@@ -36,7 +37,7 @@ func resolveMonthRange(reportMonth string, now time.Time) (MonthRange, error) {
 		now = time.Now()
 	}
 	now = now.Local()
-	target := strings.TrimSpace(reportMonth)
+	target := textutil.Trim(reportMonth)
 	if target == "" {
 		previous := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).AddDate(0, -1, 0)
 		target = previous.Format("2006-01")

@@ -41,11 +41,18 @@ type issueValidationConfig struct {
 }
 
 func runIssueValidation(runCtx commandRunContext, logger *slog.Logger, config issueValidationConfig, validate func() ([]string, error)) int {
-	out := output.New()
-	if config.Title != "" {
-		printCommandSection(runCtx.Stdout, out, config.Title)
-	}
+	return runIssueValidationWithPrelude(runCtx, logger, func(out *output.Output, runCtx commandRunContext) {
+		if config.Title != "" {
+			printCommandSection(runCtx.Stdout, out, config.Title)
+		}
+	}, config, validate)
+}
 
+func runIssueValidationWithPrelude(runCtx commandRunContext, logger *slog.Logger, prelude func(*output.Output, commandRunContext), config issueValidationConfig, validate func() ([]string, error)) int {
+	out := output.New()
+	if prelude != nil {
+		prelude(out, runCtx)
+	}
 	issues, err := validate()
 	if err != nil {
 		if logger != nil {

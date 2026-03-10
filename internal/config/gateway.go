@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 // GatewaySettings describes the effective gateway endpoint and auth context.
@@ -58,23 +60,23 @@ func (l *Loader) Gateway(includeRepoFallback bool) GatewaySettings {
 		resolve = l.RepoAwareString
 	}
 
-	explicitURL := firstNonEmpty(resolve("ACP_GATEWAY_URL"), resolve("GATEWAY_URL"))
-	if strings.TrimSpace(explicitURL) != "" {
+	explicitURL := textutil.FirstNonBlank(resolve("ACP_GATEWAY_URL"), resolve("GATEWAY_URL"))
+	if explicitURL != "" {
 		if settings, ok := parseGatewayURL(explicitURL); ok {
-			settings.MasterKey = strings.TrimSpace(resolve("LITELLM_MASTER_KEY"))
+			settings.MasterKey = resolve("LITELLM_MASTER_KEY")
 			return settings
 		}
 	}
 
-	host := firstNonEmpty(resolve("GATEWAY_HOST"), DefaultGatewayHost)
-	portString := firstNonEmpty(resolve("LITELLM_PORT"), strconv.Itoa(DefaultLiteLLMPort))
+	host := textutil.FirstNonBlank(resolve("GATEWAY_HOST"), DefaultGatewayHost)
+	portString := textutil.FirstNonBlank(resolve("LITELLM_PORT"), strconv.Itoa(DefaultLiteLLMPort))
 	port, err := strconv.Atoi(portString)
 	if err != nil || port <= 0 {
 		port = DefaultLiteLLMPort
 		portString = strconv.Itoa(DefaultLiteLLMPort)
 	}
 	scheme := normalizeGatewayScheme(resolve("ACP_GATEWAY_SCHEME"), resolve("GATEWAY_SCHEME"), resolve("ACP_GATEWAY_TLS"))
-	masterKey := strings.TrimSpace(resolve("LITELLM_MASTER_KEY"))
+	masterKey := resolve("LITELLM_MASTER_KEY")
 	return GatewaySettings{
 		Scheme:     scheme,
 		Host:       host,
@@ -121,7 +123,7 @@ func splitExactlyThree(raw string) []string {
 
 func nullableFloat(raw string) *float64 {
 	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" || strings.EqualFold(trimmed, "n/a") {
+	if trimmed == "" || textutil.EqualFoldTrimmed(trimmed, "n/a") {
 		return nil
 	}
 	value, err := strconv.ParseFloat(trimmed, 64)
@@ -138,8 +140,7 @@ func (l *Loader) ChargebackTimestamp(now time.Time) string {
 
 func normalizeGatewayScheme(values ...string) string {
 	for _, value := range values {
-		trimmed := strings.TrimSpace(strings.ToLower(value))
-		switch trimmed {
+		switch textutil.LowerTrim(value) {
 		case "https", "tls", "true", "1", "yes", "on":
 			return "https"
 		case "http", "false", "0", "no", "off":
@@ -150,7 +151,7 @@ func normalizeGatewayScheme(values ...string) string {
 }
 
 func parseGatewayURL(raw string) (GatewaySettings, bool) {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
+	parsed, err := url.Parse(textutil.Trim(raw))
 	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
 		return GatewaySettings{}, false
 	}
@@ -175,14 +176,14 @@ func parseGatewayURL(raw string) (GatewaySettings, bool) {
 		Port:       portString,
 		PortInt:    port,
 		BaseURL:    baseURL,
-		TLSEnabled: strings.EqualFold(parsed.Scheme, "https"),
+		TLSEnabled: textutil.EqualFoldTrimmed(parsed.Scheme, "https"),
 	}, true
 }
 
 func buildGatewayBaseURL(scheme string, host string, port string) string {
 	trimmedScheme := normalizeGatewayScheme(scheme)
-	trimmedHost := strings.TrimSpace(host)
-	trimmedPort := strings.TrimSpace(port)
+	trimmedHost := textutil.Trim(host)
+	trimmedPort := textutil.Trim(port)
 	if trimmedPort == "" {
 		return fmt.Sprintf("%s://%s", trimmedScheme, trimmedHost)
 	}
@@ -190,17 +191,8 @@ func buildGatewayBaseURL(scheme string, host string, port string) string {
 }
 
 func defaultPortForScheme(scheme string) int {
-	if strings.EqualFold(strings.TrimSpace(scheme), "https") {
+	if textutil.EqualFoldTrimmed(scheme, "https") {
 		return 443
 	}
 	return DefaultLiteLLMPort
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

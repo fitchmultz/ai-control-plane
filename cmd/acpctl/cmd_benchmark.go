@@ -102,36 +102,36 @@ func benchmarkCommandSpec() *commandSpec {
 						},
 					},
 				},
-				Bind: bindBenchmarkBaselineOptions,
+				Bind: bindParsed(bindBenchmarkBaselineOptions),
 				Run:  runBenchmarkBaseline,
 			}),
 		},
 	}
 }
 
-func bindBenchmarkBaselineOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+func bindBenchmarkBaselineOptions(input parsedCommandInput) (benchmarkBaselineOptions, error) {
 	gatewayRuntime := config.NewLoader().Gateway(true)
 	warmupRequests, err := input.IntDefault("warmup-requests", 0)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --warmup-requests: %q", input.String("warmup-requests"))
+		return benchmarkBaselineOptions{}, fmt.Errorf("invalid --warmup-requests: %q", input.String("warmup-requests"))
 	}
 	requests, err := input.IntDefault("requests", 20)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --requests: %q", input.String("requests"))
+		return benchmarkBaselineOptions{}, fmt.Errorf("invalid --requests: %q", input.String("requests"))
 	}
 	concurrency, err := input.IntDefault("concurrency", 2)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --concurrency: %q", input.String("concurrency"))
+		return benchmarkBaselineOptions{}, fmt.Errorf("invalid --concurrency: %q", input.String("concurrency"))
 	}
 	maxTokens, err := input.IntDefault("max-tokens", 32)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --max-tokens: %q", input.String("max-tokens"))
+		return benchmarkBaselineOptions{}, fmt.Errorf("invalid --max-tokens: %q", input.String("max-tokens"))
 	}
 	opts := benchmarkBaselineOptions{
 		GatewayURL:     input.StringDefault("gateway-url", "http://127.0.0.1:4000"),
 		MasterKey:      input.StringDefault("master-key", gatewayRuntime.MasterKey),
 		Model:          input.StringDefault("model", "mock-gpt"),
-		Profile:        input.String("profile"),
+		Profile:        input.NormalizedString("profile"),
 		Prompt:         input.StringDefault("prompt", "Provide a short response for performance baseline verification."),
 		WarmupRequests: warmupRequests,
 		Requests:       requests,
@@ -143,16 +143,16 @@ func bindBenchmarkBaselineOptions(_ commandBindContext, input parsedCommandInput
 		ConcurrencySet: input.Has("concurrency"),
 	}
 	if opts.Requests <= 0 {
-		return nil, fmt.Errorf("--requests must be a positive integer")
+		return benchmarkBaselineOptions{}, fmt.Errorf("--requests must be a positive integer")
 	}
 	if opts.Concurrency <= 0 {
-		return nil, fmt.Errorf("--concurrency must be a positive integer")
+		return benchmarkBaselineOptions{}, fmt.Errorf("--concurrency must be a positive integer")
 	}
 	if opts.WarmupRequests < 0 {
-		return nil, fmt.Errorf("--warmup-requests must be zero or greater")
+		return benchmarkBaselineOptions{}, fmt.Errorf("--warmup-requests must be zero or greater")
 	}
 	if opts.MaxTokens <= 0 {
-		return nil, fmt.Errorf("--max-tokens must be a positive integer")
+		return benchmarkBaselineOptions{}, fmt.Errorf("--max-tokens must be a positive integer")
 	}
 	return opts, nil
 }

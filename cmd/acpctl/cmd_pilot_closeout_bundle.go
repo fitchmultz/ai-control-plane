@@ -53,7 +53,7 @@ func pilotCloseoutBundleCommandSpec() *commandSpec {
 					{Name: "operator-checklist", ValueName: "PATH", Summary: "Optional operator handoff checklist source document", Type: optionValueString},
 					{Name: "readiness-run-dir", ValueName: "DIR", Summary: "Specific readiness evidence run to include", Type: optionValueString},
 				},
-				Bind: bindPilotCloseoutBuildOptions,
+				Bind: bindRepoParsed(bindPilotCloseoutBuildOptions),
 				Run:  runPilotCloseoutBundleBuildTyped,
 			}),
 			newNativeCommandSpec(nativeCommandConfig{
@@ -63,52 +63,52 @@ func pilotCloseoutBundleCommandSpec() *commandSpec {
 				Options: []commandOptionSpec{
 					{Name: "run-dir", ValueName: "DIR", Summary: "Specific pilot closeout bundle directory to verify", Type: optionValueString},
 				},
-				Bind: bindPilotCloseoutVerifyOptions,
+				Bind: bindRepoParsed(bindPilotCloseoutVerifyOptions),
 				Run:  runPilotCloseoutBundleVerifyTyped,
 			}),
 		},
 	}
 }
 
-func bindPilotCloseoutBuildOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+func bindPilotCloseoutBuildOptions(bindCtx commandBindContext, input parsedCommandInput) (closeout.Options, error) {
 	repoRoot, err := requireCommandRepoRoot(bindCtx)
 	if err != nil {
-		return nil, err
+		return closeout.Options{}, err
 	}
 	options := closeout.Options{
 		RepoRoot:   repoRoot,
 		OutputRoot: repopath.DemoLogsPath(repoRoot, "pilot-closeout"),
 	}
 	if input.Has("output-dir") {
-		options.OutputRoot = resolveRepoInput(repoRoot, input.String("output-dir"))
+		options.OutputRoot = resolveRepoInput(repoRoot, input.NormalizedString("output-dir"))
 	}
-	options.Customer = input.String("customer")
-	options.PilotName = input.String("pilot-name")
+	options.Customer = input.NormalizedString("customer")
+	options.PilotName = input.NormalizedString("pilot-name")
 	options.Decision = input.StringDefault("decision", "PENDING_REVIEW")
 	if input.Has("charter") {
-		options.CharterPath = resolveRepoInput(repoRoot, input.String("charter"))
+		options.CharterPath = resolveRepoInput(repoRoot, input.NormalizedString("charter"))
 	}
 	if input.Has("acceptance-memo") {
-		options.AcceptanceMemoPath = resolveRepoInput(repoRoot, input.String("acceptance-memo"))
+		options.AcceptanceMemoPath = resolveRepoInput(repoRoot, input.NormalizedString("acceptance-memo"))
 	}
 	if input.Has("validation-checklist") {
-		options.ValidationChecklist = resolveRepoInput(repoRoot, input.String("validation-checklist"))
+		options.ValidationChecklist = resolveRepoInput(repoRoot, input.NormalizedString("validation-checklist"))
 	}
 	if input.Has("operator-checklist") {
-		options.OperatorChecklist = resolveRepoInput(repoRoot, input.String("operator-checklist"))
+		options.OperatorChecklist = resolveRepoInput(repoRoot, input.NormalizedString("operator-checklist"))
 	}
 	if input.Has("readiness-run-dir") {
-		options.ReadinessRunDir = resolveRepoInput(repoRoot, input.String("readiness-run-dir"))
+		options.ReadinessRunDir = resolveRepoInput(repoRoot, input.NormalizedString("readiness-run-dir"))
 	}
 	return options, nil
 }
 
-func bindPilotCloseoutVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+func bindPilotCloseoutVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (string, error) {
 	repoRoot, err := requireCommandRepoRoot(bindCtx)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	runDir := input.String("run-dir")
+	runDir := input.NormalizedString("run-dir")
 	if runDir != "" {
 		runDir = resolveRepoInput(repoRoot, runDir)
 	}

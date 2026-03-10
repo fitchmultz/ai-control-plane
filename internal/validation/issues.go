@@ -22,7 +22,8 @@ package validation
 import (
 	"fmt"
 	"sort"
-	"strings"
+
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 // Issues accumulates validator findings with deterministic rendering helpers.
@@ -41,7 +42,7 @@ func NewIssues(capacity ...int) Issues {
 
 // Add records a non-empty issue.
 func (i *Issues) Add(issue string) {
-	if strings.TrimSpace(issue) == "" {
+	if textutil.IsBlank(issue) {
 		return
 	}
 	i.items = append(i.items, issue)

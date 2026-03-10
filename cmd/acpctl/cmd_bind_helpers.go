@@ -47,6 +47,32 @@ func bindStaticOptions[T any](value T) func(commandBindContext, parsedCommandInp
 	}
 }
 
+func bindParsed[T any](fn func(parsedCommandInput) (T, error)) func(commandBindContext, parsedCommandInput) (any, error) {
+	return func(_ commandBindContext, input parsedCommandInput) (any, error) {
+		value, err := fn(input)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	}
+}
+
+func bindParsedValue[T any](fn func(parsedCommandInput) T) func(commandBindContext, parsedCommandInput) (any, error) {
+	return func(_ commandBindContext, input parsedCommandInput) (any, error) {
+		return fn(input), nil
+	}
+}
+
+func bindRepoParsed[T any](fn func(commandBindContext, parsedCommandInput) (T, error)) func(commandBindContext, parsedCommandInput) (any, error) {
+	return func(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+		value, err := fn(bindCtx, input)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	}
+}
+
 func newNativeCommandSpec(config nativeCommandConfig) *commandSpec {
 	description := config.Description
 	if description == "" {

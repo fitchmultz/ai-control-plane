@@ -30,6 +30,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 	"github.com/mitchfultz/ai-control-plane/internal/validation"
 )
 
@@ -91,9 +92,9 @@ func validateDetectionsCommandSpec() *commandSpec {
 		Options: []commandOptionSpec{
 			{Name: "verbose", Short: "v", Summary: "Enable detailed output", Type: optionValueBool},
 		},
-		Bind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
-			return validateDetectionsOptions{Verbose: input.Bool("verbose")}, nil
-		},
+		Bind: bindParsedValue(func(input parsedCommandInput) validateDetectionsOptions {
+			return validateDetectionsOptions{Verbose: input.Bool("verbose")}
+		}),
 		Run: runValidateDetectionsTyped,
 	})
 }
@@ -106,12 +107,12 @@ func validateSIEMQueriesCommandSpec() *commandSpec {
 			{Name: "validate-schema", Summary: "Validate schema coverage", Type: optionValueBool},
 			{Name: "verbose", Short: "v", Summary: "Enable detailed output", Type: optionValueBool},
 		},
-		Bind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
+		Bind: bindParsedValue(func(input parsedCommandInput) validateSIEMQueriesOptions {
 			return validateSIEMQueriesOptions{
 				ValidateSchema: input.Bool("validate-schema"),
 				Verbose:        input.Bool("verbose"),
-			}, nil
-		},
+			}
+		}),
 		Run: runValidateSIEMQueriesTyped,
 	})
 }
@@ -125,8 +126,13 @@ func validateConfigCommandSpec() *commandSpec {
 			{Name: "production", Summary: "Enforce the production deployment contract", Type: optionValueBool},
 			{Name: "secrets-env-file", ValueName: "PATH", Summary: "Canonical production secrets file", Type: optionValueString},
 		},
-		Bind: bindValidateConfigOptions,
-		Run:  runValidateConfigTyped,
+		Bind: bindParsedValue(func(input parsedCommandInput) validateConfigOptions {
+			return validateConfigOptions{
+				Production:     input.Bool("production"),
+				SecretsEnvFile: input.NormalizedString("secrets-env-file"),
+			}
+		}),
+		Run: runValidateConfigTyped,
 	})
 }
 
@@ -140,13 +146,6 @@ func validateHeadersCommandSpec() *commandSpec {
 
 func validateEnvAccessCommandSpec() *commandSpec {
 	return newNativeLeafCommandSpec("env-access", "Fail on direct environment access outside internal/config", runValidateEnvAccessTyped)
-}
-
-func bindValidateConfigOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
-	return validateConfigOptions{
-		Production:     input.Bool("production"),
-		SecretsEnvFile: strings.TrimSpace(input.String("secrets-env-file")),
-	}, nil
 }
 
 func loadValidationContracts(repoRoot string) (validationContracts, error) {
@@ -221,23 +220,22 @@ func runValidateConfigTyped(ctx context.Context, runCtx commandRunContext, raw a
 	}
 	options.SecretsEnvFile = opts.SecretsEnvFile
 
-	out := output.New()
-	printCommandSection(runCtx.Stdout, out, "=== Deployment Configuration Validation ===")
-	if options.Profile == validation.ConfigValidationProfileProduction {
-		fmt.Fprintf(runCtx.Stdout, "Profile: %s\n", options.Profile)
-		if strings.TrimSpace(options.SecretsEnvFile) != "" {
-			fmt.Fprintf(runCtx.Stdout, "Secrets file: %s\n", options.SecretsEnvFile)
+	return runIssueValidationWithPrelude(runCtx, nil, func(out *output.Output, runCtx commandRunContext) {
+		printCommandSection(runCtx.Stdout, out, "=== Deployment Configuration Validation ===")
+		if options.Profile == validation.ConfigValidationProfileProduction {
+			fmt.Fprintf(runCtx.Stdout, "Profile: %s\n", options.Profile)
+			if !textutil.IsBlank(options.SecretsEnvFile) {
+				fmt.Fprintf(runCtx.Stdout, "Secrets file: %s\n", options.SecretsEnvFile)
+			}
 		}
-	}
-	issues, err := validation.ValidateDeploymentConfig(runCtx.RepoRoot, options)
-	if err != nil {
-		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitRuntime, err, "Configuration validation failed")
-	}
-	if len(issues) == 0 {
-		fmt.Fprintln(runCtx.Stdout, out.Green("Configuration validation passed"))
-		return exitcodes.ACPExitSuccess
-	}
-	return failValidation(runCtx.Stderr, out, issues, "Configuration validation failed")
+	}, issueValidationConfig{
+		SuccessMessage:  "Configuration validation passed",
+		FailureMessage:  "Configuration validation failed",
+		RuntimeErrorMsg: "Configuration validation failed",
+		ColorSuccess:    true,
+	}, func() ([]string, error) {
+		return validation.ValidateDeploymentConfig(runCtx.RepoRoot, options)
+	})
 }
 
 func runValidateComposeHealthchecksTyped(_ context.Context, runCtx commandRunContext, _ any) int {

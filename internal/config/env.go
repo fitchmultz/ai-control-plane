@@ -25,10 +25,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/envfile"
 	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 // EnvFile provides strict data-only access to a specific env file.
@@ -51,7 +51,7 @@ type RequiredEnvStatus struct {
 
 // NewEnvFile creates a strict env-file reader for an explicit path.
 func NewEnvFile(path string) EnvFile {
-	return EnvFile{path: filepath.Clean(strings.TrimSpace(path))}
+	return EnvFile{path: filepath.Clean(textutil.Trim(path))}
 }
 
 // Path returns the normalized file path.
@@ -62,7 +62,7 @@ func (f EnvFile) Path() string {
 // Lookup reads a single key from the env file.
 func (f EnvFile) Lookup(key string) (string, bool, error) {
 	value, ok, err := envfile.LookupFile(f.path, key)
-	return strings.TrimSpace(value), ok, err
+	return textutil.Trim(value), ok, err
 }
 
 // RepoEnvStatus reports whether the canonical repo-local demo/.env exists.
@@ -87,7 +87,7 @@ func (l *Loader) RequiredRuntimeEnv(keys []string) RequiredEnvStatus {
 		Sources: make(map[string]string, len(keys)),
 	}
 	for _, key := range keys {
-		trimmedKey := strings.TrimSpace(key)
+		trimmedKey := textutil.Trim(key)
 		if trimmedKey == "" {
 			continue
 		}

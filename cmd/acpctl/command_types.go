@@ -28,7 +28,6 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
@@ -127,6 +126,14 @@ func (p parsedCommandInput) String(name string) string {
 	return firstValue(p.flags[name])
 }
 
+func (p parsedCommandInput) NormalizedString(name string) string {
+	return textutil.Trim(p.String(name))
+}
+
+func (p parsedCommandInput) LowerString(name string) string {
+	return textutil.LowerTrim(p.String(name))
+}
+
 func (p parsedCommandInput) Has(name string) bool {
 	return len(p.flags[name]) > 0
 }
@@ -154,7 +161,7 @@ func (p parsedCommandInput) Int(name string) (int, error) {
 }
 
 func (p parsedCommandInput) IntDefault(name string, fallback int) (int, error) {
-	if strings.TrimSpace(p.String(name)) == "" {
+	if textutil.IsBlank(p.String(name)) {
 		return fallback, nil
 	}
 	return p.Int(name)
@@ -169,7 +176,7 @@ func (p parsedCommandInput) Float(name string) (float64, error) {
 }
 
 func (p parsedCommandInput) FloatDefault(name string, fallback float64) (float64, error) {
-	if strings.TrimSpace(p.String(name)) == "" {
+	if textutil.IsBlank(p.String(name)) {
 		return fallback, nil
 	}
 	return p.Float(name)
@@ -180,6 +187,10 @@ func (p parsedCommandInput) Argument(index int) string {
 		return ""
 	}
 	return p.arguments[index]
+}
+
+func (p parsedCommandInput) NormalizedArgument(index int) string {
+	return textutil.Trim(p.Argument(index))
 }
 
 func (p parsedCommandInput) Arguments() []string {

@@ -56,13 +56,13 @@ func artifactRetentionCommandSpec() *commandSpec {
 		},
 		Backend: commandBackend{
 			Kind:       commandBackendNative,
-			NativeBind: bindArtifactRetentionOptions,
+			NativeBind: bindRepoParsed(bindArtifactRetentionOptions),
 			NativeRun:  runArtifactRetention,
 		},
 	}
 }
 
-func bindArtifactRetentionOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+func bindArtifactRetentionOptions(bindCtx commandBindContext, input parsedCommandInput) (artifactRetentionConfig, error) {
 	config := artifactRetentionConfig{
 		Mode:         "check",
 		KeepEvidence: 1,
@@ -70,19 +70,19 @@ func bindArtifactRetentionOptions(bindCtx commandBindContext, input parsedComman
 		RepoRoot:     bindCtx.RepoRoot,
 	}
 	if input.Bool("apply") && input.Bool("check") {
-		return nil, fmt.Errorf("--check and --apply cannot be used together")
+		return artifactRetentionConfig{}, fmt.Errorf("--check and --apply cannot be used together")
 	}
 	if input.Bool("apply") {
 		config.Mode = "apply"
 	}
 	keepEvidence, err := input.IntDefault("keep-evidence", config.KeepEvidence)
 	if err != nil || keepEvidence < 1 {
-		return nil, fmt.Errorf("--keep-evidence requires a positive integer")
+		return artifactRetentionConfig{}, fmt.Errorf("--keep-evidence requires a positive integer")
 	}
 	config.KeepEvidence = keepEvidence
 	keepBundles, err := input.IntDefault("keep-bundles", config.KeepBundles)
 	if err != nil || keepBundles < 1 {
-		return nil, fmt.Errorf("--keep-bundles requires a positive integer")
+		return artifactRetentionConfig{}, fmt.Errorf("--keep-bundles requires a positive integer")
 	}
 	config.KeepBundles = keepBundles
 	config.RepoRoot = input.StringDefault("repo-root", config.RepoRoot)

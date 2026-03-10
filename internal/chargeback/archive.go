@@ -26,9 +26,9 @@ package chargeback
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 type FileArchiver struct{}
@@ -60,11 +60,11 @@ func (FileArchiver) Archive(repoRoot string, archiveDir string, reportMonth stri
 }
 
 func resolveArchiveBase(repoRoot string, archiveDir string) string {
-	trimmed := strings.TrimSpace(archiveDir)
+	trimmed := textutil.Trim(archiveDir)
 	if trimmed == "" {
 		return ""
 	}
-	if filepath.IsAbs(trimmed) || strings.TrimSpace(repoRoot) == "" {
+	if filepath.IsAbs(trimmed) || textutil.IsBlank(repoRoot) {
 		return trimmed
 	}
 	return filepath.Join(repoRoot, trimmed)

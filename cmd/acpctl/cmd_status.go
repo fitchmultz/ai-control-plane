@@ -69,16 +69,16 @@ func statusCommandSpec() *commandSpec {
 		},
 		Backend: commandBackend{
 			Kind:       commandBackendNative,
-			NativeBind: bindStatusOptions,
+			NativeBind: bindParsed(bindStatusOptions),
 			NativeRun:  runStatus,
 		},
 	}
 }
 
-func bindStatusOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+func bindStatusOptions(input parsedCommandInput) (statusOptions, error) {
 	interval, err := input.IntDefault("interval", 2)
 	if err != nil || interval < 1 {
-		return nil, fmt.Errorf("invalid --interval value: %q (must be a positive integer)", input.String("interval"))
+		return statusOptions{}, fmt.Errorf("invalid --interval value: %q (must be a positive integer)", input.String("interval"))
 	}
 	return statusOptions{
 		JSON:     input.Bool("json"),

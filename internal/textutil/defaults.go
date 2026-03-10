@@ -17,11 +17,46 @@
 //   - Non-blank values are returned unchanged.
 package textutil
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
+
+func Trim(value string) string {
+	return strings.TrimSpace(value)
+}
+
+func LowerTrim(value string) string {
+	return strings.ToLower(Trim(value))
+}
+
+func IsBlank(value string) bool {
+	return Trim(value) == ""
+}
 
 func DefaultIfBlank(value string, fallback string) string {
-	if strings.TrimSpace(value) == "" {
+	if IsBlank(value) {
 		return fallback
 	}
 	return value
+}
+
+func FirstNonBlank(values ...string) string {
+	for _, value := range values {
+		if !IsBlank(value) {
+			return Trim(value)
+		}
+	}
+	return ""
+}
+
+func EqualFoldTrimmed(left string, right string) bool {
+	return strings.EqualFold(Trim(left), Trim(right))
+}
+
+func RequireNonBlank(name string, value string) error {
+	if IsBlank(value) {
+		return fmt.Errorf("%s is required", name)
+	}
+	return nil
 }

@@ -65,11 +65,9 @@ func healthCommandSpec() *commandSpec {
 			},
 		},
 		Backend: commandBackend{
-			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
-				return healthOptions{Verbose: input.Bool("verbose")}, nil
-			},
-			NativeRun: runHealth,
+			Kind:       commandBackendNative,
+			NativeBind: bindParsedValue(func(input parsedCommandInput) healthOptions { return healthOptions{Verbose: input.Bool("verbose")} }),
+			NativeRun:  runHealth,
 		},
 	}
 }

@@ -48,14 +48,14 @@ type chargebackPayloadAdapterOptions struct {
 	Command chargeback.PayloadCommandInput
 }
 
-func bindChargebackReportOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+func bindChargebackReportOptions(input parsedCommandInput) chargebackReportAdapterOptions {
 	command := chargeback.ReportCommandInput{
-		ReportMonth:          input.String("month"),
-		Format:               input.String("format"),
-		ArchiveDir:           input.String("archive-dir"),
-		VarianceThreshold:    input.String("variance-threshold"),
-		AnomalyThreshold:     input.String("anomaly-threshold"),
-		BudgetAlertThreshold: input.String("budget-alert-threshold"),
+		ReportMonth:          input.NormalizedString("month"),
+		Format:               input.NormalizedString("format"),
+		ArchiveDir:           input.NormalizedString("archive-dir"),
+		VarianceThreshold:    input.NormalizedString("variance-threshold"),
+		AnomalyThreshold:     input.NormalizedString("anomaly-threshold"),
+		BudgetAlertThreshold: input.NormalizedString("budget-alert-threshold"),
 		Notify:               input.Bool("notify"),
 	}
 	if input.Bool("forecast") {
@@ -69,23 +69,23 @@ func bindChargebackReportOptions(_ commandBindContext, input parsedCommandInput)
 	return chargebackReportAdapterOptions{
 		Command: command,
 		Verbose: input.Bool("verbose"),
-	}, nil
+	}
 }
 
-func bindChargebackRenderOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+func bindChargebackRenderOptions(input parsedCommandInput) chargebackRenderAdapterOptions {
 	return chargebackRenderAdapterOptions{
 		Command: chargeback.RenderCommandInput{
-			Format: input.String("format"),
+			Format: input.NormalizedString("format"),
 		},
-	}, nil
+	}
 }
 
-func bindChargebackPayloadOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
+func bindChargebackPayloadOptions(input parsedCommandInput) chargebackPayloadAdapterOptions {
 	return chargebackPayloadAdapterOptions{
 		Command: chargeback.PayloadCommandInput{
-			Target: input.String("target"),
+			Target: input.NormalizedString("target"),
 		},
-	}, nil
+	}
 }
 
 func runChargebackReportCommand(ctx context.Context, runCtx commandRunContext, raw any) int {

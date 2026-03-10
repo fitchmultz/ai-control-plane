@@ -27,7 +27,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
@@ -81,7 +80,7 @@ func envCommandSpec() *commandSpec {
 				},
 				Backend: commandBackend{
 					Kind:       commandBackendNative,
-					NativeBind: bindEnvGetOptions,
+					NativeBind: bindRepoParsed(bindEnvGetOptions),
 					NativeRun:  runEnvGet,
 				},
 			},
@@ -89,19 +88,19 @@ func envCommandSpec() *commandSpec {
 	}
 }
 
-func bindEnvGetOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
-	key := strings.TrimSpace(input.Argument(0))
+func bindEnvGetOptions(bindCtx commandBindContext, input parsedCommandInput) (envGetOptions, error) {
+	key := input.NormalizedArgument(0)
 	if key == "" {
-		return nil, fmt.Errorf("env key must not be empty")
+		return envGetOptions{}, fmt.Errorf("env key must not be empty")
 	}
 
 	repoRoot, err := requireCommandRepoRoot(bindCtx)
 	if err != nil {
-		return nil, err
+		return envGetOptions{}, err
 	}
 
 	defaultEnvPath := repopath.DemoEnvPath(repoRoot)
-	envPath := strings.TrimSpace(input.String("file"))
+	envPath := input.NormalizedString("file")
 	if envPath == "" {
 		envPath = defaultEnvPath
 	} else {

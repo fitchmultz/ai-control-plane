@@ -53,7 +53,7 @@ func readinessEvidenceCommandSpec() *commandSpec {
 					{Name: "secrets-env-file", ValueName: "PATH", Summary: "Secrets file for production gate", Type: optionValueString, DefaultText: "/etc/ai-control-plane/secrets.env"},
 					{Name: "verbose", Summary: "Reserved for future verbose rendering", Type: optionValueBool},
 				},
-				Bind: bindReadinessEvidenceRunOptions,
+				Bind: bindRepoParsed(bindReadinessEvidenceRunOptions),
 				Run:  runReadinessEvidenceRunTyped,
 			}),
 			newNativeCommandSpec(nativeCommandConfig{
@@ -63,17 +63,17 @@ func readinessEvidenceCommandSpec() *commandSpec {
 				Options: []commandOptionSpec{
 					{Name: "run-dir", ValueName: "DIR", Summary: "Specific readiness run directory to verify", Type: optionValueString},
 				},
-				Bind: bindReadinessEvidenceVerifyOptions,
+				Bind: bindRepoParsed(bindReadinessEvidenceVerifyOptions),
 				Run:  runReadinessEvidenceVerifyTyped,
 			}),
 		},
 	}
 }
 
-func bindReadinessEvidenceRunOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+func bindReadinessEvidenceRunOptions(bindCtx commandBindContext, input parsedCommandInput) (readiness.Options, error) {
 	repoRoot, err := requireCommandRepoRoot(bindCtx)
 	if err != nil {
-		return nil, err
+		return readiness.Options{}, err
 	}
 	makeBin := config.NewLoader().Tooling().MakeBinary
 	options := readiness.Options{
@@ -83,25 +83,25 @@ func bindReadinessEvidenceRunOptions(bindCtx commandBindContext, input parsedCom
 		BundleVersion: bundle.GetDefaultVersion(repoRoot),
 	}
 	if input.Has("output-dir") {
-		options.OutputRoot = resolveRepoInput(repoRoot, input.String("output-dir"))
+		options.OutputRoot = resolveRepoInput(repoRoot, input.NormalizedString("output-dir"))
 	}
 	if input.Has("bundle-version") {
-		options.BundleVersion = input.String("bundle-version")
+		options.BundleVersion = input.NormalizedString("bundle-version")
 	}
 	if input.Has("secrets-env-file") {
-		options.SecretsEnvFile = resolveRepoInput(repoRoot, input.String("secrets-env-file"))
+		options.SecretsEnvFile = resolveRepoInput(repoRoot, input.NormalizedString("secrets-env-file"))
 	}
 	options.IncludeProduction = input.Bool("include-production")
 	options.Verbose = input.Bool("verbose")
 	return options, nil
 }
 
-func bindReadinessEvidenceVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+func bindReadinessEvidenceVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (string, error) {
 	repoRoot, err := requireCommandRepoRoot(bindCtx)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	runDir := input.String("run-dir")
+	runDir := input.NormalizedString("run-dir")
 	if runDir != "" {
 		runDir = resolveRepoInput(repoRoot, runDir)
 	}

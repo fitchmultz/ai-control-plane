@@ -35,6 +35,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 type dbBackupOptions struct {
@@ -64,8 +65,10 @@ func dbCommandSpec() *commandSpec {
 				Arguments: []commandArgumentSpec{
 					{Name: "backup-name", Summary: "Optional custom backup name"},
 				},
-				Bind: bindDBBackupOptions,
-				Run:  runDBBackup,
+				Bind: bindParsedValue(func(input parsedCommandInput) dbBackupOptions {
+					return dbBackupOptions{BackupName: input.NormalizedArgument(0)}
+				}),
+				Run: runDBBackup,
 			}),
 			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "restore",
@@ -74,21 +77,15 @@ func dbCommandSpec() *commandSpec {
 				Arguments: []commandArgumentSpec{
 					{Name: "backup-file", Summary: "Optional backup file path"},
 				},
-				Bind: bindDBRestoreOptions,
-				Run:  runDBRestore,
+				Bind: bindParsedValue(func(input parsedCommandInput) dbRestoreOptions {
+					return dbRestoreOptions{BackupFile: input.NormalizedArgument(0)}
+				}),
+				Run: runDBRestore,
 			}),
 			makeLeafSpec("shell", "Open database shell", "db-shell"),
 			newNativeLeafCommandSpec("dr-drill", "Run database DR restore drill", runDBDRDrillTyped),
 		},
 	}
-}
-
-func bindDBBackupOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
-	return dbBackupOptions{BackupName: strings.TrimSpace(input.Argument(0))}, nil
-}
-
-func bindDBRestoreOptions(_ commandBindContext, input parsedCommandInput) (any, error) {
-	return dbRestoreOptions{BackupFile: strings.TrimSpace(input.Argument(0))}, nil
 }
 
 func runDBBackup(ctx context.Context, runCtx commandRunContext, raw any) int {
@@ -320,12 +317,12 @@ func findLatestBackup(backupDir string) (string, error) {
 }
 
 func resolveBackupOutputPath(backupDir string, customName string) (string, error) {
-	if strings.TrimSpace(customName) == "" {
+	if textutil.IsBlank(customName) {
 		timestamp := time.Now().Format("20060102-150405")
 		return filepath.Join(backupDir, fmt.Sprintf("litellm-backup-%s.sql.gz", timestamp)), nil
 	}
 
-	name := strings.TrimSpace(customName)
+	name := textutil.Trim(customName)
 	normalized := filepath.Clean(strings.ReplaceAll(name, "\\", "/"))
 	if filepath.IsAbs(name) || filepath.IsAbs(normalized) {
 		return "", fmt.Errorf("backup name must be a simple filename, not a path")

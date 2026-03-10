@@ -36,6 +36,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/artifactrun"
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 	"github.com/mitchfultz/ai-control-plane/internal/readiness"
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 const (
@@ -89,31 +90,31 @@ func NewVerifier() *Verifier {
 
 // Build assembles a timestamped pilot closeout bundle.
 func Build(_ context.Context, opts Options) (*Summary, error) {
-	if strings.TrimSpace(opts.RepoRoot) == "" {
-		return nil, fmt.Errorf("repo root is required")
+	if err := textutil.RequireNonBlank("repo root", opts.RepoRoot); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(opts.OutputRoot) == "" {
+	if textutil.IsBlank(opts.OutputRoot) {
 		opts.OutputRoot = filepath.Join(opts.RepoRoot, "demo", "logs", "pilot-closeout")
 	}
-	if strings.TrimSpace(opts.Customer) == "" {
-		return nil, fmt.Errorf("customer is required")
+	if err := textutil.RequireNonBlank("customer", opts.Customer); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(opts.PilotName) == "" {
-		return nil, fmt.Errorf("pilot name is required")
+	if err := textutil.RequireNonBlank("pilot name", opts.PilotName); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(opts.Decision) == "" {
+	if textutil.IsBlank(opts.Decision) {
 		opts.Decision = "PENDING_REVIEW"
 	}
-	if strings.TrimSpace(opts.CharterPath) == "" {
-		return nil, fmt.Errorf("charter path is required")
+	if err := textutil.RequireNonBlank("charter path", opts.CharterPath); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(opts.AcceptanceMemoPath) == "" {
-		return nil, fmt.Errorf("acceptance memo path is required")
+	if err := textutil.RequireNonBlank("acceptance memo path", opts.AcceptanceMemoPath); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(opts.ValidationChecklist) == "" {
-		return nil, fmt.Errorf("validation checklist path is required")
+	if err := textutil.RequireNonBlank("validation checklist path", opts.ValidationChecklist); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(opts.ReadinessRunDir) == "" {
+	if textutil.IsBlank(opts.ReadinessRunDir) {
 		readinessRunDir, err := readiness.ResolveLatestRun(filepath.Join(opts.RepoRoot, "demo", "logs", "evidence"))
 		if err != nil {
 			return nil, fmt.Errorf("resolve latest readiness run: %w", err)
@@ -158,7 +159,7 @@ func Build(_ context.Context, opts Options) (*Summary, error) {
 	if err := copyBundleInput(run.Directory, "documents/pilot-customer-validation-checklist.md", opts.ValidationChecklist); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(opts.OperatorChecklist) != "" {
+	if !textutil.IsBlank(opts.OperatorChecklist) {
 		if err := copyBundleInput(run.Directory, "documents/pilot-operator-handoff-checklist.md", opts.OperatorChecklist); err != nil {
 			return nil, err
 		}
@@ -210,7 +211,7 @@ func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
 	if err := json.Unmarshal(data, &summary); err != nil {
 		return nil, fmt.Errorf("parse pilot closeout summary: %w", err)
 	}
-	if strings.TrimSpace(summary.RunDirectory) == "" {
+	if textutil.IsBlank(summary.RunDirectory) {
 		return nil, fmt.Errorf("summary missing run_directory")
 	}
 	if summary.RunDirectory != runDir {
@@ -276,7 +277,7 @@ func renderSummary(summary *Summary) string {
 	builder.WriteString("- `documents/pilot-charter.md`\n")
 	builder.WriteString("- `documents/pilot-acceptance-memo.md`\n")
 	builder.WriteString("- `documents/pilot-customer-validation-checklist.md`\n")
-	if strings.TrimSpace(summary.OperatorChecklist) != "" {
+	if !textutil.IsBlank(summary.OperatorChecklist) {
 		builder.WriteString("- `documents/pilot-operator-handoff-checklist.md`\n")
 	}
 	builder.WriteString("\n## Included Readiness Evidence\n\n")

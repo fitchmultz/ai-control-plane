@@ -50,7 +50,7 @@ func releaseBundleCommandSpec() *commandSpec {
 					{Name: "output-dir", ValueName: "DIR", Summary: "Output directory for the bundle", Type: optionValueString, DefaultText: "demo/logs/release-bundles"},
 					{Name: "verbose", Summary: "Enable verbose output", Type: optionValueBool},
 				},
-				Bind: bindReleaseBundleBuildOptions,
+				Bind: bindRepoParsed(bindReleaseBundleBuildOptions),
 				Run:  runReleaseBundleBuildTyped,
 			}),
 			newNativeCommandSpec(nativeCommandConfig{
@@ -61,23 +61,23 @@ func releaseBundleCommandSpec() *commandSpec {
 					{Name: "bundle", ValueName: "PATH", Summary: "Path to the tarball to verify", Type: optionValueString, Required: true},
 					{Name: "verbose", Summary: "Enable verbose output", Type: optionValueBool},
 				},
-				Bind: bindReleaseBundleVerifyOptions,
+				Bind: bindRepoParsed(bindReleaseBundleVerifyOptions),
 				Run:  runReleaseBundleVerifyTyped,
 			}),
 		},
 	}
 }
 
-func bindReleaseBundleBuildOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+func bindReleaseBundleBuildOptions(bindCtx commandBindContext, input parsedCommandInput) (*bundle.Config, error) {
 	repoRoot, err := requireCommandRepoRoot(bindCtx)
 	if err != nil {
 		return nil, err
 	}
-	version := input.String("version")
+	version := input.NormalizedString("version")
 	if version == "" {
 		version = bundle.GetDefaultVersion(repoRoot)
 	}
-	outputDir := input.String("output-dir")
+	outputDir := input.NormalizedString("output-dir")
 	if outputDir == "" {
 		outputDir = repopath.ReleaseBundlesPath(repoRoot)
 	} else {
@@ -91,14 +91,14 @@ func bindReleaseBundleBuildOptions(bindCtx commandBindContext, input parsedComma
 	}, nil
 }
 
-func bindReleaseBundleVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+func bindReleaseBundleVerifyOptions(bindCtx commandBindContext, input parsedCommandInput) (*bundle.Config, error) {
 	repoRoot, err := requireCommandRepoRoot(bindCtx)
 	if err != nil {
 		return nil, err
 	}
 	return &bundle.Config{
 		Command: "verify",
-		Bundle:  resolveRepoInput(repoRoot, input.String("bundle")),
+		Bundle:  resolveRepoInput(repoRoot, input.NormalizedString("bundle")),
 		Verbose: input.Bool("verbose"),
 	}, nil
 }

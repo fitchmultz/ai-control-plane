@@ -32,6 +32,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mitchfultz/ai-control-plane/internal/policy"
+	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
 
 const secretsPolicyPath = "docs/policy/SECRET_SCAN_POLICY.json"
@@ -123,10 +124,10 @@ func loadSecretsPolicy(repoRoot string) (*compiledSecretsPolicy, error) {
 }
 
 func validateSecretsPolicy(doc SecretsPolicy) error {
-	if strings.TrimSpace(doc.SchemaVersion) == "" {
+	if textutil.IsBlank(doc.SchemaVersion) {
 		return fmt.Errorf("missing schema_version")
 	}
-	if strings.TrimSpace(doc.PolicyID) == "" {
+	if textutil.IsBlank(doc.PolicyID) {
 		return fmt.Errorf("missing policy_id")
 	}
 	if len(doc.PathRules) == 0 && len(doc.ContentRules) == 0 {
@@ -137,7 +138,7 @@ func validateSecretsPolicy(doc SecretsPolicy) error {
 		if err := validateSecretsPolicyID(seenIDs, rule.ID, "path rule"); err != nil {
 			return err
 		}
-		if strings.TrimSpace(rule.Message) == "" {
+		if textutil.IsBlank(rule.Message) {
 			return fmt.Errorf("path rule %q missing message", rule.ID)
 		}
 		if len(trimNonEmptyStrings(rule.Patterns)) == 0 {
@@ -148,10 +149,10 @@ func validateSecretsPolicy(doc SecretsPolicy) error {
 		if err := validateSecretsPolicyID(seenIDs, rule.ID, "content rule"); err != nil {
 			return err
 		}
-		if strings.TrimSpace(rule.Message) == "" {
+		if textutil.IsBlank(rule.Message) {
 			return fmt.Errorf("content rule %q missing message", rule.ID)
 		}
-		if strings.TrimSpace(rule.Pattern) == "" {
+		if textutil.IsBlank(rule.Pattern) {
 			return fmt.Errorf("content rule %q missing pattern", rule.ID)
 		}
 	}
@@ -170,7 +171,7 @@ func validateSecretsPolicy(doc SecretsPolicy) error {
 }
 
 func validateSecretsPolicyID(seenIDs map[string]string, id string, kind string) error {
-	trimmedID := strings.TrimSpace(id)
+	trimmedID := textutil.Trim(id)
 	if trimmedID == "" {
 		return fmt.Errorf("%s missing id", kind)
 	}
@@ -214,7 +215,7 @@ func compilePlaceholderExemptions(exemptions []SecretPlaceholderExemption) []com
 	for _, exemption := range exemptions {
 		allowedSubstrings := trimNonEmptyStrings(exemption.AllowedSubstrings)
 		for index := range allowedSubstrings {
-			allowedSubstrings[index] = strings.ToLower(allowedSubstrings[index])
+			allowedSubstrings[index] = textutil.LowerTrim(allowedSubstrings[index])
 		}
 		compiled = append(compiled, compiledPlaceholderExemption{
 			ID:                   exemption.ID,
@@ -229,7 +230,7 @@ func compilePlaceholderExemptions(exemptions []SecretPlaceholderExemption) []com
 func trimNonEmptyStrings(values []string) []string {
 	trimmed := make([]string, 0, len(values))
 	for _, value := range values {
-		candidate := strings.TrimSpace(value)
+		candidate := textutil.Trim(value)
 		if candidate == "" {
 			continue
 		}
@@ -286,7 +287,7 @@ func isAllowedPlaceholder(relPath string, line string, exemptions []compiledPlac
 		if !policy.MatchAnyGlob(relPath, exemption.PathPatterns) {
 			continue
 		}
-		if exemption.AllowEmptyAssignment && strings.HasSuffix(strings.TrimSpace(line), "=") {
+		if exemption.AllowEmptyAssignment && strings.HasSuffix(textutil.Trim(line), "=") {
 			return true
 		}
 		for _, allowedSubstring := range exemption.AllowedSubstrings {
