@@ -83,6 +83,8 @@ printf 'ACPCTL CLI Typed Path Test\n'
 printf '==========================\n'
 
 assert_no_delegation "env get help stays make-independent" env get --help
+assert_no_delegation "db status help stays make-independent" db status --help
+assert_no_delegation "db shell help stays make-independent" db shell --help
 assert_no_delegation "validate config stays make-independent" validate config
 run_with_make_stub validate config --production --secrets-env-file /tmp/secrets.env >/dev/null 2>&1 || true
 if [[ -s "${CAPTURE_FILE}" ]]; then

@@ -36,7 +36,7 @@ func dbCommandSpec() *commandSpec {
 			"acpctl db dr-drill",
 		},
 		Children: []*commandSpec{
-			makeLeafSpec("status", "Show database status and statistics", "db-status"),
+			newNativeLeafCommandSpec("status", "Show database status and statistics", runDBStatus),
 			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "backup",
 				Summary:     "Create database backup",
@@ -61,7 +61,7 @@ func dbCommandSpec() *commandSpec {
 				}),
 				Run: runDBRestore,
 			}),
-			makeLeafSpec("shell", "Open database shell", "db-shell"),
+			newNativeLeafCommandSpec("shell", "Open database shell", runDBShell),
 			newNativeLeafCommandSpec("dr-drill", "Run database DR restore drill", runDBDRDrillTyped),
 		},
 	}

@@ -69,6 +69,8 @@ test-go-cover: ## Run and enforce coverage for critical high-risk internal Go pa
 	total_profile="$(GO_COVERAGE_CRITICAL_PROFILE)"; \
 	printf 'mode: atomic\n' > "$$total_profile"; \
 	failed=0; \
+	aggregate_statements=0; \
+	aggregate_covered=0; \
 	for spec in $(GO_COVERAGE_CRITICAL_SPECS); do \
 		pkg="$${spec%:*}"; \
 		threshold="$${spec##*:}"; \
@@ -85,6 +87,11 @@ test-go-cover: ## Run and enforce coverage for critical high-risk internal Go pa
 			exit 1; \
 		fi; \
 		tail -n +2 "$$profile" >> "$$total_profile"; \
+		package_totals="$$( awk 'FNR == 1 { next } { statements += $$2; if ($$3 > 0) covered += $$2 } END { printf "%d %d", statements, covered }' "$$profile" )"; \
+		package_statements="$${package_totals% *}"; \
+		package_covered="$${package_totals#* }"; \
+		aggregate_statements=$$((aggregate_statements + package_statements)); \
+		aggregate_covered=$$((aggregate_covered + package_covered)); \
 		if awk -v actual="$$coverage" -v minimum="$$threshold" 'BEGIN { exit !(actual + 0 >= minimum + 0) }'; then \
 			echo "$(COLOR_GREEN)✓ $$pkg coverage $$coverage% >= $$threshold%$(COLOR_RESET)"; \
 		else \
@@ -92,7 +99,12 @@ test-go-cover: ## Run and enforce coverage for critical high-risk internal Go pa
 			failed=1; \
 		fi; \
 	done; \
-	$(GO) tool cover -func "$$total_profile" | tail -n1; \
+	if [ "$$aggregate_statements" -eq 0 ]; then \
+		echo '$(COLOR_RED)✗ Unable to determine aggregate coverage$(COLOR_RESET)'; \
+		exit 1; \
+	fi; \
+	aggregate_percent="$$( awk -v covered="$$aggregate_covered" -v statements="$$aggregate_statements" 'BEGIN { printf "%.1f", (covered / statements) * 100 }' )"; \
+	echo "total:												(statements)				$$aggregate_percent%"; \
 	if [ "$$failed" -ne 0 ]; then \
 		exit 1; \
 	fi
@@ -100,7 +112,26 @@ test-go-cover: ## Run and enforce coverage for critical high-risk internal Go pa
 .PHONY: coverage-report
 coverage-report: test-go-cover ## Print detailed coverage report for critical high-risk internal packages
 	@echo '$(COLOR_BOLD)Detailed coverage report: $(GO_COVERAGE_CRITICAL_PROFILE)$(COLOR_RESET)'
-	@$(GO) tool cover -func "$(GO_COVERAGE_CRITICAL_PROFILE)"
+	@set -euo pipefail; \
+	aggregate_statements=0; \
+	aggregate_covered=0; \
+	for spec in $(GO_COVERAGE_CRITICAL_SPECS); do \
+		pkg="$${spec%:*}"; \
+		profile="$(GO_COVERAGE_ARTIFACT_DIR)/$$(printf '%s' "$$pkg" | tr '/.' '__').out"; \
+		echo "== $$pkg =="; \
+		$(GO) tool cover -func "$$profile" | tail -n1; \
+		package_totals="$$( awk 'FNR == 1 { next } { statements += $$2; if ($$3 > 0) covered += $$2 } END { printf "%d %d", statements, covered }' "$$profile" )"; \
+		package_statements="$${package_totals% *}"; \
+		package_covered="$${package_totals#* }"; \
+		aggregate_statements=$$((aggregate_statements + package_statements)); \
+		aggregate_covered=$$((aggregate_covered + package_covered)); \
+	done; \
+	if [ "$$aggregate_statements" -eq 0 ]; then \
+		echo '$(COLOR_RED)✗ Unable to determine aggregate coverage$(COLOR_RESET)'; \
+		exit 1; \
+	fi; \
+	aggregate_percent="$$( awk -v covered="$$aggregate_covered" -v statements="$$aggregate_statements" 'BEGIN { printf "%.1f", (covered / statements) * 100 }' )"; \
+	echo "Aggregate total: $$aggregate_percent%"
 
 .PHONY: coverage-clean
 coverage-clean: ## Remove generated coverage artifacts
@@ -114,6 +145,7 @@ script-tests: ## Run all shell script tests
 	@bash scripts/tests/acpctl_cli_help_test.sh
 	@bash scripts/tests/acpctl_cli_delegation_test.sh
 	@bash scripts/tests/acpctl_cli_typed_paths_test.sh
+	@bash scripts/tests/db_make_contract_test.sh
 	@bash scripts/tests/chatgpt_login_test.sh
 	@bash scripts/tests/chatgpt_auth_cache_copy_test.sh
 	@bash scripts/tests/compose_slot_files_test.sh

@@ -97,6 +97,13 @@ override to a pinned registry image via `LITELLM_IMAGE`.
 If you change the pinned image, treat it as a schema upgrade: take a backup (`make db-backup`),
 restart services, and re-verify tables via `make db-status`.
 
+`make db-status` now reports these sections directly from the typed CLI:
+1. Runtime Summary
+2. Schema Verification
+3. Virtual Keys
+4. Budget Usage
+5. Detection Summary
+
 ---
 
 ## 3. Database Schema
@@ -363,6 +370,15 @@ FROM "LiteLLM_VerificationToken" v
 JOIN "LiteLLM_BudgetTable" b ON v.budget_id = b.budget_id
 ORDER BY v.created_at DESC;
 ```
+
+#### Open a Database Shell
+
+```bash
+make db-shell
+```
+
+- Embedded mode connects to the repo-local Compose `postgres` container.
+- External mode requires `DATABASE_URL` and a local `psql` binary.
 
 ---
 

@@ -40,6 +40,7 @@ import (
 type dbServices struct {
 	Connector *db.Connector
 	Runtime   *db.RuntimeService
+	Readonly  *db.ReadonlyService
 	Admin     *db.AdminService
 	Mode      string
 }
@@ -68,14 +69,19 @@ func requireDBWorkflowPrereqs(repoRoot string) error {
 
 func openDBServices(repoRoot string) (*dbServices, error) {
 	connector := db.NewConnector(repoRoot)
+	if err := connector.ConfigError(); err != nil {
+		connector.Close()
+		return nil, err
+	}
 	adminService, err := db.NewAdminService(connector)
-	if err != nil {
+	if err != nil && !connector.IsExternal() {
 		connector.Close()
 		return nil, err
 	}
 	return &dbServices{
 		Connector: connector,
 		Runtime:   db.NewRuntimeService(connector),
+		Readonly:  db.NewReadonlyService(connector),
 		Admin:     adminService,
 		Mode:      string(connector.Mode()),
 	}, nil

@@ -509,10 +509,10 @@ make db-status
 ```
 
 **What to Look For:**
-- All expected tables exist (section 7: "Health Verification")
+- All expected tables exist (section 2: "Schema Verification")
 - Recent virtual keys are visible (section 3)
 - Budget usage is within expected ranges (section 4)
-- Audit log shows recent activity (section 5)
+- Detection summary shows recent spend-log activity (section 5)
 
 **Manual Verification:**
 ```bash
@@ -1068,7 +1068,7 @@ make validate-detections
 
 # 2. Identify affected key aliases and users
 make db-status
-# Look for unusual patterns in section 3 (Virtual Keys) and 5 (Audit Log)
+# Look for unusual patterns in section 3 (Virtual Keys) and 5 (Detection Summary)
 ```
 
 **Minutes 5-10: Contain**

@@ -353,7 +353,51 @@ type GenerateKeyResponse struct {
 	BudgetDuration string  `json:"budget_duration"`
 }
 
+// DeleteKeyRequest represents a key deletion request.
+type DeleteKeyRequest struct {
+	KeyAlias string `json:"key_alias"`
+}
+
 // ExtractKey extracts the key from a response.
 func (r *GenerateKeyResponse) ExtractKey() string {
 	return r.Key
+}
+
+// DeleteKey deletes a virtual key by alias.
+func (c *Client) DeleteKey(ctx context.Context, alias string) error {
+	if c.masterKey == "" {
+		return fmt.Errorf("master key is required for key deletion")
+	}
+	if strings.TrimSpace(alias) == "" {
+		return fmt.Errorf("key alias is required for key deletion")
+	}
+
+	url := fmt.Sprintf("%s/key/delete", c.BaseURL())
+	payload, err := json.Marshal(DeleteKeyRequest{KeyAlias: strings.TrimSpace(alias)})
+	if err != nil {
+		return fmt.Errorf("failed to marshal delete request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.masterKey))
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("delete request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read delete response body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("key deletion failed: HTTP %d - %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }

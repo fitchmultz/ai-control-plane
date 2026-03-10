@@ -73,3 +73,20 @@ func TestCommandSpec_AllLeavesHaveBackends(t *testing.T) {
 		walk(child, []string{spec.Root.Name})
 	}
 }
+
+func TestCommandSpec_DBStatusAndShellStayNative(t *testing.T) {
+	spec, err := loadCommandSpec()
+	if err != nil {
+		t.Fatalf("loadCommandSpec() error = %v", err)
+	}
+
+	for _, path := range []string{"db status", "db shell"} {
+		node := spec.NodesByPath[path]
+		if node == nil {
+			t.Fatalf("command %q missing from compiled spec", path)
+		}
+		if node.Backend.Kind != commandBackendNative {
+			t.Fatalf("command %q backend = %q, want %q", path, node.Backend.Kind, commandBackendNative)
+		}
+	}
+}

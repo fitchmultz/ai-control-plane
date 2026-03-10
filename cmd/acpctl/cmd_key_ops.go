@@ -229,7 +229,7 @@ func generateKey(ctx context.Context, plan keygen.GenerateRequestPlan, stdout *o
 	return exitcodes.ACPExitSuccess
 }
 
-func runKeyRevoke(_ context.Context, runCtx commandRunContext, raw any) int {
+func runKeyRevoke(ctx context.Context, runCtx commandRunContext, raw any) int {
 	config := raw.(keyRevokeOptions)
 	out := output.New()
 
@@ -238,7 +238,13 @@ func runKeyRevoke(_ context.Context, runCtx commandRunContext, raw any) int {
 		return exitcodes.ACPExitPrereq
 	}
 
-	printKeyRevokeNotice(runCtx.Stdout, out, config.Alias)
+	client := gateway.NewClient(gateway.WithMasterKey(acpconfig.NewLoader().Gateway(true).MasterKey))
+	printKeyRevokeProgress(runCtx.Stderr, config.Alias)
+	if err := client.DeleteKey(ctx, config.Alias); err != nil {
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Key revocation failed: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+	printKeyRevokeSuccess(runCtx.Stdout, out, config.Alias)
 
 	return exitcodes.ACPExitSuccess
 }

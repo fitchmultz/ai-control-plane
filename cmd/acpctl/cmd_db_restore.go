@@ -88,6 +88,12 @@ func runDBRestore(ctx context.Context, runCtx commandRunContext, raw any) int {
 	}
 	defer services.Close()
 	logger = workflowLogger(runCtx, "db_restore", "mode", services.Mode, "backup_file", backupFile)
+	if services.Admin == nil {
+		err := fmt.Errorf("backup and restore are not supported for external database mode")
+		workflowFailure(logger, err)
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitPrereq
+	}
 
 	printDBWorkflowHeader(runCtx.Stdout, out, "=== Database Restore ===", map[string]string{
 		"Restoring from": backupFile,

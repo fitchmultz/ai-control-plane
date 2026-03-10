@@ -167,6 +167,18 @@ func TestRunClassifiesCancel(t *testing.T) {
 	}
 }
 
+func TestWithTimeoutCanSkipDefaultTimeout(t *testing.T) {
+	ctx, cancel, effective := withTimeout(context.Background(), 0, false)
+	defer cancel()
+
+	if _, ok := ctx.Deadline(); ok {
+		t.Fatalf("withTimeout() unexpectedly added a deadline")
+	}
+	if effective != 0 {
+		t.Fatalf("effective timeout = %s, want 0", effective)
+	}
+}
+
 func TestACPExitCodeMappings(t *testing.T) {
 	if code := ACPExitCode(nil); code != exitcodes.ACPExitSuccess {
 		t.Fatalf("ACPExitCode(nil) = %d, want %d", code, exitcodes.ACPExitSuccess)

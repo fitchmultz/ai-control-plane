@@ -81,7 +81,6 @@ printf 'ACPCTL CLI Delegation Contract Test\n'
 printf '===================================\n'
 
 assert_make_target "up" deploy up
-assert_make_target "db-status" db status
 assert_make_target "demo-all" demo all
 assert_make_target "up-tls" deploy up-tls
 assert_make_target "tf-plan" terraform plan

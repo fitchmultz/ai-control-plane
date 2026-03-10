@@ -22,6 +22,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
@@ -50,10 +51,23 @@ type Readiness struct {
 // NewInspector constructs the canonical runtime inspection stack.
 func NewInspector(repoRoot string) *Inspector {
 	connector := db.NewConnector(repoRoot)
+	gatewaySettings := config.NewLoader().WithRepoRoot(repoRoot).Gateway(true)
+	gatewayOptions := []gateway.Option{
+		gateway.WithMasterKey(gatewaySettings.MasterKey),
+	}
+	if gatewaySettings.BaseURL != "" {
+		gatewayOptions = append(gatewayOptions, gateway.WithBaseURL(gatewaySettings.BaseURL))
+	} else {
+		gatewayOptions = append(gatewayOptions,
+			gateway.WithScheme(gatewaySettings.Scheme),
+			gateway.WithHost(gatewaySettings.Host),
+			gateway.WithPort(gatewaySettings.PortInt),
+		)
+	}
 	return &Inspector{
 		repoRoot:  repoRoot,
 		connector: connector,
-		gateway:   gateway.NewClient(),
+		gateway:   gateway.NewClient(gatewayOptions...),
 		runtime:   db.NewRuntimeService(connector),
 		readonly:  db.NewReadonlyService(connector),
 	}

@@ -61,8 +61,11 @@ func printKeyGenerationProgress(out io.Writer, plan keygen.GenerateRequestPlan) 
 	fmt.Fprintln(out)
 }
 
-func printKeyRevokeNotice(out io.Writer, printer *output.Output, alias string) {
+func printKeyRevokeProgress(out io.Writer, alias string) {
 	fmt.Fprintf(out, "Revoking key: %s\n", alias)
-	fmt.Fprintln(out, printer.Yellow("Note: Key revocation requires LiteLLM admin API"))
-	fmt.Fprintln(out, "This would call DELETE /key/{alias} if supported by LiteLLM")
+}
+
+func printKeyRevokeSuccess(out io.Writer, printer *output.Output, alias string) {
+	printCommandSuccess(out, printer, "Key revocation complete")
+	fmt.Fprintf(out, "Alias: %s\n", alias)
 }

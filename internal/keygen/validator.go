@@ -98,7 +98,7 @@ func ResolveRole(explicitRole string) string {
 // CheckPrerequisites verifies required environment and tools
 func CheckPrerequisites(requireMasterKey bool) error {
 	if requireMasterKey {
-		masterKey := config.NewLoader().Gateway(false).MasterKey
+		masterKey := config.NewLoader().Gateway(true).MasterKey
 		if masterKey == "" {
 			return &ValidationError{
 				Field:   "LITELLM_MASTER_KEY",

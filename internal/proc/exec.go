@@ -16,6 +16,9 @@
 //
 // Usage:
 //   - Call `Run(ctx, Request{...})` from command handlers and internal helpers.
+//   - Call `RunAttached(ctx, Request{...})` for operator-facing interactive
+//     subprocesses that must inherit the caller terminal without an implicit
+//     fallback timeout.
 //
 // Invariants/Assumptions:
 //   - Nil contexts are rejected.
@@ -114,6 +117,16 @@ func (e *ExecError) command() string {
 }
 
 func Run(ctx context.Context, req Request) Result {
+	return run(ctx, req, true)
+}
+
+// RunAttached executes a subprocess with caller-owned stdin/stdout/stderr and
+// without applying the default timeout when the caller does not provide one.
+func RunAttached(ctx context.Context, req Request) Result {
+	return run(ctx, req, false)
+}
+
+func run(ctx context.Context, req Request, applyDefaultTimeout bool) Result {
 	if ctx == nil {
 		return invalidStartResult(req, errors.New("proc.Run requires a non-nil context"))
 	}
@@ -121,7 +134,7 @@ func Run(ctx context.Context, req Request) Result {
 		return invalidStartResult(req, errors.New("proc.Run requires a non-empty command name"))
 	}
 
-	runCtx, cancel, effectiveTimeout := withTimeout(ctx, req.Timeout)
+	runCtx, cancel, effectiveTimeout := withTimeout(ctx, req.Timeout, applyDefaultTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(runCtx, req.Name, req.Args...)
@@ -206,12 +219,15 @@ func invalidStartResult(req Request, err error) Result {
 	}
 }
 
-func withTimeout(ctx context.Context, requested time.Duration) (context.Context, context.CancelFunc, time.Duration) {
+func withTimeout(ctx context.Context, requested time.Duration, applyDefaultTimeout bool) (context.Context, context.CancelFunc, time.Duration) {
 	if deadline, ok := ctx.Deadline(); ok {
 		return ctx, func() {}, time.Until(deadline)
 	}
-	if requested <= 0 {
+	if requested <= 0 && applyDefaultTimeout {
 		requested = DefaultTimeout
+	}
+	if requested <= 0 {
+		return ctx, func() {}, 0
 	}
 	child, cancel := context.WithTimeout(ctx, requested)
 	return child, cancel, requested

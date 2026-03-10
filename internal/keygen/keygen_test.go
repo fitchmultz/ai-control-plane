@@ -23,6 +23,7 @@ package keygen
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -262,8 +263,11 @@ func TestCheckPrerequisites(t *testing.T) {
 	// Save and restore env
 	origKey := os.Getenv("LITELLM_MASTER_KEY")
 	defer os.Setenv("LITELLM_MASTER_KEY", origKey)
+	origRepoRoot := os.Getenv("ACP_REPO_ROOT")
+	defer os.Setenv("ACP_REPO_ROOT", origRepoRoot)
 
 	t.Run("master key required and present", func(t *testing.T) {
+		os.Setenv("ACP_REPO_ROOT", t.TempDir())
 		os.Setenv("LITELLM_MASTER_KEY", "test-key")
 		err := CheckPrerequisites(true)
 		if err != nil {
@@ -272,6 +276,7 @@ func TestCheckPrerequisites(t *testing.T) {
 	})
 
 	t.Run("master key required but missing", func(t *testing.T) {
+		os.Setenv("ACP_REPO_ROOT", t.TempDir())
 		os.Unsetenv("LITELLM_MASTER_KEY")
 		err := CheckPrerequisites(true)
 		if err == nil {
@@ -280,10 +285,32 @@ func TestCheckPrerequisites(t *testing.T) {
 	})
 
 	t.Run("master key not required", func(t *testing.T) {
+		os.Setenv("ACP_REPO_ROOT", t.TempDir())
 		os.Unsetenv("LITELLM_MASTER_KEY")
 		err := CheckPrerequisites(false)
 		if err != nil {
 			t.Errorf("CheckPrerequisites(false) without key error = %v", err)
+		}
+	})
+
+	t.Run("master key repo fallback counts as configured", func(t *testing.T) {
+		repoRoot := t.TempDir()
+		envPath := filepath.Join(repoRoot, "demo", ".env")
+		if err := os.MkdirAll(filepath.Dir(envPath), 0o755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		if err := os.WriteFile(envPath, []byte("LITELLM_MASTER_KEY=repo-key\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		origRepoRoot := os.Getenv("ACP_REPO_ROOT")
+		defer os.Setenv("ACP_REPO_ROOT", origRepoRoot)
+		os.Setenv("ACP_REPO_ROOT", repoRoot)
+		os.Unsetenv("LITELLM_MASTER_KEY")
+
+		err := CheckPrerequisites(true)
+		if err != nil {
+			t.Fatalf("CheckPrerequisites(true) with repo fallback error = %v", err)
 		}
 	})
 }
