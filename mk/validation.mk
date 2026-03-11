@@ -20,24 +20,31 @@ validate-config: install-binary ## Validate deployment configuration
 .PHONY: validate-librechat-config
 validate-librechat-config: ## Validate required LibreChat environment variables
 	@echo '$(COLOR_BOLD)Validating LibreChat configuration...$(COLOR_RESET)'
-	@if [ ! -f "$(COMPOSE_DIR)/.env" ]; then \
-		echo '$(COLOR_RED)✗ Missing demo/.env$(COLOR_RESET)'; \
-		echo 'Run make install-env first.'; \
+	@if [ ! -f "$(COMPOSE_ENV_FILE)" ]; then \
+		echo '$(COLOR_RED)✗ Missing runtime env file:$(COLOR_RESET) $(COMPOSE_ENV_FILE)'; \
+		echo 'Set COMPOSE_ENV_FILE to the env file used for the managed UI overlay.'; \
 		exit 1; \
 	fi
 	@missing=''; \
 	for key in LIBRECHAT_CREDS_KEY LIBRECHAT_CREDS_IV LIBRECHAT_MEILI_MASTER_KEY LIBRECHAT_LITELLM_API_KEY JWT_SECRET JWT_REFRESH_SECRET; do \
-		value=$$(grep -E "^$${key}=" "$(COMPOSE_DIR)/.env" | head -n1 | cut -d= -f2-); \
+		value="$$( $(ACPCTL_BIN) env get --file "$(COMPOSE_ENV_FILE)" "$$key" 2>/dev/null || true )"; \
 		if [ -z "$$value" ]; then \
 			missing="$$missing $$key"; \
 		fi; \
 	done; \
 	if [ -n "$$missing" ]; then \
 		echo '$(COLOR_RED)✗ Missing required LibreChat env vars:$(COLOR_RESET)'$$missing; \
-		echo 'Generate and set these values in demo/.env, then retry.'; \
+		echo 'Populate these values in $(COMPOSE_ENV_FILE), then retry.'; \
 		exit 1; \
 	fi
 	@echo '$(COLOR_GREEN)✓ LibreChat configuration validation passed$(COLOR_RESET)'
+
+.PHONY: validate-doc-links
+validate-doc-links: ## Fail when public docs or generated refs use absolute local filesystem links
+	@echo '$(COLOR_BOLD)Validating documentation link style...$(COLOR_RESET)'
+	@$(GO) test ./cmd/acpctl -run 'TestDocumentationLinksStayRepoRelative' -count=1 \
+		&& echo '$(COLOR_GREEN)✓ Documentation link validation passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Documentation link validation failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: validate-detections
 validate-detections: ## Validate detection rule output

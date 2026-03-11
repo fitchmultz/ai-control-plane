@@ -37,6 +37,7 @@ type SupportSurface struct {
 	Status     string   `yaml:"status"`
 	Summary    string   `yaml:"summary"`
 	Owner      string   `yaml:"owner"`
+	Paths      []string `yaml:"paths"`
 	Validation []string `yaml:"validation"`
 }
 

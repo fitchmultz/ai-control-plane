@@ -11,7 +11,7 @@ The repository is intentionally narrow: one supported runtime surface, one prima
 2. Core services and state
    - LiteLLM gateway
    - PostgreSQL
-   - Optional overlays for DLP and managed browser UI
+   - Optional overlays for DLP, managed browser UI, deterministic offline mode, and TLS ingress
 
 3. Policy, validation, and security
    - `internal/config` owns env loading.

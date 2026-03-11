@@ -100,7 +100,7 @@
       "exposure": "public",
       "tls_required_when_public": false,
       "manifests": [
-        "deploy/helm/ai-control-plane/values.yaml:ingress"
+        "deploy/incubating/helm/ai-control-plane/values.yaml:ingress"
       ],
       "justification": "Kubernetes ingress HTTP endpoint (optional, redirects to HTTPS when TLS enabled)"
     },
@@ -114,7 +114,7 @@
       "exposure": "public",
       "tls_required_when_public": true,
       "manifests": [
-        "deploy/helm/ai-control-plane/values.yaml:ingress.tls"
+        "deploy/incubating/helm/ai-control-plane/values.yaml:ingress.tls"
       ],
       "justification": "Kubernetes ingress HTTPS endpoint (optional, for production TLS termination)"
     },
@@ -212,7 +212,7 @@
       "exposure": "internal_only",
       "tls_required_when_public": true,
       "manifests": [
-        "deploy/helm/ai-control-plane/values.yaml:litellm.service"
+        "deploy/incubating/helm/ai-control-plane/values.yaml:litellm.service"
       ],
       "justification": "Kubernetes ClusterIP service for internal cluster access (ingress handles external traffic)"
     },
@@ -285,7 +285,7 @@
       "exposure": "internal_only",
       "tls_required_when_public": false,
       "manifests": [
-        "deploy/helm/ai-control-plane/values.yaml:mockUpstream.service"
+        "deploy/incubating/helm/ai-control-plane/values.yaml:mockUpstream.service"
       ],
       "justification": "Kubernetes ClusterIP service for mock upstream (internal cluster access only)"
     },
@@ -355,7 +355,7 @@
       "exposure": "internal_only",
       "tls_required_when_public": false,
       "manifests": [
-        "deploy/helm/ai-control-plane/values.yaml:postgres.service"
+        "deploy/incubating/helm/ai-control-plane/values.yaml:postgres.service"
       ],
       "justification": "Kubernetes ClusterIP service for PostgreSQL (internal cluster access only)"
     },

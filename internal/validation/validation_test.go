@@ -31,8 +31,10 @@ import (
 func TestValidateComposeHealthchecksFlagsMissingTest(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services:\n  app:\n    image: example/app:1@sha256:abc\n    healthcheck:\n      interval: 5s\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 
 	issues, err := ValidateComposeHealthchecks(repoRoot)
 	if err != nil {
@@ -46,8 +48,10 @@ func TestValidateComposeHealthchecksFlagsMissingTest(t *testing.T) {
 func TestValidateDeploymentSurfacesFlagsHelmContractDrift(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
@@ -66,8 +70,10 @@ func TestValidateDeploymentSurfacesFlagsHelmContractDrift(t *testing.T) {
 func TestValidateHelmSurfacesIgnoresNonHelmIssues(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services:\n  app:\n    image: example/app:1\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
@@ -91,8 +97,10 @@ func TestValidateHelmSurfacesIgnoresNonHelmIssues(t *testing.T) {
 func TestValidateDeploymentSurfacesFlagsNestedCanonicalTargets(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers: [\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "tasks: [\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "RUN echo missing-base-image\n")
@@ -116,8 +124,10 @@ func TestValidateDeploymentSurfacesFlagsNestedCanonicalTargets(t *testing.T) {
 func TestValidateDeploymentSurfacesAllowsTemplateOnlyHelmFiles(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
@@ -239,8 +249,10 @@ func writeEnvFixtureFile(t *testing.T, path string, content string, mode os.File
 func writeValidDeploymentSurfaceRepo(t *testing.T, repoRoot string) {
 	t.Helper()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), canonicalProductionComposeFixture())
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services:\n  caddy:\n    image: caddy:2\n    healthcheck:\n      test: [\"CMD\", \"caddy\", \"validate\", \"--config\", \"/etc/caddy/Caddyfile\"]\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "caddy", "Caddyfile.prod"), canonicalProductionCaddyFixture())

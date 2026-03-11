@@ -227,8 +227,10 @@ func writeProductionValidationFixtureRepo(t *testing.T, repoRoot string) {
 		"      - \"127.0.0.1:13133:13133\"\n"+
 		"    healthcheck:\n"+
 		"      test: [\"CMD\", \"/otelcol-contrib\", \"validate\", \"--config=/etc/otel-collector/config.production.yaml\"]\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services:\n  caddy:\n    image: caddy:2\n    healthcheck:\n      test: [\"CMD\", \"caddy\", \"validate\", \"--config\", \"/etc/caddy/Caddyfile\"]\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "config", "caddy", "Caddyfile.prod"), ""+

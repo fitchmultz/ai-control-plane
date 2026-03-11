@@ -11,6 +11,8 @@
 | Evidence workflows | Readiness evidence, release bundle, and pilot closeout artifacts generated locally from tracked inputs. | make readiness-evidence, make pilot-closeout-bundle |
 | Managed browser UI overlay | Optional LibreChat overlay for governed browser access on top of the host-first runtime. | make up-ui, make librechat-health |
 | DLP overlay | Optional Presidio overlay for deterministic guardrails on top of the host-first runtime. | make up-dlp, make validate-detections |
+| Offline deterministic overlay | Optional mock-upstream overlay for deterministic offline demos, CI, and schema/runtime verification. | make up-offline, make ci |
+| TLS ingress overlay | Optional Caddy TLS ingress overlay for host-first external client access and production OTEL ingress. | make up-tls, make up-production |
 
 ## Incubating Surfaces
 

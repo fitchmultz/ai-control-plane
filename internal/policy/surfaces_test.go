@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/catalog"
 )
 
 func TestExpandDeploymentSurfacesIncludesNestedCanonicalTargets(t *testing.T) {
@@ -103,6 +105,58 @@ func TestExpandIncubatingDeploymentSurfacesIncludesMovedTracks(t *testing.T) {
 	}
 	assertSurfaceKind(t, targetKinds, "deploy/incubating/helm/ai-control-plane/templates/deployment-litellm.yaml", SurfaceHelmTpl)
 	assertSurfaceKind(t, targetKinds, "deploy/incubating/terraform/examples/aws-complete/main.tf", SurfaceTerraform)
+}
+
+func TestSupportedComposeSurfacesStayInPolicy(t *testing.T) {
+	repoRoot := repoRootForTrackedSupportPolicyTest(t)
+	matrix, err := catalog.LoadSupportMatrix(filepath.Join(repoRoot, "docs", "support-matrix.yaml"))
+	if err != nil {
+		t.Fatalf("LoadSupportMatrix() error = %v", err)
+	}
+
+	targets, err := ExpandDeploymentSurfaces(repoRoot)
+	if err != nil {
+		t.Fatalf("ExpandDeploymentSurfaces() error = %v", err)
+	}
+
+	policyCompose := make(map[string]struct{})
+	for _, target := range targets {
+		if target.Kind == SurfaceCompose {
+			policyCompose[target.Path] = struct{}{}
+		}
+	}
+
+	for _, surface := range matrix.SupportedSurfaces() {
+		for _, path := range surface.Paths {
+			if filepath.Ext(path) != ".yml" && filepath.Ext(path) != ".yaml" {
+				continue
+			}
+			if filepath.Base(path) == "docker-compose.yml" || filepath.Base(path) == "docker-compose.offline.yml" || filepath.Base(path) == "docker-compose.tls.yml" || filepath.Base(path) == "docker-compose.ui.yml" || filepath.Base(path) == "docker-compose.dlp.yml" {
+				if _, ok := policyCompose[path]; !ok {
+					t.Fatalf("supported compose surface %q from %q missing from DeploymentSurfacePolicy", path, surface.ID)
+				}
+			}
+		}
+	}
+}
+
+func repoRootForTrackedSupportPolicyTest(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	current := wd
+	for {
+		if _, err := os.Stat(filepath.Join(current, "go.mod")); err == nil {
+			return current
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			t.Fatalf("could not locate repo root from %s", wd)
+		}
+		current = parent
+	}
 }
 
 func assertSurfaceKind(t *testing.T, got map[string]SurfaceKind, path string, want SurfaceKind) {

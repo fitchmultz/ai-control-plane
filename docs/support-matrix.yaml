@@ -33,6 +33,8 @@ surfaces:
     status: supported
     summary: Minimal host-first Docker deployment with the typed operator core and truthful runtime gates.
     owner: platform
+    paths:
+      - demo/docker-compose.yml
     validation:
       - make ci
       - make prod-smoke
@@ -61,6 +63,8 @@ surfaces:
     status: supported
     summary: Optional LibreChat overlay for governed browser access on top of the host-first runtime.
     owner: platform
+    paths:
+      - demo/docker-compose.ui.yml
     validation:
       - make up-ui
       - make librechat-health
@@ -70,9 +74,33 @@ surfaces:
     status: supported
     summary: Optional Presidio overlay for deterministic guardrails on top of the host-first runtime.
     owner: platform
+    paths:
+      - demo/docker-compose.dlp.yml
     validation:
       - make up-dlp
       - make validate-detections
+
+  - id: offline-overlay
+    label: Offline deterministic overlay
+    status: supported
+    summary: Optional mock-upstream overlay for deterministic offline demos, CI, and schema/runtime verification.
+    owner: platform
+    paths:
+      - demo/docker-compose.offline.yml
+    validation:
+      - make up-offline
+      - make ci
+
+  - id: tls-overlay
+    label: TLS ingress overlay
+    status: supported
+    summary: Optional Caddy TLS ingress overlay for host-first external client access and production OTEL ingress.
+    owner: platform
+    paths:
+      - demo/docker-compose.tls.yml
+    validation:
+      - make up-tls
+      - make up-production
 
   - id: helm
     label: Helm deployment assets

@@ -185,6 +185,34 @@ func TestPublicSurfaceOmitsIncubatingTracks(t *testing.T) {
 	}
 }
 
+func TestDocumentationLinksStayRepoRelative(t *testing.T) {
+	repoRoot := repoRootForParityTests(t)
+	files := append(documentationFiles(t, repoRoot), filepath.Join(repoRoot, "deploy", "incubating", "README.md"))
+	files = append(files,
+		filepath.Join(repoRoot, "docs", "deployment", "KUBERNETES_HELM.md"),
+		filepath.Join(repoRoot, "docs", "deployment", "TERRAFORM.md"),
+	)
+	files = dedupeStrings(files)
+
+	linkPattern := regexp.MustCompile(`\]\((/[^)]+)\)`)
+	var issues []string
+	for _, file := range files {
+		for lineNo, line := range readLines(t, file) {
+			for _, match := range linkPattern.FindAllStringSubmatch(line, -1) {
+				target := match[1]
+				issues = append(issues, formatIssue(t, repoRoot, file, lineNo+1, "absolute link target "+target))
+			}
+			if strings.Contains(line, "/Users/") {
+				issues = append(issues, formatIssue(t, repoRoot, file, lineNo+1, "absolute local filesystem path"))
+			}
+		}
+	}
+
+	if len(issues) > 0 {
+		t.Fatalf("documentation links must stay repo-relative:\n%s", strings.Join(issues, "\n"))
+	}
+}
+
 func TestRetiredCommandReferencesStayRemoved(t *testing.T) {
 	repoRoot := repoRootForParityTests(t)
 	files := append(documentationFiles(t, repoRoot), collectFiles(t, repoRoot, []string{"mk"}, []string{".yaml", ".yml", ".mk"})...)

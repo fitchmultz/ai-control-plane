@@ -30,8 +30,10 @@ import (
 func TestValidateDeploymentConfigDefaultsToDemoProfile(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 
 	issues, err := ValidateDeploymentConfig(repoRoot, ConfigValidationOptions{})
 	if err != nil {

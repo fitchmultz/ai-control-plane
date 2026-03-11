@@ -1,6 +1,6 @@
 # Kubernetes Helm Track
 
-This deployment track is incubating. It is retained in-repo under [deploy/incubating/README.md](/Users/mitchfultz/Projects/AI/ai-control-plane/deploy/incubating/README.md) for explicit internal exploration only.
+This deployment track is incubating. It is retained in-repo under [deploy/incubating/README.md](../../deploy/incubating/README.md) for explicit internal exploration only.
 
 ## Status
 
@@ -10,5 +10,5 @@ This deployment track is incubating. It is retained in-repo under [deploy/incuba
 
 Use the canonical host-first docs instead:
 
-- [Support](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SUPPORT.md)
-- [Deployment](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/DEPLOYMENT.md)
+- [Support](../SUPPORT.md)
+- [Deployment](../DEPLOYMENT.md)

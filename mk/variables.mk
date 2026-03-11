@@ -26,6 +26,15 @@ export ACP_SLOT
 ACP_COMPOSE_PROJECT ?= ai-control-plane-$(ACP_SLOT)
 DOCKER_COMPOSE_PROJECT := $(DOCKER_COMPOSE) --env-file $(COMPOSE_ENV_FILE) --project-name $(ACP_COMPOSE_PROJECT)
 COMPOSE_ENV_LITELLM_MASTER_KEY = LITELLM_MASTER_KEY="$$($(ACPCTL_BIN) env get --file "$(COMPOSE_ENV_FILE)" LITELLM_MASTER_KEY 2>/dev/null || true)"
+comma := ,
+empty :=
+space := $(empty) $(empty)
+ACP_RUNTIME_OVERLAYS ?=
+ACP_RUNTIME_PULL_POLICY ?= never
+ACP_RUNTIME_LITELLM_IMAGE ?= ai-control-plane/litellm-hardened:local
+ACP_RUNTIME_LIBRECHAT_IMAGE ?= ai-control-plane/librechat-hardened:local
+ACP_RUNTIME_PRODUCTION_PROFILE ?= 0
+ACP_RUNTIME_OTEL_COLLECTOR_CONFIG_FILE ?= config.yaml
 
 # Detect local Docker socket for CI runtime
 DOCKER_LOCAL_SOCKET := $(firstword $(wildcard /var/run/docker.sock /run/docker.sock))

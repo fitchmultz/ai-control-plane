@@ -41,6 +41,7 @@ ci-pr: ## PR-required checks (fast/deterministic: lint, static checks, unit + po
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
 	@$(MAKE) --silent lint-env-access
+	@$(MAKE) --silent validate-doc-links
 	@$(MAKE) --silent validate-acpctl-parity
 	@$(MAKE) --silent lint-compose
 	@$(MAKE) --silent lint-healthchecks

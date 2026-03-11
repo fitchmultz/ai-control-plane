@@ -6,6 +6,6 @@ Portainer can be used as an optional operator convenience layer on top of the su
 
 - Use `/etc/ai-control-plane/secrets.env` for host-production runtime configuration.
 - Use `demo/.env` for local-only runs.
-- Follow the canonical host-first workflow in [DEPLOYMENT.md](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/DEPLOYMENT.md).
+- Follow the canonical host-first workflow in [DEPLOYMENT.md](../DEPLOYMENT.md).
 
 Portainer does not introduce a separate supported secret-sync or deployment path.

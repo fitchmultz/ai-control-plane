@@ -80,6 +80,18 @@ var DeploymentSurfacePolicy = []SurfaceSpec{
 		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
 	},
 	{
+		ID:    "compose-ui",
+		Kind:  SurfaceCompose,
+		Paths: []string{"demo/docker-compose.ui.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
+	},
+	{
+		ID:    "compose-dlp",
+		Kind:  SurfaceCompose,
+		Paths: []string{"demo/docker-compose.dlp.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
+	},
+	{
 		ID:    "compose-tls",
 		Kind:  SurfaceCompose,
 		Paths: []string{"demo/docker-compose.tls.yml"},

@@ -4,17 +4,17 @@ This directory is organized around the supported host-first product surface firs
 
 ## Canonical Public Docs
 
-- [Support](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SUPPORT.md)
-- [Architecture](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/technical-architecture.md)
-- [Operations And Deployment](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/DEPLOYMENT.md)
-- [Security And Governance](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SECURITY_GOVERNANCE.md)
+- [Support](SUPPORT.md)
+- [Architecture](technical-architecture.md)
+- [Operations And Deployment](DEPLOYMENT.md)
+- [Security And Governance](SECURITY_GOVERNANCE.md)
 
 ## Generated References
 
-- [ACPCTL Reference](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/acpctl.md)
-- [Approved Models](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/approved-models.md)
-- [Detection Rules](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/detections.md)
-- [Support Matrix](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/support-matrix.md)
+- [ACPCTL Reference](reference/acpctl.md)
+- [Approved Models](reference/approved-models.md)
+- [Detection Rules](reference/detections.md)
+- [Support Matrix](reference/support-matrix.md)
 
 ## Notes
 

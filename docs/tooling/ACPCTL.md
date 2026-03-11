@@ -1,6 +1,6 @@
 # ACPCTL
 
-`acpctl` is the typed implementation engine for the supported host-first surface. `make` remains the primary human operator interface. The canonical command inventory is generated from the typed registry and published in [acpctl.md](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/acpctl.md).
+`acpctl` is the typed implementation engine for the supported host-first surface. `make` remains the primary human operator interface. The canonical command inventory is generated from the typed registry and published in [acpctl.md](../reference/acpctl.md).
 
 ## Contract
 
@@ -12,9 +12,9 @@
 
 ## References
 
-- [ACPCTL Reference](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/acpctl.md)
-- [Support](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SUPPORT.md)
-- [Deployment](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/DEPLOYMENT.md)
+- [ACPCTL Reference](../reference/acpctl.md)
+- [Support](../SUPPORT.md)
+- [Deployment](../DEPLOYMENT.md)
 
 ### Generating Completion Scripts
 

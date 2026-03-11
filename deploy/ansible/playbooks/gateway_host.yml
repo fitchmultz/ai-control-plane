@@ -26,7 +26,7 @@
 # Variables (required):
 #   - acp_repo_path: Path to cloned repository on host
 #   - acp_env_file: Path to environment file
-#   - acp_tls_mode: 'plain' or 'tls'
+#   - acp_runtime_overlays: list of overlay ids (tls, ui, dlp, offline)
 #   - acp_public_url: Public URL for smoke checks
 
 ---
@@ -47,9 +47,10 @@
         that:
           - acp_repo_path is defined
           - acp_env_file is defined
-          - acp_tls_mode is defined
+          - acp_runtime_overlays is defined
           - acp_public_url is defined
-          - acp_tls_mode in ['plain', 'tls']
+          - acp_runtime_overlays is iterable
+          - (acp_runtime_overlays | difference(['tls', 'ui', 'dlp', 'offline'])) | length == 0
         fail_msg: >-
           Missing required variables. Check inventory and --extra-vars.
         success_msg: "All required variables present"
@@ -60,7 +61,7 @@
           - "ACP Gateway Host Convergence Plan:"
           - "  Repository path: {{ acp_repo_path }}"
           - "  Environment file: {{ acp_env_file }}"
-          - "  TLS mode: {{ acp_tls_mode }}"
+          - "  Runtime overlays: {{ acp_runtime_overlays | join(',') if (acp_runtime_overlays | length) > 0 else 'base' }}"
           - "  Public URL: {{ acp_public_url }}"
 
     # =========================================================================
@@ -157,13 +158,18 @@
     # =========================================================================
     # Phase 5: Service Convergence
     # =========================================================================
-    - name: Determine make target based on TLS mode
+    - name: Normalize runtime overlays for make
       ansible.builtin.set_fact:
-        acp_make_target: "{{ 'up-tls' if acp_tls_mode == 'tls' else 'up' }}"
+        acp_runtime_overlays_csv: "{{ acp_runtime_overlays | join(',') }}"
 
     - name: Converge Docker Compose services
       ansible.builtin.command:
-        cmd: "make {{ acp_make_target }} COMPOSE_ENV_FILE={{ acp_env_file }}"
+        cmd: >-
+          make up-runtime
+          COMPOSE_ENV_FILE={{ acp_env_file }}
+          ACP_RUNTIME_OVERLAYS={{ acp_runtime_overlays_csv }}
+          ACP_RUNTIME_PRODUCTION_PROFILE=1
+          ACP_RUNTIME_OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml
         chdir: "{{ acp_repo_path }}"
       register: converge_result
       changed_when: >

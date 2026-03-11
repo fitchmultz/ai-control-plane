@@ -1,6 +1,6 @@
 # Terraform Track
 
-This infrastructure track is incubating. It is retained in-repo under [deploy/incubating/README.md](/Users/mitchfultz/Projects/AI/ai-control-plane/deploy/incubating/README.md) for explicit internal exploration only.
+This infrastructure track is incubating. It is retained in-repo under [deploy/incubating/README.md](../../deploy/incubating/README.md) for explicit internal exploration only.
 
 ## Status
 
@@ -10,5 +10,5 @@ This infrastructure track is incubating. It is retained in-repo under [deploy/in
 
 Use the canonical host-first docs instead:
 
-- [Support](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SUPPORT.md)
-- [Deployment](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/DEPLOYMENT.md)
+- [Support](../SUPPORT.md)
+- [Deployment](../DEPLOYMENT.md)

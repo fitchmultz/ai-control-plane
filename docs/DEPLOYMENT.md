@@ -10,6 +10,7 @@ This document describes the supported host-first deployment and operations path.
 - Base plus both overlays: `make up-full`
 - Offline deterministic runtime: `make up-offline`
 - TLS overlay: `make up-tls`
+- Production OTEL + TLS profile: `make up-production`
 
 ## Local Workflow
 
@@ -21,6 +22,8 @@ make prod-smoke
 ```
 
 Use `demo/.env` for local runs. It is local-only and not part of the host-production secret contract.
+
+If you use the managed UI overlay, populate the LibreChat-specific keys documented in [`demo/.env.example`](../demo/.env.example) before running `make up-ui` or `make up-full`.
 
 ## Host-First Production Workflow
 
@@ -40,6 +43,8 @@ Rules:
 - Production workflows do not sync secrets into `demo/.env`.
 - Compose-driven host operations use `COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env`.
 - The base runtime remains LiteLLM plus PostgreSQL unless an overlay is explicitly selected.
+- Supported host overlays are selected through `acp_runtime_overlays` in the Ansible inventory. Allowed values are `tls`, `ui`, `dlp`, and `offline`.
+- Base host deployment remains the default. Add overlays only when the host contract explicitly requires them.
 
 ## Typed Operational Checks
 
@@ -54,7 +59,7 @@ Use `make ci-pr` for fast deterministic checks and `make ci` for the full suppor
 
 ## References
 
-- [Support](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SUPPORT.md)
-- [Architecture](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/technical-architecture.md)
-- [Security And Governance](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SECURITY_GOVERNANCE.md)
-- [ACPCTL Reference](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/acpctl.md)
+- [Support](SUPPORT.md)
+- [Architecture](technical-architecture.md)
+- [Security And Governance](SECURITY_GOVERNANCE.md)
+- [ACPCTL Reference](reference/acpctl.md)

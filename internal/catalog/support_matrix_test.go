@@ -71,6 +71,8 @@ surfaces:
     status: supported
     summary: Host-first runtime
     owner: platform
+    paths:
+      - demo/docker-compose.yml
     validation:
       - make ci
   - id: helm
@@ -91,6 +93,9 @@ surfaces:
 	}
 	if !slices.Equal(matrix.PublicDocs, []string{"README.md"}) {
 		t.Fatalf("PublicDocs = %v", matrix.PublicDocs)
+	}
+	if !slices.Equal(matrix.SupportedSurfaces()[0].Paths, []string{"demo/docker-compose.yml"}) {
+		t.Fatalf("Supported surface paths = %v", matrix.SupportedSurfaces()[0].Paths)
 	}
 	if !strings.Contains(matrix.IncubatingSurfaces()[0].Summary, "Incubating") {
 		t.Fatalf("unexpected incubating surface summary: %+v", matrix.IncubatingSurfaces()[0])

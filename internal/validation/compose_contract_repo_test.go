@@ -22,9 +22,11 @@ package validation
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -69,6 +71,118 @@ func TestTrackedComposeOverlaysRemainAdditive(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestSupportedComposeProfilesResolveExpectedServices(t *testing.T) {
+	repoRoot := repoRootForTrackedComposeContracts(t)
+	compose, baseArgs := dockerComposeCommand(t, repoRoot)
+	cases := []struct {
+		name        string
+		files       []string
+		wantPresent []string
+		wantAbsent  []string
+	}{
+		{
+			name:        "base",
+			files:       []string{"demo/docker-compose.yml"},
+			wantPresent: []string{"litellm", "postgres"},
+			wantAbsent:  []string{"presidio-analyzer", "librechat", "mock-upstream", "caddy"},
+		},
+		{
+			name:        "base-dlp",
+			files:       []string{"demo/docker-compose.yml", "demo/docker-compose.dlp.yml"},
+			wantPresent: []string{"litellm", "postgres", "presidio-analyzer", "presidio-anonymizer"},
+			wantAbsent:  []string{"librechat", "mock-upstream", "caddy"},
+		},
+		{
+			name:        "base-ui",
+			files:       []string{"demo/docker-compose.yml", "demo/docker-compose.ui.yml"},
+			wantPresent: []string{"litellm", "postgres", "librechat", "librechat-mongodb", "librechat-meilisearch"},
+			wantAbsent:  []string{"presidio-analyzer", "mock-upstream", "caddy"},
+		},
+		{
+			name:        "base-offline",
+			files:       []string{"demo/docker-compose.yml", "demo/docker-compose.offline.yml"},
+			wantPresent: []string{"litellm", "postgres", "mock-upstream"},
+			wantAbsent:  []string{"presidio-analyzer", "librechat", "caddy"},
+		},
+		{
+			name:        "base-tls",
+			files:       []string{"demo/docker-compose.yml", "demo/docker-compose.tls.yml"},
+			wantPresent: []string{"litellm", "postgres", "caddy"},
+			wantAbsent:  []string{"presidio-analyzer", "librechat", "mock-upstream"},
+		},
+		{
+			name:        "base-ui-dlp",
+			files:       []string{"demo/docker-compose.yml", "demo/docker-compose.ui.yml", "demo/docker-compose.dlp.yml"},
+			wantPresent: []string{"litellm", "postgres", "librechat", "librechat-mongodb", "librechat-meilisearch", "presidio-analyzer", "presidio-anonymizer"},
+			wantAbsent:  []string{"mock-upstream", "caddy"},
+		},
+		{
+			name:        "base-tls-ui",
+			files:       []string{"demo/docker-compose.yml", "demo/docker-compose.tls.yml", "demo/docker-compose.ui.yml"},
+			wantPresent: []string{"litellm", "postgres", "caddy", "librechat", "librechat-mongodb", "librechat-meilisearch"},
+			wantAbsent:  []string{"presidio-analyzer", "mock-upstream"},
+		},
+		{
+			name:        "base-tls-dlp",
+			files:       []string{"demo/docker-compose.yml", "demo/docker-compose.tls.yml", "demo/docker-compose.dlp.yml"},
+			wantPresent: []string{"litellm", "postgres", "caddy", "presidio-analyzer", "presidio-anonymizer"},
+			wantAbsent:  []string{"librechat", "mock-upstream"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{}, baseArgs...)
+			args = append(args, "--profile", "embedded-db")
+			for _, file := range tc.files {
+				args = append(args, "-f", filepath.Join(repoRoot, filepath.FromSlash(file)))
+			}
+			args = append(args, "config", "--services")
+			cmd := exec.Command(compose, args...)
+			cmd.Dir = repoRoot
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("compose config %s failed: %v\n%s", tc.name, err, string(output))
+			}
+			services := strings.Fields(string(output))
+			present := make(map[string]struct{}, len(services))
+			for _, service := range services {
+				present[service] = struct{}{}
+			}
+			for _, service := range tc.wantPresent {
+				if _, ok := present[service]; !ok {
+					t.Fatalf("%s missing expected service %q in %v", tc.name, service, services)
+				}
+			}
+			for _, service := range tc.wantAbsent {
+				if _, ok := present[service]; ok {
+					t.Fatalf("%s unexpectedly included %q in %v", tc.name, service, services)
+				}
+			}
+		})
+	}
+}
+
+func dockerComposeCommand(t *testing.T, repoRoot string) (string, []string) {
+	t.Helper()
+	if _, err := exec.LookPath("docker"); err == nil {
+		cmd := exec.Command("docker", "compose", "version")
+		cmd.Dir = repoRoot
+		if err := cmd.Run(); err == nil {
+			return "docker", []string{"compose", "--env-file", filepath.Join(repoRoot, "demo", ".env"), "--project-name", "ai-control-plane-contracts"}
+		}
+	}
+	if _, err := exec.LookPath("docker-compose"); err == nil {
+		cmd := exec.Command("docker-compose", "version")
+		cmd.Dir = repoRoot
+		if err := cmd.Run(); err == nil {
+			return "docker-compose", []string{"--env-file", filepath.Join(repoRoot, "demo", ".env"), "--project-name", "ai-control-plane-contracts"}
+		}
+	}
+	t.Skip("docker compose not available")
+	return "", nil
 }
 
 func repoRootForTrackedComposeContracts(t *testing.T) string {

@@ -13,13 +13,15 @@
 up-production: validate-config-production ## Start production profile with OTEL
 	@echo '$(COLOR_BOLD)Starting production profile...$(COLOR_RESET)'
 	@echo '$(COLOR_YELLOW)Note: Requires OTEL_EXPORTER_OTLP_ENDPOINT to be set$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && \
-		ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml LITELLM_CONFIG_FILE=litellm.yaml \
-		$(DOCKER_COMPOSE_PROJECT) --profile production up -d --timeout 120
+	@$(MAKE) --silent up-runtime \
+		COMPOSE_ENV_FILE="$(SECRETS_ENV_FILE)" \
+		ACP_RUNTIME_OVERLAYS=tls \
+		ACP_RUNTIME_PRODUCTION_PROFILE=1 \
+		ACP_RUNTIME_OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml
 	@echo '$(COLOR_GREEN)✓ Production services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
-	@echo '  - LiteLLM Gateway: http://127.0.0.1:$(LITELLM_PORT)'
+	@echo '  - LiteLLM Gateway: https://localhost:$(TLS_PORT)'
 	@echo '  - OTEL Collector: 127.0.0.1:4317 (gRPC), 127.0.0.1:4318 (HTTP)'
 	@echo ''
 	@echo 'Run $(COLOR_BOLD)make otel-health$(COLOR_RESET) to verify OTEL collector.'
@@ -52,8 +54,7 @@ validate-config-production: install-binary ## Validate production configuration
 .PHONY: up-tls
 up-tls: ## Start TLS mode services
 	@echo '$(COLOR_BOLD)Starting TLS mode services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && \
-		ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" LITELLM_CONFIG_FILE=litellm.yaml $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml $(COMPOSE_DB_PROFILE) up -d $(if $(filter embedded,$(DB_MODE)),postgres,) litellm caddy
+	@$(MAKE) --silent up-runtime ACP_RUNTIME_OVERLAYS=tls
 	@echo '$(COLOR_GREEN)✓ TLS services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
@@ -62,8 +63,7 @@ up-tls: ## Start TLS mode services
 .PHONY: down-tls
 down-tls: ## Stop TLS mode services
 	@echo '$(COLOR_BOLD)Stopping TLS mode services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && \
-		$(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml down
+	@$(MAKE) --silent down-runtime ACP_RUNTIME_OVERLAYS=tls
 	@echo '$(COLOR_GREEN)✓ TLS services stopped$(COLOR_RESET)'
 
 .PHONY: restart-tls
@@ -78,8 +78,7 @@ tls-health: ## Run TLS health checks
 
 .PHONY: tls-logs
 tls-logs: ## Tail TLS mode logs
-	@cd $(COMPOSE_DIR) && \
-		$(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml logs -f
+	@$(MAKE) --silent logs-runtime ACP_RUNTIME_OVERLAYS=tls
 
 .PHONY: tls-verify
 tls-verify: ## Verify TLS token logging safeguards

@@ -74,7 +74,7 @@ test_assert_contains() {
     local haystack="$1"
     local needle="$2"
     local description="$3"
-    if grep -Fq "${needle}" <<<"${haystack}"; then
+    if grep -Fq -- "${needle}" <<<"${haystack}"; then
         printf '  ✓ %s\n' "${description}"
         return 0
     fi
@@ -86,7 +86,7 @@ test_assert_file_contains() {
     local file_path="$1"
     local needle="$2"
     local description="$3"
-    if grep -Fq "${needle}" "${file_path}"; then
+    if grep -Fq -- "${needle}" "${file_path}"; then
         printf '  ✓ %s\n' "${description}"
         return 0
     fi

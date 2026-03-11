@@ -1,6 +1,6 @@
 # Single-Tenant Production Contract
 
-The production contract is the host-first Docker deployment path described in [DEPLOYMENT.md](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/DEPLOYMENT.md).
+The production contract is the host-first Docker deployment path described in [DEPLOYMENT.md](../DEPLOYMENT.md).
 
 ## Canonical Contract
 

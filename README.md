@@ -13,7 +13,7 @@ AI Control Plane is a host-first Docker reference implementation for enterprise 
   - Both overlays together via `make up-full`
 - Offline deterministic runtime via `make up-offline`
 
-The machine-readable support contract lives in [support-matrix.yaml](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/support-matrix.yaml). The generated public view lives in [support-matrix.md](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/support-matrix.md).
+The machine-readable support contract lives in [docs/support-matrix.yaml](docs/support-matrix.yaml). The generated public view lives in [docs/reference/support-matrix.md](docs/reference/support-matrix.md).
 
 ## Quick Start
 
@@ -33,7 +33,10 @@ make up-dlp
 make up-ui
 make up-full
 make up-offline
+make up-tls
 ```
+
+Managed browser UI requires the LibreChat keys documented in [`demo/.env.example`](demo/.env.example). Host-first overlay selection is driven by the Ansible inventory variable `acp_runtime_overlays`.
 
 Host-first production path:
 
@@ -47,16 +50,23 @@ make prod-smoke COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env
 
 ## Canonical Docs
 
-- [Support](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SUPPORT.md)
-- [Architecture](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/technical-architecture.md)
-- [Operations And Deployment](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/DEPLOYMENT.md)
-- [Security And Governance](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/SECURITY_GOVERNANCE.md)
+- [Support](docs/SUPPORT.md)
+- [Architecture](docs/technical-architecture.md)
+- [Operations And Deployment](docs/DEPLOYMENT.md)
+- [Security And Governance](docs/SECURITY_GOVERNANCE.md)
 
 Generated references:
 
-- [ACPCTL Reference](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/acpctl.md)
-- [Approved Models](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/approved-models.md)
-- [Detection Rules](/Users/mitchfultz/Projects/AI/ai-control-plane/docs/reference/detections.md)
+- [ACPCTL Reference](docs/reference/acpctl.md)
+- [Approved Models](docs/reference/approved-models.md)
+- [Detection Rules](docs/reference/detections.md)
+
+## Cutover Notes
+
+- Removed public `acpctl` roots for demo, incubating deployment tracks, and bridge mirroring.
+- Removed `host secrets-refresh`; host production now reads `/etc/ai-control-plane/secrets.env` directly.
+- Moved incubating deployment assets under `deploy/incubating/`.
+- Overlay mapping is explicit: `make up-dlp`, `make up-ui`, `make up-full`, `make up-offline`, and `make up-tls`.
 
 ## Local Env Files
 
