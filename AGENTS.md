@@ -74,7 +74,7 @@ make health      # Verify services
 ├── demo/              # Docker Compose configs, runtime fixtures, logs
 ├── docs/              # Strategic and technical documentation
 ├── local/             # Reserved local workspace (do not rely on scripts here)
-└── deploy/            # Helm charts, Terraform, Ansible
+└── deploy/            # Ansible host deployment plus incubating deployment assets
 ```
 
 ---

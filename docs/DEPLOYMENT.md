@@ -45,6 +45,7 @@ Rules:
 - The base runtime remains LiteLLM plus PostgreSQL unless an overlay is explicitly selected.
 - Supported host overlays are selected through `acp_runtime_overlays` in the Ansible inventory. Allowed values are `tls`, `ui`, `dlp`, and `offline`.
 - Base host deployment remains the default. Add overlays only when the host contract explicitly requires them.
+- Host overlay runs always execute `make health` and `make prod-smoke`, then run overlay-specific postchecks for `ui` (`make librechat-health`), `tls` (`make tls-health`), and `dlp` (`make dlp-health`).
 
 ## Typed Operational Checks
 

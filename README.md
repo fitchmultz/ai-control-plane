@@ -10,6 +10,7 @@ AI Control Plane is a host-first Docker reference implementation for enterprise 
 - Optional supported overlays:
   - Managed browser UI via `make up-ui`
   - DLP via `make up-dlp`
+  - TLS ingress via `make up-tls`
   - Both overlays together via `make up-full`
 - Offline deterministic runtime via `make up-offline`
 

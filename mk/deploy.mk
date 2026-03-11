@@ -122,15 +122,60 @@ up-full: ## Start base services with DLP and managed UI overlays
 	@echo '$(COLOR_GREEN)✓ Full host-first stack started$(COLOR_RESET)'
 
 .PHONY: librechat-health
-librechat-health: ## Check LibreChat HTTP health endpoint
-	@echo '$(COLOR_BOLD)Checking LibreChat health...$(COLOR_RESET)'
-	@code=$$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:$(LIBRECHAT_PORT)/health"); \
-	if [ "$$code" = "200" ]; then \
-		echo '$(COLOR_GREEN)✓ LibreChat health endpoint is accessible (HTTP 200)$(COLOR_RESET)'; \
-	else \
-		echo '$(COLOR_RED)✗ LibreChat health endpoint returned HTTP '$$code'$(COLOR_RESET)'; \
+librechat-health: ## Check managed UI overlay container health
+	@echo '$(COLOR_BOLD)Checking managed UI overlay health...$(COLOR_RESET)'
+	@failures=''; \
+	missing=0; \
+	for service in librechat librechat-mongodb librechat-meilisearch; do \
+		container_id="$$(cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.ui.yml $(COMPOSE_DB_PROFILE) ps -q $$service)"; \
+		container_id="$$(printf '%s\n' "$$container_id" | sed '/^$$/d' | tail -n 1)"; \
+		if [ -z "$$container_id" ]; then \
+			failures="$$failures $$service=missing"; \
+			missing=1; \
+			continue; \
+		fi; \
+		status="$$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing-healthcheck{{end}}' "$$container_id" 2>/dev/null || true)"; \
+		if [ "$$status" != "healthy" ]; then \
+			failures="$$failures $$service=$${status:-inspect-failed}"; \
+		fi; \
+	done; \
+	if [ "$$missing" -eq 1 ]; then \
+		echo '$(COLOR_RED)✗ Managed UI overlay is not active in the selected runtime:$(COLOR_RESET)'$$failures; \
 		exit 1; \
-	fi
+	fi; \
+	if [ -n "$$failures" ]; then \
+		echo '$(COLOR_RED)✗ Managed UI overlay services are unhealthy:$(COLOR_RESET)'$$failures; \
+		exit 1; \
+	fi; \
+	echo '$(COLOR_GREEN)✓ Managed UI overlay services are healthy$(COLOR_RESET)'
+
+.PHONY: dlp-health
+dlp-health: ## Check Presidio DLP overlay container health
+	@echo '$(COLOR_BOLD)Checking DLP overlay health...$(COLOR_RESET)'
+	@failures=''; \
+	missing=0; \
+	for service in presidio-analyzer presidio-anonymizer; do \
+		container_id="$$(cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.dlp.yml $(COMPOSE_DB_PROFILE) ps -q $$service)"; \
+		container_id="$$(printf '%s\n' "$$container_id" | sed '/^$$/d' | tail -n 1)"; \
+		if [ -z "$$container_id" ]; then \
+			failures="$$failures $$service=missing"; \
+			missing=1; \
+			continue; \
+		fi; \
+		status="$$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing-healthcheck{{end}}' "$$container_id" 2>/dev/null || true)"; \
+		if [ "$$status" != "healthy" ]; then \
+			failures="$$failures $$service=$${status:-inspect-failed}"; \
+		fi; \
+	done; \
+	if [ "$$missing" -eq 1 ]; then \
+		echo '$(COLOR_RED)✗ DLP overlay is not active in the selected runtime:$(COLOR_RESET)'$$failures; \
+		exit 1; \
+	fi; \
+	if [ -n "$$failures" ]; then \
+		echo '$(COLOR_RED)✗ DLP overlay services are unhealthy:$(COLOR_RESET)'$$failures; \
+		exit 1; \
+	fi; \
+	echo '$(COLOR_GREEN)✓ DLP overlay services are healthy$(COLOR_RESET)'
 
 .PHONY: down
 down: ## Stop default services

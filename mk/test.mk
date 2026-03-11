@@ -146,6 +146,8 @@ script-tests: ## Run all shell script tests
 	@bash scripts/tests/acpctl_cli_delegation_test.sh
 	@bash scripts/tests/acpctl_cli_typed_paths_test.sh
 	@bash scripts/tests/db_make_contract_test.sh
+	@bash scripts/tests/dlp_health_contract_test.sh
+	@bash scripts/tests/librechat_health_contract_test.sh
 	@bash scripts/tests/chatgpt_login_test.sh
 	@bash scripts/tests/chatgpt_auth_cache_copy_test.sh
 	@bash scripts/tests/compose_slot_files_test.sh

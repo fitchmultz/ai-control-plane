@@ -78,7 +78,7 @@ surfaces:
       - demo/docker-compose.dlp.yml
     validation:
       - make up-dlp
-      - make validate-detections
+      - make dlp-health
 
   - id: offline-overlay
     label: Offline deterministic overlay

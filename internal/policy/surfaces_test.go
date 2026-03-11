@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/mitchfultz/ai-control-plane/internal/catalog"
@@ -119,24 +120,28 @@ func TestSupportedComposeSurfacesStayInPolicy(t *testing.T) {
 		t.Fatalf("ExpandDeploymentSurfaces() error = %v", err)
 	}
 
-	policyCompose := make(map[string]struct{})
+	var policyCompose []string
 	for _, target := range targets {
 		if target.Kind == SurfaceCompose {
-			policyCompose[target.Path] = struct{}{}
+			policyCompose = append(policyCompose, target.Path)
 		}
 	}
 
+	var supportedCompose []string
 	for _, surface := range matrix.SupportedSurfaces() {
 		for _, path := range surface.Paths {
-			if filepath.Ext(path) != ".yml" && filepath.Ext(path) != ".yaml" {
-				continue
-			}
-			if filepath.Base(path) == "docker-compose.yml" || filepath.Base(path) == "docker-compose.offline.yml" || filepath.Base(path) == "docker-compose.tls.yml" || filepath.Base(path) == "docker-compose.ui.yml" || filepath.Base(path) == "docker-compose.dlp.yml" {
-				if _, ok := policyCompose[path]; !ok {
-					t.Fatalf("supported compose surface %q from %q missing from DeploymentSurfacePolicy", path, surface.ID)
-				}
+			switch filepath.Base(path) {
+			case "docker-compose.yml", "docker-compose.offline.yml", "docker-compose.tls.yml", "docker-compose.ui.yml", "docker-compose.dlp.yml":
+				supportedCompose = append(supportedCompose, path)
 			}
 		}
+	}
+
+	sort.Strings(policyCompose)
+	sort.Strings(supportedCompose)
+
+	if !reflect.DeepEqual(policyCompose, supportedCompose) {
+		t.Fatalf("supported compose surfaces drifted from DeploymentSurfacePolicy\nwant: %v\n got: %v", supportedCompose, policyCompose)
 	}
 }
 
