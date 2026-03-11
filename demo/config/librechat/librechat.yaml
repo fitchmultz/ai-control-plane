@@ -7,7 +7,7 @@
 # Governance Invariants:
 #   - baseURL targets LiteLLM gateway only (no direct provider endpoints)
 #   - models.fetch = false prevents model list drift from approved aliases
-#   - models.default matches approved model list from litellm.yaml exactly
+#   - models.default matches managed_ui_default aliases from model_catalog.yaml
 #
 # Downstream Consumers:
 #   - demo/scripts/tests/librechat_allowed_models_contract_test.sh

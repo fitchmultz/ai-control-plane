@@ -80,6 +80,18 @@ var DeploymentSurfacePolicy = []SurfaceSpec{
 		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
 	},
 	{
+		ID:    "compose-ui",
+		Kind:  SurfaceCompose,
+		Paths: []string{"demo/docker-compose.ui.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
+	},
+	{
+		ID:    "compose-dlp",
+		Kind:  SurfaceCompose,
+		Paths: []string{"demo/docker-compose.dlp.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHealthchecks, RuleImagePinning},
+	},
+	{
 		ID:    "compose-tls",
 		Kind:  SurfaceCompose,
 		Paths: []string{"demo/docker-compose.tls.yml"},
@@ -98,45 +110,9 @@ var DeploymentSurfacePolicy = []SurfaceSpec{
 		Rules: []SurfaceRule{RuleStructure},
 	},
 	{
-		ID:    "helm-chart",
-		Kind:  SurfaceHelmChart,
-		Paths: []string{"deploy/helm/ai-control-plane/Chart.yaml"},
-		Rules: []SurfaceRule{RuleStructure},
-	},
-	{
-		ID:    "helm-schema",
-		Kind:  SurfaceHelmSchema,
-		Paths: []string{"deploy/helm/ai-control-plane/values.schema.json"},
-		Rules: []SurfaceRule{RuleStructure},
-	},
-	{
-		ID:    "helm-values",
-		Kind:  SurfaceHelmValues,
-		Paths: []string{"deploy/helm/ai-control-plane/values.yaml"},
-		Rules: []SurfaceRule{RuleStructure, RuleImagePinning, RuleHelmContracts},
-	},
-	{
-		ID:    "helm-value-examples",
-		Kind:  SurfaceHelmValues,
-		Globs: []string{"deploy/helm/ai-control-plane/examples/**/*.yaml", "deploy/helm/ai-control-plane/examples/**/*.yml"},
-		Rules: []SurfaceRule{RuleStructure, RuleHelmContracts},
-	},
-	{
-		ID:    "helm-templates",
-		Kind:  SurfaceHelmTpl,
-		Globs: []string{"deploy/helm/ai-control-plane/templates/**/*.yaml", "deploy/helm/ai-control-plane/templates/**/*.yml"},
-		Rules: []SurfaceRule{RuleStructure},
-	},
-	{
 		ID:    "ansible-surface",
 		Kind:  SurfaceAnsibleYML,
 		Globs: []string{"deploy/ansible/**/*.yml", "deploy/ansible/**/*.yaml"},
-		Rules: []SurfaceRule{RuleStructure},
-	},
-	{
-		ID:    "terraform-surface",
-		Kind:  SurfaceTerraform,
-		Globs: []string{"deploy/terraform/**/*.tf"},
 		Rules: []SurfaceRule{RuleStructure},
 	},
 	{
@@ -147,10 +123,60 @@ var DeploymentSurfacePolicy = []SurfaceSpec{
 	},
 }
 
+// IncubatingDeploymentSurfacePolicy captures non-supported tracked deployment
+// assets retained for explicit internal checks only.
+var IncubatingDeploymentSurfacePolicy = []SurfaceSpec{
+	{
+		ID:    "helm-chart",
+		Kind:  SurfaceHelmChart,
+		Paths: []string{"deploy/incubating/helm/ai-control-plane/Chart.yaml"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "helm-schema",
+		Kind:  SurfaceHelmSchema,
+		Paths: []string{"deploy/incubating/helm/ai-control-plane/values.schema.json"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "helm-values",
+		Kind:  SurfaceHelmValues,
+		Paths: []string{"deploy/incubating/helm/ai-control-plane/values.yaml"},
+		Rules: []SurfaceRule{RuleStructure, RuleImagePinning, RuleHelmContracts},
+	},
+	{
+		ID:    "helm-value-examples",
+		Kind:  SurfaceHelmValues,
+		Globs: []string{"deploy/incubating/helm/ai-control-plane/examples/**/*.yaml", "deploy/incubating/helm/ai-control-plane/examples/**/*.yml"},
+		Rules: []SurfaceRule{RuleStructure, RuleHelmContracts},
+	},
+	{
+		ID:    "helm-templates",
+		Kind:  SurfaceHelmTpl,
+		Globs: []string{"deploy/incubating/helm/ai-control-plane/templates/**/*.yaml", "deploy/incubating/helm/ai-control-plane/templates/**/*.yml"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+	{
+		ID:    "terraform-surface",
+		Kind:  SurfaceTerraform,
+		Globs: []string{"deploy/incubating/terraform/**/*.tf"},
+		Rules: []SurfaceRule{RuleStructure},
+	},
+}
+
 // ExpandDeploymentSurfaces resolves the canonical policy to concrete files.
 func ExpandDeploymentSurfaces(repoRoot string) ([]SurfaceTarget, error) {
+	return expandPolicy(repoRoot, DeploymentSurfacePolicy)
+}
+
+// ExpandIncubatingDeploymentSurfaces resolves the incubating policy to concrete files.
+func ExpandIncubatingDeploymentSurfaces(repoRoot string) ([]SurfaceTarget, error) {
+	return expandPolicy(repoRoot, IncubatingDeploymentSurfacePolicy)
+}
+
+func expandPolicy(repoRoot string, specs []SurfaceSpec) ([]SurfaceTarget, error) {
 	targets := make([]SurfaceTarget, 0)
-	for _, spec := range DeploymentSurfacePolicy {
+	for _, spec := range specs {
 		paths, err := expandSpec(repoRoot, spec)
 		if err != nil {
 			return nil, err

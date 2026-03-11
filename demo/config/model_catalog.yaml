@@ -1,0 +1,35 @@
+# =============================================================================
+# AI Control Plane - Model Catalog Source
+# =============================================================================
+# Purpose: Canonical approved-model source for supported host-first workflows.
+# Usage: Validation, completions, managed browser defaults, and generated
+#        references derive from this file.
+# Invariants:
+#   - Online aliases are the approved production/demo gateway model names.
+#   - Offline aliases are the approved mock-upstream model names.
+#   - managed_ui_default entries are the only aliases exposed by LibreChat.
+# =============================================================================
+
+---
+online_models:
+  - alias: openai-gpt5.2
+    upstream_model: openai/gpt-5.2
+    credential_env: OPENAI_API_KEY
+    managed_ui_default: true
+
+  - alias: claude-sonnet-4-5
+    upstream_model: anthropic/claude-sonnet-4-5
+    credential_env: ANTHROPIC_API_KEY
+    managed_ui_default: true
+
+  - alias: claude-haiku-4-5
+    upstream_model: anthropic/claude-haiku-4-5
+    credential_env: ANTHROPIC_API_KEY
+    managed_ui_default: true
+
+offline_models:
+  - alias: mock-gpt
+    upstream_model: openai/mock-gpt
+
+  - alias: mock-claude
+    upstream_model: openai/mock-claude

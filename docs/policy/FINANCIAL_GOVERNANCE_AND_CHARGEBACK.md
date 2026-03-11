@@ -602,27 +602,16 @@ chargeback:
     size: 5Gi
 ```
 
-**Installation:**
+**Host-First Execution:**
 
 ```bash
-# Install with chargeback enabled
-helm upgrade --install acp ./deploy/helm/ai-control-plane \
-  -n acp \
-  --set chargeback.enabled=true
-
-# Or enable in values.yaml and upgrade
-helm upgrade --install acp ./deploy/helm/ai-control-plane \
-  -n acp \
-  -f values.production.yaml
+make chargeback-report
+make chargeback-report REPORT_MONTH=2026-02 OUTPUT_FORMAT=all
 ```
 
 **Retrieving Reports:**
 
-Reports are stored in the configured persistent volume and can be retrieved via:
-
-```bash
-# Find the latest chargeback job pod
-kubectl get pods -n acp -l app.kubernetes.io/component=chargeback
+Reports are written to the configured local archive/output path for the host-first runtime and evidence workflows.
 
 # Copy reports from pod to local machine
 kubectl cp -n acp <pod-name>:/reports/ ./chargeback-reports/

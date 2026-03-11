@@ -14,6 +14,25 @@
 db-status: ## Show database status and statistics
 	@$(ACPCTL_BIN) db status
 
+.PHONY: db-schema-check
+db-schema-check: ## Verify the pinned runtime exposes the expected LiteLLM core schema
+	@echo '$(COLOR_BOLD)Validating LiteLLM core schema...$(COLOR_RESET)'
+	@set -euo pipefail; \
+	status_file="$$(mktemp)"; \
+	trap 'rm -f "$$status_file"' EXIT; \
+	$(ACPCTL_BIN) db status >"$$status_file"; \
+	if ! grep -Eq 'Core tables:[[:space:]]+4/4' "$$status_file"; then \
+		cat "$$status_file"; \
+		echo '$(COLOR_RED)✗ LiteLLM core schema drift detected$(COLOR_RESET)'; \
+		exit 1; \
+	fi; \
+	if ! grep -Eq 'Status:[[:space:]]+expected core tables detected' "$$status_file"; then \
+		cat "$$status_file"; \
+		echo '$(COLOR_RED)✗ LiteLLM core schema readiness check failed$(COLOR_RESET)'; \
+		exit 1; \
+	fi; \
+	echo '$(COLOR_GREEN)✓ LiteLLM core schema matches expected contract$(COLOR_RESET)'
+
 .PHONY: chargeback-report
 chargeback-report: install-binary ## Generate chargeback/showback report artifacts
 	@$(ACPCTL_BIN) chargeback report \

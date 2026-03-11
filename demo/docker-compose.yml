@@ -1,29 +1,24 @@
-# AI Control Plane - Docker Compose Configuration
-# Production-hardened with least-privilege security defaults
+# AI Control Plane - Base Docker Compose Configuration
 #
-# Deployment Modes:
-# - Embedded DB (default): PostgreSQL runs as a Docker container
-#   Usage: make up
-# - Split-Host (external DB): PostgreSQL runs on a separate host
-#   Usage: ACP_DATABASE_MODE=external make up
+# Purpose:
+#   - Define the minimal supported host-first runtime for the AI Control Plane.
 #
-# Security Features:
-# - All images pinned to digests for reproducibility
-# - Least-privilege container hardening (no-new-privileges, cap_drop where safe)
-# - Health checks for all services
-# - Log rotation (json-file driver with 10MB max, 3 files)
-# - Bind to localhost by default (127.0.0.1)
+# Responsibilities:
+#   - Run the LiteLLM gateway and embedded PostgreSQL baseline.
+#   - Keep the default runtime narrow, truthful, and localhost-bound.
+#
+# Scope:
+#   - Base host-first runtime only. Optional overlays live in separate compose
+#     files for DLP, managed UI, offline mode, and TLS.
 #
 # Usage:
-#   make up              # Start services with embedded PostgreSQL
-#   ACP_DATABASE_MODE=external make up  # Start gateway only (external DB)
-#   make down            # Stop services (preserves volumes)
-#   make health          # Check service health
-#   make up-tls          # Start with TLS/HTTPS (production external access)
-
-# =============================================================================
-# YAML Anchors - Shared Configuration
-# =============================================================================
+#   - make up
+#   - make up-production
+#   - make up-tls
+#
+# Invariants/Assumptions:
+#   - The default supported stack is LiteLLM plus PostgreSQL only.
+#   - Compose env values come from ACP_RUNTIME_ENV_FILE when provided.
 
 x-acp-logging: &acp-logging
   driver: "json-file"
@@ -42,28 +37,19 @@ x-acp-labels: &acp-labels
   acp.slot: "${ACP_SLOT:-active}"
   acp.release_id: "${ACP_RELEASE_ID:-dev}"
 
-# =============================================================================
-# Services
-# =============================================================================
-
 services:
   postgres:
-    # Profile: embedded-db - only started when explicitly requested
-    # For split-host deployments (external DB), this service is skipped.
     profiles: ["embedded-db"]
-    # NOTE: PostgreSQL cannot use cap_drop: ALL due to chown/chmod requirements
-    # for volume initialization. no-new-privileges provides security boundary.
     security_opt:
       - no-new-privileges:true
     init: true
-    # Pinned to prevent drift (Chainguard PostgreSQL 18 latest stable digest)
     image: cgr.dev/chainguard/postgres@sha256:84fb13a5e182f249a2d739fbb4f44f78a2efa4b873c0407e3211b464f35af382
-    env_file: .env
+    env_file:
+      - ${ACP_RUNTIME_ENV_FILE:-.env}
     environment:
-      # These must be set in .env (no defaults to prevent misconfiguration)
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required in demo/.env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in demo/.env}
-      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required in demo/.env}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required in the runtime env file}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in the runtime env file}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required in the runtime env file}
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -77,54 +63,33 @@ services:
 
   litellm:
     <<: *acp-security-defaults
-    # Default to first-party hardened image pinned by digest.
-    # Override via LITELLM_IMAGE for private mirror/airgap registries.
     image: ${LITELLM_IMAGE:-ghcr.io/fitchmultz/acp/litellm-hardened:20260212@sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801}
     pull_policy: ${ACP_PULL_POLICY:-missing}
-    env_file: .env
+    env_file:
+      - ${ACP_RUNTIME_ENV_FILE:-.env}
     environment:
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required in demo/.env}
-      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?LITELLM_SALT_KEY is required in demo/.env}
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required in demo/.env}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required in the runtime env file}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?LITELLM_SALT_KEY is required in the runtime env file}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required in the runtime env file}
     ports:
-      # Bind to LITELLM_PUBLISH_HOST (default: 127.0.0.1 for security)
       - "${LITELLM_PUBLISH_HOST:-127.0.0.1}:${LITELLM_HOST_PORT:-4000}:4000"
     volumes:
-      - ./config/litellm.yaml:/app/config.yaml:ro
+      - ./config/${LITELLM_CONFIG_FILE:-litellm.yaml}:/app/config.yaml:ro
       - ./logs/${ACP_SLOT:-active}/litellm:/var/log/litellm
-    # Explicitly invoke the CLI so "--config" is not treated as an executable
     command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
-    # Note: In split-host mode (ACP_DATABASE_MODE=external), the postgres
-    # service is not started. LiteLLM connects to external DB via DATABASE_URL.
-    depends_on:
-      presidio-analyzer:
-        condition: service_healthy
-      presidio-anonymizer:
-        condition: service_healthy
     restart: unless-stopped
     logging: *acp-logging
     labels: *acp-labels
     healthcheck:
-      # Use Python's urllib with Authorization header to enforce authenticated readiness.
       test: ["CMD", "python", "-c", "import os, urllib.request, urllib.error, sys;\nkey = os.getenv('LITELLM_MASTER_KEY', '').strip();\nif not key:\n    sys.exit(1)\nreq = urllib.request.Request('http://127.0.0.1:4000/health', headers={'Authorization': f'Bearer {key}'});\ntry:\n    urllib.request.urlopen(req);\n    sys.exit(0)\nexcept urllib.error.HTTPError as e:\n    sys.exit(0) if e.code == 200 else sys.exit(1)\nexcept Exception:\n    sys.exit(1)"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 60s
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 120s
 
   otel-collector:
     <<: *acp-security-defaults
-    profiles: ["otel", "production"]
-    # Used for direct/bypass client telemetry and optional correlation telemetry.
-    # Raw collector ports are localhost-only by contract; remote clients must use
-    # the TLS-authenticated Caddy `/otel/*` ingress instead of direct exposure.
-    # Pinned to prevent drift (v0.147.0)
+    profiles: ["production"]
     image: otel/opentelemetry-collector-contrib:0.147.0@sha256:e7c92c715f28ff142f3bcaccd4fc5603cf4c71276ef09954a38eb4038500a5a5
     command: ["--config=/etc/otel-collector/${OTEL_COLLECTOR_CONFIG_FILE:-config.yaml}"]
     volumes:
@@ -150,172 +115,12 @@ services:
     logging: *acp-logging
     labels: *acp-labels
     healthcheck:
-      # Distroless image: cannot use CMD-SHELL/curl for HTTP probes.
-      # Config validation is the most reliable health signal available.
       test: ["CMD", "/otelcol-contrib", "validate", "--config=/etc/otel-collector/${OTEL_COLLECTOR_CONFIG_FILE:-config.yaml}"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-  presidio-analyzer:
-    <<: *acp-security-defaults
-    # Microsoft Presidio Analyzer - deterministic entity detection for advanced DLP.
-    # Retained for custom recognizers and high-fidelity PII/entity matching that
-    # is beyond lightweight native content filtering.
-    # Pinned to prevent drift (v2.2.361)
-    image: mcr.microsoft.com/presidio-analyzer:2.2.361@sha256:7e0d954193e820bc3b63e11af4897887ffa88639e368b1e252051f38e3c714cb
-    expose:
-      - "3000"
-    # Note: Custom recognizers are disabled by default because some macOS Docker
-    # Desktop setups require explicit file-sharing configuration for bind mounts.
-    # volumes:
-    #   - ./config/presidio/recognizers/custom_recognizers.yaml:/app/conf/custom_recognizers.yaml:ro
-    restart: unless-stopped
-    logging: *acp-logging
-    labels: *acp-labels
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 60s
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 60s
-
-  presidio-anonymizer:
-    <<: *acp-security-defaults
-    # Microsoft Presidio Anonymizer - applies MASK/REDACT actions returned by analyzer
-    # Pinned to prevent drift (v2.2.361)
-    image: mcr.microsoft.com/presidio-anonymizer:2.2.361@sha256:022fc4bb42cd43b0c27526b6a0394b2b14aaf4b972a4814845eb8b48761bee7b
-    expose:
-      - "3000"
-    restart: unless-stopped
-    logging: *acp-logging
-    labels: *acp-labels
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 60s
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 60s
-
-  # =============================================================================
-  # Managed LibreChat Services (Standard Package)
-  # =============================================================================
-
-  librechat-mongodb:
-    # MongoDB (Chainguard) for LibreChat - Pinned to prevent drift
-    image: cgr.dev/chainguard/mongodb@sha256:4e0c260ea3fc0c3dde5d85152e955029988c7b4603c7b5fa7d2be475d52413f5
-    # MongoDB 8 binds localhost by default; enable cross-container access.
-    command: ["--bind_ip_all"]
-    restart: unless-stopped
-    logging: *acp-logging
-    labels: *acp-labels
-    volumes:
-      - librechat_mongodb_data_${ACP_SLOT:-active}:/data/db
-    healthcheck:
-      # Chainguard MongoDB image is shell-less and does not ship mongosh.
-      # Use a binary availability probe to avoid false-unhealthy state.
-      test: ["CMD", "/usr/bin/mongod", "--version"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-
-  librechat-meilisearch:
-    # Meilisearch v1.37.0 for LibreChat search - Pinned to prevent drift
-    image: getmeili/meilisearch:v1.37.0@sha256:9cde2774864e6c19cdd09fcd2950bc01ac9a0454b6f343fffafa14faae6eb7ea
-    restart: unless-stopped
-    logging: *acp-logging
-    labels: *acp-labels
-    environment:
-      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:?LIBRECHAT_MEILI_MASTER_KEY is required in demo/.env}
-      MEILI_NO_ANALYTICS: "true"
-    volumes:
-      - librechat_meili_data_${ACP_SLOT:-active}:/meili_data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health | grep -q 'available' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-  librechat:
-    <<: *acp-security-defaults
-    # Default to first-party hardened image pinned by digest.
-    # Override via LIBRECHAT_IMAGE for private mirror/airgap registries.
-    image: ${LIBRECHAT_IMAGE:-ghcr.io/fitchmultz/acp/librechat-hardened:20260212@sha256:3243673fecc5f52b12b1537048c6aa698f0bf618173cf1bb58d6438b7ca489ae}
-    pull_policy: ${ACP_PULL_POLICY:-missing}
-    # Match image file ownership for mounted volumes under capability drop.
-    user: "1000:1000"
-    env_file: .env
-    environment:
-      HOST: 0.0.0.0
-      PORT: ${LIBRECHAT_PORT:-3080}
-      MONGO_URI: ${LIBRECHAT_MONGO_URI:-mongodb://librechat-mongodb:27017/LibreChat}
-      MEILI_HOST: http://librechat-meilisearch:7700
-      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:?LIBRECHAT_MEILI_MASTER_KEY is required in demo/.env}
-      MEILI_NO_ANALYTICS: "true"
-      CREDS_KEY: ${LIBRECHAT_CREDS_KEY:?LIBRECHAT_CREDS_KEY is required in demo/.env}
-      CREDS_IV: ${LIBRECHAT_CREDS_IV:?LIBRECHAT_CREDS_IV is required in demo/.env}
-      NO_INDEX: "true"
-      SEARCH: "true"
-      TRUST_PROXY: "1"
-    depends_on:
-      litellm:
-        condition: service_healthy
-      librechat-mongodb:
-        condition: service_healthy
-      librechat-meilisearch:
-        condition: service_healthy
-    ports:
-      - "${LIBRECHAT_PUBLISH_HOST:-127.0.0.1}:${LIBRECHAT_HOST_PORT:-3080}:3080"
-    volumes:
-      - ./config/librechat/librechat.yaml:/app/librechat.yaml:ro
-      - librechat_uploads_${ACP_SLOT:-active}:/app/uploads
-      - librechat_images_${ACP_SLOT:-active}:/app/client/public/images
-      - librechat_logs_${ACP_SLOT:-active}:/app/logs
-    restart: unless-stopped
-    logging: *acp-logging
-    labels: *acp-labels
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "const http=require('http');const req=http.get('http://127.0.0.1:3080/health',res=>{let body='';res.on('data',d=>body+=d);res.on('end',()=>{const ok=res.statusCode===200&&body.trim().toUpperCase()==='OK';process.exit(ok?0:1);});});req.on('error',()=>process.exit(1));req.setTimeout(4000,()=>{req.destroy();process.exit(1);});",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-
-# =============================================================================
-# Volumes
-# =============================================================================
-
 volumes:
   pgdata:
     name: ai_control_plane_pgdata_${ACP_SLOT:-active}
-  librechat_mongodb_data_active:
-  librechat_mongodb_data_standby:
-  librechat_meili_data_active:
-  librechat_meili_data_standby:
-  librechat_uploads_active:
-  librechat_uploads_standby:
-  librechat_images_active:
-  librechat_images_standby:
-  librechat_logs_active:
-  librechat_logs_standby:

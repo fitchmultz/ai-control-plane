@@ -43,6 +43,7 @@ func TestListTrackedFiles_ReturnsSortedRepoRelativePaths(t *testing.T) {
 	testutil.WriteRepoFile(t, repoRoot, "z-last.txt", "z\n")
 	testutil.WriteRepoFile(t, repoRoot, "nested/alpha.txt", "a\n")
 	testutil.WriteRepoFile(t, repoRoot, filepath.ToSlash("nested/beta.txt"), "b\n")
+	testutil.WriteRepoFile(t, repoRoot, "deploy/incubating/terraform/README.md", "incubating\n")
 	runGit("add", ".")
 
 	paths, err := ListTrackedFiles(context.Background(), repoRoot)

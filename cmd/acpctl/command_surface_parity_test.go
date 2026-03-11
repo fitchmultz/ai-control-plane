@@ -5,7 +5,7 @@
 //     aligned with the live typed command registry.
 //
 // Responsibilities:
-//   - Assert the approved validate/db/key/host/terraform subcommand inventory.
+//   - Assert the approved validate/db/key/host/deploy subcommand inventory.
 //   - Fail when docs or Make wrappers publish dead acpctl command paths.
 //   - Fail when docs publish removed Make targets.
 //   - Fail when committed completion artifacts drift from generated output.
@@ -30,15 +30,17 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/catalog"
 )
 
 func TestCommandSpec_ApprovedCommandInventory(t *testing.T) {
 	expected := map[string][]string{
-		"validate":  {"lint", "config", "detections", "siem-queries", "public-hygiene", "license", "supply-chain", "secrets-audit", "compose-healthchecks", "headers", "env-access", "security"},
-		"db":        {"status", "backup", "restore", "shell", "dr-drill"},
-		"key":       {"gen", "revoke", "gen-dev", "gen-lead"},
-		"host":      {"preflight", "check", "apply", "install", "uninstall", "service-status", "service-start", "service-stop", "service-restart", "secrets-refresh"},
-		"terraform": {"init", "plan", "apply", "destroy", "fmt", "validate"},
+		"validate": {"lint", "config", "detections", "siem-queries", "public-hygiene", "license", "supply-chain", "secrets-audit", "compose-healthchecks", "headers", "env-access", "security"},
+		"db":       {"status", "backup", "restore", "shell", "dr-drill"},
+		"key":      {"gen", "revoke", "gen-dev", "gen-lead"},
+		"host":     {"preflight", "check", "apply", "install", "uninstall", "service-status", "service-start", "service-stop", "service-restart"},
+		"deploy":   {"release-bundle", "readiness-evidence", "pilot-closeout-bundle", "artifact-retention"},
 	}
 
 	spec, err := loadCommandSpec()
@@ -69,7 +71,6 @@ func TestPublishedMakeTargetsResolve(t *testing.T) {
 	targets := loadPublishedMakeTargets(t, repoRoot)
 	files := append(
 		documentationFiles(t, repoRoot),
-		collectFiles(t, repoRoot, []string{"deploy/helm/ai-control-plane/templates"}, []string{".yaml", ".yml"})...,
 	)
 
 	var issues []string
@@ -100,8 +101,7 @@ func TestPublishedACPCTLCommandsResolve(t *testing.T) {
 		t.Fatalf("loadCommandSpec() error = %v", err)
 	}
 
-	files := append(documentationFiles(t, repoRoot), collectFiles(t, repoRoot, []string{"deploy/helm/ai-control-plane/templates"}, []string{".yaml", ".yml"})...)
-	files = append(files, collectFiles(t, repoRoot, []string{"mk"}, []string{".mk"})...)
+	files := append(documentationFiles(t, repoRoot), collectFiles(t, repoRoot, []string{"mk"}, []string{".mk"})...)
 
 	var issues []string
 	for _, file := range files {
@@ -139,9 +139,83 @@ func TestGeneratedCompletionArtifactsAreCurrent(t *testing.T) {
 	}
 }
 
+func TestGeneratedReferenceArtifactsAreCurrent(t *testing.T) {
+	repoRoot := repoRootForParityTests(t)
+	artifacts, err := generatedReferenceArtifacts(repoRoot)
+	if err != nil {
+		t.Fatalf("generatedReferenceArtifacts() error = %v", err)
+	}
+	for path, generated := range artifacts {
+		current, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if generated != string(current) {
+			t.Fatalf("%s is stale; run make generate", mustRelPath(t, repoRoot, path))
+		}
+	}
+}
+
+func TestPublicSurfaceOmitsIncubatingTracks(t *testing.T) {
+	repoRoot := repoRootForParityTests(t)
+	matrix, err := catalog.LoadSupportMatrix(filepath.Join(repoRoot, "docs", "support-matrix.yaml"))
+	if err != nil {
+		t.Fatalf("LoadSupportMatrix() error = %v", err)
+	}
+
+	files := append(publicDocumentationFiles(t, repoRoot, matrix), filepath.Join(repoRoot, "Makefile"))
+	var issues []string
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		content := strings.ToLower(string(data))
+		for _, term := range matrix.IncubatingTerms {
+			needle := strings.ToLower(strings.TrimSpace(term))
+			if needle == "" || !strings.Contains(content, needle) {
+				continue
+			}
+			issues = append(issues, mustRelPath(t, repoRoot, file)+": incubating term exposed in supported surface: "+needle)
+		}
+	}
+
+	if len(issues) > 0 {
+		t.Fatalf("public supported surface still exposes incubating tracks:\n%s", strings.Join(issues, "\n"))
+	}
+}
+
+func TestDocumentationLinksStayRepoRelative(t *testing.T) {
+	repoRoot := repoRootForParityTests(t)
+	files := append(documentationFiles(t, repoRoot), filepath.Join(repoRoot, "deploy", "incubating", "README.md"))
+	files = append(files,
+		filepath.Join(repoRoot, "docs", "deployment", "KUBERNETES_HELM.md"),
+		filepath.Join(repoRoot, "docs", "deployment", "TERRAFORM.md"),
+	)
+	files = dedupeStrings(files)
+
+	linkPattern := regexp.MustCompile(`\]\((/[^)]+)\)`)
+	var issues []string
+	for _, file := range files {
+		for lineNo, line := range readLines(t, file) {
+			for _, match := range linkPattern.FindAllStringSubmatch(line, -1) {
+				target := match[1]
+				issues = append(issues, formatIssue(t, repoRoot, file, lineNo+1, "absolute link target "+target))
+			}
+			if strings.Contains(line, "/Users/") {
+				issues = append(issues, formatIssue(t, repoRoot, file, lineNo+1, "absolute local filesystem path"))
+			}
+		}
+	}
+
+	if len(issues) > 0 {
+		t.Fatalf("documentation links must stay repo-relative:\n%s", strings.Join(issues, "\n"))
+	}
+}
+
 func TestRetiredCommandReferencesStayRemoved(t *testing.T) {
 	repoRoot := repoRootForParityTests(t)
-	files := append(documentationFiles(t, repoRoot), collectFiles(t, repoRoot, []string{"deploy/helm/ai-control-plane/templates", "mk"}, []string{".yaml", ".yml", ".mk"})...)
+	files := append(documentationFiles(t, repoRoot), collectFiles(t, repoRoot, []string{"mk"}, []string{".yaml", ".yml", ".mk"})...)
 	files = append(files, filepath.Join(repoRoot, "Makefile"))
 	retiredPatterns := []string{
 		"rbac-whoami",
@@ -162,6 +236,9 @@ func TestRetiredCommandReferencesStayRemoved(t *testing.T) {
 		"./scripts/acpctl.sh bridge host_install",
 		"./scripts/acpctl.sh bridge prepare_secrets_env",
 		"./scripts/acpctl.sh bridge prod_smoke_test",
+		"./scripts/acpctl.sh demo ",
+		"./scripts/acpctl.sh terraform ",
+		"./scripts/acpctl.sh helm ",
 	}
 
 	var issues []string
@@ -227,10 +304,36 @@ func loadPublishedMakeTargets(t *testing.T, repoRoot string) map[string]struct{}
 
 func documentationFiles(t *testing.T, repoRoot string) []string {
 	t.Helper()
-	files := collectFiles(t, repoRoot, []string{"docs", "demo"}, []string{".md"})
-	files = append(files, filepath.Join(repoRoot, "README.md"))
+	matrix, err := catalog.LoadSupportMatrix(filepath.Join(repoRoot, "docs", "support-matrix.yaml"))
+	if err != nil {
+		t.Fatalf("LoadSupportMatrix() error = %v", err)
+	}
+	files := append(publicDocumentationFiles(t, repoRoot, matrix), referenceDocumentationFiles(t, repoRoot, matrix)...)
 	sort.Strings(files)
-	return files
+	return dedupeStrings(files)
+}
+
+func publicDocumentationFiles(t *testing.T, repoRoot string, matrix catalog.SupportMatrix) []string {
+	t.Helper()
+	return resolveTrackedDocPaths(t, repoRoot, matrix.PublicDocs)
+}
+
+func referenceDocumentationFiles(t *testing.T, repoRoot string, matrix catalog.SupportMatrix) []string {
+	t.Helper()
+	return resolveTrackedDocPaths(t, repoRoot, matrix.ReferenceDocs)
+}
+
+func resolveTrackedDocPaths(t *testing.T, repoRoot string, paths []string) []string {
+	t.Helper()
+	files := make([]string, 0, len(paths))
+	for _, path := range paths {
+		resolved := filepath.Join(repoRoot, filepath.FromSlash(path))
+		if _, err := os.Stat(resolved); err == nil {
+			files = append(files, resolved)
+		}
+	}
+	sort.Strings(files)
+	return dedupeStrings(files)
 }
 
 func collectFiles(t *testing.T, repoRoot string, dirs []string, extensions []string) []string {

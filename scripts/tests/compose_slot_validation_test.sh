@@ -47,12 +47,16 @@ printf '============================\n'
 
 if docker compose version >/dev/null 2>&1; then
     docker compose -f "${COMPOSE_DIR}/docker-compose.yml" config >/dev/null
-    docker compose -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
-    printf '  ✓ docker compose validates main and offline configs\n'
+    docker compose -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
+    docker compose -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.ui.yml" config >/dev/null
+    docker compose -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.dlp.yml" config >/dev/null
+    printf '  ✓ docker compose validates base and overlay configs\n'
 elif command -v docker-compose >/dev/null 2>&1; then
     docker-compose -f "${COMPOSE_DIR}/docker-compose.yml" config >/dev/null
-    docker-compose -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
-    printf '  ✓ docker-compose validates main and offline configs\n'
+    docker-compose -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.offline.yml" config >/dev/null
+    docker-compose -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.ui.yml" config >/dev/null
+    docker-compose -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.dlp.yml" config >/dev/null
+    printf '  ✓ docker-compose validates base and overlay configs\n'
 else
     if ! grep -q "^services:" "${COMPOSE_DIR}/docker-compose.yml"; then
         printf '  ✗ main compose file missing services section\n'
@@ -67,8 +71,14 @@ if grep -Eq 'short-key|:-invalid' "${COMPOSE_DIR}/docker-compose.yml"; then
 fi
 printf '  ✓ main compose file has no insecure secret fallbacks\n'
 
-if ! grep -q '127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432' "${COMPOSE_DIR}/docker-compose.offline.yml"; then
-    printf '  ✗ offline postgres should stay localhost-bound\n'
+if ! grep -q 'mock-upstream:' "${COMPOSE_DIR}/docker-compose.offline.yml"; then
+    printf '  ✗ offline overlay should define mock-upstream\n'
     exit 1
 fi
-printf '  ✓ offline postgres stays localhost-bound\n'
+printf '  ✓ offline overlay defines mock-upstream\n'
+
+if grep -q 'postgres:' "${COMPOSE_DIR}/docker-compose.offline.yml"; then
+    printf '  ✗ offline overlay should not redefine postgres\n'
+    exit 1
+fi
+printf '  ✓ offline overlay avoids base-service drift\n'

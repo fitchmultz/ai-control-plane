@@ -39,7 +39,6 @@ func hostCommandSpec() *commandSpec {
 			bridgeLeafSpecWithArgs("service-start", "Start the systemd service", "scripts/libexec/host_install_impl.sh", "service-start"),
 			bridgeLeafSpecWithArgs("service-stop", "Stop the systemd service", "scripts/libexec/host_install_impl.sh", "service-stop"),
 			bridgeLeafSpecWithArgs("service-restart", "Restart the systemd service", "scripts/libexec/host_install_impl.sh", "service-restart"),
-			bridgeLeafSpec("secrets-refresh", "Validate and sync canonical host secrets into the Compose runtime env file", "scripts/libexec/prepare_secrets_env_impl.sh"),
 		},
 	}
 }

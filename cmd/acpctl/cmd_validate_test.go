@@ -196,7 +196,7 @@ func withRepoRoot(t *testing.T, repoRoot string, fn func() int) int {
 
 func writeValidationFixtureRepo(t *testing.T, repoRoot string, duplicateRule bool) {
 	t.Helper()
-	writeFile(t, filepath.Join(repoRoot, litellmConfigRelativePath), validLiteLLMYAML)
+	writeFile(t, filepath.Join(repoRoot, modelCatalogRelativePath), validModelCatalogYAML)
 	detectionYAML := validDetectionRulesYAML
 	if duplicateRule {
 		detectionYAML = strings.Replace(detectionYAML, "rule_id: DR-002", "rule_id: DR-001", 1)
@@ -227,8 +227,10 @@ func writeProductionValidationFixtureRepo(t *testing.T, repoRoot string) {
 		"      - \"127.0.0.1:13133:13133\"\n"+
 		"    healthcheck:\n"+
 		"      test: [\"CMD\", \"/otelcol-contrib\", \"validate\", \"--config=/etc/otel-collector/config.production.yaml\"]\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.dlp.yml"), "services: {}\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services:\n  caddy:\n    image: caddy:2\n    healthcheck:\n      test: [\"CMD\", \"caddy\", \"validate\", \"--config\", \"/etc/caddy/Caddyfile\"]\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", "docker-compose.ui.yml"), "services: {}\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "config", "caddy", "Caddyfile.prod"), ""+
@@ -240,21 +242,22 @@ func writeProductionValidationFixtureRepo(t *testing.T, repoRoot string) {
 		"    }\n"+
 		"    reverse_proxy litellm:4000\n"+
 		"}\n")
-	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
-	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
-	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
-	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: litellm\n")
 	writeFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "hosts: all\ntasks:\n  - debug:\n      msg: ok\n")
-	writeFile(t, filepath.Join(repoRoot, "deploy", "terraform", "examples", "aws-complete", "main.tf"), "terraform {\n  required_version = \">= 1.9.0\"\n}\n")
 	writeFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM scratch\n")
 }
 
-const validLiteLLMYAML = `---
-model_list:
-  - model_name: openai-gpt5.2
-  - model_name: claude-haiku-4-5
+const validModelCatalogYAML = `---
+online_models:
+  - alias: openai-gpt5.2
+    upstream_model: openai/gpt-5.2
+    credential_env: OPENAI_API_KEY
+    managed_ui_default: true
+  - alias: claude-haiku-4-5
+    upstream_model: anthropic/claude-haiku-4-5
+    credential_env: ANTHROPIC_API_KEY
+offline_models:
+  - alias: mock-gpt
+    upstream_model: openai/mock-gpt
 `
 
 const validDetectionRulesYAML = `---

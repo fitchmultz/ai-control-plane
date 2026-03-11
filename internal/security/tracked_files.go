@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/mitchfultz/ai-control-plane/internal/policy"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
 
@@ -44,7 +45,11 @@ func ListTrackedFiles(ctx context.Context, repoRoot string) ([]string, error) {
 		if len(rawPath) == 0 {
 			continue
 		}
-		paths = append(paths, filepath.ToSlash(filepath.Clean(string(rawPath))))
+		relPath := filepath.ToSlash(filepath.Clean(string(rawPath)))
+		if policy.MatchAnyGlob(relPath, []string{"deploy/incubating/**"}) {
+			continue
+		}
+		paths = append(paths, relPath)
 	}
 	sort.Strings(paths)
 	return paths, nil

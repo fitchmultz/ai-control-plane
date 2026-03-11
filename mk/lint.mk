@@ -8,7 +8,7 @@
 #   - SIEM query sync validation
 #   - Secrets audit
 #   - Deployment configuration validation
-#   - Helm chart validation
+#   - Supported-surface deployment validation only
 #
 # Non-scope:
 #   - Does not fix issues automatically
@@ -21,13 +21,13 @@ lint: ## Run linters (shellcheck, YAML validation, docker-compose config, SIEM s
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
 	@$(MAKE) --silent lint-env-access
+	@$(MAKE) --silent validate-doc-links
 	@$(MAKE) --silent validate-acpctl-parity
 	@$(MAKE) --silent lint-compose
 	@$(MAKE) --silent lint-healthchecks
 	@$(MAKE) --silent lint-siem
 	@$(MAKE) --silent lint-secrets
 	@$(MAKE) --silent lint-config
-	@$(MAKE) --silent lint-helm
 	@echo '$(COLOR_GREEN)✓ All lint checks passed$(COLOR_RESET)'
 
 .PHONY: lint-shell
@@ -51,7 +51,9 @@ lint-yaml: ## Run yamllint on configuration files
 		exit 2; \
 	fi
 	@yamllint $(COMPOSE_DIR)/config/litellm.yaml \
+		$(COMPOSE_DIR)/config/litellm-dlp.yaml \
 		$(COMPOSE_DIR)/config/litellm-offline.yaml \
+		$(COMPOSE_DIR)/config/model_catalog.yaml \
 		$(COMPOSE_DIR)/config/detection_rules.yaml \
 		$(COMPOSE_DIR)/config/librechat/librechat.yaml \
 		&& echo '$(COLOR_GREEN)✓ YAML lint passed$(COLOR_RESET)' \
@@ -77,9 +79,15 @@ lint-compose: ## Validate Docker Compose configurations
 		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.yml config >/dev/null \
 			&& echo '$(COLOR_GREEN)✓ Docker Compose config is valid$(COLOR_RESET)' \
 			|| { echo '$(COLOR_RED)✗ Docker Compose config is invalid$(COLOR_RESET)'; exit 1; }; \
-		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.offline.yml config >/dev/null \
+		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.yml -f $(COMPOSE_DIR)/docker-compose.offline.yml config >/dev/null \
 			&& echo '$(COLOR_GREEN)✓ Docker Compose offline config is valid$(COLOR_RESET)' \
 			|| { echo '$(COLOR_RED)✗ Docker Compose offline config is invalid$(COLOR_RESET)'; exit 1; }; \
+		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.yml -f $(COMPOSE_DIR)/docker-compose.ui.yml config >/dev/null \
+			&& echo '$(COLOR_GREEN)✓ Docker Compose UI overlay config is valid$(COLOR_RESET)' \
+			|| { echo '$(COLOR_RED)✗ Docker Compose UI overlay config is invalid$(COLOR_RESET)'; exit 1; }; \
+		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.yml -f $(COMPOSE_DIR)/docker-compose.dlp.yml config >/dev/null \
+			&& echo '$(COLOR_GREEN)✓ Docker Compose DLP overlay config is valid$(COLOR_RESET)' \
+			|| { echo '$(COLOR_RED)✗ Docker Compose DLP overlay config is invalid$(COLOR_RESET)'; exit 1; }; \
 		$(DOCKER_COMPOSE_PROJECT) -f $(COMPOSE_DIR)/docker-compose.yml \
 			-f $(COMPOSE_DIR)/docker-compose.tls.yml config >/dev/null \
 			&& echo '$(COLOR_GREEN)✓ Docker Compose TLS overlay config is valid$(COLOR_RESET)' \
@@ -115,17 +123,6 @@ lint-config: ## Validate deployment configuration
 	@$(ACPCTL_BIN) validate config \
 		&& echo '$(COLOR_GREEN)✓ Configuration validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Configuration validation failed$(COLOR_RESET)'; exit 1; }
-
-.PHONY: lint-helm
-lint-helm: ## Validate Helm chart
-	@echo '$(COLOR_BOLD)Validating Helm chart...$(COLOR_RESET)'
-	@if command -v helm >/dev/null 2>&1; then \
-		$(ACPCTL_BIN) helm validate \
-			&& echo '$(COLOR_GREEN)✓ Helm chart validation passed$(COLOR_RESET)' \
-			|| { echo '$(COLOR_RED)✗ Helm chart validation failed$(COLOR_RESET)'; exit 1; }; \
-	else \
-		echo '$(COLOR_YELLOW)⚠ helm not installed - skipping Helm chart validation$(COLOR_RESET)'; \
-	fi
 
 .PHONY: format
 format: ## Format shell scripts with shfmt

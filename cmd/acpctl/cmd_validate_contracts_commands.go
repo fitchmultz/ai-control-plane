@@ -37,16 +37,17 @@ import (
 const (
 	detectionRulesRelativePath = "demo/config/detection_rules.yaml"
 	siemQueriesRelativePath    = "demo/config/siem_queries.yaml"
-	litellmConfigRelativePath  = "demo/config/litellm.yaml"
+	modelCatalogRelativePath   = "demo/config/model_catalog.yaml"
 )
 
 type validationContracts struct {
-	Detections  contracts.DetectionRulesFile
-	SIEMQueries contracts.SIEMQueriesFile
-	LiteLLM     catalog.LiteLLMConfig
-	RulesPath   string
-	SIEMPath    string
-	LiteLLMPath string
+	Detections       contracts.DetectionRulesFile
+	SIEMQueries      contracts.SIEMQueriesFile
+	ModelCatalog     catalog.ModelCatalog
+	LiteLLM          catalog.LiteLLMConfig
+	RulesPath        string
+	SIEMPath         string
+	ModelCatalogPath string
 }
 
 type validateDetectionsOptions struct {
@@ -92,9 +93,9 @@ func validateSIEMQueriesCommandSpec() *commandSpec {
 
 func loadValidationContracts(repoRoot string) (validationContracts, error) {
 	artifacts := validationContracts{
-		RulesPath:   repopath.DemoConfigPath(repoRoot, "detection_rules.yaml"),
-		SIEMPath:    repopath.DemoConfigPath(repoRoot, "siem_queries.yaml"),
-		LiteLLMPath: repopath.DemoConfigPath(repoRoot, "litellm.yaml"),
+		RulesPath:        repopath.DemoConfigPath(repoRoot, "detection_rules.yaml"),
+		SIEMPath:         repopath.DemoConfigPath(repoRoot, "siem_queries.yaml"),
+		ModelCatalogPath: repopath.DemoConfigPath(repoRoot, "model_catalog.yaml"),
 	}
 	var err error
 	if artifacts.Detections, err = contracts.LoadDetectionRulesFile(artifacts.RulesPath); err != nil {
@@ -103,16 +104,17 @@ func loadValidationContracts(repoRoot string) (validationContracts, error) {
 	if artifacts.SIEMQueries, err = contracts.LoadSIEMQueriesFile(artifacts.SIEMPath); err != nil {
 		return validationContracts{}, fmt.Errorf("failed to load SIEM query mappings: %w", err)
 	}
-	if artifacts.LiteLLM, err = catalog.LoadLiteLLMConfig(artifacts.LiteLLMPath); err != nil {
-		return validationContracts{}, fmt.Errorf("failed to load LiteLLM config: %w", err)
+	if artifacts.ModelCatalog, err = catalog.LoadModelCatalog(artifacts.ModelCatalogPath); err != nil {
+		return validationContracts{}, fmt.Errorf("failed to load model catalog: %w", err)
 	}
+	artifacts.LiteLLM = artifacts.ModelCatalog.OnlineLiteLLMConfig()
 	return artifacts, nil
 }
 
 func printValidationContractPaths(stdout *os.File, artifacts validationContracts) {
 	fmt.Fprintf(stdout, "Detection rules: %s\n", artifacts.RulesPath)
 	fmt.Fprintf(stdout, "SIEM query mappings: %s\n", artifacts.SIEMPath)
-	fmt.Fprintf(stdout, "Approved models source: %s\n", artifacts.LiteLLMPath)
+	fmt.Fprintf(stdout, "Approved models source: %s\n", artifacts.ModelCatalogPath)
 }
 
 func runValidateDetectionsTyped(_ context.Context, runCtx commandRunContext, raw any) int {

@@ -39,15 +39,6 @@ _acpctl() {
         host)
             _acpctl_host
             ;;
-        demo)
-            _acpctl_demo
-            ;;
-        terraform)
-            _acpctl_terraform
-            ;;
-        helm)
-            _acpctl_helm
-            ;;
         *)
             _files
             ;;
@@ -66,14 +57,11 @@ _acpctl_commands() {
         "smoke:Run truthful runtime smoke checks"
         "completion:Generate shell completion scripts"
         "onboard:Configure local tools to route through the gateway"
-        "deploy:Service lifecycle, release, and deployment operations"
+        "deploy:Typed evidence and artifact workflows"
         "validate:Configuration and policy validation operations"
         "db:Database backup, restore, and inspection operations"
         "key:Virtual key lifecycle operations"
         "host:Host-first deployment and operations"
-        "demo:Demo scenario, preset, and snapshot operations"
-        "terraform:Terraform provisioning workflow helpers"
-        "helm:Helm chart validation and smoke gates"
         "help:Show this help message"
     )
     _describe -t commands 'acpctl commands' commands "$@"
@@ -121,21 +109,6 @@ _acpctl_completion() {
 
 _acpctl_deploy() {
     local subcmds=(
-        "up:Start default services"
-        "down:Stop default services"
-        "restart:Restart default services"
-        "health:Run service health checks"
-        "logs:Tail service logs"
-        "ps:Show running services"
-        "up-production:Start production profile services"
-        "prod-smoke:Run production smoke tests"
-        "up-offline:Start offline mode services"
-        "down-offline:Stop offline mode services"
-        "health-offline:Run offline mode health checks"
-        "up-tls:Start TLS mode services"
-        "down-tls:Stop TLS mode services"
-        "tls-health:Run TLS health checks"
-        "helm-validate:Validate Helm chart"
         "release-bundle:Build deployment release bundle"
         "readiness-evidence:Generate and verify dated readiness evidence"
         "pilot-closeout-bundle:Assemble and verify a pilot closeout evidence bundle"
@@ -194,40 +167,8 @@ _acpctl_host() {
         "service-start:Start the systemd service"
         "service-stop:Stop the systemd service"
         "service-restart:Restart the systemd service"
-        "secrets-refresh:Validate and sync canonical host secrets into the Compose runtime env file"
     )
     _describe -t commands 'host subcommands' subcmds "$@"
-}
-
-_acpctl_demo() {
-    local subcmds=(
-        "scenario:Run a specific demo scenario"
-        "all:Run all demo scenarios"
-        "preset:Run a named demo preset"
-        "snapshot:Create a named demo snapshot"
-        "restore:Restore a named demo snapshot"
-    )
-    _describe -t commands 'demo subcommands' subcmds "$@"
-}
-
-_acpctl_terraform() {
-    local subcmds=(
-        "init:Initialize Terraform"
-        "plan:Run Terraform plan"
-        "apply:Run Terraform apply"
-        "destroy:Run Terraform destroy"
-        "fmt:Format Terraform files"
-        "validate:Validate Terraform configuration"
-    )
-    _describe -t commands 'terraform subcommands' subcmds "$@"
-}
-
-_acpctl_helm() {
-    local subcmds=(
-        "validate:Validate Helm deployment surfaces"
-        "smoke:Run truthful Helm smoke validation"
-    )
-    _describe -t commands 'helm subcommands' subcmds "$@"
 }
 
 compdef _acpctl acpctl

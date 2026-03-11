@@ -41,6 +41,7 @@ fi
 
 REPO_ROOT="$(test_repo_root)"
 COMPOSE_FILE="${REPO_ROOT}/demo/docker-compose.yml"
+UI_OVERLAY_FILE="${REPO_ROOT}/demo/docker-compose.ui.yml"
 
 printf 'Compose Slot Isolation Test\n'
 printf '===========================\n'
@@ -57,8 +58,8 @@ if ! grep -q 'name: ai_control_plane_pgdata_${ACP_SLOT:-active}' "${COMPOSE_FILE
 fi
 printf '  ✓ compose uses ACP_SLOT-scoped pgdata names\n'
 
-if ! grep -q 'librechat_mongodb_data_active' "${COMPOSE_FILE}" || ! grep -q 'librechat_mongodb_data_standby' "${COMPOSE_FILE}"; then
-    printf '  ✗ compose should declare distinct active and standby librechat volumes\n'
+if ! grep -q 'librechat_mongodb_data_active' "${UI_OVERLAY_FILE}" || ! grep -q 'librechat_mongodb_data_standby' "${UI_OVERLAY_FILE}"; then
+    printf '  ✗ UI overlay should declare distinct active and standby librechat volumes\n'
     exit 1
 fi
-printf '  ✓ compose declares distinct active and standby librechat volumes\n'
+printf '  ✓ UI overlay declares distinct active and standby librechat volumes\n'

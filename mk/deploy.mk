@@ -9,10 +9,90 @@
 # Non-scope:
 #   - Does not handle host-level deployment
 
+.PHONY: validate-runtime-overlays
+validate-runtime-overlays: ## Validate supported runtime overlay selection
+	@invalid='$(filter-out tls ui dlp offline,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS)))))'; \
+	if [ -n "$$invalid" ]; then \
+		echo '$(COLOR_RED)✗ Unsupported ACP_RUNTIME_OVERLAYS values:$(COLOR_RESET)' "$$invalid"; \
+		echo 'Supported overlays: tls, ui, dlp, offline'; \
+		exit 64; \
+	fi
+
+.PHONY: up-runtime
+up-runtime: hardened-images-build validate-config validate-runtime-overlays ## Start runtime using the canonical overlay engine
+	@echo '$(COLOR_BOLD)Starting runtime overlays: $(if $(strip $(ACP_RUNTIME_OVERLAYS)),$(ACP_RUNTIME_OVERLAYS),base)$(COLOR_RESET)'
+	@if printf '%s' '$(strip $(subst $(space),,$(ACP_RUNTIME_OVERLAYS)))' | grep -Eq '(^|,)ui(,|$$)'; then \
+		$(MAKE) --silent validate-librechat-config COMPOSE_ENV_FILE="$(COMPOSE_ENV_FILE)"; \
+	fi
+	@cd $(COMPOSE_DIR) && \
+		ACP_DATABASE_MODE=$(DB_MODE) \
+		ACP_PULL_POLICY=$(ACP_RUNTIME_PULL_POLICY) \
+		ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" \
+		LITELLM_CONFIG_FILE=$(if $(filter offline,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),litellm-offline.yaml,$(if $(filter dlp,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),litellm-dlp.yaml,litellm.yaml)) \
+		LITELLM_IMAGE=$(ACP_RUNTIME_LITELLM_IMAGE) \
+		LIBRECHAT_IMAGE=$(ACP_RUNTIME_LIBRECHAT_IMAGE) \
+		OTEL_COLLECTOR_CONFIG_FILE=$(ACP_RUNTIME_OTEL_COLLECTOR_CONFIG_FILE) \
+		$(DOCKER_COMPOSE_PROJECT) \
+		-f docker-compose.yml \
+		$(if $(filter dlp,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.dlp.yml,) \
+		$(if $(filter ui,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.ui.yml,) \
+		$(if $(filter offline,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.offline.yml,) \
+		$(if $(filter tls,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.tls.yml,) \
+		$(COMPOSE_DB_PROFILE) \
+		$(if $(filter 1 true yes,$(ACP_RUNTIME_PRODUCTION_PROFILE)),--profile production,) \
+		up -d --timeout 120 \
+		$(if $(filter embedded,$(DB_MODE)),postgres,) \
+		litellm \
+		$(if $(filter dlp,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),presidio-analyzer presidio-anonymizer,) \
+		$(if $(filter ui,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),librechat-mongodb librechat-meilisearch librechat,) \
+		$(if $(filter offline,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),mock-upstream,) \
+		$(if $(filter tls,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),caddy,) \
+		$(if $(filter 1 true yes,$(ACP_RUNTIME_PRODUCTION_PROFILE)),otel-collector,)
+	@echo '$(COLOR_GREEN)✓ Runtime started$(COLOR_RESET)'
+
+.PHONY: down-runtime
+down-runtime: validate-runtime-overlays ## Stop runtime using the canonical overlay engine
+	@echo '$(COLOR_BOLD)Stopping runtime overlays: $(if $(strip $(ACP_RUNTIME_OVERLAYS)),$(ACP_RUNTIME_OVERLAYS),base)$(COLOR_RESET)'
+	@cd $(COMPOSE_DIR) && \
+		ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE_PROJECT) \
+		-f docker-compose.yml \
+		$(if $(filter dlp,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.dlp.yml,) \
+		$(if $(filter ui,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.ui.yml,) \
+		$(if $(filter offline,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.offline.yml,) \
+		$(if $(filter tls,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.tls.yml,) \
+		$(COMPOSE_DB_PROFILE) \
+		$(if $(filter 1 true yes,$(ACP_RUNTIME_PRODUCTION_PROFILE)),--profile production,) \
+		down
+	@echo '$(COLOR_GREEN)✓ Runtime stopped$(COLOR_RESET)'
+
+.PHONY: logs-runtime
+logs-runtime: validate-runtime-overlays ## Tail runtime logs using the canonical overlay engine
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) \
+		-f docker-compose.yml \
+		$(if $(filter dlp,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.dlp.yml,) \
+		$(if $(filter ui,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.ui.yml,) \
+		$(if $(filter offline,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.offline.yml,) \
+		$(if $(filter tls,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.tls.yml,) \
+		$(COMPOSE_DB_PROFILE) \
+		$(if $(filter 1 true yes,$(ACP_RUNTIME_PRODUCTION_PROFILE)),--profile production,) \
+		logs -f
+
+.PHONY: ps-runtime
+ps-runtime: validate-runtime-overlays ## Show runtime status using the canonical overlay engine
+	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) \
+		-f docker-compose.yml \
+		$(if $(filter dlp,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.dlp.yml,) \
+		$(if $(filter ui,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.ui.yml,) \
+		$(if $(filter offline,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.offline.yml,) \
+		$(if $(filter tls,$(strip $(subst $(comma), ,$(subst $(space),,$(ACP_RUNTIME_OVERLAYS))))),-f docker-compose.tls.yml,) \
+		$(COMPOSE_DB_PROFILE) \
+		$(if $(filter 1 true yes,$(ACP_RUNTIME_PRODUCTION_PROFILE)),--profile production,) \
+		ps
+
 .PHONY: up
-up: hardened-images-build validate-config validate-librechat-config ## Start default services
+up: ## Start supported base services
 	@echo '$(COLOR_BOLD)Starting services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d
+	@$(MAKE) --silent up-runtime ACP_RUNTIME_OVERLAYS=
 	@echo '$(COLOR_GREEN)✓ Services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
@@ -21,40 +101,86 @@ up: hardened-images-build validate-config validate-librechat-config ## Start def
 	@echo 'Run $(COLOR_BOLD)make health$(COLOR_RESET) to verify services.'
 
 .PHONY: up-core
-up-core: hardened-images-build validate-config ## Start LiteLLM core services only (no managed web UI)
-	@echo '$(COLOR_BOLD)Starting LiteLLM core services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d \
-		$(if $(filter embedded,$(DB_MODE)),postgres,) presidio-analyzer presidio-anonymizer litellm
-	@echo '$(COLOR_GREEN)✓ LiteLLM core services started$(COLOR_RESET)'
-	@echo ''
-	@echo 'Services:'
-	@echo '  - LiteLLM Gateway: http://127.0.0.1:$(LITELLM_PORT)'
-	@echo '  - PostgreSQL: internal (embedded mode only)'
-	@echo ''
-	@echo 'Run $(COLOR_BOLD)make health$(COLOR_RESET) to verify services.'
+up-core: up ## Compatibility alias for the supported base runtime
 
-.PHONY: librechat-up
-librechat-up: hardened-images-build validate-config validate-librechat-config ## Start managed LibreChat services
-	@echo '$(COLOR_BOLD)Starting managed LibreChat services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d librechat
-	@echo '$(COLOR_GREEN)✓ LibreChat services started$(COLOR_RESET)'
-	@echo 'Open http://127.0.0.1:$(LIBRECHAT_PORT)'
+.PHONY: up-dlp
+up-dlp: ## Start base services with the DLP overlay
+	@echo '$(COLOR_BOLD)Starting DLP overlay services...$(COLOR_RESET)'
+	@$(MAKE) --silent up-runtime ACP_RUNTIME_OVERLAYS=dlp
+	@echo '$(COLOR_GREEN)✓ DLP overlay services started$(COLOR_RESET)'
+
+.PHONY: up-ui
+up-ui: ## Start base services with the managed UI overlay
+	@echo '$(COLOR_BOLD)Starting managed UI overlay services...$(COLOR_RESET)'
+	@$(MAKE) --silent up-runtime ACP_RUNTIME_OVERLAYS=ui
+	@echo '$(COLOR_GREEN)✓ Managed UI overlay services started$(COLOR_RESET)'
+
+.PHONY: up-full
+up-full: ## Start base services with DLP and managed UI overlays
+	@echo '$(COLOR_BOLD)Starting full host-first stack...$(COLOR_RESET)'
+	@$(MAKE) --silent up-runtime ACP_RUNTIME_OVERLAYS=ui,dlp
+	@echo '$(COLOR_GREEN)✓ Full host-first stack started$(COLOR_RESET)'
 
 .PHONY: librechat-health
-librechat-health: ## Check LibreChat HTTP health endpoint
-	@echo '$(COLOR_BOLD)Checking LibreChat health...$(COLOR_RESET)'
-	@code=$$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:$(LIBRECHAT_PORT)/health"); \
-	if [ "$$code" = "200" ]; then \
-		echo '$(COLOR_GREEN)✓ LibreChat health endpoint is accessible (HTTP 200)$(COLOR_RESET)'; \
-	else \
-		echo '$(COLOR_RED)✗ LibreChat health endpoint returned HTTP '$$code'$(COLOR_RESET)'; \
+librechat-health: ## Check managed UI overlay container health
+	@echo '$(COLOR_BOLD)Checking managed UI overlay health...$(COLOR_RESET)'
+	@failures=''; \
+	missing=0; \
+	for service in librechat librechat-mongodb librechat-meilisearch; do \
+		container_id="$$(cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.ui.yml $(COMPOSE_DB_PROFILE) ps -q $$service)"; \
+		container_id="$$(printf '%s\n' "$$container_id" | sed '/^$$/d' | tail -n 1)"; \
+		if [ -z "$$container_id" ]; then \
+			failures="$$failures $$service=missing"; \
+			missing=1; \
+			continue; \
+		fi; \
+		status="$$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing-healthcheck{{end}}' "$$container_id" 2>/dev/null || true)"; \
+		if [ "$$status" != "healthy" ]; then \
+			failures="$$failures $$service=$${status:-inspect-failed}"; \
+		fi; \
+	done; \
+	if [ "$$missing" -eq 1 ]; then \
+		echo '$(COLOR_RED)✗ Managed UI overlay is not active in the selected runtime:$(COLOR_RESET)'$$failures; \
 		exit 1; \
-	fi
+	fi; \
+	if [ -n "$$failures" ]; then \
+		echo '$(COLOR_RED)✗ Managed UI overlay services are unhealthy:$(COLOR_RESET)'$$failures; \
+		exit 1; \
+	fi; \
+	echo '$(COLOR_GREEN)✓ Managed UI overlay services are healthy$(COLOR_RESET)'
+
+.PHONY: dlp-health
+dlp-health: ## Check Presidio DLP overlay container health
+	@echo '$(COLOR_BOLD)Checking DLP overlay health...$(COLOR_RESET)'
+	@failures=''; \
+	missing=0; \
+	for service in presidio-analyzer presidio-anonymizer; do \
+		container_id="$$(cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.dlp.yml $(COMPOSE_DB_PROFILE) ps -q $$service)"; \
+		container_id="$$(printf '%s\n' "$$container_id" | sed '/^$$/d' | tail -n 1)"; \
+		if [ -z "$$container_id" ]; then \
+			failures="$$failures $$service=missing"; \
+			missing=1; \
+			continue; \
+		fi; \
+		status="$$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing-healthcheck{{end}}' "$$container_id" 2>/dev/null || true)"; \
+		if [ "$$status" != "healthy" ]; then \
+			failures="$$failures $$service=$${status:-inspect-failed}"; \
+		fi; \
+	done; \
+	if [ "$$missing" -eq 1 ]; then \
+		echo '$(COLOR_RED)✗ DLP overlay is not active in the selected runtime:$(COLOR_RESET)'$$failures; \
+		exit 1; \
+	fi; \
+	if [ -n "$$failures" ]; then \
+		echo '$(COLOR_RED)✗ DLP overlay services are unhealthy:$(COLOR_RESET)'$$failures; \
+		exit 1; \
+	fi; \
+	echo '$(COLOR_GREEN)✓ DLP overlay services are healthy$(COLOR_RESET)'
 
 .PHONY: down
 down: ## Stop default services
 	@echo '$(COLOR_BOLD)Stopping services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) down
+	@$(MAKE) --silent down-runtime ACP_RUNTIME_OVERLAYS=
 	@echo '$(COLOR_GREEN)✓ Services stopped$(COLOR_RESET)'
 
 .PHONY: restart
@@ -62,11 +188,11 @@ restart: down up ## Restart default services
 
 .PHONY: ps
 ps: ## Show running services
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) ps
+	@$(MAKE) --silent ps-runtime ACP_RUNTIME_OVERLAYS=
 
 .PHONY: logs
 logs: ## Tail service logs
-	@cd $(COMPOSE_DIR) && $(DOCKER_COMPOSE_PROJECT) logs -f
+	@$(MAKE) --silent logs-runtime ACP_RUNTIME_OVERLAYS=
 
 .PHONY: logs-litellm
 logs-litellm: ## Tail LiteLLM logs only

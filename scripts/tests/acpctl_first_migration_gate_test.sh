@@ -75,7 +75,6 @@ is_non_test_shell_path() {
     [[ "$path" == */fixtures/* ]] && return 1
     [[ "$path" == */lib/* ]] && return 1
     [[ "$path" == scripts/libexec/* ]] && return 1
-    [[ "$path" == deploy/helm/ai-control-plane/files/* ]] && return 1
     return 0
 }
 

@@ -38,12 +38,12 @@ all:
           acp_repo_path: /opt/ai-control-plane
 
           # Path to the environment file (must exist on host)
-          acp_env_file: /opt/ai-control-plane/demo/.env
+          acp_env_file: /etc/ai-control-plane/secrets.env
 
-          # TLS mode: 'plain' or 'tls'
-          # - plain: HTTP only (localhost or trusted network)
-          # - tls: HTTPS via Caddy (production)
-          acp_tls_mode: plain
+          # Supported overlays for host convergence.
+          # Allowed values: tls, ui, dlp, offline
+          # Base host-first convergence uses an empty list.
+          acp_runtime_overlays: []
 
           # Public URL for smoke checks and client access
           # Should match LITELLM_PUBLIC_URL in .env when TLS is enabled

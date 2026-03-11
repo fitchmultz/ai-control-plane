@@ -59,8 +59,8 @@ run_make_target() {
     (
         cd "${REPO_ROOT}"
         ACPCTL_BIN="${ACPCTL_STUB}" \
-        ACPCTL_TEST_CAPTURE_FILE="${CAPTURE_FILE}" \
-        make --silent "${target}"
+            ACPCTL_TEST_CAPTURE_FILE="${CAPTURE_FILE}" \
+            make --silent "${target}"
     ) >/dev/null
 }
 
@@ -86,3 +86,48 @@ printf '=====================\n'
 
 assert_single_invocation "db-status" "db status"
 assert_single_invocation "db-shell" "db shell"
+
+printf '\n'
+printf 'Production Runtime Contract Test\n'
+printf '===============================\n'
+
+DOCKER_STUB="${TEST_TMP_ROOT}/docker"
+MAKE_CAPTURE="${TEST_TMP_ROOT}/docker-compose-calls.txt"
+SECRETS_FILE="${TEST_TMP_ROOT}/secrets.env"
+
+cat >"${SECRETS_FILE}" <<'EOF'
+ACP_DATABASE_MODE=embedded
+POSTGRES_USER=litellm
+POSTGRES_PASSWORD=supersecurepostgres1
+POSTGRES_DB=litellm
+DATABASE_URL=postgresql://litellm:supersecurepostgres1@postgres:5432/litellm
+LITELLM_MASTER_KEY=0123456789abcdef0123456789abcdef
+LITELLM_SALT_KEY=abcdef0123456789abcdef0123456789
+EOF
+chmod 600 "${SECRETS_FILE}"
+
+cat >"${DOCKER_STUB}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "compose" && "${2:-}" == "version" ]]; then
+    exit 0
+fi
+printf '%s\n' "$*" >>"${ACP_DOCKER_TEST_CAPTURE_FILE}"
+exit 0
+EOF
+chmod +x "${DOCKER_STUB}"
+
+: >"${MAKE_CAPTURE}"
+(
+    cd "${REPO_ROOT}"
+    PATH="${TEST_TMP_ROOT}:${PATH}" \
+        ACPCTL_BIN="${TEST_TMP_ROOT}/acpctl-bin" \
+        ACP_DOCKER_TEST_CAPTURE_FILE="${MAKE_CAPTURE}" \
+        SECRETS_ENV_FILE="${SECRETS_FILE}" \
+        make --silent up-production
+) >/dev/null
+
+test_assert_file_contains "${MAKE_CAPTURE}" "--profile embedded-db" "up-production includes embedded-db profile"
+test_assert_file_contains "${MAKE_CAPTURE}" "--profile production" "up-production includes production profile"
+test_assert_file_contains "${MAKE_CAPTURE}" "-f docker-compose.yml -f docker-compose.tls.yml" "up-production uses base plus TLS compose files"
+test_assert_file_contains "${MAKE_CAPTURE}" "up -d --timeout 120 postgres litellm caddy otel-collector" "up-production starts postgres, litellm, caddy, and otel-collector"

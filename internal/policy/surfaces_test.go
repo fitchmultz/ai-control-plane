@@ -23,7 +23,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
+
+	"github.com/mitchfultz/ai-control-plane/internal/catalog"
 )
 
 func TestExpandDeploymentSurfacesIncludesNestedCanonicalTargets(t *testing.T) {
@@ -32,9 +35,7 @@ func TestExpandDeploymentSurfacesIncludesNestedCanonicalTargets(t *testing.T) {
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers: {}\n")
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM cgr.dev/chainguard/python@sha256:abc\n")
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "librechat-hardened", "Dockerfile"), "FROM ghcr.io/example/librechat@sha256:def\n")
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\n")
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "---\n- hosts: gateway\n")
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "terraform", "examples", "aws-complete", "main.tf"), "terraform {}\n")
 
 	targets, err := ExpandDeploymentSurfaces(repoRoot)
 	if err != nil {
@@ -48,9 +49,7 @@ func TestExpandDeploymentSurfacesIncludesNestedCanonicalTargets(t *testing.T) {
 	assertSurfaceKind(t, targetKinds, "demo/config/otel-collector/config.production.yaml", SurfaceYAML)
 	assertSurfaceKind(t, targetKinds, "demo/images/litellm-hardened/Dockerfile", SurfaceDockerfile)
 	assertSurfaceKind(t, targetKinds, "demo/images/librechat-hardened/Dockerfile", SurfaceDockerfile)
-	assertSurfaceKind(t, targetKinds, "deploy/helm/ai-control-plane/templates/deployment-litellm.yaml", SurfaceHelmTpl)
 	assertSurfaceKind(t, targetKinds, "deploy/ansible/playbooks/gateway_host.yml", SurfaceAnsibleYML)
-	assertSurfaceKind(t, targetKinds, "deploy/terraform/examples/aws-complete/main.tf", SurfaceTerraform)
 }
 
 func TestExpandDeploymentSurfacesIncludesExplicitRequiredTargetsWhenGlobMatchesNothing(t *testing.T) {
@@ -66,30 +65,102 @@ func TestExpandDeploymentSurfacesIncludesExplicitRequiredTargetsWhenGlobMatchesN
 		targetKinds[target.Path] = target.Kind
 	}
 	assertSurfaceKind(t, targetKinds, "demo/docker-compose.yml", SurfaceCompose)
-	assertSurfaceKind(t, targetKinds, "deploy/helm/ai-control-plane/values.yaml", SurfaceHelmValues)
 }
 
-func TestExpandDeploymentSurfacesSortsAndDedupesDeterministically(t *testing.T) {
+func TestExpandIncubatingDeploymentSurfacesSortsAndDedupesDeterministically(t *testing.T) {
 	repoRoot := t.TempDir()
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "a.yaml"), "profile: demo\n")
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "b.yaml"), "profile: demo\n")
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "a.yaml"), "profile: demo\n")
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "b.yaml"), "profile: demo\n")
 
 	spec := SurfaceSpec{
 		ID:    "dedupe",
 		Kind:  SurfaceHelmValues,
-		Paths: []string{"deploy/helm/ai-control-plane/examples/b.yaml"},
-		Globs: []string{"deploy/helm/ai-control-plane/examples/**/*.yaml"},
+		Paths: []string{"deploy/incubating/helm/ai-control-plane/examples/b.yaml"},
+		Globs: []string{"deploy/incubating/helm/ai-control-plane/examples/**/*.yaml"},
 	}
 	got, err := expandSpec(repoRoot, spec)
 	if err != nil {
 		t.Fatalf("expandSpec returned error: %v", err)
 	}
 	want := []string{
-		"deploy/helm/ai-control-plane/examples/a.yaml",
-		"deploy/helm/ai-control-plane/examples/b.yaml",
+		"deploy/incubating/helm/ai-control-plane/examples/a.yaml",
+		"deploy/incubating/helm/ai-control-plane/examples/b.yaml",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expandSpec mismatch\nwant: %v\n got: %v", want, got)
+	}
+}
+
+func TestExpandIncubatingDeploymentSurfacesIncludesMovedTracks(t *testing.T) {
+	repoRoot := t.TempDir()
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\n")
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "terraform", "examples", "aws-complete", "main.tf"), "terraform {}\n")
+
+	targets, err := ExpandIncubatingDeploymentSurfaces(repoRoot)
+	if err != nil {
+		t.Fatalf("ExpandIncubatingDeploymentSurfaces returned error: %v", err)
+	}
+	targetKinds := make(map[string]SurfaceKind, len(targets))
+	for _, target := range targets {
+		targetKinds[target.Path] = target.Kind
+	}
+	assertSurfaceKind(t, targetKinds, "deploy/incubating/helm/ai-control-plane/templates/deployment-litellm.yaml", SurfaceHelmTpl)
+	assertSurfaceKind(t, targetKinds, "deploy/incubating/terraform/examples/aws-complete/main.tf", SurfaceTerraform)
+}
+
+func TestSupportedComposeSurfacesStayInPolicy(t *testing.T) {
+	repoRoot := repoRootForTrackedSupportPolicyTest(t)
+	matrix, err := catalog.LoadSupportMatrix(filepath.Join(repoRoot, "docs", "support-matrix.yaml"))
+	if err != nil {
+		t.Fatalf("LoadSupportMatrix() error = %v", err)
+	}
+
+	targets, err := ExpandDeploymentSurfaces(repoRoot)
+	if err != nil {
+		t.Fatalf("ExpandDeploymentSurfaces() error = %v", err)
+	}
+
+	var policyCompose []string
+	for _, target := range targets {
+		if target.Kind == SurfaceCompose {
+			policyCompose = append(policyCompose, target.Path)
+		}
+	}
+
+	var supportedCompose []string
+	for _, surface := range matrix.SupportedSurfaces() {
+		for _, path := range surface.Paths {
+			switch filepath.Base(path) {
+			case "docker-compose.yml", "docker-compose.offline.yml", "docker-compose.tls.yml", "docker-compose.ui.yml", "docker-compose.dlp.yml":
+				supportedCompose = append(supportedCompose, path)
+			}
+		}
+	}
+
+	sort.Strings(policyCompose)
+	sort.Strings(supportedCompose)
+
+	if !reflect.DeepEqual(policyCompose, supportedCompose) {
+		t.Fatalf("supported compose surfaces drifted from DeploymentSurfacePolicy\nwant: %v\n got: %v", supportedCompose, policyCompose)
+	}
+}
+
+func repoRootForTrackedSupportPolicyTest(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	current := wd
+	for {
+		if _, err := os.Stat(filepath.Join(current, "go.mod")); err == nil {
+			return current
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			t.Fatalf("could not locate repo root from %s", wd)
+		}
+		current = parent
 	}
 }
 

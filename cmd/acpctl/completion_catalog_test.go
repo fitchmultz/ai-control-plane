@@ -43,10 +43,19 @@ func TestExtractScenarioIDs(t *testing.T) {
 
 func TestExtractModelNamesAndPresetNames(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeCompletionConfigFile(t, repoRoot, filepath.Join("demo", "config", "litellm.yaml"), `model_list:
-  - model_name: test-model-1
-  - model_name: test-model-2
-  - model_name: test-model-1
+	writeCompletionConfigFile(t, repoRoot, filepath.Join("demo", "config", "model_catalog.yaml"), `online_models:
+  - alias: test-model-1
+    upstream_model: openai/test-model-1
+    credential_env: OPENAI_API_KEY
+  - alias: test-model-2
+    upstream_model: openai/test-model-2
+    credential_env: OPENAI_API_KEY
+  - alias: test-model-1
+    upstream_model: openai/test-model-1
+    credential_env: OPENAI_API_KEY
+offline_models:
+  - alias: mock-model
+    upstream_model: openai/mock-model
 `)
 	writeCompletionConfigFile(t, repoRoot, filepath.Join("demo", "config", "demo_presets.yaml"), `presets:
   executive-demo: {}
@@ -79,7 +88,7 @@ alpha:
 	}
 
 	if extractModelNames(t.TempDir()) != nil {
-		t.Fatal("expected missing litellm config to return nil")
+		t.Fatal("expected missing model catalog to return nil")
 	}
 	if extractPresetNames(t.TempDir()) != nil {
 		t.Fatal("expected missing presets config to return nil")

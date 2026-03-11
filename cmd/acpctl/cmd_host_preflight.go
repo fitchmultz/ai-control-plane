@@ -6,7 +6,7 @@
 //
 // Responsibilities:
 //   - Validate required local binaries for host-first workflows.
-//   - Verify the tracked systemd unit template and compose env parent path.
+//   - Verify the tracked systemd unit template exists.
 //   - Run the canonical production deployment-contract validation.
 //
 // Scope:
@@ -40,7 +40,6 @@ const defaultHostSecretsEnvFile = "/etc/ai-control-plane/secrets.env"
 type hostPreflightOptions struct {
 	Profile        string
 	SecretsEnvFile string
-	ComposeEnvFile string
 }
 
 func hostPreflightCommandSpec() *commandSpec {
@@ -55,7 +54,6 @@ func hostPreflightCommandSpec() *commandSpec {
 		Options: []commandOptionSpec{
 			{Name: "profile", ValueName: "NAME", Summary: "Deployment profile (only production is supported)", Type: optionValueString, DefaultText: "production"},
 			{Name: "secrets-env-file", ValueName: "PATH", Summary: "Canonical production secrets file", Type: optionValueString, DefaultText: defaultHostSecretsEnvFile},
-			{Name: "compose-env-file", ValueName: "PATH", Summary: "Compose runtime env file", Type: optionValueString, DefaultText: "demo/.env"},
 		},
 		Bind: bindRepoParsed(bindHostPreflightOptions),
 		Run:  runHostPreflight,
@@ -74,7 +72,6 @@ func bindHostPreflightOptions(bindCtx commandBindContext, input parsedCommandInp
 	return hostPreflightOptions{
 		Profile:        profile,
 		SecretsEnvFile: resolveRepoInput(repoRoot, input.StringDefault("secrets-env-file", defaultHostSecretsEnvFile)),
-		ComposeEnvFile: resolveRepoInput(repoRoot, input.StringDefault("compose-env-file", "demo/.env")),
 	}, nil
 }
 
@@ -86,7 +83,6 @@ func runHostPreflight(_ context.Context, runCtx commandRunContext, raw any) int 
 	printCommandSection(runCtx.Stdout, out, "=== Host Preflight ===")
 	fmt.Fprintf(runCtx.Stdout, "Profile: %s\n", opts.Profile)
 	fmt.Fprintf(runCtx.Stdout, "Secrets file: %s\n", opts.SecretsEnvFile)
-	fmt.Fprintf(runCtx.Stdout, "Compose env file: %s\n", opts.ComposeEnvFile)
 
 	if err := requireHostPreflightPrereqs(runCtx.RepoRoot); err != nil {
 		workflowFailure(logger, err)
@@ -97,14 +93,6 @@ func runHostPreflight(_ context.Context, runCtx commandRunContext, raw any) int 
 	if _, err := os.Stat(templatePath); err != nil {
 		workflowFailure(logger, err)
 		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitRuntime, err, "Missing systemd template")
-	}
-	composeEnvDir := filepath.Dir(opts.ComposeEnvFile)
-	if info, err := os.Stat(composeEnvDir); err != nil || !info.IsDir() {
-		if err == nil {
-			err = fmt.Errorf("not a directory")
-		}
-		workflowFailure(logger, err)
-		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitRuntime, err, "Compose env parent directory not found")
 	}
 
 	issues, err := validation.ValidateDeploymentConfig(runCtx.RepoRoot, validation.ConfigValidationOptions{

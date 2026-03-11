@@ -58,7 +58,6 @@ func rootCommandSpec(children ...*commandSpec) *commandSpec {
 			"acpctl chargeback report --format all",
 			"acpctl benchmark baseline --requests 20 --concurrency 2",
 			"acpctl onboard codex --mode subscription --verify",
-			"acpctl deploy up",
 			"acpctl deploy readiness-evidence run",
 		},
 		Sections: []commandHelpSection{

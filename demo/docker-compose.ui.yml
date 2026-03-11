@@ -1,0 +1,130 @@
+# AI Control Plane - Managed UI Overlay Compose Configuration
+#
+# Purpose:
+#   - Add the optional managed browser UI overlay on top of the host-first stack.
+#
+# Responsibilities:
+#   - Run LibreChat, MongoDB, and Meilisearch as an explicit opt-in overlay.
+#
+# Scope:
+#   - Managed UI overlay only. Combine with demo/docker-compose.yml.
+#
+# Usage:
+#   - make up-ui
+#   - make up-full
+#
+# Invariants/Assumptions:
+#   - Browser UI is not part of the default supported runtime.
+
+x-acp-logging: &acp-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-acp-security-defaults: &acp-security-defaults
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  init: true
+
+x-acp-labels: &acp-labels
+  acp.slot: "${ACP_SLOT:-active}"
+  acp.release_id: "${ACP_RELEASE_ID:-dev}"
+
+services:
+  librechat-mongodb:
+    image: cgr.dev/chainguard/mongodb@sha256:4e0c260ea3fc0c3dde5d85152e955029988c7b4603c7b5fa7d2be475d52413f5
+    command: ["--bind_ip_all"]
+    restart: unless-stopped
+    logging: *acp-logging
+    labels: *acp-labels
+    volumes:
+      - librechat_mongodb_data_${ACP_SLOT:-active}:/data/db
+    healthcheck:
+      test: ["CMD", "/usr/bin/mongod", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  librechat-meilisearch:
+    image: getmeili/meilisearch:v1.37.0@sha256:9cde2774864e6c19cdd09fcd2950bc01ac9a0454b6f343fffafa14faae6eb7ea
+    env_file:
+      - ${ACP_RUNTIME_ENV_FILE:-.env}
+    restart: unless-stopped
+    logging: *acp-logging
+    labels: *acp-labels
+    environment:
+      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:?LIBRECHAT_MEILI_MASTER_KEY is required in the runtime env file}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - librechat_meili_data_${ACP_SLOT:-active}:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health | grep -q 'available' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  librechat:
+    <<: *acp-security-defaults
+    image: ${LIBRECHAT_IMAGE:-ghcr.io/fitchmultz/acp/librechat-hardened:20260212@sha256:3243673fecc5f52b12b1537048c6aa698f0bf618173cf1bb58d6438b7ca489ae}
+    pull_policy: ${ACP_PULL_POLICY:-missing}
+    user: "1000:1000"
+    env_file:
+      - ${ACP_RUNTIME_ENV_FILE:-.env}
+    environment:
+      HOST: 0.0.0.0
+      PORT: ${LIBRECHAT_PORT:-3080}
+      MONGO_URI: ${LIBRECHAT_MONGO_URI:-mongodb://librechat-mongodb:27017/LibreChat}
+      MEILI_HOST: http://librechat-meilisearch:7700
+      MEILI_MASTER_KEY: ${LIBRECHAT_MEILI_MASTER_KEY:?LIBRECHAT_MEILI_MASTER_KEY is required in the runtime env file}
+      MEILI_NO_ANALYTICS: "true"
+      CREDS_KEY: ${LIBRECHAT_CREDS_KEY:?LIBRECHAT_CREDS_KEY is required in the runtime env file}
+      CREDS_IV: ${LIBRECHAT_CREDS_IV:?LIBRECHAT_CREDS_IV is required in the runtime env file}
+      NO_INDEX: "true"
+      SEARCH: "true"
+      TRUST_PROXY: "1"
+    depends_on:
+      litellm:
+        condition: service_healthy
+      librechat-mongodb:
+        condition: service_healthy
+      librechat-meilisearch:
+        condition: service_healthy
+    ports:
+      - "${LIBRECHAT_PUBLISH_HOST:-127.0.0.1}:${LIBRECHAT_HOST_PORT:-3080}:3080"
+    volumes:
+      - ./config/librechat/librechat.yaml:/app/librechat.yaml:ro
+      - librechat_uploads_${ACP_SLOT:-active}:/app/uploads
+      - librechat_images_${ACP_SLOT:-active}:/app/client/public/images
+      - librechat_logs_${ACP_SLOT:-active}:/app/logs
+    restart: unless-stopped
+    logging: *acp-logging
+    labels: *acp-labels
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http=require('http');const req=http.get('http://127.0.0.1:3080/health',res=>{let body='';res.on('data',d=>body+=d);res.on('end',()=>{const ok=res.statusCode===200&&body.trim().toUpperCase()==='OK';process.exit(ok?0:1);});});req.on('error',()=>process.exit(1));req.setTimeout(4000,()=>{req.destroy();process.exit(1);});",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  librechat_mongodb_data_active:
+  librechat_mongodb_data_standby:
+  librechat_meili_data_active:
+  librechat_meili_data_standby:
+  librechat_uploads_active:
+  librechat_uploads_standby:
+  librechat_images_active:
+  librechat_images_standby:
+  librechat_logs_active:
+  librechat_logs_standby:

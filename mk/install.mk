@@ -70,3 +70,8 @@ completions: install-binary ## Generate acpctl shell completion scripts (bash, z
 	@$(ACPCTL_BIN) completion zsh > scripts/completions/acpctl.zsh
 	@$(ACPCTL_BIN) completion fish > scripts/completions/acpctl.fish
 	@echo "Generated completion scripts in scripts/completions/"
+
+.PHONY: generate-reference-docs
+generate-reference-docs: install-binary ## Generate tracked reference docs from typed sources of truth
+	@$(ACPCTL_BIN) __generate-docs
+	@echo "Generated reference docs in docs/reference/"

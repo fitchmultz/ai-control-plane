@@ -41,6 +41,7 @@ ci-pr: ## PR-required checks (fast/deterministic: lint, static checks, unit + po
 	@$(MAKE) --silent lint-yaml
 	@$(MAKE) --silent lint-go-headers
 	@$(MAKE) --silent lint-env-access
+	@$(MAKE) --silent validate-doc-links
 	@$(MAKE) --silent validate-acpctl-parity
 	@$(MAKE) --silent lint-compose
 	@$(MAKE) --silent lint-healthchecks
@@ -75,6 +76,9 @@ ci-manual-heavy: ## Manual heavy checks (nightly checks + local hardened image b
 	@$(MAKE) --silent hardened-images-scan
 	@echo '$(COLOR_GREEN)✓ Manual heavy checks passed$(COLOR_RESET)'
 
+.PHONY: ci-heavy
+ci-heavy: ci-manual-heavy ## Public alias for heavyweight local validation
+
 .PHONY: ci-fast
 ci-fast: ## Fast CI gate (skip runtime tests; keep static/security checks)
 	@echo '$(COLOR_BOLD)Running fast CI gate...$(COLOR_RESET)'
@@ -95,6 +99,7 @@ ci-fast: ## Fast CI gate (skip runtime tests; keep static/security checks)
 ci-runtime-checks: ## CI runtime checks (requires running services; stateless when paired with down-offline-clean)
 	@echo '$(COLOR_BOLD)Running CI runtime checks...$(COLOR_RESET)'
 	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) ci wait --timeout $$(( $(OFFLINE_GATEWAY_READY_MAX_ATTEMPTS) * 2 ))
+	@$(MAKE) --silent db-schema-check
 	@$(ACPCTL_BIN) validate detections
 	@echo '$(COLOR_GREEN)✓ CI runtime checks passed$(COLOR_RESET)'
 
@@ -133,7 +138,8 @@ build: ## Build artifacts (recreate Docker containers)
 	@echo '$(COLOR_GREEN)✓ Build complete$(COLOR_RESET)'
 
 .PHONY: generate
-generate: install-binary ## Generate derived files (shell completions)
+generate: install-binary ## Generate derived files (shell completions + reference docs)
 	@echo '$(COLOR_BOLD)Generating derived files...$(COLOR_RESET)'
 	@$(MAKE) --silent completions
+	@$(MAKE) --silent generate-reference-docs
 	@echo '$(COLOR_GREEN)✓ Derived files generated$(COLOR_RESET)'

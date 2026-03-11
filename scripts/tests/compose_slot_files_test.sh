@@ -45,7 +45,7 @@ COMPOSE_DIR="${REPO_ROOT}/demo"
 printf 'Compose Slot Files Test\n'
 printf '=======================\n'
 
-for file in docker-compose.yml docker-compose.offline.yml docker-compose.tls.yml; do
+for file in docker-compose.yml docker-compose.offline.yml docker-compose.dlp.yml docker-compose.ui.yml docker-compose.tls.yml; do
     if [[ ! -f "${COMPOSE_DIR}/${file}" ]]; then
         printf '  ✗ missing %s\n' "${file}"
         exit 1
@@ -76,3 +76,15 @@ if ! grep -q "pgdata" "${COMPOSE_DIR}/docker-compose.yml"; then
     exit 1
 fi
 printf '  ✓ compose file references pgdata volume\n'
+
+if ! grep -q "mock-upstream:" "${COMPOSE_DIR}/docker-compose.offline.yml"; then
+    printf '  ✗ docker-compose.offline.yml missing mock-upstream service\n'
+    exit 1
+fi
+printf '  ✓ docker-compose.offline.yml includes mock-upstream service\n'
+
+if grep -q "postgres:" "${COMPOSE_DIR}/docker-compose.offline.yml"; then
+    printf '  ✗ offline overlay should not redefine postgres\n'
+    exit 1
+fi
+printf '  ✓ offline overlay does not redefine postgres\n'

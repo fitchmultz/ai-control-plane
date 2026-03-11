@@ -53,7 +53,7 @@ The strict pilot phase gate is documented in [PILOT_EXECUTION_MODEL.md](PILOT_EX
 ## Deployment Strategy
 
 - Primary validated path: host-first Linux deployment
-- Secondary path: Kubernetes/Helm when the customer already runs Kubernetes
+- Incubating deployment assets for Kubernetes/Helm remain in-repo for explicit internal exploration only
 - Cloud positioning is gated on environment-specific proof, not architecture intent alone
 
 ---

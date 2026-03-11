@@ -1,0 +1,92 @@
+# =============================================================================
+# AI Control Plane - DLP LiteLLM Configuration
+# =============================================================================
+# Purpose:
+#   - Extend the supported host-first runtime with deterministic Presidio
+#     guardrails.
+#
+# Responsibilities:
+#   - Preserve the base approved model aliases and gateway defaults.
+#   - Enable the Presidio-backed pre-call guardrail overlay.
+#
+# Scope:
+#   - DLP overlay only. Mounted by make up-dlp and make up-full.
+#
+# Usage:
+#   - Selected by LITELLM_CONFIG_FILE=litellm-dlp.yaml.
+#
+# Invariants/Assumptions:
+#   - Approved aliases are mirrored from demo/config/model_catalog.yaml.
+#   - Presidio endpoints must exist when this config is mounted.
+
+---
+model_list:
+  - model_name: openai-gpt5.2
+    litellm_params:
+      model: openai/gpt-5.2
+      api_key: os.environ/OPENAI_API_KEY
+    rpm: 60
+    tpm: 90000
+
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+general_settings:
+  database_url: os.environ/DATABASE_URL
+  forward_client_headers_to_llm_api: true
+
+litellm_settings:
+  redact_user_api_key_info: true
+  master_key: os.environ/LITELLM_MASTER_KEY
+  set_verbose: false
+  max_budget: 100.0
+  budget_duration: 30d
+  max_parallel_requests: 100
+  max_internal_user_budget: 10.0
+  internal_user_budget_duration: 7d
+  proxy_budget_rescheduler_min_time: 1
+  proxy_budget_rescheduler_max_time: 1
+
+guardrails:
+  - guardrail_name: "presidio-dlp-guardian"
+    litellm_params:
+      guardrail: presidio
+      mode: "pre_call"
+      presidio_analyzer_api_base: "http://presidio-analyzer:3000"
+      presidio_anonymizer_api_base: "http://presidio-anonymizer:3000"
+      retry_policy:
+        max_retries: 5
+        retry_delay: 1.0
+        retry_delay_exponential: true
+        max_delay: 30.0
+      timeout: 10.0
+      default_on_error: false
+      pii_entities_config:
+        US_SSN: "BLOCK"
+        US_PASSPORT: "BLOCK"
+        US_DRIVER_LICENSE: "BLOCK"
+        US_BANK_NUMBER: "BLOCK"
+        US_ITIN: "BLOCK"
+        CREDIT_CARD: "BLOCK"
+        CRYPTO: "BLOCK"
+        IBAN_CODE: "BLOCK"
+        AWS_ACCESS_KEY: "BLOCK"
+        EMAIL_ADDRESS: "MASK"
+        PHONE_NUMBER: "MASK"
+        LOCATION: "MASK"
+        PERSON: "MASK"
+        ACP_EMPLOYEE_ID: "BLOCK"
+        ACP_CUSTOMER_ACCOUNT: "BLOCK"
+        ACP_SYSTEM_KEY: "BLOCK"
+        ACP_PROJECT_CODE: "MASK"
+      default_on: true
+      blocked_message: >-
+        Request blocked: Potential PII or sensitive data detected.
+        Contact security team if this is a false positive.

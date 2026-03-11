@@ -1,0 +1,119 @@
+# =============================================================================
+# AI Control Plane - Support Matrix Source
+# =============================================================================
+# Purpose: Machine-readable support contract for public product surfaces.
+# Usage: Generated references and lint gates render from this file.
+# Invariants:
+#   - Public docs may only present supported surfaces as first-class workflows.
+#   - Incubating surfaces stay out of the primary operator UX and default CI.
+# =============================================================================
+
+public_docs:
+  - README.md
+  - docs/README.md
+  - docs/SUPPORT.md
+  - docs/technical-architecture.md
+  - docs/DEPLOYMENT.md
+  - docs/SECURITY_GOVERNANCE.md
+
+reference_docs:
+  - docs/reference/acpctl.md
+  - docs/reference/approved-models.md
+  - docs/reference/detections.md
+  - docs/reference/support-matrix.md
+
+incubating_terms:
+  - helm
+  - terraform
+  - kubernetes
+
+surfaces:
+  - id: host-first-docker
+    label: Host-first Docker reference implementation
+    status: supported
+    summary: Minimal host-first Docker deployment with the typed operator core and truthful runtime gates.
+    owner: platform
+    paths:
+      - demo/docker-compose.yml
+    validation:
+      - make ci
+      - make prod-smoke
+      - acpctl host preflight
+
+  - id: typed-operator
+    label: Typed operator core
+    status: supported
+    summary: acpctl typed workflows for runtime inspection, validation, DB, keys, host deployment, and evidence artifacts.
+    owner: platform
+    validation:
+      - make ci-pr
+      - make validate-acpctl-parity
+
+  - id: evidence-workflows
+    label: Evidence workflows
+    status: supported
+    summary: Readiness evidence, release bundle, and pilot closeout artifacts generated locally from tracked inputs.
+    owner: platform
+    validation:
+      - make readiness-evidence
+      - make pilot-closeout-bundle
+
+  - id: managed-ui-overlay
+    label: Managed browser UI overlay
+    status: supported
+    summary: Optional LibreChat overlay for governed browser access on top of the host-first runtime.
+    owner: platform
+    paths:
+      - demo/docker-compose.ui.yml
+    validation:
+      - make up-ui
+      - make librechat-health
+
+  - id: dlp-overlay
+    label: DLP overlay
+    status: supported
+    summary: Optional Presidio overlay for deterministic guardrails on top of the host-first runtime.
+    owner: platform
+    paths:
+      - demo/docker-compose.dlp.yml
+    validation:
+      - make up-dlp
+      - make dlp-health
+
+  - id: offline-overlay
+    label: Offline deterministic overlay
+    status: supported
+    summary: Optional mock-upstream overlay for deterministic offline demos, CI, and schema/runtime verification.
+    owner: platform
+    paths:
+      - demo/docker-compose.offline.yml
+    validation:
+      - make up-offline
+      - make ci
+
+  - id: tls-overlay
+    label: TLS ingress overlay
+    status: supported
+    summary: Optional Caddy TLS ingress overlay for host-first external client access and production OTEL ingress.
+    owner: platform
+    paths:
+      - demo/docker-compose.tls.yml
+    validation:
+      - make up-tls
+      - make up-production
+
+  - id: helm
+    label: Helm deployment assets
+    status: incubating
+    summary: Retained in-repo under deploy/incubating for explicit internal exploration only.
+    owner: platform
+    validation:
+      - explicit internal checks only
+
+  - id: terraform
+    label: Terraform deployment assets
+    status: incubating
+    summary: Retained in-repo under deploy/incubating for explicit internal exploration only.
+    owner: platform
+    validation:
+      - explicit internal checks only

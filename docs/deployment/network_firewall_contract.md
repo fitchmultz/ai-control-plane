@@ -78,8 +78,8 @@
 - `demo/docker-compose.yml:services.postgres`
 - `demo/docker-compose.yml:services.presidio-analyzer.expose`
 - `demo/docker-compose.yml:services.presidio-anonymizer.expose`
-- `deploy/helm/ai-control-plane/values.yaml:ingress`
-- `deploy/helm/ai-control-plane/values.yaml:ingress.tls`
-- `deploy/helm/ai-control-plane/values.yaml:litellm.service`
-- `deploy/helm/ai-control-plane/values.yaml:mockUpstream.service`
-- `deploy/helm/ai-control-plane/values.yaml:postgres.service`
+- `deploy/incubating/helm/ai-control-plane/values.yaml:ingress`
+- `deploy/incubating/helm/ai-control-plane/values.yaml:ingress.tls`
+- `deploy/incubating/helm/ai-control-plane/values.yaml:litellm.service`
+- `deploy/incubating/helm/ai-control-plane/values.yaml:mockUpstream.service`
+- `deploy/incubating/helm/ai-control-plane/values.yaml:postgres.service`

@@ -92,11 +92,6 @@ const defaultSecretsPolicyFixture = `{
       "allowed_substrings": ["sk-test-", "change-me", "sk-litellm-"]
     },
     {
-      "id": "helm-example-placeholders",
-      "path_patterns": ["deploy/helm/ai-control-plane/examples/**"],
-      "allowed_substrings": ["sk-demo-", "sk-offline-demo-"]
-    },
-    {
       "id": "docs-placeholder-examples",
       "path_patterns": ["README.md", "demo/README.md", "docs/**"],
       "allowed_substrings": ["change-me", "sk-demo-", "sk-offline-demo-", "sk-your-", "sk-personal-", "sk-litellm-"]

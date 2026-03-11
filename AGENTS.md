@@ -74,7 +74,7 @@ make health      # Verify services
 ├── demo/              # Docker Compose configs, runtime fixtures, logs
 ├── docs/              # Strategic and technical documentation
 ├── local/             # Reserved local workspace (do not rely on scripts here)
-└── deploy/            # Helm charts, Terraform, Ansible
+└── deploy/            # Ansible host deployment plus incubating deployment assets
 ```
 
 ---
@@ -90,12 +90,12 @@ make health      # Verify services
 - **Repository policy documents:** repo-hygiene and source-control validation policies belong in tracked JSON under `docs/policy/`, with schema-specific loading and enforcement kept in `internal/security`
 - **Runtime health contract:** route gateway and database health through the typed `internal/gateway` and `internal/db` services, then adapt operator output in `internal/status` / `internal/doctor`; do not reintroduce collector-local HTTP probes or `docker exec psql` helpers
 - **Runtime inspection ownership:** `internal/runtimeinspect` composes shared runtime inspection for `status`, `health`, `doctor`, and `ci wait`; extend readiness/collector wiring there instead of rebuilding per-command polling or interpretation
-- **Smoke gate contract:** `acpctl smoke` / `make prod-smoke*` must be truthful runtime gates backed by `internal/runtimeinspect` and fail on gateway auth/models/database readiness drift; `acpctl helm smoke` / `make helm-smoke` must validate repository-managed Helm surfaces plus `helm lint` only and must not imply live-cluster probing or accept no-op cluster arguments
+- **Smoke gate contract:** `acpctl smoke` / `make prod-smoke*` must be truthful runtime gates backed by `internal/runtimeinspect` and fail on gateway auth/models/database readiness drift
 - **Abstract patterns:** Three occurrences = must be abstracted unless explicitly justified
 - **Thin shell scripts:** Keep orchestration in shell; move complex logic to typed modules
 - **Operator interface:** Use `acpctl` for typed workflows, Make for day-to-day, shell as fallback
-- **Host surface contract:** Supported host workflows are `host preflight`, `host check/apply`, `host secrets-refresh`, `host install/uninstall`, and `host service-*`; do not reintroduce slot-upgrade host commands without a fully implemented end-to-end backend
-- **acpctl command platform:** `cmd/acpctl/command_spec.go` owns parsing/help/completion/dispatch; `cmd/acpctl/command_registry.go` only composes per-domain command specs into the root tree
+- **Host surface contract:** Supported host workflows are `host preflight`, `host check/apply`, `host install/uninstall`, and `host service-*`; host overlays are selected through the Ansible inventory variable `acp_runtime_overlays`; do not reintroduce slot-upgrade host commands without a fully implemented end-to-end backend
+- **acpctl command platform:** `cmd/acpctl/command_compile.go` owns parsing/help/completion/dispatch assembly and `cmd/acpctl/command_registry.go` owns root command composition; keep generated references and parity tests aligned with the live typed tree
 - **CLI surface parity:** treat `cmd/acpctl` as the source of truth for published command paths; keep `make validate-acpctl-parity` and regenerated shell completions green whenever wrappers/docs/examples change
 - **Docs surface contract:** operator docs and runbooks should prefer `make` targets for day-to-day workflows; reserve `./scripts/acpctl.sh` examples for typed workflows and CLI reference material
 - **Secret access contract:** operator docs must use `./scripts/acpctl.sh env get ...` (or another typed non-executing accessor) for `.env` reads; never teach `source demo/.env` or `grep`-scraping secrets from env files
@@ -111,7 +111,7 @@ make health      # Verify services
 - **User config safety:** home-directory tool config writes must be ACP-managed, atomic, private (`0600` files / `0700` dirs), and conflict-aware; never overwrite unmanaged user config or emit world-readable backups
 - **Local-only artifact privacy:** generated local-only outputs under `demo/backups/` and `demo/logs/` should default to private modes (`0600` files / `0700` dirs); use `internal/fsutil` private helpers and keep `internal/artifactrun` outputs private unless a broader mode is explicitly justified
 - **Make/env contract:** never globally include/export `demo/.env` from Make; pass Compose env files explicitly with `--env-file`, and let typed Go config load repo-local env data when non-Compose commands need it
-- **Helm deployment contract:** `deploy/helm/ai-control-plane/values.yaml` is production-only; demo paths must opt in via `examples/values.demo.yaml` or `examples/values.offline.yaml` with `profile=demo` and `demo.enabled=true`
+- **Incubating deployment contract:** Helm and Terraform assets live under `deploy/incubating/` for explicit internal exploration only and must stay out of the supported operator UX and default CI
 - **Remote OTEL ingress:** keep raw collector ports localhost-bound; remote OTLP/HTTP clients must use the TLS Caddy `/otel/*` route with `OTEL_INGEST_AUTH_TOKEN`
 
 ---
@@ -124,7 +124,7 @@ make health      # Verify services
 - Make-driven Docker Compose flows must use slot-scoped Compose project names (`ai-control-plane-<slot>`) so CI/runtime stacks do not collide with other local environments
 - Caddy TLS configs must stay compatible with pinned Caddy image behavior: use `lb_retries` (not `lb_retry_count`) and scope JSON `Content-Type` enforcement to body methods (`POST|PUT|PATCH`) so GET endpoints like `/v1/models` are not blocked.
 - `make`-driven runtime flows now default `LITELLM_IMAGE`/`LIBRECHAT_IMAGE` to locally built hardened images (`ai-control-plane/*:local`); direct `docker compose` still falls back to the pinned registry images declared in compose files.
-- `make ci` and `make ci-nightly` intentionally start the offline runtime with compose-pinned fallback images; local hardened image build/scan remains scoped to `make ci-manual-heavy` and local dev targets such as `make up-offline`.
+- `make ci` intentionally starts the offline runtime with compose-pinned fallback images; local hardened image build/scan remains scoped to `make ci-heavy` and local dev targets such as `make up-offline`.
 - `make ci-pr` / `make ci-fast` now enforce `validate headers` and `validate env-access`; keep Go file headers compliant and never add direct `os.Getenv` / `envfile.LookupFile` calls outside `internal/config`
 - Never commit secrets (API keys, tokens, OAuth tokens)
 - Runtime artifacts and internal workflow state are local-only; do not track `demo/logs/`, `handoff-packet/`, `.ralph/`, `docs/presentation/slides-internal/`, or generated `docs/presentation/slides-external/*.png` exports (see `docs/ARTIFACTS.md`)
