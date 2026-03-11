@@ -106,7 +106,7 @@ func NewACPCompose(repoRoot string, files []string) (*Compose, error) {
 	}
 	resolvedFiles := append([]string(nil), files...)
 	if len(resolvedFiles) == 0 && strings.EqualFold(strings.TrimSpace(tooling.Slot), "ci-runtime") {
-		resolvedFiles = []string{"docker-compose.offline.yml"}
+		resolvedFiles = []string{"docker-compose.yml", "docker-compose.offline.yml"}
 	}
 	return NewComposeWithOptions(DefaultProjectDir(repoRoot), ComposeOptions{
 		ProjectName: projectName,

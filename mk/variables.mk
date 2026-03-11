@@ -13,6 +13,9 @@
 # Directories
 COMPOSE_DIR := demo
 COMPOSE_FILE := $(COMPOSE_DIR)/docker-compose.yml
+COMPOSE_UI_FILE := $(COMPOSE_DIR)/docker-compose.ui.yml
+COMPOSE_DLP_FILE := $(COMPOSE_DIR)/docker-compose.dlp.yml
+COMPOSE_OFFLINE_FILE := $(COMPOSE_DIR)/docker-compose.offline.yml
 COMPOSE_TLS_FILE := $(COMPOSE_DIR)/docker-compose.tls.yml
 COMPOSE_ENV_FILE ?= $(abspath $(COMPOSE_DIR)/.env)
 
@@ -61,7 +64,6 @@ GO_SOURCES := $(shell find cmd internal pkg -name '*.go' 2>/dev/null)
 
 # Secrets Contract Configuration (RQ-0172)
 SECRETS_ENV_FILE ?= /etc/ai-control-plane/secrets.env
-HOST_COMPOSE_ENV_FILE ?= $(COMPOSE_DIR)/.env
 SECRETS_FETCH_HOOK ?=
 
 # Shellcheck files (tracked shell scripts; BSD/GNU portable)

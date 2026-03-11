@@ -22,10 +22,8 @@ include mk/deploy.mk
 include mk/production.mk
 include mk/offline.mk
 include mk/database.mk
-include mk/helm.mk
 include mk/host.mk
 include mk/demo.mk
-include mk/terraform.mk
 include mk/security.mk
 include mk/release.mk
 include mk/test.mk
@@ -47,14 +45,14 @@ help: ## Show this help message
 	@echo '$(COLOR_BOLD)Essential Targets:$(COLOR_RESET)'
 	@echo '  $(COLOR_GREEN)install$(COLOR_RESET)            Set up dependencies'
 	@echo '  $(COLOR_GREEN)up$(COLOR_RESET)                 Start services'
-	@echo '  $(COLOR_GREEN)up-core$(COLOR_RESET)            Start LiteLLM core services only'
-	@echo '  $(COLOR_GREEN)librechat-up$(COLOR_RESET)       Start managed LibreChat services'
+	@echo '  $(COLOR_GREEN)up-dlp$(COLOR_RESET)             Start the optional DLP overlay'
+	@echo '  $(COLOR_GREEN)up-ui$(COLOR_RESET)              Start the optional managed UI overlay'
+	@echo '  $(COLOR_GREEN)up-full$(COLOR_RESET)            Start both optional overlays'
 	@echo '  $(COLOR_GREEN)health$(COLOR_RESET)             Check service health'
 	@echo '  $(COLOR_GREEN)down$(COLOR_RESET)               Stop services'
 	@echo '  $(COLOR_GREEN)ci$(COLOR_RESET)                 Run local full CI gate (runtime via pinned offline images)'
 	@echo '  $(COLOR_GREEN)ci-pr$(COLOR_RESET)              Run PR-required fast checks'
-	@echo '  $(COLOR_GREEN)ci-nightly$(COLOR_RESET)         Run nightly runtime + release checks (pinned offline images)'
-	@echo '  $(COLOR_GREEN)ci-manual-heavy$(COLOR_RESET)    Run heavyweight manual checks (local hardened image build/scan)'
+	@echo '  $(COLOR_GREEN)ci-heavy$(COLOR_RESET)           Run heavyweight local checks'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate current readiness evidence'
 	@echo '  $(COLOR_GREEN)pilot-closeout-bundle$(COLOR_RESET) Build a local pilot closeout bundle'
 	@echo '  $(COLOR_GREEN)help$(COLOR_RESET)               Show this help'
@@ -65,7 +63,6 @@ help: ## Show this help message
 	@echo '  make help-install    Installation targets'
 	@echo '  make help-deploy     Deployment targets'
 	@echo '  make help-lint       Lint and validation targets'
-	@echo '  make help-demo       Demo scenario targets'
 	@echo '  make help-security   Security and supply chain'
 	@echo '  make help-test       Testing targets'
 	@echo '  make help-ci         CI tier targets'
@@ -92,8 +89,9 @@ help-install:
 help-deploy:
 	@echo '$(COLOR_BOLD)Deployment Targets:$(COLOR_RESET)'
 	@echo '  $(COLOR_GREEN)up$(COLOR_RESET)                 Start services'
-	@echo '  $(COLOR_GREEN)up-core$(COLOR_RESET)            Start LiteLLM core services only'
-	@echo '  $(COLOR_GREEN)librechat-up$(COLOR_RESET)       Start managed LibreChat services'
+	@echo '  $(COLOR_GREEN)up-dlp$(COLOR_RESET)             Start the optional DLP overlay'
+	@echo '  $(COLOR_GREEN)up-ui$(COLOR_RESET)              Start the optional managed UI overlay'
+	@echo '  $(COLOR_GREEN)up-full$(COLOR_RESET)            Start the optional DLP + managed UI overlays'
 	@echo '  $(COLOR_GREEN)down$(COLOR_RESET)               Stop services'
 	@echo '  $(COLOR_GREEN)restart$(COLOR_RESET)            Restart services'
 	@echo '  $(COLOR_GREEN)ps$(COLOR_RESET)                 Show running services'
@@ -121,19 +119,6 @@ help-lint:
 	@echo '  $(COLOR_GREEN)lint-secrets$(COLOR_RESET)       Run secrets audit'
 	@echo '  $(COLOR_GREEN)format$(COLOR_RESET)             Format shell scripts'
 	@echo '  $(COLOR_GREEN)type-check$(COLOR_RESET)         Run Go type checks'
-
-.PHONY: help-demo
-help-demo:
-	@echo '$(COLOR_BOLD)Demo Scenario Targets:$(COLOR_RESET)'
-	@echo '  $(COLOR_GREEN)demo-scenario$(COLOR_RESET)      Run specific scenario'
-	@echo '  $(COLOR_GREEN)demo-all$(COLOR_RESET)           Run all scenarios'
-	@echo '  $(COLOR_GREEN)demo-preset$(COLOR_RESET)        Run named preset'
-	@echo '  $(COLOR_GREEN)demo-snapshot$(COLOR_RESET)      Create snapshot'
-	@echo '  $(COLOR_GREEN)demo-restore$(COLOR_RESET)       Restore snapshot'
-	@echo ''
-	@echo 'Examples:'
-	@echo '  make demo-scenario SCENARIO=1'
-	@echo '  make demo-preset PRESET=executive-demo'
 
 .PHONY: help-security
 help-security:
@@ -164,10 +149,8 @@ help-ci:
 	@echo '$(COLOR_BOLD)CI Tier Targets:$(COLOR_RESET)'
 	@echo '  $(COLOR_GREEN)ci-pr$(COLOR_RESET)              PR-required fast deterministic checks'
 	@echo '  $(COLOR_GREEN)ci$(COLOR_RESET)                 Local full gate (runtime via pinned offline images)'
-	@echo '  $(COLOR_GREEN)ci-nightly$(COLOR_RESET)         Scheduled runtime + release checks (pinned offline images)'
+	@echo '  $(COLOR_GREEN)ci-heavy$(COLOR_RESET)           Heavy local validation (runtime + hardened image checks)'
 	@echo '  $(COLOR_GREEN)coverage-critical$(COLOR_RESET)  High-risk package coverage gate enforced by ci-pr and ci-fast'
-	@echo '  $(COLOR_GREEN)ci-runtime-checks$(COLOR_RESET)  Runtime checks for running stack'
-	@echo '  $(COLOR_GREEN)ci-manual-heavy$(COLOR_RESET)    On-demand heavyweight security/image checks'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate dated readiness proof package'
 	@echo '  $(COLOR_GREEN)readiness-evidence-verify$(COLOR_RESET) Verify latest readiness proof package'
 	@echo '  $(COLOR_GREEN)pilot-closeout-bundle$(COLOR_RESET) Build dated pilot closeout artifact package'
@@ -176,8 +159,7 @@ help-ci:
 	@echo 'Recommended usage:'
 	@echo '  make ci-pr            # default for pull requests'
 	@echo '  make ci               # local full validation via pinned offline images'
-	@echo '  make ci-nightly       # scheduled or pre-release runtime sweep via pinned offline images'
-	@echo '  make ci-manual-heavy  # optional local hardened image build/scan lane'
+	@echo '  make ci-heavy         # optional local hardened image build/scan lane'
 	@echo '  make readiness-evidence # regenerate current enterprise proof'
 	@echo '  make pilot-closeout-bundle # assemble the pilot closeout packet'
 
@@ -197,7 +179,6 @@ help-host:
 	@echo '  $(COLOR_GREEN)host-preflight$(COLOR_RESET)     Run preflight checks'
 	@echo '  $(COLOR_GREEN)host-check$(COLOR_RESET)         Check mode'
 	@echo '  $(COLOR_GREEN)host-apply$(COLOR_RESET)         Apply mode'
-	@echo '  $(COLOR_GREEN)host-secrets-refresh$(COLOR_RESET) Sync canonical secrets to the Compose runtime env file'
 	@echo '  $(COLOR_GREEN)host-install$(COLOR_RESET)       Install systemd service'
 	@echo '  $(COLOR_GREEN)host-uninstall$(COLOR_RESET)     Remove systemd service'
 	@echo '  $(COLOR_GREEN)host-service-status$(COLOR_RESET) Show service status'

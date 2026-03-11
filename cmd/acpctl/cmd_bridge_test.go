@@ -38,7 +38,7 @@ func TestRunBridgeScript_MissingScriptReturnsPrereq(t *testing.T) {
 	if code != exitcodes.ACPExitPrereq {
 		t.Fatalf("expected prereq exit, got %d stderr=%s", code, readFile(t, stderr))
 	}
-	if got := readFile(t, stderr); !stringsContainAll(got, "bridge script not found") {
+	if got := readFile(t, stderr); !strings.Contains(got, "bridge script not found") {
 		t.Fatalf("expected missing-script output, got %s", got)
 	}
 }
@@ -57,7 +57,7 @@ func TestRunBridgeScript_NonExecutableScriptReturnsPrereq(t *testing.T) {
 	if code != exitcodes.ACPExitPrereq {
 		t.Fatalf("expected prereq exit, got %d stderr=%s", code, readFile(t, stderr))
 	}
-	if got := readFile(t, stderr); !stringsContainAll(got, "bridge script is not executable") {
+	if got := readFile(t, stderr); !strings.Contains(got, "bridge script is not executable") {
 		t.Fatalf("expected non-executable output, got %s", got)
 	}
 }

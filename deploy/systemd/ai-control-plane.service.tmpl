@@ -9,8 +9,6 @@
 #   {{SERVICE_GROUP}}        - Group to run the service as
 #   {{WORKING_DIR}}          - Absolute path to the repository working directory
 #   {{ENV_FILE}}             - Path to canonical secrets file (e.g., /etc/ai-control-plane/secrets.env)
-#   {{COMPOSE_ENV_FILE}}     - Path to compose env file (e.g., demo/.env)
-#   {{SECRETS_FETCH_HOOK_ARG}} - Optional: rendered fetch-hook arg (e.g., --fetch-hook /path/to/hook.sh)
 #   {{COMPOSE_FILE}}         - Path to docker-compose.yml (e.g., demo/docker-compose.yml)
 #   {{COMPOSE_BIN}}          - Docker Compose binary (e.g., docker compose or docker-compose)
 #   {{COMPOSE_PROJECT_NAME}} - Compose project name (e.g., ai-control-plane-active)
@@ -54,21 +52,14 @@ WorkingDirectory={{WORKING_DIR}}
 
 # Environment File
 EnvironmentFile={{ENV_FILE}}
-
-# Pre-start Secrets Preparation
-# Runs before every start/restart to fetch, validate, and sync secrets.
-# - Validates {{ENV_FILE}} meets security contract (permissions, file type)
-# - Syncs canonical secrets to {{COMPOSE_ENV_FILE}} for compose consumption
-# - Executes optional fetch hook {{SECRETS_FETCH_HOOK_ARG}} to refresh secrets
-# - All output is redacted to prevent secret leakage
-ExecStartPre={{WORKING_DIR}}/scripts/libexec/prepare_secrets_env_impl.sh --secrets-file {{ENV_FILE}} --compose-env-file {{COMPOSE_ENV_FILE}} {{SECRETS_FETCH_HOOK_ARG}} --service-user {{SERVICE_USER}}
+Environment=ACP_RUNTIME_ENV_FILE={{ENV_FILE}}
 
 # Docker Compose Commands
 # Note: ExecStop uses "stop" (NOT down) to avoid surprise container deletion
 #       Volumes and data are preserved across restarts
-ExecStart={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} --env-file {{COMPOSE_ENV_FILE}} --project-name {{COMPOSE_PROJECT_NAME}} -f {{COMPOSE_FILE}} up -d --remove-orphans
-ExecStop={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} --env-file {{COMPOSE_ENV_FILE}} --project-name {{COMPOSE_PROJECT_NAME}} -f {{COMPOSE_FILE}} stop
-ExecReload={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} --env-file {{COMPOSE_ENV_FILE}} --project-name {{COMPOSE_PROJECT_NAME}} -f {{COMPOSE_FILE}} restart
+ExecStart={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} --env-file {{ENV_FILE}} --project-name {{COMPOSE_PROJECT_NAME}} -f {{COMPOSE_FILE}} up -d --remove-orphans
+ExecStop={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} --env-file {{ENV_FILE}} --project-name {{COMPOSE_PROJECT_NAME}} -f {{COMPOSE_FILE}} stop
+ExecReload={{COMPOSE_BIN}} --project-directory {{WORKING_DIR}} --env-file {{ENV_FILE}} --project-name {{COMPOSE_PROJECT_NAME}} -f {{COMPOSE_FILE}} restart
 
 # Timeouts
 # Start timeout allows for image pulls and container initialization

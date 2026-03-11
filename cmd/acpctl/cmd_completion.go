@@ -243,12 +243,12 @@ func shellSingleQuote(value string) string {
 }
 
 func extractModelNames(repoRoot string) []string {
-	litellmPath := repopath.DemoConfigPath(repoRoot, "litellm.yaml")
-	config, err := catalog.LoadLiteLLMConfig(litellmPath)
+	catalogPath := repopath.DemoConfigPath(repoRoot, "model_catalog.yaml")
+	config, err := catalog.LoadModelCatalog(catalogPath)
 	if err != nil {
 		return nil
 	}
-	return catalog.ApprovedModelNames(config)
+	return config.OnlineAliases()
 }
 
 func extractPresetNames(repoRoot string) []string {

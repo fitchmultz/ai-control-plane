@@ -1,102 +1,55 @@
----
-# LiteLLM Configuration for OFFLINE Demo Mode
+# =============================================================================
+# AI Control Plane - Offline LiteLLM Configuration
+# =============================================================================
+# Purpose:
+#   - Define the supported offline host-first LiteLLM baseline without
+#     optional DLP.
 #
-# This configuration enables AI Control Plane demos without requiring
-# actual provider API keys. It routes all LLM requests to a local mock
-# upstream service that returns deterministic responses.
+# Responsibilities:
+#   - Publish the approved offline aliases that route to the mock upstream.
+#   - Preserve the same gateway budgeting and attribution defaults as the
+#     base runtime.
+#
+# Scope:
+#   - Offline overlay only. Mounted by make up-offline and make up-offline-ci.
 #
 # Usage:
-#   make up-offline     # Start services in offline mode
-#   make demo-all       # Run offline-ready demo scenarios
+#   - Selected by LITELLM_CONFIG_FILE=litellm-offline.yaml.
 #
-# IMPORTANT: This is for demo/testing purposes only.
-# Production deployments must use real providers with actual API keys.
+# Invariants/Assumptions:
+#   - Approved aliases are mirrored from demo/config/model_catalog.yaml.
+#   - Offline mode does not require provider API keys.
 
+---
 model_list:
-  # Mock GPT model (simulates OpenAI GPT-style responses)
   - model_name: mock-gpt
     litellm_params:
       model: openai/mock-gpt
       api_base: http://mock-upstream:8080/v1
-      # LiteLLM requires this field for OpenAI provider
       api_key: "fake-key-not-used"
     rpm: 60
     tpm: 90000
 
-  # Mock Claude model (simulates Anthropic Claude-style responses)
   - model_name: mock-claude
     litellm_params:
-      # Use openai provider but with mock-claude model name
-      # This ensures LiteLLM routes to the mock-upstream correctly
       model: openai/mock-claude
       api_base: http://mock-upstream:8080/v1
-      # LiteLLM requires this field for OpenAI provider
       api_key: "fake-key-not-used"
     rpm: 60
     tpm: 90000
 
 general_settings:
   database_url: os.environ/DATABASE_URL
-
-  # Note: In offline mode, there are no real OAuth tokens to forward,
-  # but we keep this enabled for consistency with online mode
   forward_client_headers_to_llm_api: true
 
 litellm_settings:
-  # Reduce the risk of leaking secrets (gateway keys) in logs/metadata
   redact_user_api_key_info: true
   master_key: os.environ/LITELLM_MASTER_KEY
-
-  # IMPORTANT: Do NOT log request/response bodies by default in this lab.
-  # Start with metadata-only evidence. You can add transcript logging later.
   set_verbose: false
-
-  # Budget and Rate Limit Enforcement
-  # Global proxy-level budget limit (demo: $100.00 for 30 days)
   max_budget: 100.0
   budget_duration: 30d
-
-  # Maximum parallel requests across all keys (demo: 100)
   max_parallel_requests: 100
-
-  # Default per-user budget limits
   max_internal_user_budget: 10.0
   internal_user_budget_duration: 7d
-
-  # Budget rescheduler timing (demo: check every minute for faster testing)
-  # Production: default is 10 minutes min/max to reduce DB calls
   proxy_budget_rescheduler_min_time: 1
   proxy_budget_rescheduler_max_time: 1
-
-# ------------------------------------------------------------------------------
-# DLP/Guardrails Configuration (Presidio + LiteLLM)
-# ------------------------------------------------------------------------------
-# Same Presidio-first entity policy as online mode for deterministic PII checks.
-# LiteLLM native guardrails remain available for lightweight/in-memory checks.
-# ------------------------------------------------------------------------------
-
-guardrails:
-  - guardrail_name: "presidio-dlp-guardian"
-    litellm_params:
-      guardrail: presidio
-      mode: "pre_call"
-      presidio_analyzer_api_base: "http://presidio-analyzer:3000"
-      presidio_anonymizer_api_base: "http://presidio-anonymizer:3000"
-      # Standard Presidio entity types. See litellm.yaml for full documentation.
-      pii_entities_config:
-        US_SSN: "BLOCK"
-        US_PASSPORT: "BLOCK"
-        US_DRIVER_LICENSE: "BLOCK"
-        US_BANK_NUMBER: "BLOCK"
-        US_ITIN: "BLOCK"
-        CREDIT_CARD: "BLOCK"
-        CRYPTO: "BLOCK"
-        IBAN_CODE: "BLOCK"
-        EMAIL_ADDRESS: "MASK"
-        PHONE_NUMBER: "MASK"
-        LOCATION: "MASK"
-        PERSON: "MASK"
-      default_on: true
-      blocked_message: >-
-        Request blocked: Potential PII or sensitive data detected.
-        Contact security team if this is a false positive.

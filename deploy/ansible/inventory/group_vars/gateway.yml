@@ -15,7 +15,7 @@ ansible_port: 22
 
 # ACP defaults (can be overridden per-host)
 acp_repo_path: /opt/ai-control-plane
-acp_env_file: /opt/ai-control-plane/demo/.env
+acp_env_file: /etc/ai-control-plane/secrets.env
 acp_tls_mode: plain
 
 # External database defaults

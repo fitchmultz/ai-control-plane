@@ -53,13 +53,14 @@ func TestComposeBuildArgs_WithOptions(t *testing.T) {
 		argsPrefix:  []string{"compose"},
 		projectDir:  "/repo/demo",
 		projectName: "ai-control-plane-ci-runtime",
-		files:       []string{"docker-compose.offline.yml"},
+		files:       []string{"docker-compose.yml", "docker-compose.offline.yml"},
 	}
 
 	got := compose.buildArgs("ps")
 	want := []string{
 		"compose",
 		"--project-name", "ai-control-plane-ci-runtime",
+		"-f", filepath.Join("/repo/demo", "docker-compose.yml"),
 		"-f", filepath.Join("/repo/demo", "docker-compose.offline.yml"),
 		"--project-directory", "/repo/demo",
 		"ps",

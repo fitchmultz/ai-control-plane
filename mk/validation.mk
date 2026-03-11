@@ -80,7 +80,7 @@ validate-acpctl-parity: ## Fail when published Make/acpctl surfaces drift from t
 		echo '$(COLOR_RED)✗ go not installed - required for validate-acpctl-parity$(COLOR_RESET)'; \
 		exit 2; \
 	fi
-	@$(GO) test ./cmd/acpctl -run 'TestCommandSpec_ApprovedCommandInventory|TestPublishedMakeTargetsResolve|TestPublishedACPCTLCommandsResolve|TestGeneratedCompletionArtifactsAreCurrent|TestRetiredCommandReferencesStayRemoved' -count=1 \
+	@$(GO) test ./cmd/acpctl -run 'TestCommandSpec_ApprovedCommandInventory|TestPublishedMakeTargetsResolve|TestPublishedACPCTLCommandsResolve|TestGeneratedCompletionArtifactsAreCurrent|TestGeneratedReferenceArtifactsAreCurrent|TestPublicSurfaceOmitsIncubatingTracks|TestRetiredCommandReferencesStayRemoved' -count=1 \
 		&& echo '$(COLOR_GREEN)✓ acpctl command surface parity passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ acpctl command surface parity failed$(COLOR_RESET)'; exit 1; }
 

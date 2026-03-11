@@ -59,8 +59,8 @@ run_make_target() {
     (
         cd "${REPO_ROOT}"
         ACPCTL_BIN="${ACPCTL_STUB}" \
-        ACPCTL_TEST_CAPTURE_FILE="${CAPTURE_FILE}" \
-        make --silent "${target}"
+            ACPCTL_TEST_CAPTURE_FILE="${CAPTURE_FILE}" \
+            make --silent "${target}"
     ) >/dev/null
 }
 

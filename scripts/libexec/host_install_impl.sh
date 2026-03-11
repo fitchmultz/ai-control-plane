@@ -8,7 +8,6 @@
 #
 # Responsibilities:
 #   - Render the tracked systemd unit template with concrete deployment paths.
-#   - Sync canonical secrets into the Compose runtime env file before install/start.
 #   - Execute systemd lifecycle actions for the installed service.
 #
 # Non-scope:
@@ -38,10 +37,8 @@ Options:
   --repo-root PATH          Repository root (default: current checkout)
   --unit-dir PATH           systemd unit directory (default: /etc/systemd/system)
   --env-file PATH           Canonical secrets file (default: /etc/ai-control-plane/secrets.env)
-  --compose-env-file PATH   Compose runtime env file (default: demo/.env)
   --compose-file PATH       Compose file for the service (default: demo/docker-compose.yml)
   --compose-bin CMD         Compose binary/command (default: auto-detect)
-  --fetch-hook PATH         Optional secrets fetch hook executed before install/start
   --no-enable               Skip `systemctl enable` during install
   --no-start                Skip `systemctl start` during install
   --help                    Show this help message
@@ -84,10 +81,8 @@ service_user="$(id -un)"
 service_group="$(id -gn)"
 unit_dir="/etc/systemd/system"
 env_file="/etc/ai-control-plane/secrets.env"
-compose_env_file="demo/.env"
 compose_file="demo/docker-compose.yml"
 compose_bin=""
-fetch_hook=""
 enable_service="true"
 start_service="true"
 
@@ -141,14 +136,6 @@ while [[ $# -gt 0 ]]; do
         env_file="$2"
         shift 2
         ;;
-    --compose-env-file)
-        [[ $# -ge 2 ]] || {
-            printf 'ERROR: missing value for --compose-env-file\n' >&2
-            exit "${ACP_EXIT_USAGE}"
-        }
-        compose_env_file="$2"
-        shift 2
-        ;;
     --compose-file)
         [[ $# -ge 2 ]] || {
             printf 'ERROR: missing value for --compose-file\n' >&2
@@ -163,14 +150,6 @@ while [[ $# -gt 0 ]]; do
             exit "${ACP_EXIT_USAGE}"
         }
         compose_bin="$2"
-        shift 2
-        ;;
-    --fetch-hook)
-        [[ $# -ge 2 ]] || {
-            printf 'ERROR: missing value for --fetch-hook\n' >&2
-            exit "${ACP_EXIT_USAGE}"
-        }
-        fetch_hook="$2"
         shift 2
         ;;
     --no-enable)
@@ -196,10 +175,8 @@ done
 bridge_require_command systemctl
 
 env_file="$(bridge_abspath "${env_file}")"
-compose_env_file="$(bridge_abspath "${compose_env_file}")"
 compose_file="$(bridge_abspath "${compose_file}")"
 template_path="${repo_root}/deploy/systemd/ai-control-plane.service.tmpl"
-prepare_script="${repo_root}/scripts/libexec/prepare_secrets_env_impl.sh"
 unit_path="${unit_dir}/${service_name}.service"
 
 if [[ -z "${compose_bin}" ]]; then
@@ -213,11 +190,7 @@ service_action() {
 }
 
 render_unit() {
-    local fetch_hook_arg rendered_compose_bin
-    fetch_hook_arg=""
-    if [[ -n "${fetch_hook}" ]]; then
-        fetch_hook_arg="--fetch-hook $(bridge_abspath "${fetch_hook}")"
-    fi
+    local rendered_compose_bin
     rendered_compose_bin="$(bridge_escape_sed_replacement "${compose_bin}")"
 
     sed \
@@ -225,8 +198,6 @@ render_unit() {
         -e "s|{{SERVICE_GROUP}}|$(bridge_escape_sed_replacement "${service_group}")|g" \
         -e "s|{{WORKING_DIR}}|$(bridge_escape_sed_replacement "${repo_root}")|g" \
         -e "s|{{ENV_FILE}}|$(bridge_escape_sed_replacement "${env_file}")|g" \
-        -e "s|{{COMPOSE_ENV_FILE}}|$(bridge_escape_sed_replacement "${compose_env_file}")|g" \
-        -e "s|{{SECRETS_FETCH_HOOK_ARG}}|$(bridge_escape_sed_replacement "${fetch_hook_arg}")|g" \
         -e "s|{{COMPOSE_FILE}}|$(bridge_escape_sed_replacement "${compose_file}")|g" \
         -e "s|{{COMPOSE_BIN}}|${rendered_compose_bin}|g" \
         -e "s|{{COMPOSE_PROJECT_NAME}}|ai-control-plane-active|g" \
@@ -239,20 +210,7 @@ install)
         printf 'ERROR: systemd template not found: %s\n' "${template_path}" >&2
         exit "${ACP_EXIT_RUNTIME}"
     }
-    [[ -x "${prepare_script}" ]] || {
-        printf 'ERROR: secrets refresh script not executable: %s\n' "${prepare_script}" >&2
-        exit "${ACP_EXIT_RUNTIME}"
-    }
     mkdir -p "${unit_dir}"
-    prepare_args=(
-        --secrets-file "${env_file}"
-        --compose-env-file "${compose_env_file}"
-        --service-user "${service_user}"
-    )
-    if [[ -n "${fetch_hook}" ]]; then
-        prepare_args+=(--fetch-hook "${fetch_hook}")
-    fi
-    "${prepare_script}" "${prepare_args[@]}"
     temp_unit="$(mktemp "${unit_dir}/${service_name}.service.tmp.XXXXXX")"
     trap 'rm -f "${temp_unit:-}"' EXIT
     render_unit >"${temp_unit}"
@@ -287,30 +245,12 @@ service-status)
     service_action status --no-pager
     ;;
 service-start)
-    prepare_args=(
-        --secrets-file "${env_file}"
-        --compose-env-file "${compose_env_file}"
-        --service-user "${service_user}"
-    )
-    if [[ -n "${fetch_hook}" ]]; then
-        prepare_args+=(--fetch-hook "${fetch_hook}")
-    fi
-    "${prepare_script}" "${prepare_args[@]}"
     service_action start
     ;;
 service-stop)
     service_action stop
     ;;
 service-restart)
-    prepare_args=(
-        --secrets-file "${env_file}"
-        --compose-env-file "${compose_env_file}"
-        --service-user "${service_user}"
-    )
-    if [[ -n "${fetch_hook}" ]]; then
-        prepare_args+=(--fetch-hook "${fetch_hook}")
-    fi
-    "${prepare_script}" "${prepare_args[@]}"
     service_action restart
     ;;
 esac

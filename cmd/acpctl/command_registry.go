@@ -35,10 +35,7 @@ func acpctlCommandSpec() *commandSpec {
 		dbCommandSpec(),
 		keyCommandSpec(),
 		hostCommandSpec(),
-		demoCommandSpec(),
-		terraformCommandSpec(),
-		helmCommandSpec(),
-		bridgeCommandSpec(),
+		hiddenGenerateDocsCommandSpec(),
 		hiddenCompleteCommandSpec(),
 	)
 }

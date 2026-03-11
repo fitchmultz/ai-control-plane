@@ -3,7 +3,7 @@ _acpctl_complete() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
 
-    local commands="ci env chargeback status health doctor benchmark smoke completion onboard deploy validate db key host demo terraform helm help"
+    local commands="ci env chargeback status health doctor benchmark smoke completion onboard deploy validate db key host help"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
@@ -32,7 +32,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         deploy)
-            local subcmds="up down restart health logs ps up-production prod-smoke up-offline down-offline health-offline up-tls down-tls tls-health helm-validate release-bundle readiness-evidence pilot-closeout-bundle artifact-retention"
+            local subcmds="release-bundle readiness-evidence pilot-closeout-bundle artifact-retention"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         validate)
@@ -48,19 +48,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         host)
-            local subcmds="preflight check apply install uninstall service-status service-start service-stop service-restart secrets-refresh"
-            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
-            ;;
-        demo)
-            local subcmds="scenario all preset snapshot restore"
-            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
-            ;;
-        terraform)
-            local subcmds="init plan apply destroy fmt validate"
-            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
-            ;;
-        helm)
-            local subcmds="validate smoke"
+            local subcmds="preflight check apply install uninstall service-status service-start service-stop service-restart"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         *)

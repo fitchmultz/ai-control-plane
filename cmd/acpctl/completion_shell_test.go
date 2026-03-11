@@ -43,7 +43,7 @@ func TestCompletionShellCommandBash(t *testing.T) {
 func TestGeneratedCompletionScriptsFollowCommandTree(t *testing.T) {
 	for _, shell := range []string{"bash", "zsh", "fish"} {
 		content := captureCompletionScript(t, shell)
-		for _, root := range []string{"ci", "completion", "deploy", "validate", "helm"} {
+		for _, root := range []string{"ci", "completion", "deploy", "validate", "host"} {
 			if !strings.Contains(content, root) {
 				t.Fatalf("%s completion missing root command %q", shell, root)
 			}

@@ -32,9 +32,7 @@ func TestExpandDeploymentSurfacesIncludesNestedCanonicalTargets(t *testing.T) {
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers: {}\n")
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM cgr.dev/chainguard/python@sha256:abc\n")
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "librechat-hardened", "Dockerfile"), "FROM ghcr.io/example/librechat@sha256:def\n")
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\n")
 	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "---\n- hosts: gateway\n")
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "terraform", "examples", "aws-complete", "main.tf"), "terraform {}\n")
 
 	targets, err := ExpandDeploymentSurfaces(repoRoot)
 	if err != nil {
@@ -48,9 +46,7 @@ func TestExpandDeploymentSurfacesIncludesNestedCanonicalTargets(t *testing.T) {
 	assertSurfaceKind(t, targetKinds, "demo/config/otel-collector/config.production.yaml", SurfaceYAML)
 	assertSurfaceKind(t, targetKinds, "demo/images/litellm-hardened/Dockerfile", SurfaceDockerfile)
 	assertSurfaceKind(t, targetKinds, "demo/images/librechat-hardened/Dockerfile", SurfaceDockerfile)
-	assertSurfaceKind(t, targetKinds, "deploy/helm/ai-control-plane/templates/deployment-litellm.yaml", SurfaceHelmTpl)
 	assertSurfaceKind(t, targetKinds, "deploy/ansible/playbooks/gateway_host.yml", SurfaceAnsibleYML)
-	assertSurfaceKind(t, targetKinds, "deploy/terraform/examples/aws-complete/main.tf", SurfaceTerraform)
 }
 
 func TestExpandDeploymentSurfacesIncludesExplicitRequiredTargetsWhenGlobMatchesNothing(t *testing.T) {
@@ -66,31 +62,47 @@ func TestExpandDeploymentSurfacesIncludesExplicitRequiredTargetsWhenGlobMatchesN
 		targetKinds[target.Path] = target.Kind
 	}
 	assertSurfaceKind(t, targetKinds, "demo/docker-compose.yml", SurfaceCompose)
-	assertSurfaceKind(t, targetKinds, "deploy/helm/ai-control-plane/values.yaml", SurfaceHelmValues)
 }
 
-func TestExpandDeploymentSurfacesSortsAndDedupesDeterministically(t *testing.T) {
+func TestExpandIncubatingDeploymentSurfacesSortsAndDedupesDeterministically(t *testing.T) {
 	repoRoot := t.TempDir()
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "a.yaml"), "profile: demo\n")
-	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "b.yaml"), "profile: demo\n")
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "a.yaml"), "profile: demo\n")
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "b.yaml"), "profile: demo\n")
 
 	spec := SurfaceSpec{
 		ID:    "dedupe",
 		Kind:  SurfaceHelmValues,
-		Paths: []string{"deploy/helm/ai-control-plane/examples/b.yaml"},
-		Globs: []string{"deploy/helm/ai-control-plane/examples/**/*.yaml"},
+		Paths: []string{"deploy/incubating/helm/ai-control-plane/examples/b.yaml"},
+		Globs: []string{"deploy/incubating/helm/ai-control-plane/examples/**/*.yaml"},
 	}
 	got, err := expandSpec(repoRoot, spec)
 	if err != nil {
 		t.Fatalf("expandSpec returned error: %v", err)
 	}
 	want := []string{
-		"deploy/helm/ai-control-plane/examples/a.yaml",
-		"deploy/helm/ai-control-plane/examples/b.yaml",
+		"deploy/incubating/helm/ai-control-plane/examples/a.yaml",
+		"deploy/incubating/helm/ai-control-plane/examples/b.yaml",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expandSpec mismatch\nwant: %v\n got: %v", want, got)
 	}
+}
+
+func TestExpandIncubatingDeploymentSurfacesIncludesMovedTracks(t *testing.T) {
+	repoRoot := t.TempDir()
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\n")
+	writePolicyFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "terraform", "examples", "aws-complete", "main.tf"), "terraform {}\n")
+
+	targets, err := ExpandIncubatingDeploymentSurfaces(repoRoot)
+	if err != nil {
+		t.Fatalf("ExpandIncubatingDeploymentSurfaces returned error: %v", err)
+	}
+	targetKinds := make(map[string]SurfaceKind, len(targets))
+	for _, target := range targets {
+		targetKinds[target.Path] = target.Kind
+	}
+	assertSurfaceKind(t, targetKinds, "deploy/incubating/helm/ai-control-plane/templates/deployment-litellm.yaml", SurfaceHelmTpl)
+	assertSurfaceKind(t, targetKinds, "deploy/incubating/terraform/examples/aws-complete/main.tf", SurfaceTerraform)
 }
 
 func assertSurfaceKind(t *testing.T, got map[string]SurfaceKind, path string, want SurfaceKind) {

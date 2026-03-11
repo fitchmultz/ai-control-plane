@@ -5,7 +5,7 @@
 //
 // Responsibilities:
 //   - Cover compose healthcheck enforcement.
-//   - Cover helm contract enforcement.
+//   - Cover supported-surface validation boundaries.
 //   - Cover header and direct-env policy checks.
 //
 // Scope:
@@ -48,14 +48,14 @@ func TestValidateDeploymentSurfacesFlagsHelmContractDrift(t *testing.T) {
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
 
-	issues, err := ValidateDeploymentSurfaces(repoRoot)
+	issues, err := ValidateHelmSurfaces(repoRoot)
 	if err != nil {
-		t.Fatalf("ValidateDeploymentSurfaces returned error: %v", err)
+		t.Fatalf("ValidateHelmSurfaces returned error: %v", err)
 	}
 	joined := strings.Join(issues, "\n")
 	if !strings.Contains(joined, "values.yaml: profile must be production") {
@@ -68,12 +68,12 @@ func TestValidateHelmSurfacesIgnoresNonHelmIssues(t *testing.T) {
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services:\n  app:\n    image: example/app:1\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: litellm\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: litellm\n")
 
 	issues, err := ValidateHelmSurfaces(repoRoot)
 	if err != nil {
@@ -93,15 +93,8 @@ func TestValidateDeploymentSurfacesFlagsNestedCanonicalTargets(t *testing.T) {
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers: [\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nmetadata:\n  name: litellm\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "tasks: [\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "terraform", "examples", "aws-complete", "main.tf"), "   \n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "RUN echo missing-base-image\n")
 
 	issues, err := ValidateDeploymentSurfaces(repoRoot)
@@ -111,9 +104,7 @@ func TestValidateDeploymentSurfacesFlagsNestedCanonicalTargets(t *testing.T) {
 	joined := strings.Join(issues, "\n")
 	for _, expected := range []string{
 		"demo/config/otel-collector/config.production.yaml: invalid YAML",
-		"deploy/helm/ai-control-plane/templates/deployment-litellm.yaml: Helm template must declare apiVersion and kind",
 		"deploy/ansible/playbooks/gateway_host.yml: invalid YAML",
-		"deploy/terraform/examples/aws-complete/main.tf: empty Terraform source",
 		"demo/images/litellm-hardened/Dockerfile: Dockerfile must declare at least one FROM instruction",
 	} {
 		if !strings.Contains(joined, expected) {
@@ -127,16 +118,16 @@ func TestValidateDeploymentSurfacesAllowsTemplateOnlyHelmFiles(t *testing.T) {
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.offline.yml"), "services: {}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.tls.yml"), "services: {}\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "validate.yaml"), "{{/* helper template */}}\n{{ include \"acp.validate\" . }}\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "incubating", "helm", "ai-control-plane", "templates", "validate.yaml"), "{{/* helper template */}}\n{{ include \"acp.validate\" . }}\n")
 
-	issues, err := ValidateDeploymentSurfaces(repoRoot)
+	issues, err := ValidateHelmSurfaces(repoRoot)
 	if err != nil {
-		t.Fatalf("ValidateDeploymentSurfaces returned error: %v", err)
+		t.Fatalf("ValidateHelmSurfaces returned error: %v", err)
 	}
 	if joined := strings.Join(issues, "\n"); strings.Contains(joined, "templates/validate.yaml: Helm template must declare apiVersion and kind") {
 		t.Fatalf("expected template-only helm file to be allowed, got %v", issues)
@@ -253,14 +244,7 @@ func writeValidDeploymentSurfaceRepo(t *testing.T, repoRoot string) {
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "caddy", "Caddyfile.prod"), canonicalProductionCaddyFixture())
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "Chart.yaml"), "apiVersion: v2\nname: acp\nversion: 0.1.0\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.schema.json"), `{"type":"object"}`)
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.offline.yaml"), "profile: demo\ndemo:\n  enabled: true\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "templates", "deployment-litellm.yaml"), "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: litellm\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "hosts: all\ntasks:\n  - debug:\n      msg: ok\n")
-	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "terraform", "examples", "aws-complete", "main.tf"), "terraform {\n  required_version = \">= 1.9.0\"\n}\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM scratch\n")
 }
 

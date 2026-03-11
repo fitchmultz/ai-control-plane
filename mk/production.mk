@@ -14,7 +14,7 @@ up-production: validate-config-production ## Start production profile with OTEL
 	@echo '$(COLOR_BOLD)Starting production profile...$(COLOR_RESET)'
 	@echo '$(COLOR_YELLOW)Note: Requires OTEL_EXPORTER_OTLP_ENDPOINT to be set$(COLOR_RESET)'
 	@cd $(COMPOSE_DIR) && \
-		OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml \
+		ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml LITELLM_CONFIG_FILE=litellm.yaml \
 		$(DOCKER_COMPOSE_PROJECT) --profile production up -d --timeout 120
 	@echo '$(COLOR_GREEN)✓ Production services started$(COLOR_RESET)'
 	@echo ''
@@ -53,7 +53,7 @@ validate-config-production: install-binary ## Validate production configuration
 up-tls: ## Start TLS mode services
 	@echo '$(COLOR_BOLD)Starting TLS mode services...$(COLOR_RESET)'
 	@cd $(COMPOSE_DIR) && \
-		$(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml up -d
+		ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" LITELLM_CONFIG_FILE=litellm.yaml $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.tls.yml $(COMPOSE_DB_PROFILE) up -d $(if $(filter embedded,$(DB_MODE)),postgres,) litellm caddy
 	@echo '$(COLOR_GREEN)✓ TLS services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'

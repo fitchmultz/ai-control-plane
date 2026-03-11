@@ -80,14 +80,12 @@ assert_make_target() {
 printf 'ACPCTL CLI Delegation Contract Test\n'
 printf '===================================\n'
 
-assert_make_target "up" deploy up
-assert_make_target "demo-all" demo all
-assert_make_target "up-tls" deploy up-tls
-assert_make_target "tf-plan" terraform plan
+assert_make_target "lint" validate lint
+assert_make_target "security-gate" validate security
 
 missing_rc=0
 ACPCTL_BIN="${GO_SHIM}" \
     ACPCTL_MAKE_BIN="${TMP_DIR}/missing-make" \
     ACP_REPO_ROOT="${REPO_ROOT}" \
-    "${SCRIPT_UNDER_TEST}" deploy up >/dev/null 2>&1 || missing_rc=$?
+    "${SCRIPT_UNDER_TEST}" validate lint >/dev/null 2>&1 || missing_rc=$?
 test_assert_exit_code "${missing_rc}" "2" "missing ACPCTL_MAKE_BIN exits 2" || exit 1

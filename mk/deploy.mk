@@ -10,9 +10,9 @@
 #   - Does not handle host-level deployment
 
 .PHONY: up
-up: hardened-images-build validate-config validate-librechat-config ## Start default services
+up: hardened-images-build validate-config ## Start supported base services
 	@echo '$(COLOR_BOLD)Starting services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" LITELLM_CONFIG_FILE=litellm.yaml LITELLM_IMAGE=ai-control-plane/litellm-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d $(if $(filter embedded,$(DB_MODE)),postgres,) litellm
 	@echo '$(COLOR_GREEN)✓ Services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
@@ -21,24 +21,25 @@ up: hardened-images-build validate-config validate-librechat-config ## Start def
 	@echo 'Run $(COLOR_BOLD)make health$(COLOR_RESET) to verify services.'
 
 .PHONY: up-core
-up-core: hardened-images-build validate-config ## Start LiteLLM core services only (no managed web UI)
-	@echo '$(COLOR_BOLD)Starting LiteLLM core services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d \
-		$(if $(filter embedded,$(DB_MODE)),postgres,) presidio-analyzer presidio-anonymizer litellm
-	@echo '$(COLOR_GREEN)✓ LiteLLM core services started$(COLOR_RESET)'
-	@echo ''
-	@echo 'Services:'
-	@echo '  - LiteLLM Gateway: http://127.0.0.1:$(LITELLM_PORT)'
-	@echo '  - PostgreSQL: internal (embedded mode only)'
-	@echo ''
-	@echo 'Run $(COLOR_BOLD)make health$(COLOR_RESET) to verify services.'
+up-core: up ## Compatibility alias for the supported base runtime
 
-.PHONY: librechat-up
-librechat-up: hardened-images-build validate-config validate-librechat-config ## Start managed LibreChat services
-	@echo '$(COLOR_BOLD)Starting managed LibreChat services...$(COLOR_RESET)'
-	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) $(COMPOSE_DB_PROFILE) up -d librechat
-	@echo '$(COLOR_GREEN)✓ LibreChat services started$(COLOR_RESET)'
-	@echo 'Open http://127.0.0.1:$(LIBRECHAT_PORT)'
+.PHONY: up-dlp
+up-dlp: hardened-images-build validate-config ## Start base services with the DLP overlay
+	@echo '$(COLOR_BOLD)Starting DLP overlay services...$(COLOR_RESET)'
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" LITELLM_CONFIG_FILE=litellm-dlp.yaml LITELLM_IMAGE=ai-control-plane/litellm-hardened:local $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.dlp.yml $(COMPOSE_DB_PROFILE) up -d $(if $(filter embedded,$(DB_MODE)),postgres,) litellm presidio-analyzer presidio-anonymizer
+	@echo '$(COLOR_GREEN)✓ DLP overlay services started$(COLOR_RESET)'
+
+.PHONY: up-ui
+up-ui: hardened-images-build validate-config validate-librechat-config ## Start base services with the managed UI overlay
+	@echo '$(COLOR_BOLD)Starting managed UI overlay services...$(COLOR_RESET)'
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" LITELLM_CONFIG_FILE=litellm.yaml LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.ui.yml $(COMPOSE_DB_PROFILE) up -d $(if $(filter embedded,$(DB_MODE)),postgres,) litellm librechat-mongodb librechat-meilisearch librechat
+	@echo '$(COLOR_GREEN)✓ Managed UI overlay services started$(COLOR_RESET)'
+
+.PHONY: up-full
+up-full: hardened-images-build validate-config validate-librechat-config ## Start base services with DLP and managed UI overlays
+	@echo '$(COLOR_BOLD)Starting full host-first stack...$(COLOR_RESET)'
+	@cd $(COMPOSE_DIR) && ACP_DATABASE_MODE=$(DB_MODE) ACP_PULL_POLICY=never ACP_RUNTIME_ENV_FILE="$(COMPOSE_ENV_FILE)" LITELLM_CONFIG_FILE=litellm-dlp.yaml LITELLM_IMAGE=ai-control-plane/litellm-hardened:local LIBRECHAT_IMAGE=ai-control-plane/librechat-hardened:local $(DOCKER_COMPOSE_PROJECT) -f docker-compose.yml -f docker-compose.dlp.yml -f docker-compose.ui.yml $(COMPOSE_DB_PROFILE) up -d $(if $(filter embedded,$(DB_MODE)),postgres,) litellm presidio-analyzer presidio-anonymizer librechat-mongodb librechat-meilisearch librechat
+	@echo '$(COLOR_GREEN)✓ Full host-first stack started$(COLOR_RESET)'
 
 .PHONY: librechat-health
 librechat-health: ## Check LibreChat HTTP health endpoint

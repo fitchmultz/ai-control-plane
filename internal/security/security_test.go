@@ -5,9 +5,8 @@
 //
 // Responsibilities:
 //   - Cover Compose image digest enforcement.
-//   - Cover Helm image digest enforcement.
 //   - Cover Dockerfile base-image digest enforcement.
-//   - Lock down policy-field and Helm-example edge cases.
+//   - Lock down policy-field and supported-surface edge cases.
 //
 // Scope:
 //   - Unit tests for internal security validators only.
@@ -27,20 +26,6 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/testutil"
 )
-
-func TestValidateSupplyChainPolicyFlagsHelmDigestDrift(t *testing.T) {
-	repoRoot := t.TempDir()
-	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","severity_policy":{"fail_on":["CRITICAL"]}}`)
-	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\nlitellm:\n  image:\n    repository: ghcr.io/example/app\n")
-
-	issues, err := ValidateSupplyChainPolicy(repoRoot)
-	if err != nil {
-		t.Fatalf("ValidateSupplyChainPolicy returned error: %v", err)
-	}
-	if len(issues) == 0 || !strings.Contains(strings.Join(issues, "\n"), "must declare a non-empty image digest") {
-		t.Fatalf("expected helm digest issue, got %v", issues)
-	}
-}
 
 func TestValidateSupplyChainPolicyFlagsComposeImageDigestDrift(t *testing.T) {
 	repoRoot := t.TempDir()
@@ -101,34 +86,6 @@ func TestValidateSupplyChainPolicyFlagsNestedDockerfileCoverage(t *testing.T) {
 	}
 	if !strings.Contains(joined, "demo/images/librechat-hardened/Dockerfile") {
 		t.Fatalf("expected librechat hardened Dockerfile issue, got %v", issues)
-	}
-}
-
-func TestValidateSupplyChainPolicyAllowsLocalACPHelmImageTag(t *testing.T) {
-	repoRoot := t.TempDir()
-	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","severity_policy":{"fail_on":["CRITICAL"]}}`)
-	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "values.yaml"), "profile: production\ndemo:\n  enabled: false\nchargeback:\n  image:\n    repository: ai-control-plane/acpctl\n    tag: local\n")
-
-	issues, err := ValidateSupplyChainPolicy(repoRoot)
-	if err != nil {
-		t.Fatalf("ValidateSupplyChainPolicy returned error: %v", err)
-	}
-	if len(issues) != 0 {
-		t.Fatalf("expected local ACP image override to pass, got %v", issues)
-	}
-}
-
-func TestValidateSupplyChainPolicyDoesNotRequireDigestsInHelmExampleValues(t *testing.T) {
-	repoRoot := t.TempDir()
-	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "supply_chain_vulnerability_policy.json"), `{"policy_id":"policy","severity_policy":{"fail_on":["CRITICAL"]}}`)
-	writeSecurityFixtureFile(t, filepath.Join(repoRoot, "deploy", "helm", "ai-control-plane", "examples", "values.demo.yaml"), "litellm:\n  image:\n    repository: ghcr.io/example/demo\n")
-
-	issues, err := ValidateSupplyChainPolicy(repoRoot)
-	if err != nil {
-		t.Fatalf("ValidateSupplyChainPolicy returned error: %v", err)
-	}
-	if len(issues) != 0 {
-		t.Fatalf("expected helm example values to skip digest enforcement, got %v", issues)
 	}
 }
 

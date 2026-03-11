@@ -51,7 +51,7 @@ func ValidateDeploymentSurfaces(repoRoot string) ([]string, error) {
 }
 
 func ValidateHelmSurfaces(repoRoot string) ([]string, error) {
-	targets, err := policy.ExpandDeploymentSurfaces(repoRoot)
+	targets, err := policy.ExpandIncubatingDeploymentSurfaces(repoRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +243,7 @@ func validateHelmContracts(repoRoot string, target policy.SurfaceTarget) []strin
 	demoEnabled := policy.ScalarValue(policy.MappingValue(policy.MappingValue(root, "demo"), "enabled"))
 	issues := NewIssues()
 	switch target.Path {
-	case "deploy/helm/ai-control-plane/values.yaml":
+	case "deploy/incubating/helm/ai-control-plane/values.yaml":
 		if profile != "production" {
 			issues.Addf("%s: profile must be production", target.Path)
 		}

@@ -5,7 +5,7 @@
 #
 # Responsibilities:
 #   - Validate prerequisites (variables, binaries, paths)
-#   - Validate deployment configuration and sync the Compose env contract
+#   - Validate deployment configuration against the canonical secrets file
 #   - Converge Docker Compose services
 #   - Run post-apply health and smoke validation
 #
@@ -139,20 +139,6 @@
     # =========================================================================
     # Phase 4: Configuration Validation
     # =========================================================================
-    - name: Determine compose env file path
-      ansible.builtin.set_fact:
-        acp_compose_env_file: "{{ acp_repo_path }}/demo/.env"
-
-    - name: Sync canonical secrets into the Compose runtime env file
-      ansible.builtin.command:
-        cmd: >
-          ./scripts/acpctl.sh host secrets-refresh
-          --secrets-file {{ acp_env_file }}
-          --compose-env-file {{ acp_compose_env_file }}
-        chdir: "{{ acp_repo_path }}"
-      changed_when: true
-      no_log: true
-
     - name: Run deployment configuration validation
       ansible.builtin.command:
         cmd: >
@@ -177,7 +163,7 @@
 
     - name: Converge Docker Compose services
       ansible.builtin.command:
-        cmd: "make {{ acp_make_target }}"
+        cmd: "make {{ acp_make_target }} COMPOSE_ENV_FILE={{ acp_env_file }}"
         chdir: "{{ acp_repo_path }}"
       register: converge_result
       changed_when: >
@@ -207,7 +193,7 @@
 
     - name: Run health check
       ansible.builtin.command:
-        cmd: "make health"
+        cmd: "make health COMPOSE_ENV_FILE={{ acp_env_file }}"
         chdir: "{{ acp_repo_path }}"
       changed_when: false
       register: health_check
@@ -220,15 +206,9 @@
     # Phase 7: Smoke Validation (Optional but Recommended)
     # =========================================================================
     - name: Run production smoke check
-      ansible.builtin.shell: |
-        set -euo pipefail
-        set -a
-        source "{{ acp_env_file }}"
-        set +a
-        make prod-smoke
-      args:
+      ansible.builtin.command:
+        cmd: "make prod-smoke COMPOSE_ENV_FILE={{ acp_env_file }}"
         chdir: "{{ acp_repo_path }}"
-        executable: /bin/bash
       changed_when: false
       register: smoke_check
       no_log: true  # Prevent secret leakage
