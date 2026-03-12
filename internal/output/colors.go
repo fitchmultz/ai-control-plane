@@ -89,61 +89,61 @@ func (o *Output) Color(code string) string {
 	return ""
 }
 
+func (o *Output) wrap(code string, text string) string {
+	return fmt.Sprintf("%s%s%s", o.Color(code), text, o.Color(colorReset))
+}
+
+func (o *Output) symbolLine(symbol string, text string, style func(string) string) string {
+	styledSymbol := style(symbol)
+	if text == "" {
+		return styledSymbol
+	}
+	return fmt.Sprintf("%s %s", styledSymbol, text)
+}
+
 // Red returns red colored text
 func (o *Output) Red(text string) string {
-	return fmt.Sprintf("%s%s%s", o.Color(colorRed), text, o.Color(colorReset))
+	return o.wrap(colorRed, text)
 }
 
 // Green returns green colored text
 func (o *Output) Green(text string) string {
-	return fmt.Sprintf("%s%s%s", o.Color(colorGreen), text, o.Color(colorReset))
+	return o.wrap(colorGreen, text)
 }
 
 // Yellow returns yellow colored text
 func (o *Output) Yellow(text string) string {
-	return fmt.Sprintf("%s%s%s", o.Color(colorYellow), text, o.Color(colorReset))
+	return o.wrap(colorYellow, text)
 }
 
 // Blue returns blue colored text
 func (o *Output) Blue(text string) string {
-	return fmt.Sprintf("%s%s%s", o.Color(colorBlue), text, o.Color(colorReset))
+	return o.wrap(colorBlue, text)
 }
 
 // Bold returns bold text
 func (o *Output) Bold(text string) string {
-	return fmt.Sprintf("%s%s%s", o.Color(colorBold), text, o.Color(colorReset))
+	return o.wrap(colorBold, text)
 }
 
 // Pass returns the pass symbol with optional text
 func (o *Output) Pass(text string) string {
-	if text == "" {
-		return o.Green(symbolPass)
-	}
-	return fmt.Sprintf("%s %s", o.Green(symbolPass), text)
+	return o.symbolLine(symbolPass, text, o.Green)
 }
 
 // Fail returns the fail symbol with optional text
 func (o *Output) Fail(text string) string {
-	if text == "" {
-		return o.Red(symbolFail)
-	}
-	return fmt.Sprintf("%s %s", o.Red(symbolFail), text)
+	return o.symbolLine(symbolFail, text, o.Red)
 }
 
 // Warn returns the warning symbol with optional text
 func (o *Output) Warn(text string) string {
-	if text == "" {
-		return o.Yellow(symbolWarn)
-	}
-	return fmt.Sprintf("%s %s", o.Yellow(symbolWarn), text)
+	return o.symbolLine(symbolWarn, text, o.Yellow)
 }
 
 // Info returns the info symbol with optional text
 func (o *Output) Info(text string) string {
-	if text == "" {
-		return o.Blue(symbolInfo)
-	}
-	return fmt.Sprintf("%s %s", o.Blue(symbolInfo), text)
+	return o.symbolLine(symbolInfo, text, o.Blue)
 }
 
 // SectionHeader prints a section header
