@@ -323,4 +323,4 @@ The maintenance window uses RFC 3339 format for times and RFC 5545 RRULE format 
 
 ## License
 
-This module is part of the AI Control Plane project.
+Apache-2.0 - This module is part of the AI Control Plane project. See the main project [LICENSE](../../../../../../LICENSE) and [NOTICE](../../../../../../NOTICE) files for details.

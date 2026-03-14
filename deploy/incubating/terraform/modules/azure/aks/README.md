@@ -266,4 +266,4 @@ The module ignores changes to `kubernetes_version` to allow controlled upgrades.
 
 ## License
 
-MIT License
+Apache-2.0 - See the main project [LICENSE](../../../../../../LICENSE) and [NOTICE](../../../../../../NOTICE) files for details.

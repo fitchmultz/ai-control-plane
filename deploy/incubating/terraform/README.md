@@ -256,7 +256,7 @@ When modifying modules:
 
 ## License
 
-See the main project LICENSE file.
+This incubating deployment track is licensed under Apache-2.0. See the main project [LICENSE](../../../LICENSE) and [NOTICE](../../../NOTICE) files.
 
 ## Additional Documentation
 

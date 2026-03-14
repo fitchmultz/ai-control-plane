@@ -74,3 +74,11 @@ Generated references:
 - `demo/.env` is local-demo only.
 - `/etc/ai-control-plane/secrets.env` is the canonical host-production env source.
 - Production workflows do not sync secrets back into the repository tree.
+
+## License
+
+AI Control Plane is licensed under [Apache-2.0](LICENSE).
+
+- Project notice: [NOTICE](NOTICE)
+- Third-party license boundary: [docs/policy/THIRD_PARTY_LICENSE_MATRIX.md](docs/policy/THIRD_PARTY_LICENSE_MATRIX.md)
+- Customer-facing compliance summary: [docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md](docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md)

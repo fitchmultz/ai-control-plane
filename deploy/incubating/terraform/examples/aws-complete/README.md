@@ -288,6 +288,7 @@ This example uses the following modules:
 
 ## License and Compliance
 
-- **Project License**: This project uses third-party open-source components. See `docs/policy/THIRD_PARTY_LICENSE_MATRIX.md` for the complete license policy.
+- **Project License**: Apache-2.0. See the main project [`LICENSE`](../../../../../LICENSE) and [`NOTICE`](../../../../../NOTICE) files.
+- **Third-Party License Policy**: `docs/policy/THIRD_PARTY_LICENSE_MATRIX.md` defines the complete third-party license boundary.
 - **License Summary**: `docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md` — Generated compliance report for customer handoff
 - **Compliance Check**: Run `make license-check` to verify no restricted components are included

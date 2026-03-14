@@ -185,4 +185,4 @@ export DATABASE_URL="postgresql://litellm:PASSWORD@SERVER_NAME.postgres.database
 
 ## License
 
-MIT License - See LICENSE file for details.
+Apache-2.0 - See the main project [LICENSE](../../../../../../LICENSE) and [NOTICE](../../../../../../NOTICE) files for details.
