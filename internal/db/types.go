@@ -102,3 +102,8 @@ type BackupServiceReader interface {
 	Backup(ctx context.Context) (string, error)
 	Restore(ctx context.Context, sqlReader io.Reader) error
 }
+
+// SQLExecutor narrows release-declared SQL migration execution.
+type SQLExecutor interface {
+	Execute(ctx context.Context, databaseName string, sql string) error
+}

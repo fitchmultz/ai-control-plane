@@ -14,6 +14,8 @@ public_docs:
   - docs/SUPPORT.md
   - docs/technical-architecture.md
   - docs/DEPLOYMENT.md
+  - docs/deployment/UPGRADE_MIGRATION.md
+  - docs/deployment/UPGRADE_COMPATIBILITY_MATRIX.md
   - docs/SECURITY_GOVERNANCE.md
   - docs/troubleshooting/README.md
 

@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 )
@@ -105,6 +106,23 @@ func TestConnectorScalarHelpersRejectCrossDatabaseExternalQueries(t *testing.T) 
 
 	if _, err := connector.scalarStringInDatabase(context.Background(), "scratch", "SELECT version();"); err == nil {
 		t.Fatal("expected cross-database query to be rejected for external mode")
+	}
+}
+
+func TestConnectorExecSQLInDatabaseUsesExternalDB(t *testing.T) {
+	connector, mock := newExternalSQLMockConnector(t)
+	mock.ExpectExec("SELECT 1;").WillReturnResult(sqlmock.NewResult(1, 0))
+
+	if err := connector.execSQLInDatabase(context.Background(), "litellm", "SELECT 1;"); err != nil {
+		t.Fatalf("execSQLInDatabase() error = %v", err)
+	}
+}
+
+func TestConnectorExecSQLInDatabaseRejectsCrossDatabaseExternalQueries(t *testing.T) {
+	connector, _ := newExternalSQLMockConnector(t)
+
+	if err := connector.execSQLInDatabase(context.Background(), "scratch", "SELECT 1;"); err == nil {
+		t.Fatal("expected cross-database exec to be rejected for external mode")
 	}
 }
 

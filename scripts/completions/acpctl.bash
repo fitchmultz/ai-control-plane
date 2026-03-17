@@ -3,7 +3,7 @@ _acpctl_complete() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
 
-    local commands="ci env chargeback ops status health doctor benchmark smoke completion onboard deploy validate db key host help"
+    local commands="ci env chargeback ops status health doctor benchmark smoke completion onboard deploy validate db key upgrade host help"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
@@ -49,6 +49,10 @@ _acpctl_complete() {
             ;;
         key)
             local subcmds="gen list inspect rotate revoke gen-dev gen-lead"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        upgrade)
+            local subcmds="plan check execute rollback"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         host)

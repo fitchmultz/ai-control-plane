@@ -21,4 +21,5 @@ The production contract is the host-first Docker deployment path described in [D
 - Remote non-loopback ingress requires the `tls` overlay and an `https://...` public URL.
 - The supported host boundary is Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, and Docker Compose.
 - The tracked host playbook enforces baseline package/update posture, SSH hardening, private secrets-file permissions, explicit UFW defaults, and automated backup-timer installation.
-- The supported recovery contract includes scheduled backups, tracked retention, and a repeatable scratch-restore verification drill.
+- The supported recovery contract includes scheduled backups, tracked retention, a repeatable scratch-restore verification drill, and typed rollback artifacts for future explicit upgrade edges.
+- In-place upgrades are supported only through the typed `acpctl upgrade` workflow when an explicit release edge exists.

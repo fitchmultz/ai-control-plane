@@ -88,9 +88,9 @@ chmod +x "${BIN_DIR}/systemd-analyze"
 
 run_bridge() {
     ACP_REPO_ROOT="${FIXTURE_REPO}" \
-    ACP_TEST_SYSTEMCTL_CAPTURE="${SYSTEMCTL_CAPTURE}" \
-    PATH="${BIN_DIR}:${PATH}" \
-    bash "${SCRIPT_PATH}" "$@"
+        ACP_TEST_SYSTEMCTL_CAPTURE="${SYSTEMCTL_CAPTURE}" \
+        PATH="${BIN_DIR}:${PATH}" \
+        bash "${SCRIPT_PATH}" "$@"
 }
 
 printf 'Host Install Bridge Test\n'

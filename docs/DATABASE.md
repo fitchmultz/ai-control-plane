@@ -58,11 +58,12 @@ LiteLLM automatically creates and initializes the database schema on first start
 2. **Table Creation**: If tables don't exist, LiteLLM creates them automatically
 3. **Schema Validation**: On subsequent startups, LiteLLM validates the schema exists
 
-### No Manual Migrations Required
+### No Manual Migrations Required For Clean Install
 
 - **Initial setup**: No manual SQL scripts or migration tools required
-- **Version management**: LiteLLM handles schema versioning internally
+- **Version management**: LiteLLM handles clean-install schema initialization internally
 - **Idempotent**: Safe to restart LiteLLM multiple times
+- **Upgrade rule**: In-place schema or config changes must go through the typed upgrade framework when an explicit release edge exists
 
 ### Verification
 
@@ -95,7 +96,7 @@ used by this repo. Make-driven workflows default to the locally built
 `demo/images/litellm-hardened/Dockerfile`, while direct compose usage can still
 override to a pinned registry image via `LITELLM_IMAGE`.
 If you change the pinned image, treat it as a schema upgrade: take a backup (`make db-backup`),
-restart services, and re-verify tables via `make db-status`.
+restart services, re-verify tables via `make db-status`, and declare the change through the typed upgrade framework before claiming in-place support.
 
 `make db-status` now reports these sections directly from the typed CLI:
 1. Runtime Summary
@@ -509,6 +510,16 @@ On the supported host-first path, backup automation is part of the deployment co
   - randomized delay: `15m`
   - retention keep count: `7`
 - `make host-service-status` reports both the runtime service and the backup timer.
+
+### Upgrade And Rollback Contract
+
+The database upgrade story is now tied to the typed host-first upgrade framework:
+
+- explicit release edges may declare tracked SQL migrations
+- `make upgrade-check` validates the path before any in-place cutover
+- `make upgrade-execute` snapshots the embedded database before applying any tracked migration
+- `make upgrade-rollback` restores the saved compressed SQL snapshot from the previous release checkout
+- if no explicit release edge exists, use fresh install + restore instead of an in-place database upgrade
 
 ---
 

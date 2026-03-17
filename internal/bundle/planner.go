@@ -42,7 +42,10 @@ var CanonicalPaths = []string{
 	"demo/config/detection_rules.yaml",
 	"docs/README.md",
 	"docs/DEPLOYMENT.md",
+	"docs/deployment/DISASTER_RECOVERY.md",
 	"docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md",
+	"docs/deployment/UPGRADE_MIGRATION.md",
+	"docs/deployment/UPGRADE_COMPATIBILITY_MATRIX.md",
 	"examples/README.md",
 }
 

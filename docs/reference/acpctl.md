@@ -246,6 +246,26 @@ Examples:
 ./scripts/acpctl.sh key revoke alice
 ```
 
+### `upgrade`
+
+Plan, validate, execute, and roll back host-first upgrades.
+
+| Subcommand | Summary |
+| --- | --- |
+| `plan` | Show the explicit supported upgrade plan |
+| `check` | Validate the upgrade path, config migrations, and host convergence |
+| `execute` | Execute the supported host-first upgrade workflow |
+| `rollback` | Restore the pre-upgrade snapshots from a recorded upgrade run |
+
+Examples:
+
+```bash
+./scripts/acpctl.sh upgrade plan --from 0.0.9
+./scripts/acpctl.sh upgrade check --from 0.0.9 --inventory deploy/ansible/inventory/hosts.yml --env-file /etc/ai-control-plane/secrets.env
+./scripts/acpctl.sh upgrade execute --from 0.0.9 --inventory deploy/ansible/inventory/hosts.yml --env-file /etc/ai-control-plane/secrets.env
+./scripts/acpctl.sh upgrade rollback --run-dir demo/logs/upgrades/upgrade-20260317T120000.000000000Z --inventory deploy/ansible/inventory/hosts.yml --env-file /etc/ai-control-plane/secrets.env
+```
+
 ### `host`
 
 Host-first deployment and operations.

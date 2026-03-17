@@ -39,6 +39,9 @@ _acpctl() {
         key)
             _acpctl_key
             ;;
+        upgrade)
+            _acpctl_upgrade
+            ;;
         host)
             _acpctl_host
             ;;
@@ -65,6 +68,7 @@ _acpctl_commands() {
         "validate:Configuration and policy validation operations"
         "db:Database backup, restore, and inspection operations"
         "key:Virtual key lifecycle operations"
+        "upgrade:Plan, validate, execute, and roll back host-first upgrades"
         "host:Host-first deployment and operations"
         "help:Show this help message"
     )
@@ -169,6 +173,16 @@ _acpctl_key() {
         "gen-lead:Generate a team-lead key"
     )
     _describe -t commands 'key subcommands' subcmds "$@"
+}
+
+_acpctl_upgrade() {
+    local subcmds=(
+        "plan:Show the explicit supported upgrade plan"
+        "check:Validate the upgrade path, config migrations, and host convergence"
+        "execute:Execute the supported host-first upgrade workflow"
+        "rollback:Restore the pre-upgrade snapshots from a recorded upgrade run"
+    )
+    _describe -t commands 'upgrade subcommands' subcmds "$@"
 }
 
 _acpctl_host() {

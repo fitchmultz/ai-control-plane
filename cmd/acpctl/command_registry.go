@@ -35,6 +35,7 @@ func acpctlCommandSpec() *commandSpec {
 		validateCommandSpec(),
 		dbCommandSpec(),
 		keyCommandSpec(),
+		upgradeCommandSpec(),
 		hostCommandSpec(),
 		hiddenGenerateDocsCommandSpec(),
 		hiddenCompleteCommandSpec(),

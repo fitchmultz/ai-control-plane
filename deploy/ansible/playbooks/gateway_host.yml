@@ -38,6 +38,10 @@
     acp_wait_for_stabilization: true
     acp_stabilization_seconds: 5
     acp_run_smoke_tests: true
+    acp_upgrade_mode: false
+    acp_upgrade_rollback: false
+    acp_upgrade_from_version: ""
+    acp_upgrade_to_version: ""
 
   tasks:
     # =========================================================================
@@ -90,6 +94,15 @@
           ingress, enable the tls overlay and use an https:// URL.
         success_msg: Public URL contract matches the selected overlays
 
+    - name: Validate upgrade context
+      ansible.builtin.assert:
+        that:
+          - (not (acp_upgrade_mode | bool)) or (acp_upgrade_from_version | length > 0)
+          - (not (acp_upgrade_mode | bool)) or (acp_upgrade_to_version | length > 0)
+        fail_msg: >-
+          Upgrade mode requires explicit acp_upgrade_from_version and acp_upgrade_to_version.
+        success_msg: Upgrade context is valid
+
     - name: Display convergence plan
       ansible.builtin.debug:
         msg:
@@ -101,6 +114,10 @@
           - "  Firewall default incoming: {{ acp_host_firewall_default_incoming_policy }}"
           - "  Firewall default outgoing: {{ acp_host_firewall_default_outgoing_policy }}"
           - "  Apt upgrade mode: {{ acp_host_apt_upgrade_mode }}"
+          - "  Upgrade mode: {{ acp_upgrade_mode }}"
+          - "  Rollback mode: {{ acp_upgrade_rollback }}"
+          - "  Current version: {{ acp_upgrade_from_version if (acp_upgrade_mode | bool) else 'n/a' }}"
+          - "  Target version: {{ acp_upgrade_to_version if (acp_upgrade_mode | bool) else acp_tracked_target_version }}"
           - "  Backup timer enabled: {{ acp_backup_timer_enabled }}"
           - "  Backup schedule: {{ acp_backup_timer_on_calendar }}"
           - "  Backup retention keep: {{ acp_backup_retention_keep }}"
@@ -177,6 +194,15 @@
           - makefile_stat.stat.exists
         fail_msg: >-
           Makefile not found in repository: {{ acp_repo_path }}/Makefile
+
+    - name: Read tracked VERSION file
+      ansible.builtin.slurp:
+        path: "{{ acp_repo_path }}/VERSION"
+      register: acp_version_file
+
+    - name: Normalize tracked target version
+      ansible.builtin.set_fact:
+        acp_tracked_target_version: "{{ acp_version_file.content | b64decode | trim }}"
 
     # =========================================================================
     # Phase 3: Baseline Host Hardening
@@ -588,6 +614,30 @@
       ansible.builtin.debug:
         msg: DLP overlay health check passed
       when: "'dlp' in acp_runtime_overlays"
+
+    - name: Ensure upgrade artifact directory exists
+      become: true
+      ansible.builtin.file:
+        path: "{{ acp_repo_path }}/demo/logs/upgrades"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Persist deployed version marker
+      become: true
+      ansible.builtin.copy:
+        dest: "{{ acp_repo_path }}/demo/logs/upgrades/deployed-version.json"
+        owner: root
+        group: root
+        mode: '0600'
+        content: |
+          {
+            "deployed_version": "{{ acp_upgrade_to_version if (acp_upgrade_mode | bool) else acp_tracked_target_version }}",
+            "previous_version": "{{ acp_upgrade_from_version if (acp_upgrade_mode | bool) else '' }}",
+            "rollback": {{ 'true' if (acp_upgrade_rollback | bool) else 'false' }},
+            "updated_at_utc": "{{ ansible_date_time.iso8601 }}"
+          }
 
     # =========================================================================
     # Phase 8: Summary

@@ -69,6 +69,19 @@ Successful drill output proves that the current host can:
 - verify the expected LiteLLM core schema
 - clean up the scratch database afterward
 
+## Upgrade Rollback
+
+Version rollback is part of the supported host-first recovery story.
+
+Use the typed upgrade framework:
+
+1. Keep the previous release checkout until the upgrade is accepted.
+2. Use the generated upgrade run directory under `demo/logs/upgrades/`.
+3. Run `./scripts/acpctl.sh upgrade rollback --run-dir ... --inventory ... --env-file /etc/ai-control-plane/secrets.env` from the previous release checkout.
+4. The rollback flow restores the pre-upgrade config snapshot, restores the pre-upgrade embedded database backup, and re-runs host convergence for the previous release.
+
+See [UPGRADE_MIGRATION.md](UPGRADE_MIGRATION.md) for the full operator workflow.
+
 ## Drill Cadence
 
 Recommended minimum cadence for the supported host-first path:

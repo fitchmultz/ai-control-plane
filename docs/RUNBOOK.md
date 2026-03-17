@@ -33,6 +33,10 @@ This runbook provides day-to-day operational procedures, incident response guida
 | Apply backup retention | `make db-backup-retention APPLY=1 KEEP=7` |
 | Restore backup | `make db-restore` |
 | Verify restore drill | `make dr-drill` |
+| Plan upgrade path | `make upgrade-plan FROM_VERSION=X.Y.Z` |
+| Validate upgrade path | `make upgrade-check FROM_VERSION=X.Y.Z` |
+| Execute upgrade | `make upgrade-execute FROM_VERSION=X.Y.Z` |
+| Roll back upgrade | `make upgrade-rollback UPGRADE_RUN_DIR=...` |
 | Validate detection rules | `make validate-detections` |
 | Generate release evidence bundle | `make release-bundle` |
 | Generate virtual key | `make key-gen ALIAS=foo BUDGET=10.00` |
@@ -1447,6 +1451,25 @@ make health
    ```bash
    make host-service-status
    ```
+
+### 10.4 Upgrade And Rollback
+
+Use the typed upgrade workflow only when the target release declares an explicit supported edge.
+
+```bash
+# From the target release checkout
+make upgrade-plan FROM_VERSION=X.Y.Z INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+make upgrade-check FROM_VERSION=X.Y.Z INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+make upgrade-execute FROM_VERSION=X.Y.Z INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+```
+
+Rollback runs from the previous release checkout using the saved upgrade run directory:
+
+```bash
+make upgrade-rollback UPGRADE_RUN_DIR=demo/logs/upgrades/upgrade-<timestamp> INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+```
+
+If the target release does not declare an explicit upgrade edge, do not attempt an in-place cutover. Use fresh install + restore instead.
 
 ---
 

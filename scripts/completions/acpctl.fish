@@ -19,6 +19,7 @@ complete -c acpctl -n '__fish_use_subcommand' -a 'deploy' -d 'Typed evidence and
 complete -c acpctl -n '__fish_use_subcommand' -a 'validate' -d 'Configuration and policy validation operations'
 complete -c acpctl -n '__fish_use_subcommand' -a 'db' -d 'Database backup, restore, and inspection operations'
 complete -c acpctl -n '__fish_use_subcommand' -a 'key' -d 'Virtual key lifecycle operations'
+complete -c acpctl -n '__fish_use_subcommand' -a 'upgrade' -d 'Plan, validate, execute, and roll back host-first upgrades'
 complete -c acpctl -n '__fish_use_subcommand' -a 'host' -d 'Host-first deployment and operations'
 complete -c acpctl -n '__fish_use_subcommand' -a 'help' -d 'Show this help message'
 
@@ -62,6 +63,10 @@ complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'rotate' -d 'Stage ro
 complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'revoke' -d 'Revoke a virtual key by alias'
 complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'gen-dev' -d 'Generate a developer key'
 complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'gen-lead' -d 'Generate a team-lead key'
+complete -c acpctl -n '__fish_seen_subcommand_from upgrade' -a 'plan' -d 'Show the explicit supported upgrade plan'
+complete -c acpctl -n '__fish_seen_subcommand_from upgrade' -a 'check' -d 'Validate the upgrade path, config migrations, and host convergence'
+complete -c acpctl -n '__fish_seen_subcommand_from upgrade' -a 'execute' -d 'Execute the supported host-first upgrade workflow'
+complete -c acpctl -n '__fish_seen_subcommand_from upgrade' -a 'rollback' -d 'Restore the pre-upgrade snapshots from a recorded upgrade run'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'preflight' -d 'Validate host readiness'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'check' -d 'Run declarative host preflight/check mode'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'apply' -d 'Run declarative host apply/converge'

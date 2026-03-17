@@ -27,7 +27,7 @@ import (
 
 func TestCommandSpec_ContainsExpectedVisibleRoots(t *testing.T) {
 	registry := buildCommandRegistry()
-	expected := []string{"ci", "completion", "deploy", "validate", "onboard", "help"}
+	expected := []string{"ci", "completion", "deploy", "validate", "onboard", "upgrade", "help"}
 	for _, name := range expected {
 		found := false
 		for _, command := range registry.RootCommands {

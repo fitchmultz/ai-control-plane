@@ -74,6 +74,26 @@ Rules:
 - Timer defaults come from tracked inventory variables: `acp_backup_timer_on_calendar: daily`, `acp_backup_timer_randomized_delay_sec: 15m`, and `acp_backup_retention_keep: 7`.
 - Host firewall posture is host-level ingress hardening only. Customer-owned perimeter controls still own outbound allow-listing, SWG/CASB policy, and broader network enforcement.
 
+## Host-First Upgrade Workflow
+
+When a release explicitly ships a supported in-place edge, run the upgrade from the managed host checkout for the **target release**:
+
+```bash
+make upgrade-plan FROM_VERSION=X.Y.Z INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+make upgrade-check FROM_VERSION=X.Y.Z INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+make upgrade-execute FROM_VERSION=X.Y.Z INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+```
+
+If the release does not declare an explicit upgrade edge, do **not** perform an in-place cutover. Use fresh install + restore instead.
+
+Rollback runs from the **previous release checkout** using the saved upgrade run directory:
+
+```bash
+make upgrade-rollback UPGRADE_RUN_DIR=demo/logs/upgrades/upgrade-<timestamp> INVENTORY=deploy/ansible/inventory/hosts.yml SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+```
+
+See [deployment/UPGRADE_MIGRATION.md](deployment/UPGRADE_MIGRATION.md) for the full contract and [deployment/UPGRADE_COMPATIBILITY_MATRIX.md](deployment/UPGRADE_COMPATIBILITY_MATRIX.md) for the current supported-path matrix.
+
 ## Inventory Guidance
 
 Use `deploy/ansible/inventory/hosts.example.yml` as the starting point.

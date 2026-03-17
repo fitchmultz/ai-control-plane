@@ -255,6 +255,55 @@ func (c *Connector) scalarIntInDatabase(ctx context.Context, databaseName string
 	return parsed, nil
 }
 
+func (c *Connector) execSQLInDatabase(ctx context.Context, databaseName string, sqlText string) error {
+	if err := c.ConfigError(); err != nil {
+		return err
+	}
+
+	resolvedDatabaseName := strings.TrimSpace(databaseName)
+	if resolvedDatabaseName == "" {
+		resolvedDatabaseName = c.databaseName()
+	}
+
+	if c.IsExternal() {
+		if resolvedDatabaseName != c.databaseName() {
+			return fmt.Errorf("cross-database queries are unsupported for external database mode")
+		}
+		dbConn, err := c.ensureSQLDB(ctx)
+		if err != nil {
+			return err
+		}
+		execCtx, cancel := withTimeoutContext(ctx, 5*time.Minute)
+		defer cancel()
+		if _, err := dbConn.ExecContext(execCtx, sqlText); err != nil {
+			return fmt.Errorf("database statement failed: %w", err)
+		}
+		return nil
+	}
+
+	containerID, err := c.containerID(ctx)
+	if err != nil {
+		return err
+	}
+	runCtx, cancel := withTimeoutContext(ctx, 5*time.Minute)
+	defer cancel()
+	res := proc.Run(runCtx, proc.Request{
+		Name: "docker",
+		Args: []string{
+			"exec", containerID,
+			"psql", "-X", "-v", "ON_ERROR_STOP=1",
+			"-U", c.databaseUser(),
+			"-d", resolvedDatabaseName,
+			"-c", sqlText,
+		},
+		Timeout: 5 * time.Minute,
+	})
+	if res.Err != nil {
+		return fmt.Errorf("database statement failed: %s", c.execError("database statement", res))
+	}
+	return nil
+}
+
 func (c *Connector) execError(prefix string, res proc.Result) string {
 	if res.Stderr != "" {
 		return fmt.Sprintf("%s: %s", prefix, strings.TrimSpace(res.Stderr))

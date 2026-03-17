@@ -18,6 +18,7 @@ This repository uses:
 - Doctor budget/detection finding adapters, safe gateway/database remediation helpers, and webhook fanout for `acpctl doctor --notify`.
 - Hardened host-playbook defaults for package/update posture, UFW ingress policy, unattended security updates, SSH hardening, and Debian/Ubuntu support-boundary enforcement.
 - Automated host-first backup timer assets, typed backup retention cleanup, and a real scratch-restore DR drill workflow.
+- Typed host-first upgrade planning, rollback artifact capture, compatibility documentation, and future release-edge migration hooks.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

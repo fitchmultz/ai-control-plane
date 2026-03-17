@@ -25,7 +25,7 @@ The canonical execution roadmap for outstanding work lives in [docs/ROADMAP.md](
 
 | Status | Boundary |
 | --- | --- |
-| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, readiness evidence, and pilot closeout artifacts |
+| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, and pilot closeout artifacts |
 | Conditionally ready | Customer pilots on controlled Linux hosts with customer-owned network, IAM, SIEM, retention, and workspace controls validated |
 | Not yet validated | Broad cloud-production claims, multi-tenant managed-service claims, and universal browser-bypass prevention |
 
@@ -72,6 +72,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - Offline deterministic runtime: `make up-offline`
 - TLS ingress overlay: `make up-tls`
 - Day-2 reporting and recovery: `make operator-report`, `make chargeback-report`, `make db-backup`, `make db-backup-retention`, `make dr-drill`
+- Host-first upgrade lifecycle: `make upgrade-plan FROM_VERSION=X.Y.Z`, `make upgrade-check FROM_VERSION=X.Y.Z`, `make upgrade-execute FROM_VERSION=X.Y.Z`, `make upgrade-rollback UPGRADE_RUN_DIR=...`
 - Key lifecycle: `make key-list`, `make key-inspect ALIAS=<alias>`, `make key-rotate ALIAS=<alias>`
 - Guided diagnostics and remediation: `make doctor FIX=1 NOTIFY=1`
 - Production-like host path with baseline host hardening: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
@@ -112,6 +113,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - [Support](docs/SUPPORT.md)
 - [Architecture](docs/technical-architecture.md)
 - [Operations And Deployment](docs/DEPLOYMENT.md)
+- [Upgrade And Migration](docs/deployment/UPGRADE_MIGRATION.md)
 - [Security And Governance](docs/SECURITY_GOVERNANCE.md)
 
 Generated references:

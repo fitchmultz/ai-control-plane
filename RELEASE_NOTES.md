@@ -22,6 +22,17 @@ For every release:
 - Optional actions
 - No-op / safe upgrade notes
 
+## Upgrade And Migration
+- Supported from-version(s)
+- Config changes
+- Database changes
+- Required operator actions
+
+## Rollback
+- Previous release required for rollback
+- Snapshot restore procedure
+- Post-rollback validation commands
+
 ## Validation
 - `make ci`
 - `make validate-config`

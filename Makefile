@@ -23,6 +23,7 @@ include mk/production.mk
 include mk/offline.mk
 include mk/database.mk
 include mk/host.mk
+include mk/upgrade.mk
 include mk/demo.mk
 include mk/security.mk
 include mk/release.mk
@@ -68,6 +69,7 @@ help: ## Show this help message
 	@echo '  make help-ci         CI tier targets'
 	@echo '  make help-db         Database operations'
 	@echo '  make help-host       Host deployment targets'
+	@echo '  make help-upgrade    Upgrade and rollback targets'
 	@echo '  make help-key        Virtual key operations'
 	@echo '  make help-onboard    Tool onboarding targets'
 	@echo ''
@@ -188,6 +190,19 @@ help-host:
 	@echo '  $(COLOR_GREEN)host-service-start$(COLOR_RESET) Start service'
 	@echo '  $(COLOR_GREEN)host-service-stop$(COLOR_RESET)  Stop service'
 	@echo '  $(COLOR_GREEN)host-service-restart$(COLOR_RESET) Restart service'
+
+.PHONY: help-upgrade
+help-upgrade:
+	@echo '$(COLOR_BOLD)Upgrade Targets:$(COLOR_RESET)'
+	@echo '  $(COLOR_GREEN)upgrade-plan$(COLOR_RESET)      Show the explicit upgrade path for FROM_VERSION -> current VERSION'
+	@echo '  $(COLOR_GREEN)upgrade-check$(COLOR_RESET)     Validate upgrade config, DB, and host convergence'
+	@echo '  $(COLOR_GREEN)upgrade-execute$(COLOR_RESET)   Execute a supported in-place upgrade with rollback artifacts'
+	@echo '  $(COLOR_GREEN)upgrade-rollback$(COLOR_RESET)  Restore rollback artifacts from a recorded upgrade run'
+	@echo ''
+	@echo 'Examples:'
+	@echo '  make upgrade-plan FROM_VERSION=0.1.0'
+	@echo '  make upgrade-check FROM_VERSION=0.1.0 INVENTORY=deploy/ansible/inventory/hosts.yml'
+	@echo '  make upgrade-rollback UPGRADE_RUN_DIR=demo/logs/upgrades/upgrade-<stamp>'
 
 .PHONY: help-key
 help-key:

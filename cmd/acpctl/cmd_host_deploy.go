@@ -5,8 +5,8 @@
 //
 // Responsibilities:
 //   - Define the `host check` and `host apply` commands.
-//   - Validate local Ansible prerequisites and tracked repository surfaces.
-//   - Execute syntax-checked playbook runs with explicit extra-vars wiring.
+//   - Validate local CLI input before handing execution to the shared hostdeploy package.
+//   - Map typed host deployment failures onto the ACP exit-code contract.
 //
 // Scope:
 //   - Local command adaptation for host deployment only.
@@ -22,32 +22,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
-	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
-	"github.com/mitchfultz/ai-control-plane/internal/proc"
+	"github.com/mitchfultz/ai-control-plane/internal/hostdeploy"
 )
-
-const hostDeployTimeout = 60 * time.Minute
-
-type hostDeployOptions struct {
-	Mode                 string
-	Inventory            string
-	Limit                string
-	RepoPath             string
-	EnvFile              string
-	TLSMode              string
-	PublicURL            string
-	WaitForStabilization bool
-	RunSmokeTests        bool
-	StabilizationSeconds string
-	ExtraVars            []string
-}
 
 func hostDeployCommandSpec(mode string) *commandSpec {
 	summary := "Run declarative host apply/converge"
@@ -80,23 +59,24 @@ func hostDeployCommandSpec(mode string) *commandSpec {
 			{Name: "stabilization-seconds", ValueName: "N", Summary: "Override acp_stabilization_seconds", Type: optionValueString},
 			{Name: "extra-var", ValueName: "KEY=VALUE", Summary: "Additional Ansible extra var", Type: optionValueString, Repeatable: true},
 		},
-		Bind: bindRepoParsed(func(bindCtx commandBindContext, input parsedCommandInput) (hostDeployOptions, error) {
+		Bind: bindRepoParsed(func(bindCtx commandBindContext, input parsedCommandInput) (hostdeploy.Options, error) {
 			repoRoot, err := requireCommandRepoRoot(bindCtx)
 			if err != nil {
-				return hostDeployOptions{}, err
+				return hostdeploy.Options{}, err
 			}
 			tlsMode := input.NormalizedString("tls-mode")
 			if tlsMode != "" && tlsMode != "plain" && tlsMode != "tls" {
-				return hostDeployOptions{}, fmt.Errorf("--tls-mode must be plain or tls")
+				return hostdeploy.Options{}, fmt.Errorf("--tls-mode must be plain or tls")
 			}
 			stabilizationSeconds := input.NormalizedString("stabilization-seconds")
 			if stabilizationSeconds != "" {
 				if _, err := strconv.Atoi(stabilizationSeconds); err != nil {
-					return hostDeployOptions{}, fmt.Errorf("invalid --stabilization-seconds value: %q", stabilizationSeconds)
+					return hostdeploy.Options{}, fmt.Errorf("invalid --stabilization-seconds value: %q", stabilizationSeconds)
 				}
 			}
-			return hostDeployOptions{
+			return hostdeploy.Options{
 				Mode:                 mode,
+				RepoRoot:             repoRoot,
 				Inventory:            resolveRepoInput(repoRoot, input.StringDefault("inventory", "deploy/ansible/inventory/hosts.yml")),
 				Limit:                input.NormalizedString("limit"),
 				RepoPath:             input.NormalizedString("repo-path"),
@@ -114,92 +94,26 @@ func hostDeployCommandSpec(mode string) *commandSpec {
 }
 
 func runHostDeploy(ctx context.Context, runCtx commandRunContext, raw any) int {
-	opts := raw.(hostDeployOptions)
-	playbookPath := filepath.Join(runCtx.RepoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml")
-	ansibleCfg := filepath.Join(runCtx.RepoRoot, "deploy", "ansible", "ansible.cfg")
-
-	if err := proc.ValidateExecutable("ansible-playbook"); err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Error: ansible-playbook not found or not executable: %v\n", err)
-		return exitcodes.ACPExitPrereq
+	opts := raw.(hostdeploy.Options)
+	opts.Stdout = runCtx.Stdout
+	opts.Stderr = runCtx.Stderr
+	if err := hostdeploy.Execute(ctx, opts); err != nil {
+		fmt.Fprintf(runCtx.Stderr, "Error: %s\n", err)
+		switch err := err.(type) {
+		case *hostdeploy.Error:
+			switch err.Kind {
+			case hostdeploy.ErrorKindPrereq:
+				return exitcodes.ACPExitPrereq
+			case hostdeploy.ErrorKindUsage:
+				return exitcodes.ACPExitUsage
+			case hostdeploy.ErrorKindDomain:
+				return exitcodes.ACPExitDomain
+			default:
+				return exitcodes.ACPExitRuntime
+			}
+		default:
+			return exitcodes.ACPExitRuntime
+		}
 	}
-	if _, err := os.Stat(opts.Inventory); err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Error: inventory file not found: %s\n", opts.Inventory)
-		return exitcodes.ACPExitUsage
-	}
-	if _, err := os.Stat(playbookPath); err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Error: playbook not found: %s\n", playbookPath)
-		return exitcodes.ACPExitRuntime
-	}
-	if _, err := os.Stat(ansibleCfg); err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Error: ansible config not found: %s\n", ansibleCfg)
-		return exitcodes.ACPExitRuntime
-	}
-
-	ansibleArgs := []string{"-i", opts.Inventory, playbookPath}
-	if opts.Limit != "" {
-		ansibleArgs = append(ansibleArgs, "--limit", opts.Limit)
-	}
-	if opts.Mode == "check" {
-		ansibleArgs = append(ansibleArgs, "--check")
-	}
-	for _, item := range hostDeployExtraVars(opts) {
-		ansibleArgs = append(ansibleArgs, "--extra-vars", item)
-	}
-
-	request := proc.Request{
-		Name:    "ansible-playbook",
-		Dir:     runCtx.RepoRoot,
-		Env:     []string{"ANSIBLE_CONFIG=" + ansibleCfg},
-		Stdin:   os.Stdin,
-		Stdout:  runCtx.Stdout,
-		Stderr:  runCtx.Stderr,
-		Timeout: hostDeployTimeout,
-	}
-	if code := runHostDeployProc(ctx, request, runCtx.Stderr, append([]string{"--syntax-check"}, ansibleArgs...), "host "+opts.Mode+" syntax-check"); code != exitcodes.ACPExitSuccess {
-		return code
-	}
-	return runHostDeployProc(ctx, request, runCtx.Stderr, ansibleArgs, "host "+opts.Mode)
-}
-
-func hostDeployExtraVars(opts hostDeployOptions) []string {
-	extraVars := append([]string(nil), opts.ExtraVars...)
-	if opts.RepoPath != "" {
-		extraVars = append(extraVars, "acp_repo_path="+opts.RepoPath)
-	}
-	if opts.EnvFile != "" {
-		extraVars = append(extraVars, "acp_env_file="+opts.EnvFile)
-	}
-	if opts.TLSMode != "" {
-		extraVars = append(extraVars, "acp_tls_mode="+opts.TLSMode)
-	}
-	if opts.PublicURL != "" {
-		extraVars = append(extraVars, "acp_public_url="+opts.PublicURL)
-	}
-	extraVars = append(extraVars, "acp_wait_for_stabilization="+strconv.FormatBool(opts.WaitForStabilization))
-	extraVars = append(extraVars, "acp_run_smoke_tests="+strconv.FormatBool(opts.RunSmokeTests))
-	if opts.StabilizationSeconds != "" {
-		extraVars = append(extraVars, "acp_stabilization_seconds="+opts.StabilizationSeconds)
-	}
-	return extraVars
-}
-
-func runHostDeployProc(ctx context.Context, request proc.Request, stderr io.Writer, args []string, commandName string) int {
-	request.Args = args
-	res := proc.Run(ctx, request)
-	if res.Err == nil {
-		return exitcodes.ACPExitSuccess
-	}
-	message, code := classifyProcFailure(res.Err, procFailureMessages{
-		NotFound:         "ansible-playbook not found",
-		Timeout:          fmt.Sprintf("%s timed out", commandName),
-		Canceled:         fmt.Sprintf("%s canceled", commandName),
-		Exit:             fmt.Sprintf("%s failed", commandName),
-		ExitCodeOverride: exitcodes.ACPExitRuntime,
-		Fallback:         fmt.Sprintf("%s failed: %v", commandName, res.Err),
-	})
-	if proc.IsExit(res.Err) && strings.Contains(commandName, "syntax-check") {
-		code = exitcodes.ACPExitDomain
-	}
-	fmt.Fprintf(stderr, "Error: %s\n", message)
-	return code
+	return exitcodes.ACPExitSuccess
 }
