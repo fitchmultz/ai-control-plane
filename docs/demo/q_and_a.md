@@ -77,16 +77,18 @@ Subscription tools (Claude Code, Codex, Cursor) connect directly to providers vi
 - Compliance exports from vendors still capture activity (delayed)
 - OTEL telemetry may be lost if gateway is the collection point
 
-**High Availability Options:**
+**Availability Boundary:**
 
-For production deployments requiring high availability:
+For production deployments, the supported repository baseline is a **single-node** host-first deployment. Truthful guidance:
 
-| Option | Description | Recovery Time |
-|--------|-------------|---------------|
-| Container health checks | Auto-restart on failure | Seconds |
-| Horizontal scaling | Multiple gateway replicas | N/A (load-balanced) |
-| Kubernetes deployment | ReplicaSet with auto-healing | Seconds |
-| Failover gateway | Secondary gateway host | Minutes (DNS-based) |
+| Topic | Truthful answer |
+|-------|-----------------|
+| Container health checks | They can restart services on the same host, but that is recovery, not failover. |
+| Automatic failover | Not part of the current supported repo contract. |
+| Current validated topology | One host running LiteLLM, PostgreSQL, and any selected overlays. |
+| Next credible HA pattern | Active-passive with PostgreSQL replication and customer-owned traffic cutover, documented as reference guidance only. |
+
+See `docs/deployment/HA_FAILOVER_TOPOLOGY.md` for the explicit failure-domain and recovery-vs-failover model.
 
 **Recovery Validation:**
 
@@ -99,7 +101,7 @@ make detection
 ### Evidence References
 
 - `docs/RUNBOOK.md` -- incident response procedures
-- `docs/DEPLOYMENT.md` -- high availability configuration
+- `docs/deployment/HA_FAILOVER_TOPOLOGY.md` -- single-node availability boundary and next-step HA reference
 - `demo/logs/evidence/12_failure_injection.log` -- failure testing evidence
 
 ---
@@ -115,7 +117,7 @@ The architecture supports vertical and horizontal scaling, but this public repos
 **What the repo proves now:**
 
 - The gateway and database topology are explicit.
-- Host-first and Kubernetes deployment tracks are documented.
+- The validated host-first deployment track is documented, and incubating Kubernetes material is clearly separated from the supported surface.
 - Operational checks, health gates, and release workflows are reproducible.
 
 **What still requires environment-specific validation:**
@@ -473,7 +475,7 @@ For presenter delivery flow, pair this packet with `../presentation/PRESENTATION
 |-----------|--------------|
 | "Developers will bypass this" | Q1: Detection + egress controls |
 | "What if it goes down?" | Q2: Fail-closed, rapid recovery |
-| "Will it scale?" | Q3: Horizontal scaling, soak/load evidence available |
+| "Will it scale?" | Q3: Capacity requires environment-specific validation; single-node support boundary and scaling limits are explicit |
 | "Key rotation is hard" | Q4: Generate-new-then-revoke workflow |
 | "Is it compliant?" | Q5: Control mapping, requires customer review |
 | "Where's our data?" | Q6: You control, metadata only |

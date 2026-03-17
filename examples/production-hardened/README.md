@@ -15,4 +15,5 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - `deploy/ansible/`
 - `deploy/systemd/`
 - `docs/DEPLOYMENT.md`
+- `docs/deployment/HA_FAILOVER_TOPOLOGY.md`
 - `docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md`

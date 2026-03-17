@@ -19,9 +19,13 @@ The production contract is the host-first Docker deployment path described in [D
 - `demo/.env` is local-demo only.
 - Production workflows do not sync secrets back into the repository tree.
 - The supported runtime remains the host-first Docker baseline, with overlays only when explicitly selected.
+- The supported production topology is **single-node**: one host runs LiteLLM, PostgreSQL, and any selected overlays.
 - Without the `tls` overlay, the supported `acp_public_url` remains loopback-only.
 - Remote non-loopback ingress requires the `tls` overlay and an `https://...` public URL.
 - When the `tls` overlay is enabled, Caddy owns certificate issuance and storage, and the supported host-first path installs the certificate renewal timer.
+- Scheduled backups, restore drills, and rollback artifacts are part of the recovery contract, but they do **not** provide automatic failover.
+- Customer-owned DNS, load balancers, and network infrastructure determine any multi-host traffic cutover outside the current supported surface.
+- Availability expectations and the next credible HA pattern are documented in [HA_FAILOVER_TOPOLOGY.md](HA_FAILOVER_TOPOLOGY.md).
 - The supported host boundary is Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, and Docker Compose.
 - The tracked host playbook enforces baseline package/update posture, SSH hardening, private secrets-file permissions, explicit UFW defaults, and automated backup-timer installation.
 - The supported recovery contract includes scheduled backups, tracked retention, a repeatable scratch-restore verification drill, and typed rollback artifacts for future explicit upgrade edges.

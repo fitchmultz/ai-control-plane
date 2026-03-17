@@ -8,7 +8,8 @@ This runbook provides day-to-day operational procedures, incident response guida
 
 **Relationship to other documentation:**
 - **demo/README.md** - Quick start, environment setup, and basic troubleshooting
-- **docs/DEPLOYMENT.md** - Deployment architecture and network configuration
+- **docs/DEPLOYMENT.md** - Deployment architecture, topology boundaries, and network configuration
+- **docs/deployment/HA_FAILOVER_TOPOLOGY.md** - Single-node availability boundary and next credible HA reference
 - **docs/DATABASE.md** - Deep-dive database schema and advanced troubleshooting
 - **docs/security/DETECTION.md** - Detection rule details and SIEM integration
 - **docs/security/SIEM_INTEGRATION.md** - SIEM integration methods and query examples

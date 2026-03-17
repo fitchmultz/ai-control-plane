@@ -75,7 +75,7 @@ Do not sell ambiguity. Every offering must say:
 **Purpose:** Deploy operational gateway, integrate SIEM, implement detections, pilot with users.
 
 **Typical Activities:**
-- Deploy AI gateway (HA if required)
+- Deploy AI gateway (single-node supported baseline; any HA design is customer-owned or separately validated)
 - Configure allowlists, budgets, rate limits
 - Implement evidence pipeline (logs → normalization → SIEM)
 - Design egress/SWG patterns (customer implements)

@@ -20,6 +20,7 @@ This repository uses:
 - Automated host-first backup timer assets, typed backup retention cleanup, and a real scratch-restore DR drill workflow.
 - Typed host-first certificate lifecycle workflows for listing, validating, renewing, and automating Caddy-managed TLS certificates.
 - Typed host-first upgrade planning, rollback artifact capture, compatibility documentation, and future release-edge migration hooks.
+- Truthful HA and failover topology guidance for the single-node host-first deployment, including explicit failure-domain, DR-vs-HA, and next-step active-passive reference documentation.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

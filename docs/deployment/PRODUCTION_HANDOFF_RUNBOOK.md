@@ -13,10 +13,14 @@ This runbook covers the supported host-first handoff only.
 - Confirm `./scripts/acpctl.sh cert check --threshold-days 30` passes.
 - Confirm `systemctl status ai-control-plane-cert-renewal.timer` is active when TLS is enabled.
 - Capture `./scripts/acpctl.sh cert list` output in the handoff notes for the deployed hostname.
+- Confirm the handoff notes explicitly state that the supported deployment is **single-node** unless a separate customer-owned HA design exists.
+- Confirm operators understand that scheduled backups and restore drills are **disaster recovery**, not automatic failover.
+- Review [HA_FAILOVER_TOPOLOGY.md](HA_FAILOVER_TOPOLOGY.md) whenever availability expectations are part of the handoff.
 - Confirm readiness evidence and release artifacts are captured when required.
 
 ## Operator Notes
 
 - The supported runtime is the host-first Docker baseline.
 - Optional overlays must be called out explicitly in the handoff.
+- If the customer needs HA beyond single-node recovery, document that design as customer-owned or separately validated. Do not imply repo-native automatic failover.
 - Incubating deployment tracks are not part of the handoff contract.

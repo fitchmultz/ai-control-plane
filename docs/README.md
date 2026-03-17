@@ -5,6 +5,7 @@ Start here based on your role.
 ## I am an operator
 
 - [Operations And Deployment](DEPLOYMENT.md)
+- [HA And Failover Topology](deployment/HA_FAILOVER_TOPOLOGY.md)
 - [Certificate Lifecycle](deployment/CERTIFICATE_LIFECYCLE.md)
 - [Upgrade And Migration](deployment/UPGRADE_MIGRATION.md)
 - [Support](SUPPORT.md)

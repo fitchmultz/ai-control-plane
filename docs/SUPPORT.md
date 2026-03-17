@@ -1,6 +1,6 @@
 # Support
 
-The supported product surface is the host-first Docker reference implementation. That means:
+The supported product surface is the **single-node** host-first Docker reference implementation. That means:
 
 - `make up` starts the supported base runtime only: LiteLLM plus PostgreSQL.
 - `make up-dlp`, `make up-ui`, and `make up-full` are explicit supported overlays.
@@ -22,6 +22,14 @@ Start with [README.md](../README.md) for the public repo overview, [troubleshoot
 - Keep `acp_public_url` loopback-only unless the `tls` overlay is enabled.
 - Expect the supported host path to verify SSH host keys, enforce baseline host hardening (UFW defaults, unattended security updates, SSH hardening, private secrets-file permissions), install the automated backup timer contract, install the certificate renewal timer whenever the `tls` overlay is enabled, and use the typed upgrade framework for any future in-place release edge.
 - Treat outbound allow-listing, SWG/CASB policy, and broader perimeter controls as customer-owned responsibilities outside the host playbook.
+
+## Availability Boundary
+
+- The supported host-first deployment is **single-node** today.
+- Scheduled backups, restore drills, and typed recovery workflows are part of the supported contract.
+- Automatic failover to a secondary host is **not** part of the supported surface.
+- If operators or buyers ask for HA or failover expectations, use [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) to explain the current limit and the next credible active-passive pattern.
+- Customer-owned DNS, load balancers, off-host backups, and network infrastructure determine any broader availability posture beyond the supported single-node contract.
 
 ## Migration Notes
 

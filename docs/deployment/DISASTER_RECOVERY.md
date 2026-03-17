@@ -1,6 +1,17 @@
 # Disaster Recovery
 
-The supported disaster-recovery story is the host-first Docker reference implementation.
+The supported disaster-recovery story is the **single-node** host-first Docker reference implementation.
+
+This document covers **recovery after failure**. It does **not** describe automatic failover, clustered high availability, or promotion to a secondary node. Scheduled backups, scratch-restore drills, and typed restore workflows reduce recovery risk, but they do not remove the single-host failure domain.
+
+For topology limits, failure domains, and the next credible HA pattern, see [HA And Failover Topology](HA_FAILOVER_TOPOLOGY.md).
+
+## Recovery Boundary
+
+- Backup + restore is **disaster recovery**.
+- Restarting services or re-running `host apply` on the same host is **recovery inside the same failure domain**.
+- Automatic traffic cutover to a secondary host is **not** part of the current supported contract.
+- Default backup cadence and retention influence recovery point expectations, but they do not create high availability.
 
 ## Supported Recovery Inputs
 

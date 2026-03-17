@@ -74,6 +74,19 @@ Rules:
 - Timer defaults come from tracked inventory variables: `acp_backup_timer_on_calendar: daily`, `acp_backup_timer_randomized_delay_sec: 15m`, `acp_backup_retention_keep: 7`, `acp_cert_renewal_timer_on_calendar: daily`, `acp_cert_renewal_timer_randomized_delay_sec: 30m`, and `acp_cert_renewal_threshold_days: 30`.
 - Host firewall posture is host-level ingress hardening only. Customer-owned perimeter controls still own outbound allow-listing, SWG/CASB policy, and broader network enforcement.
 
+## Topology Limits And HA Expectations
+
+The supported production topology today is a **single-node** host-first deployment. The tracked Ansible playbook, `deploy/ansible/playbooks/gateway_host.yml`, converges one gateway host running LiteLLM, PostgreSQL, and any selected overlays on the same machine.
+
+Truthful availability boundary:
+
+- The current contract supports **recovery**, not automatic **failover**.
+- Scheduled backups, restore drills, and typed re-apply workflows reduce recovery risk, but they do not create host-level HA.
+- A host failure, local storage failure, or database failure can still take down the entire deployment because those components share one failure domain.
+- Customer-owned DNS, load balancers, and network controls determine any external traffic failover behavior.
+
+See [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) for the full failure-domain model, RPO/RTO truth, and the next credible active-passive pattern. See [deployment/DISASTER_RECOVERY.md](deployment/DISASTER_RECOVERY.md) for the supported restore workflow after failure.
+
 ## Certificate Lifecycle Workflow
 
 For TLS-enabled host-first deployments, use the typed certificate lifecycle surface:
@@ -138,4 +151,6 @@ Use `make ci-pr` for fast deterministic checks and `make ci` for the full suppor
 - [Support](SUPPORT.md)
 - [Architecture](technical-architecture.md)
 - [Security And Governance](SECURITY_GOVERNANCE.md)
+- [HA And Failover Topology](deployment/HA_FAILOVER_TOPOLOGY.md)
+- [Disaster Recovery](deployment/DISASTER_RECOVERY.md)
 - [ACPCTL Reference](reference/acpctl.md)
