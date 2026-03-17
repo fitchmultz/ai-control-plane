@@ -37,17 +37,18 @@ import (
 	"sync"
 	"time"
 
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/pkg/terminal"
 )
 
 // HealthLevel represents the health status of a component.
-type HealthLevel string
+type HealthLevel = sharedhealth.Level
 
 const (
-	HealthLevelHealthy   HealthLevel = "healthy"
-	HealthLevelWarning   HealthLevel = "warning"
-	HealthLevelUnhealthy HealthLevel = "unhealthy"
-	HealthLevelUnknown   HealthLevel = "unknown"
+	HealthLevelHealthy   = sharedhealth.LevelHealthy
+	HealthLevelWarning   = sharedhealth.LevelWarning
+	HealthLevelUnhealthy = sharedhealth.LevelUnhealthy
+	HealthLevelUnknown   = sharedhealth.LevelUnknown
 )
 
 const LookupErrorDatabaseConfigAmbiguous = "database_config_ambiguous"
@@ -234,14 +235,7 @@ func CollectAll(ctx context.Context, collectors []Collector, opts Options) Statu
 
 	overall := HealthLevelHealthy
 	for _, component := range results {
-		switch component.Level {
-		case HealthLevelUnhealthy:
-			overall = HealthLevelUnhealthy
-		case HealthLevelWarning:
-			if overall == HealthLevelHealthy {
-				overall = HealthLevelWarning
-			}
-		}
+		overall = sharedhealth.Worst(overall, component.Level)
 	}
 
 	return StatusReport{

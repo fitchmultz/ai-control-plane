@@ -112,14 +112,14 @@ For full enforcement, route tools through the gateway instead:
 
 **Claude Code MAX:**
 ```bash
-make onboard TOOL=claude MODE=subscription
+./scripts/acpctl.sh onboard claude
 # Uses ANTHROPIC_BASE_URL + ANTHROPIC_CUSTOM_HEADERS
 ```
 
 **Codex with ChatGPT subscription:**
 ```bash
 make chatgpt-login  # On gateway host
-make onboard TOOL=codex MODE=subscription
+make onboard-codex
 # Uses OPENAI_BASE_URL + OPENAI_API_KEY (LiteLLM virtual key)
 ```
 

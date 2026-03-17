@@ -19,9 +19,12 @@ This document is the **current** implementation plan for the local demo environm
 - Docker is the runtime; do not install services directly on the host.
 - Secrets live in `demo/.env` (gitignored). Never commit API keys or tokens.
 - **API-key mode** and **subscription-backed upstream (routed)** can both be enforced at the gateway; **direct subscription (bypass)** is detection-first (logging/investigation), with enforcement limited by what the vendor/client allows.
-- Avoid hardcoded IPs in runbooks. Use placeholders:
-  - `GATEWAY_HOST` — the server running Docker (its routable hostname or IP)
-  - `GATEWAY_URL` — `https://GATEWAY_HOST` for remote access; `http://127.0.0.1:4000` is localhost-only
+- Gateway operator contract:
+  - Local default: `http://127.0.0.1:4000`
+  - Full override: `GATEWAY_URL` (or `ACP_GATEWAY_URL`)
+  - Derived URL: `GATEWAY_HOST` + `LITELLM_PORT` + `ACP_GATEWAY_SCHEME`/`ACP_GATEWAY_TLS`
+  - For remote TLS on standard 443, prefer `GATEWAY_URL=https://gateway.example.com`
+  - Read secrets with `./scripts/acpctl.sh env get ...`; never source `demo/.env`
 
 ---
 
@@ -87,7 +90,7 @@ make onboard-help
 API-key mode (enforceable via gateway):
 
 ```bash
-make onboard TOOL=codex MODE=api-key VERIFY=1
+./scripts/acpctl.sh onboard codex
 ```
 
 Subscription-backed upstream (routed through gateway, enforceable):
@@ -97,7 +100,7 @@ Subscription-backed upstream (routed through gateway, enforceable):
 make chatgpt-login
 
 # Then onboard Codex
-make onboard TOOL=codex MODE=subscription VERIFY=1
+make onboard-codex
 ```
 
 ### 3.2 Claude Code
@@ -105,20 +108,20 @@ make onboard TOOL=codex MODE=subscription VERIFY=1
 API-key mode (enforceable via gateway):
 
 ```bash
-make onboard TOOL=claude MODE=api-key VERIFY=1
+make onboard-claude
 ```
 
 Subscription-backed upstream (routed through gateway, enforceable):
 
 ```bash
-make onboard TOOL=claude MODE=subscription VERIFY=1
+./scripts/acpctl.sh onboard claude
 ```
 
 Direct subscription (OTEL telemetry for visibility) is currently demonstrated with Codex:
 
 ```bash
 make up-production
-make onboard TOOL=codex MODE=direct VERIFY=1
+./scripts/acpctl.sh onboard codex
 ```
 
 ### 3.3 OpenCode
@@ -126,13 +129,13 @@ make onboard TOOL=codex MODE=direct VERIFY=1
 Gateway mode (for tool-specific integration details):
 
 ```bash
-make onboard TOOL=opencode MODE=gateway VERIFY=1
+make onboard-opencode
 ```
 
 ### 3.4 Cursor
 
 ```bash
-make onboard TOOL=cursor VERIFY=1
+make onboard-cursor
 ```
 
 Tooling references:
@@ -150,16 +153,19 @@ If you run tools on a separate client machine, the server (Docker host) must be 
 1) On the client machine, validate connectivity to the gateway host:
 
 ```bash
-ping -c 2 GATEWAY_HOST
-curl -sS -o /dev/null -w '%{http_code}\n' "https://GATEWAY_HOST/health"
+export GATEWAY_URL="${GATEWAY_URL:-https://${GATEWAY_HOST}}"
+ping -c 2 "${GATEWAY_HOST}"
+curl -sS -o /dev/null -w '%{http_code}\n' "${GATEWAY_URL}/health"
 ```
 
 2) Then onboard tools from the client, pointing them at the remote host:
 
 ```bash
-make onboard TOOL=codex MODE=api-key HOST=GATEWAY_HOST VERIFY=1
-make onboard TOOL=claude MODE=subscription HOST=GATEWAY_HOST VERIFY=1
+./scripts/acpctl.sh onboard codex
+./scripts/acpctl.sh onboard claude
 ```
+
+For each wizard run, either export `GATEWAY_URL` ahead of time or enter `GATEWAY_HOST` as the host and enable HTTPS/TLS when prompted.
 
 Reference topology and network notes:
 - `DEPLOYMENT.md`
@@ -232,19 +238,19 @@ make health
 
 # 2) Claude Code subscription-through-gateway
 #    (Dual telemetry: gateway logs + OAuth identity)
-make onboard TOOL=claude MODE=subscription VERIFY=1
+./scripts/acpctl.sh onboard claude
 make demo-scenario SCENARIO=2
 
 # 3) Codex subscription-through-gateway
 #    (ChatGPT provider via LiteLLM)
 make chatgpt-login  # On gateway host
-make onboard TOOL=codex MODE=subscription VERIFY=1
+make onboard-codex
 make demo-scenario SCENARIO=3
 
 # 4) Alternative: Codex direct subscription (OTEL)
 #    (When not routing through gateway)
 make up-production
-make onboard TOOL=codex MODE=direct VERIFY=1
+./scripts/acpctl.sh onboard codex
 # Manually run: codex "test message"
 make logs
 

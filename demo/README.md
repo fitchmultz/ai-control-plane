@@ -13,6 +13,12 @@ This is a **reference implementation** demonstrating centralized AI governance v
 
 **This is NOT production infrastructure.**
 
+## Directory Boundary
+
+- `demo/` contains the runnable local reference runtime, fixtures, and local-only artifacts.
+- `examples/` contains curated operator examples, reusable starting points, and sanitized pilot artifacts.
+- `deploy/` contains supported host deployment assets plus explicitly incubating infrastructure tracks.
+
 ## Architecture Overview
 
 The demo environment consists of services that can run on either a single machine or a remote Docker host:
@@ -82,8 +88,8 @@ This shows the Docker-first runtime, typed operator surface, and offline validat
    ```
 
 Services will be available at:
-- LiteLLM Gateway: `http://127.0.0.1:4000`
-- LiteLLM WebUI (optional): `http://127.0.0.1:4000/ui`
+- Gateway URL (default): `http://127.0.0.1:4000`
+- LiteLLM WebUI (optional): `${GATEWAY_URL:-http://127.0.0.1:4000}/ui`
 - PostgreSQL: internal (not published by default; use `make db-shell` / `make db-status`)
 
 ### Optional: Accessing the LiteLLM WebUI
@@ -91,14 +97,14 @@ Services will be available at:
 The LiteLLM proxy includes a built-in admin dashboard for managing virtual keys, budgets, and monitoring usage.
 
 **Local Mode (single machine):**
-- URL: `http://127.0.0.1:4000/ui`
+- URL: `${GATEWAY_URL:-http://127.0.0.1:4000}/ui`
 
 **Remote Mode (optional remote client):**
 - URL: `https://gateway.example.com/ui`
 
 **Default Credentials:**
 - Username: `admin`
-- Password: The value of `LITELLM_MASTER_KEY` from `demo/.env`
+- Password: The value returned by `./scripts/acpctl.sh env get LITELLM_MASTER_KEY`
 
 **Find your master key:**
 ```bash
@@ -109,8 +115,17 @@ The LiteLLM proxy includes a built-in admin dashboard for managing virtual keys,
 
 In this mode, services run on a gateway host and client machines connect over the network.
 
+Gateway operator contract:
+
+```bash
+export GATEWAY_URL="${GATEWAY_URL:-http://${GATEWAY_HOST:-127.0.0.1}:${LITELLM_PORT:-4000}}"
+LITELLM_MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
+```
+
+For remote TLS on standard 443, prefer `GATEWAY_URL=https://gateway.example.com`.
+
 **Network Configuration:**
-- **Gateway Host** (where services run): `GATEWAY_HOST`
+- **Gateway URL** (preferred operator contract): `GATEWAY_URL=https://gateway.example.com`
   - LiteLLM Gateway: `https://gateway.example.com`
   - LiteLLM WebUI (optional): `https://gateway.example.com/ui`
   - PostgreSQL: internal (not published by default; publish 5432 only if needed)
@@ -191,10 +206,10 @@ In offline mode, two mock models are available:
 ```bash
 # List available models
 curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  http://127.0.0.1:4000/v1/models
+  "${GATEWAY_URL:-http://127.0.0.1:4000}/v1/models"
 
 # Generate a virtual key
-curl -X POST http://127.0.0.1:4000/key/generate \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/generate" \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -204,7 +219,7 @@ curl -X POST http://127.0.0.1:4000/key/generate \
   }'
 
 # Chat completion with mock-gpt
-curl -X POST http://127.0.0.1:4000/v1/chat/completions \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/v1/chat/completions" \
   -H "Authorization: Bearer $LITELLM_VIRTUAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -348,33 +363,29 @@ See `demo/config/litellm.yaml` for configured model aliases and routing rules.
 
 ## Tool Onboarding
 
-Configure AI tools to use the gateway with one-command setup:
+Configure supported AI tools through the guided onboarding wizard:
 
 ```bash
-# Onboard Claude Code
-make onboard TOOL=claude MODE=api-key
+# Launch the full wizard
+make onboard
 
-# Onboard Codex CLI  
-make onboard TOOL=codex MODE=api-key
-
-# Onboard OpenCode
-make onboard TOOL=opencode MODE=gateway
-
-# Onboard Cursor IDE
-make onboard TOOL=cursor
-
-# With connectivity verification
-make onboard TOOL=claude MODE=api-key VERIFY=1
-
-# For remote Docker host
-make onboard TOOL=claude MODE=api-key HOST=192.168.1.122
+# Or preselect a tool
+make onboard-codex
+make onboard-claude
+make onboard-opencode
+make onboard-cursor
 ```
 
-The onboarding workflow is exposed through `make onboard` (primary) and implemented by thin scripts that generate virtual keys, display environment variable configuration, and optionally verify connectivity. See `make onboard-help` for complete usage.
+The wizard now owns tool selection, mode selection, host/TLS choices, verification, and any tool-specific follow-up such as managed Codex config writes. For remote Docker hosts or TLS-enabled entrypoints, use the typed entrypoint and answer the prompts directly:
+
+```bash
+./scripts/acpctl.sh onboard claude
+./scripts/acpctl.sh onboard codex
+```
 
 ## Secondary Direct Script Entry Points
 
-- `make onboard` - One-command tool onboarding (Claude, Codex, OpenCode, Cursor)
+- `make onboard` - Guided tool onboarding (Claude, Codex, OpenCode, Cursor)
 - `make key-gen` - Generate LiteLLM virtual keys for testing authentication
 - `make health` - Comprehensive health check for all services
 - `make db-backup` - Backup the PostgreSQL database
@@ -800,7 +811,7 @@ The demo environment supports **optional** TLS/HTTPS through Caddy reverse proxy
 make up-tls
 
 # Verify HTTPS is working
-curl -k https://localhost/health
+curl -k https://127.0.0.1/health
 ```
 
 **Configuration Modes:**

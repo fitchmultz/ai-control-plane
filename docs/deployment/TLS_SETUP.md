@@ -36,6 +36,22 @@ When enabled, Caddy provides:
 - OAuth token protection in transit
 - Support for both self-signed (local) and Let's Encrypt (production) certificates
 
+### Gateway operator contract
+
+Prefer one shell variable for the public endpoint:
+
+```bash
+export GATEWAY_URL="${GATEWAY_URL:-https://127.0.0.1}"
+MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
+```
+
+Resolution order across `make`, `acpctl`, and onboarding is:
+1. `ACP_GATEWAY_URL` or `GATEWAY_URL`
+2. `GATEWAY_HOST` + `LITELLM_PORT` + `ACP_GATEWAY_SCHEME`/`ACP_GATEWAY_TLS`
+3. `http://127.0.0.1:4000`
+
+For remote TLS on standard 443, prefer `GATEWAY_URL=https://gateway.example.com` directly.
+
 ### Architecture
 
 ```
@@ -44,7 +60,7 @@ When enabled, Caddy provides:
 ├─────────────────────────────────────────────────────────────┤
 │  Client (Claude Code, Codex, etc.)                          │
 │       │                                                      │
-│       └──> http://localhost:4000 ──> LiteLLM Gateway        │
+│       └──> http://127.0.0.1:4000 ──> LiteLLM Gateway        │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -52,7 +68,7 @@ When enabled, Caddy provides:
 ├─────────────────────────────────────────────────────────────┤
 │  Client (Claude Code, Codex, etc.)                          │
 │       │                                                      │
-│       └──> https://localhost ──> Caddy (port 443)           │
+│       └──> https://127.0.0.1 ──> Caddy (port 443)           │
 │                                  │                          │
 │                                  └──> LiteLLM (port 4000)   │
 │                                      (localhost only)        │
@@ -107,7 +123,7 @@ This command:
 
 ```bash
 # Test the HTTPS endpoint (ignoring self-signed cert warnings)
-curl -k https://localhost/health
+curl -k https://127.0.0.1/health
 
 # Expected output:
 # Caddy Reverse Proxy - Healthy
@@ -157,7 +173,8 @@ After trusting the certificate, update your AI tool configuration:
 
 ```bash
 # Claude Code configuration
-export ANTHROPIC_BASE_URL="https://localhost"
+export GATEWAY_URL="${GATEWAY_URL:-https://127.0.0.1}"
+export ANTHROPIC_BASE_URL="$GATEWAY_URL"
 
 # Verify connection
 claude-code --version
@@ -181,7 +198,7 @@ See [Client Configuration](#7-client-configuration) for detailed tool setup.
 **Environment Variables (.env):**
 ```bash
 CADDY_ACME_CA=internal
-LITELLM_PUBLIC_URL=https://localhost
+LITELLM_PUBLIC_URL=https://127.0.0.1
 ```
 
 **Caddyfile:** `demo/config/caddy/Caddyfile.dev`
@@ -333,21 +350,20 @@ make secrets-audit
 
 ### Using the Onboarding Script (Recommended)
 
-The easiest way to configure clients for TLS is using the onboarding script with the `--tls` flag:
+The easiest way to configure clients for TLS is using the guided onboarding wizard and choosing the TLS-enabled gateway host when prompted:
 
 ```bash
 # Claude Code with TLS
-make onboard TOOL=claude MODE=api-key TLS=1
+./scripts/acpctl.sh onboard claude
 
 # Codex with TLS
-make onboard TOOL=codex MODE=api-key TLS=1
+./scripts/acpctl.sh onboard codex
 
 # OpenCode with TLS
-make onboard TOOL=opencode MODE=gateway TLS=1
-
-# For production with custom domain
-make onboard TOOL=claude MODE=api-key HOST=gateway.example.com TLS=1
+./scripts/acpctl.sh onboard opencode
 ```
+
+For production with a custom domain, enter `gateway.example.com` as the host and answer `yes` when the wizard asks whether to use HTTPS/TLS.
 
 ### Manual Configuration
 
@@ -357,13 +373,15 @@ If you prefer to configure manually:
 
 **Without TLS (default):**
 ```bash
-export ANTHROPIC_BASE_URL="http://localhost:4000"
+export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:4000}"
+export ANTHROPIC_BASE_URL="$GATEWAY_URL"
 export ANTHROPIC_API_KEY="sk-litellm-..."
 ```
 
 **With TLS (local, self-signed):**
 ```bash
-export ANTHROPIC_BASE_URL="https://localhost"
+export GATEWAY_URL="${GATEWAY_URL:-https://127.0.0.1}"
+export ANTHROPIC_BASE_URL="$GATEWAY_URL"
 export ANTHROPIC_API_KEY="sk-litellm-..."
 # Or use NODE_EXTRA_CA_CERTS if certificate is not trusted
 export NODE_EXTRA_CA_CERTS=/path/to/caddy-root.crt
@@ -379,13 +397,15 @@ export ANTHROPIC_API_KEY="sk-litellm-..."
 
 **Without TLS:**
 ```bash
-export OPENAI_BASE_URL="http://localhost:4000"
+export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:4000}"
+export OPENAI_BASE_URL="$GATEWAY_URL"
 export OPENAI_API_KEY="sk-litellm-..."
 ```
 
 **With TLS:**
 ```bash
-export OPENAI_BASE_URL="https://localhost"
+export GATEWAY_URL="${GATEWAY_URL:-https://127.0.0.1}"
+export OPENAI_BASE_URL="$GATEWAY_URL"
 export OPENAI_API_KEY="sk-litellm-..."
 ```
 
@@ -395,7 +415,7 @@ Update `~/.opencode/config.json`:
 
 ```json
 {
-  "apiBaseUrl": "https://localhost",
+  "apiBaseUrl": "https://127.0.0.1",
   "apiKey": "sk-litellm-..."
 }
 ```
@@ -440,7 +460,7 @@ ports:
   - "8443:443"  # Use alternative HTTPS port
 ```
 
-Then update client configuration to use `https://localhost:8443`
+Then update client configuration to use `https://127.0.0.1:8443`
 
 ### Issue: OAuth Tokens in Logs
 
@@ -492,7 +512,7 @@ docker compose ps caddy
 docker exec ai-control-plane-caddy caddy validate --config /etc/caddy/Caddyfile
 
 # Test health endpoint directly
-curl -k https://localhost/health
+curl -k https://127.0.0.1/health
 ```
 
 **Solution**: Ensure `LITELLM_PUBLIC_URL` is set correctly in `.env`

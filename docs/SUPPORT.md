@@ -10,6 +10,8 @@ The supported product surface is the host-first Docker reference implementation.
 
 Support levels are defined in [support-matrix.yaml](support-matrix.yaml) and rendered in [reference/support-matrix.md](reference/support-matrix.md).
 
+Start with [README.md](../README.md) for the public repo overview, [troubleshooting/README.md](troubleshooting/README.md) for failure-mode triage, and [../examples/README.md](../examples/README.md) for curated operator examples.
+
 ## Operator Contract
 
 - Use `make` for day-to-day operations.

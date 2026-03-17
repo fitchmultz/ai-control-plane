@@ -13,7 +13,7 @@ complete -c acpctl -n '__fish_use_subcommand' -a 'doctor' -d 'Environment prefli
 complete -c acpctl -n '__fish_use_subcommand' -a 'benchmark' -d 'Lightweight local performance baseline'
 complete -c acpctl -n '__fish_use_subcommand' -a 'smoke' -d 'Run truthful runtime smoke checks'
 complete -c acpctl -n '__fish_use_subcommand' -a 'completion' -d 'Generate shell completion scripts'
-complete -c acpctl -n '__fish_use_subcommand' -a 'onboard' -d 'Configure local tools to route through the gateway'
+complete -c acpctl -n '__fish_use_subcommand' -a 'onboard' -d 'Launch the guided onboarding wizard'
 complete -c acpctl -n '__fish_use_subcommand' -a 'deploy' -d 'Typed evidence and artifact workflows'
 complete -c acpctl -n '__fish_use_subcommand' -a 'validate' -d 'Configuration and policy validation operations'
 complete -c acpctl -n '__fish_use_subcommand' -a 'db' -d 'Database backup, restore, and inspection operations'

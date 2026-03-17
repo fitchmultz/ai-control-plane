@@ -41,9 +41,14 @@ DOCKER_LOCAL_SOCKET := $(firstword $(wildcard /var/run/docker.sock /run/docker.s
 CI_DOCKER_HOST := $(if $(DOCKER_LOCAL_SOCKET),unix://$(DOCKER_LOCAL_SOCKET),)
 
 # Ports and networking
-LITELLM_PORT := 4000
-TLS_PORT := 443
+GATEWAY_HOST ?= 127.0.0.1
+LITELLM_PORT ?= 4000
+TLS_PORT ?= 443
 LIBRECHAT_PORT ?= 3080
+ACP_GATEWAY_TLS ?=
+_gateway_tls_truthy := 1 true TRUE yes YES on ON
+ACP_GATEWAY_SCHEME ?= $(if $(filter $(_gateway_tls_truthy),$(strip $(ACP_GATEWAY_TLS))),https,http)
+EFFECTIVE_GATEWAY_URL := $(strip $(or $(ACP_GATEWAY_URL),$(GATEWAY_URL),$(ACP_GATEWAY_SCHEME)://$(GATEWAY_HOST):$(LITELLM_PORT)))
 
 # Database configuration
 DB_NAME ?= litellm
@@ -57,7 +62,7 @@ CI_FULL ?= 0
 SCRIPT_TEST_SCOPE ?= auto
 SCRIPT_TEST_JOBS ?=
 OFFLINE_GATEWAY_READY_MAX_ATTEMPTS ?= 75
-PERFORMANCE_GATEWAY_URL ?= http://127.0.0.1:$(LITELLM_PORT)
+PERFORMANCE_GATEWAY_URL ?= $(EFFECTIVE_GATEWAY_URL)
 PERFORMANCE_MODEL ?= mock-gpt
 PERFORMANCE_REQUESTS ?= 20
 PERFORMANCE_CONCURRENCY ?= 2
@@ -83,7 +88,9 @@ SUPPLY_CHAIN_ALLOWLIST_WARN_DAYS ?= 45
 SUPPLY_CHAIN_ALLOWLIST_FAIL_DAYS ?= 14
 
 # Release bundle configuration
-RELEASE_BUNDLE_VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+VERSION_FILE ?= VERSION
+ACP_VERSION ?= $(strip $(shell [ -f "$(VERSION_FILE)" ] && tr -d '[:space:]' < "$(VERSION_FILE)"))
+RELEASE_BUNDLE_VERSION ?= $(if $(ACP_VERSION),$(ACP_VERSION),dev)
 RELEASE_BUNDLE_OUT_DIR ?= demo/logs/release-bundles
 RELEASE_BUNDLE_NAME ?= ai-control-plane-deploy-$(RELEASE_BUNDLE_VERSION).tar.gz
 RELEASE_BUNDLE_PATH ?= $(RELEASE_BUNDLE_OUT_DIR)/$(RELEASE_BUNDLE_NAME)
@@ -93,9 +100,9 @@ PILOT_CLOSEOUT_OUT_DIR ?= demo/logs/pilot-closeout
 PILOT_CUSTOMER ?= Falcon Insurance Group
 PILOT_NAME ?= Claims Governance Pilot
 PILOT_DECISION ?= EXPAND
-PILOT_CHARTER ?= docs/examples/falcon-insurance-group/PILOT_CHARTER.md
-PILOT_ACCEPTANCE_MEMO ?= docs/examples/falcon-insurance-group/PILOT_ACCEPTANCE_MEMO.md
-PILOT_VALIDATION_CHECKLIST ?= docs/examples/falcon-insurance-group/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md
-PILOT_OPERATOR_CHECKLIST ?= docs/examples/falcon-insurance-group/PILOT_OPERATOR_HANDOFF_CHECKLIST.md
+PILOT_CHARTER ?= examples/falcon-insurance-group/PILOT_CHARTER.md
+PILOT_ACCEPTANCE_MEMO ?= examples/falcon-insurance-group/PILOT_ACCEPTANCE_MEMO.md
+PILOT_VALIDATION_CHECKLIST ?= examples/falcon-insurance-group/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md
+PILOT_OPERATOR_CHECKLIST ?= examples/falcon-insurance-group/PILOT_OPERATOR_HANDOFF_CHECKLIST.md
 PILOT_READINESS_RUN_DIR ?=
 PILOT_CLOSEOUT_RUN_DIR ?=

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-control-plane.local/contracts/config/roles.schema.json",
+  "type": "object",
+  "required": ["roles", "default_role"],
+  "properties": {
+    "roles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "description",
+          "model_access",
+          "budget_ceiling",
+          "can_approve",
+          "can_assign_roles",
+          "can_create_keys",
+          "read_only"
+        ],
+        "properties": {
+          "description": { "type": "string", "minLength": 1 },
+          "model_access": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "budget_ceiling": { "type": "number", "minimum": 0 },
+          "can_approve": { "type": "boolean" },
+          "can_assign_roles": { "type": "boolean" },
+          "can_create_keys": { "type": "boolean" },
+          "read_only": { "type": "boolean" },
+          "approval_authority": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "array",
+                "items": { "const": "all" },
+                "minItems": 1,
+                "maxItems": 1
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "max_budget": { "type": "number", "minimum": 0 },
+                  "models": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "model_tiers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      }
+    },
+    "default_role": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "user_role_assignments": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        { "type": "null" }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

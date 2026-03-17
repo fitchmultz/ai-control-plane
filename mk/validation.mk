@@ -11,11 +11,14 @@
 #   - Does not enforce policies
 
 .PHONY: validate-config
-validate-config: install-binary ## Validate deployment configuration
-	@echo '$(COLOR_BOLD)Validating deployment configuration...$(COLOR_RESET)'
+validate-config: install-binary ## Validate tracked deployment configuration and config contract
+	@echo '$(COLOR_BOLD)Validating deployment configuration contract...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) validate config \
 		&& echo '$(COLOR_GREEN)✓ Configuration validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Configuration validation failed$(COLOR_RESET)'; exit 1; }
+
+.PHONY: validate-config-contract
+validate-config-contract: validate-config ## Alias for machine-readable config contract validation
 
 .PHONY: validate-librechat-config
 validate-librechat-config: ## Validate required LibreChat environment variables
@@ -80,6 +83,13 @@ validate-compose-healthchecks: ## Validate Docker Compose healthcheck syntax
 		&& echo '$(COLOR_GREEN)✓ Healthcheck validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Healthcheck validation failed$(COLOR_RESET)'; exit 1; }
 
+.PHONY: validate-generated-docs
+validate-generated-docs: ## Fail when generated completions/reference docs drift from source
+	@echo '$(COLOR_BOLD)Validating generated docs and completion artifacts...$(COLOR_RESET)'
+	@$(GO) test ./cmd/acpctl -run 'TestGeneratedCompletionArtifactsAreCurrent|TestGeneratedReferenceArtifactsAreCurrent' -count=1 \
+		&& echo '$(COLOR_GREEN)✓ Generated-doc drift validation passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Generated-doc drift validation failed$(COLOR_RESET)'; exit 1; }
+
 .PHONY: validate-acpctl-parity
 validate-acpctl-parity: ## Fail when published Make/acpctl surfaces drift from the typed command registry
 	@echo '$(COLOR_BOLD)Validating acpctl command surface parity...$(COLOR_RESET)'
@@ -87,7 +97,7 @@ validate-acpctl-parity: ## Fail when published Make/acpctl surfaces drift from t
 		echo '$(COLOR_RED)✗ go not installed - required for validate-acpctl-parity$(COLOR_RESET)'; \
 		exit 2; \
 	fi
-	@$(GO) test ./cmd/acpctl -run 'TestCommandSpec_ApprovedCommandInventory|TestPublishedMakeTargetsResolve|TestPublishedACPCTLCommandsResolve|TestGeneratedCompletionArtifactsAreCurrent|TestGeneratedReferenceArtifactsAreCurrent|TestPublicSurfaceOmitsIncubatingTracks|TestRetiredCommandReferencesStayRemoved' -count=1 \
+	@$(GO) test ./cmd/acpctl -run 'TestCommandSpec_ApprovedCommandInventory|TestPublishedMakeTargetsResolve|TestPublishedACPCTLCommandsResolve|TestPublicSurfaceOmitsIncubatingTracks|TestRetiredCommandReferencesStayRemoved' -count=1 \
 		&& echo '$(COLOR_GREEN)✓ acpctl command surface parity passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ acpctl command surface parity failed$(COLOR_RESET)'; exit 1; }
 

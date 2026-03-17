@@ -31,6 +31,7 @@ These templates are working deal-delivery tools. They are not legal boilerplate,
 4. Delete sections that are not in scope instead of leaving aspirational language in place.
 5. Attach pricing, legal terms, and procurement language outside these templates.
 6. When closeout evidence matters, build a dated artifact set with `make pilot-closeout-bundle`.
+7. Compare your filled-in pilot docs with the sanitized example set under `examples/falcon-insurance-group/`.
 
 ## Required Companion Docs
 

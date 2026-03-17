@@ -59,6 +59,7 @@ type benchmarkBaselineOptions struct {
 }
 
 func benchmarkCommandSpec() *commandSpec {
+	gatewayDefault := config.NewLoader().Gateway(true)
 	return &commandSpec{
 		Name:        "benchmark",
 		Summary:     "Lightweight local performance baseline",
@@ -81,7 +82,7 @@ func benchmarkCommandSpec() *commandSpec {
 					"acpctl benchmark baseline --json",
 				},
 				Options: []commandOptionSpec{
-					{Name: "gateway-url", ValueName: "URL", Summary: "Gateway base URL", Type: optionValueString, DefaultText: "http://127.0.0.1:4000"},
+					{Name: "gateway-url", ValueName: "URL", Summary: "Gateway base URL", Type: optionValueString, DefaultText: gatewayDefault.BaseURL},
 					{Name: "master-key", ValueName: "VALUE", Summary: "Gateway master key", Type: optionValueString, DefaultText: "LITELLM_MASTER_KEY env var"},
 					{Name: "model", ValueName: "NAME", Summary: "Model alias to exercise", Type: optionValueString, DefaultText: "mock-gpt"},
 					{Name: "profile", ValueName: "NAME", Summary: "Benchmark profile from demo/config/benchmark_thresholds.json", Type: optionValueString},
@@ -93,6 +94,7 @@ func benchmarkCommandSpec() *commandSpec {
 					{Name: "json", Summary: "Emit machine-readable JSON to stdout", Type: optionValueBool},
 				},
 				Sections: []commandHelpSection{
+					gatewayContractHelpSection(),
 					{
 						Title: "Notes",
 						Lines: []string{
@@ -128,7 +130,7 @@ func bindBenchmarkBaselineOptions(input parsedCommandInput) (benchmarkBaselineOp
 		return benchmarkBaselineOptions{}, fmt.Errorf("invalid --max-tokens: %q", input.String("max-tokens"))
 	}
 	opts := benchmarkBaselineOptions{
-		GatewayURL:     input.StringDefault("gateway-url", "http://127.0.0.1:4000"),
+		GatewayURL:     input.StringDefault("gateway-url", gatewayRuntime.BaseURL),
 		MasterKey:      input.StringDefault("master-key", gatewayRuntime.MasterKey),
 		Model:          input.StringDefault("model", "mock-gpt"),
 		Profile:        input.NormalizedString("profile"),

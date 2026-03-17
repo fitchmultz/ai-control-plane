@@ -57,7 +57,7 @@ func rootCommandSpec(children ...*commandSpec) *commandSpec {
 			"acpctl env get LITELLM_MASTER_KEY",
 			"acpctl chargeback report --format all",
 			"acpctl benchmark baseline --requests 20 --concurrency 2",
-			"acpctl onboard codex --mode subscription --verify",
+			"acpctl onboard",
 			"acpctl deploy readiness-evidence run",
 		},
 		Sections: []commandHelpSection{

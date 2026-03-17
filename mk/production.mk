@@ -21,7 +21,8 @@ up-production: validate-config-production ## Start production profile with OTEL
 	@echo '$(COLOR_GREEN)✓ Production services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
-	@echo '  - LiteLLM Gateway: https://localhost:$(TLS_PORT)'
+	@echo '  - Gateway URL: https://127.0.0.1'
+	@echo '  - Master key access: ./scripts/acpctl.sh env get --file "$(SECRETS_ENV_FILE)" LITELLM_MASTER_KEY'
 	@echo '  - OTEL Collector: 127.0.0.1:4317 (gRPC), 127.0.0.1:4318 (HTTP)'
 	@echo ''
 	@echo 'Run $(COLOR_BOLD)make otel-health$(COLOR_RESET) to verify OTEL collector.'
@@ -29,14 +30,14 @@ up-production: validate-config-production ## Start production profile with OTEL
 .PHONY: prod-smoke
 prod-smoke: ## Run truthful runtime smoke checks
 	@echo '$(COLOR_BOLD)Running production smoke tests...$(COLOR_RESET)'
-	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
+	@ACP_GATEWAY_URL=https://127.0.0.1 $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
 		&& echo '$(COLOR_GREEN)✓ Production smoke tests passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Production smoke tests failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: prod-smoke-local-tls
 prod-smoke-local-tls: ## Run truthful runtime smoke checks against local TLS
 	@echo '$(COLOR_BOLD)Running production smoke tests against local TLS...$(COLOR_RESET)'
-	@GATEWAY_HOST=localhost LITELLM_PORT=$(TLS_PORT) $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
+	@ACP_GATEWAY_URL=https://127.0.0.1 $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
 		&& echo '$(COLOR_GREEN)✓ Local TLS smoke tests passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Local TLS smoke tests failed$(COLOR_RESET)'; exit 1; }
 
@@ -58,7 +59,7 @@ up-tls: ## Start TLS mode services
 	@echo '$(COLOR_GREEN)✓ TLS services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
-	@echo '  - LiteLLM Gateway: https://localhost:$(TLS_PORT)'
+	@echo '  - Gateway URL: https://127.0.0.1'
 
 .PHONY: down-tls
 down-tls: ## Stop TLS mode services
@@ -72,7 +73,7 @@ restart-tls: down-tls up-tls ## Restart TLS mode services
 .PHONY: tls-health
 tls-health: ## Run TLS health checks
 	@echo '$(COLOR_BOLD)Running TLS health checks...$(COLOR_RESET)'
-	@$(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
+	@ACP_GATEWAY_URL=https://127.0.0.1 $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
 		&& echo '$(COLOR_GREEN)✓ TLS health checks passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ TLS health checks failed$(COLOR_RESET)'; exit 1; }
 

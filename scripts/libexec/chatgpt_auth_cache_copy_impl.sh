@@ -188,6 +188,6 @@ fi
 printf 'Next steps:\n'
 printf '  1) make chatgpt-login\n'
 printf '  2) make health\n'
-printf '  3) make onboard-codex VERIFY=1\n'
+printf '  3) make onboard-codex\n'
 
 exit "${ACP_EXIT_SUCCESS}"

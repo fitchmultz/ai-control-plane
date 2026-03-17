@@ -285,48 +285,18 @@ Do not imply that this project:
 
 ---
 
-## Roadmap
+## Delivery progression
 
-### Phase 1: Reference implementation and demo proof
+The canonical execution-ordered backlog for this repository lives in [ROADMAP.md](ROADMAP.md).
 
-Goal: prove enforcement, evidence, and reporting in a controlled environment.
+Use this strategy document for control truth, enterprise positioning, and ownership boundaries. Use the roadmap for outstanding implementation, productization, and procurement-readiness work.
 
-Outcomes:
+The maturity progression remains:
 
-* Gateway enforcement demonstrated end-to-end
-* Subscription and SaaS governance story demonstrated with evidence ingestion
-* Normalized events landing in SIEM format
-* Initial detection and reporting package
-
-### Phase 2: Pilot with real teams
-
-Goal: controlled rollout to one or two teams and a small set of tools.
-
-Outcomes:
-
-* Adoption friction identified and removed
-* Policies tuned for real workflows
-* Cost governance working with showback
-
-### Phase 3: Production rollout
-
-Goal: standardize usage paths across the org.
-
-Outcomes:
-
-* Standard onboarding flow
-* Enterprise-wide dashboards
-* Exceptions process and enforcement boundaries formalized
-
-### Phase 4: Managed operations and continuous improvement
-
-Goal: make it boring. Monitoring, detections, reporting, and change control.
-
-Outcomes:
-
-* Continuous policy updates as vendors and tools change
-* Ongoing incident response support
-* Quarterly control effectiveness reviews
+1. Reference implementation and demo proof
+2. Pilot with real teams
+3. Production rollout
+4. Managed operations and continuous improvement
 
 ---
 

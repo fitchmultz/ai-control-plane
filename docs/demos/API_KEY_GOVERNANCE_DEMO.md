@@ -37,7 +37,7 @@ The API-key governance demonstration showcases three pillars of AI governance:
 
 ```bash
 # Generate key with restricted model list
-curl -X POST http://localhost:4000/key/generate \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/generate" \
   -H "Authorization: Bearer $MASTER_KEY" \
   -d '{
     "key_alias": "restricted-key",
@@ -62,7 +62,7 @@ curl -X POST http://localhost:4000/key/generate \
 
 ```bash
 # Generate key with specific limits
-curl -X POST http://localhost:4000/key/generate \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/generate" \
   -H "Authorization: Bearer $MASTER_KEY" \
   -d '{
     "key_alias": "budget-limited-key",
@@ -455,7 +455,7 @@ make db-status | grep compromised-key-alias
 # Should show no results or "not found"
 
 # Test authentication failure (optional)
-curl -X POST http://localhost:4000/v1/chat/completions \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/v1/chat/completions" \
   -H "Authorization: Bearer $OLD_KEY" \
   -d '{"model": "gpt-5.2", "messages": [{"role": "user", "content": "test"}]}'
 # Should return HTTP 401 Unauthorized

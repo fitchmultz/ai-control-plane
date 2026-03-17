@@ -52,7 +52,7 @@ func TestDecideRuntimeScopeWithExplicitPaths(t *testing.T) {
 	ctx := context.Background()
 
 	result, err := DecideRuntimeScope(ctx, DecisionOptions{
-		Paths:  []string{"docs/README.md", "AGENTS.md", "scripts/tests/onboard_test.sh"},
+		Paths:  []string{"docs/README.md", "AGENTS.md", "scripts/tests/onboard_help_contract_test.sh"},
 		CIFull: "0",
 	})
 	if err != nil {

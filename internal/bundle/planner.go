@@ -29,6 +29,9 @@ import (
 
 // Canonical deployment asset list (single source of truth)
 var CanonicalPaths = []string{
+	"VERSION",
+	"CHANGELOG.md",
+	"RELEASE_NOTES.md",
 	"Makefile",
 	"README.md",
 	"demo/docker-compose.yml",
@@ -37,8 +40,10 @@ var CanonicalPaths = []string{
 	"demo/config/litellm.yaml",
 	"demo/config/litellm-offline.yaml",
 	"demo/config/detection_rules.yaml",
-	"docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md",
+	"docs/README.md",
 	"docs/DEPLOYMENT.md",
+	"docs/deployment/PRODUCTION_HANDOFF_RUNBOOK.md",
+	"examples/README.md",
 }
 
 // Plan represents the planned bundle structure

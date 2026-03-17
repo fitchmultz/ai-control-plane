@@ -135,7 +135,7 @@ make up
 
 ```bash
 # Test with curl
-curl -X POST http://localhost:4000/v1/chat/completions \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/v1/chat/completions" \
   -H "Authorization: Bearer $DEMO_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "My code is MYCODE-123456"}]}'

@@ -201,14 +201,18 @@ help-key:
 .PHONY: help-onboard
 help-onboard:
 	@echo '$(COLOR_BOLD)Tool Onboarding Targets:$(COLOR_RESET)'
-	@echo '  $(COLOR_GREEN)onboard$(COLOR_RESET)            Onboard a tool (TOOL=codex|claude|opencode|cursor|copilot)'
-	@echo '  $(COLOR_GREEN)onboard-help$(COLOR_RESET)       Show onboarding CLI help'
-	@echo '  $(COLOR_GREEN)onboard-codex$(COLOR_RESET)      Codex onboarding shortcut (default MODE=subscription)'
+	@echo '  $(COLOR_GREEN)onboard$(COLOR_RESET)            Launch the guided onboarding wizard'
+	@echo '  $(COLOR_GREEN)onboard-help$(COLOR_RESET)       Show onboarding wizard help'
+	@echo '  $(COLOR_GREEN)onboard-codex$(COLOR_RESET)      Launch onboarding with Codex preselected'
+	@echo '  $(COLOR_GREEN)onboard-claude$(COLOR_RESET)     Launch onboarding with Claude Code preselected'
+	@echo '  $(COLOR_GREEN)onboard-opencode$(COLOR_RESET)   Launch onboarding with OpenCode preselected'
+	@echo '  $(COLOR_GREEN)onboard-cursor$(COLOR_RESET)     Launch onboarding with Cursor preselected'
 	@echo '  $(COLOR_GREEN)chatgpt-login$(COLOR_RESET)      Trigger ChatGPT OAuth device flow for gateway'
 	@echo '  $(COLOR_GREEN)chatgpt-auth-copy$(COLOR_RESET)  Copy local Codex auth cache into LiteLLM container'
 	@echo ''
 	@echo 'Examples:'
-	@echo '  make onboard TOOL=codex MODE=subscription VERIFY=1'
+	@echo '  make onboard'
+	@echo '  make onboard-codex'
 	@echo '  make chatgpt-login'
 
 # Default target

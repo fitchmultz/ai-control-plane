@@ -107,14 +107,7 @@ func keyGenCommandSpec(name string, summary string, forcedRole string) *commandS
 		},
 		Options: options,
 		Sections: []commandHelpSection{
-			{
-				Title: "Environment",
-				Lines: []string{
-					"LITELLM_MASTER_KEY",
-					"GATEWAY_HOST",
-					"LITELLM_PORT",
-				},
-			},
+			gatewayContractHelpSection(),
 		},
 		Backend: commandBackend{
 			Kind: commandBackendNative,

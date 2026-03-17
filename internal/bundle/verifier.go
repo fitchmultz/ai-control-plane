@@ -117,6 +117,7 @@ func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*Verification
 	requiredFiles := []string{
 		"sha256sums.txt",
 		"install-manifest.txt",
+		"release-metadata.json",
 		"payload",
 	}
 	for _, file := range requiredFiles {

@@ -96,7 +96,8 @@ up: ## Start supported base services
 	@echo '$(COLOR_GREEN)✓ Services started$(COLOR_RESET)'
 	@echo ''
 	@echo 'Services:'
-	@echo '  - LiteLLM Gateway: http://127.0.0.1:$(LITELLM_PORT)'
+	@echo '  - Gateway URL: $(EFFECTIVE_GATEWAY_URL)'
+	@echo '  - Master key access: ./scripts/acpctl.sh env get LITELLM_MASTER_KEY'
 	@echo ''
 	@echo 'Run $(COLOR_BOLD)make health$(COLOR_RESET) to verify services.'
 

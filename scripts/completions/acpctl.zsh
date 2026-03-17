@@ -56,7 +56,7 @@ _acpctl_commands() {
         "benchmark:Lightweight local performance baseline"
         "smoke:Run truthful runtime smoke checks"
         "completion:Generate shell completion scripts"
-        "onboard:Configure local tools to route through the gateway"
+        "onboard:Launch the guided onboarding wizard"
         "deploy:Typed evidence and artifact workflows"
         "validate:Configuration and policy validation operations"
         "db:Database backup, restore, and inspection operations"

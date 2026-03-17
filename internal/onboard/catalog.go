@@ -3,21 +3,22 @@
 // Purpose:
 //
 //	Define the canonical onboarding tool catalog, defaults, and validation
-//	rules used by parsing and workflow coordination.
+//	rules used by prompts and workflow coordination.
 //
 // Responsibilities:
 //   - Validate supported tool names.
-//   - Resolve default auth modes and model aliases.
-//   - Enforce tool-specific mode support.
+//   - Resolve default auth modes, aliases, and model aliases.
+//   - Enforce tool-specific mode support and deterministic prompt ordering.
 //
 // Scope:
 //   - Onboarding tool metadata only.
 //
 // Usage:
-//   - Used by ParseArgs and Run before workflow execution.
+//   - Used by the wizard and workflow before execution.
 //
 // Invariants/Assumptions:
-//   - Tool defaults are declared once and shared across parsing and runtime.
+//   - Tool defaults are declared once and shared across prompting and runtime.
+//   - Interactive ordering must remain deterministic.
 package onboard
 
 import (
@@ -25,58 +26,74 @@ import (
 	"fmt"
 )
 
+var onboardingToolOrder = []string{"codex", "claude", "opencode", "cursor"}
+
 var onboardingTools = map[string]toolSpec{
 	"codex": {
-		Name:           "codex",
-		DefaultMode:    "subscription",
-		SupportedModes: modeSet("subscription", "api-key", "direct"),
+		Name:        "codex",
+		Summary:     "OpenAI Codex CLI through the gateway or direct OTEL visibility mode",
+		DefaultMode: "subscription",
+		DefaultAlias: func(string) string {
+			return "codex-cli"
+		},
 		DefaultModel: func(mode string) string {
 			if mode == "subscription" {
 				return "chatgpt-gpt5.3-codex"
 			}
 			return "openai-gpt5.2"
 		},
+		Modes: []modeSpec{
+			{Name: "subscription", Summary: "Use ChatGPT subscription upstream through the gateway"},
+			{Name: "api-key", Summary: "Use API-key-based upstream providers through the gateway"},
+			{Name: "direct", Summary: "Bypass the gateway and send OTEL telemetry only"},
+		},
 	},
 	"claude": {
-		Name:           "claude",
-		DefaultMode:    "api-key",
-		SupportedModes: modeSet("api-key"),
+		Name:        "claude",
+		Summary:     "Claude Code through the gateway with API-key or subscription-backed routing",
+		DefaultMode: "api-key",
+		DefaultAlias: func(mode string) string {
+			if mode == "subscription" {
+				return "claude-code-max"
+			}
+			return "claude-code"
+		},
 		DefaultModel: func(string) string {
 			return "claude-haiku-4-5"
 		},
+		Modes: []modeSpec{
+			{Name: "api-key", Summary: "Use Anthropic-compatible API-key routing through the gateway"},
+			{Name: "subscription", Summary: "Use Claude subscription OAuth through the gateway with LiteLLM headers"},
+		},
 	},
 	"opencode": {
-		Name:           "opencode",
-		DefaultMode:    "api-key",
-		SupportedModes: modeSet("api-key"),
+		Name:        "opencode",
+		Summary:     "OpenCode through the gateway using the OpenAI-compatible routed path",
+		DefaultMode: "api-key",
+		DefaultAlias: func(string) string {
+			return "opencode-cli"
+		},
 		DefaultModel: func(string) string {
 			return "openai-gpt5.2"
+		},
+		Modes: []modeSpec{
+			{Name: "api-key", Summary: "Use OpenAI-compatible API-key routing through the gateway"},
 		},
 	},
 	"cursor": {
-		Name:           "cursor",
-		DefaultMode:    "api-key",
-		SupportedModes: modeSet("api-key"),
+		Name:        "cursor",
+		Summary:     "Cursor IDE with gateway-routed OpenAI-compatible settings",
+		DefaultMode: "api-key",
+		DefaultAlias: func(string) string {
+			return "cursor-cli"
+		},
 		DefaultModel: func(string) string {
 			return "openai-gpt5.2"
 		},
-	},
-	"copilot": {
-		Name:           "copilot",
-		DefaultMode:    "api-key",
-		SupportedModes: modeSet("api-key"),
-		DefaultModel: func(string) string {
-			return "openai-gpt5.2"
+		Modes: []modeSpec{
+			{Name: "api-key", Summary: "Use OpenAI-compatible API-key routing through the gateway"},
 		},
 	},
-}
-
-func modeSet(values ...string) map[string]struct{} {
-	set := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		set[value] = struct{}{}
-	}
-	return set
 }
 
 func lookupToolSpec(tool string) (toolSpec, error) {
@@ -85,6 +102,14 @@ func lookupToolSpec(tool string) (toolSpec, error) {
 		return toolSpec{}, fmt.Errorf("unsupported tool: %s", tool)
 	}
 	return spec, nil
+}
+
+func orderedToolSpecs() []toolSpec {
+	specs := make([]toolSpec, 0, len(onboardingToolOrder))
+	for _, name := range onboardingToolOrder {
+		specs = append(specs, onboardingTools[name])
+	}
+	return specs
 }
 
 func resolveDefaults(opts Options) (Options, error) {
@@ -98,7 +123,10 @@ func resolveDefaults(opts Options) (Options, error) {
 	if err := validateMode(spec, opts.Mode); err != nil {
 		return Options{}, err
 	}
-	if opts.Model == "" {
+	if opts.Alias == "" && opts.Mode != "direct" {
+		opts.Alias = spec.DefaultAlias(opts.Mode)
+	}
+	if opts.Model == "" && opts.Mode != "direct" {
 		opts.Model = spec.DefaultModel(opts.Mode)
 	}
 	return opts, nil
@@ -108,8 +136,10 @@ func validateMode(spec toolSpec, mode string) error {
 	if mode == "" {
 		return errors.New("mode is required")
 	}
-	if _, ok := spec.SupportedModes[mode]; ok {
-		return nil
+	for _, supported := range spec.Modes {
+		if supported.Name == mode {
+			return nil
+		}
 	}
 	return fmt.Errorf("unsupported mode %q for %s", mode, spec.Name)
 }

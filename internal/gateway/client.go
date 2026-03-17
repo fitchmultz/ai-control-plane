@@ -132,6 +132,15 @@ func WithMasterKey(key string) Option {
 	}
 }
 
+// WithHTTPClient injects the HTTP client used for gateway operations.
+func WithHTTPClient(client *http.Client) Option {
+	return func(c *Client) {
+		if client != nil {
+			c.httpClient = client
+		}
+	}
+}
+
 // WithTimeout sets the request timeout.
 func WithTimeout(timeout time.Duration) Option {
 	return func(c *Client) {

@@ -40,6 +40,16 @@ type GatewaySettings struct {
 	MasterKey  string
 }
 
+// GatewayResolveInput describes the raw values that can resolve a gateway contract.
+type GatewayResolveInput struct {
+	URL       string
+	Host      string
+	Port      string
+	Scheme    string
+	TLS       string
+	MasterKey string
+}
+
 // ToolingSettings describes process-level command/tooling overrides.
 type ToolingSettings struct {
 	MakeBinary      string
@@ -53,30 +63,25 @@ type ToolingSettings struct {
 	SourceDateEpoch string
 }
 
-// Gateway returns gateway settings, optionally allowing repo-local key fallback.
-func (l *Loader) Gateway(includeRepoFallback bool) GatewaySettings {
-	resolve := l.String
-	if includeRepoFallback {
-		resolve = l.RepoAwareString
-	}
-
-	explicitURL := textutil.FirstNonBlank(resolve("ACP_GATEWAY_URL"), resolve("GATEWAY_URL"))
+// ResolveGatewaySettings normalizes the canonical gateway operator contract.
+func ResolveGatewaySettings(input GatewayResolveInput) GatewaySettings {
+	explicitURL := textutil.Trim(input.URL)
 	if explicitURL != "" {
 		if settings, ok := parseGatewayURL(explicitURL); ok {
-			settings.MasterKey = resolve("LITELLM_MASTER_KEY")
+			settings.MasterKey = textutil.Trim(input.MasterKey)
 			return settings
 		}
 	}
 
-	host := textutil.FirstNonBlank(resolve("GATEWAY_HOST"), DefaultGatewayHost)
-	portString := textutil.FirstNonBlank(resolve("LITELLM_PORT"), strconv.Itoa(DefaultLiteLLMPort))
+	host := textutil.FirstNonBlank(input.Host, DefaultGatewayHost)
+	portString := textutil.FirstNonBlank(input.Port, strconv.Itoa(DefaultLiteLLMPort))
 	port, err := strconv.Atoi(portString)
 	if err != nil || port <= 0 {
 		port = DefaultLiteLLMPort
 		portString = strconv.Itoa(DefaultLiteLLMPort)
 	}
-	scheme := normalizeGatewayScheme(resolve("ACP_GATEWAY_SCHEME"), resolve("GATEWAY_SCHEME"), resolve("ACP_GATEWAY_TLS"))
-	masterKey := resolve("LITELLM_MASTER_KEY")
+	scheme := normalizeGatewayScheme(input.Scheme, input.TLS)
+
 	return GatewaySettings{
 		Scheme:     scheme,
 		Host:       host,
@@ -84,8 +89,25 @@ func (l *Loader) Gateway(includeRepoFallback bool) GatewaySettings {
 		PortInt:    port,
 		BaseURL:    buildGatewayBaseURL(scheme, host, portString),
 		TLSEnabled: scheme == "https",
-		MasterKey:  masterKey,
+		MasterKey:  textutil.Trim(input.MasterKey),
 	}
+}
+
+// Gateway returns gateway settings, optionally allowing repo-local key fallback.
+func (l *Loader) Gateway(includeRepoFallback bool) GatewaySettings {
+	resolve := l.String
+	if includeRepoFallback {
+		resolve = l.RepoAwareString
+	}
+
+	return ResolveGatewaySettings(GatewayResolveInput{
+		URL:       textutil.FirstNonBlank(resolve("ACP_GATEWAY_URL"), resolve("GATEWAY_URL")),
+		Host:      resolve("GATEWAY_HOST"),
+		Port:      resolve("LITELLM_PORT"),
+		Scheme:    resolve("ACP_GATEWAY_SCHEME"),
+		TLS:       resolve("ACP_GATEWAY_TLS"),
+		MasterKey: resolve("LITELLM_MASTER_KEY"),
+	})
 }
 
 // Tooling returns process-level ACP command configuration.

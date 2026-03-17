@@ -24,6 +24,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -38,6 +39,15 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
 	"github.com/mitchfultz/ai-control-plane/internal/logging"
 )
+
+type releaseMetadata struct {
+	SchemaVersion string   `json:"schema_version"`
+	Product       string   `json:"product"`
+	Version       string   `json:"version"`
+	BundleName    string   `json:"bundle_name"`
+	PayloadRoot   string   `json:"payload_root"`
+	Canonical     []string `json:"canonical_files"`
+}
 
 // Builder handles bundle construction.
 type Builder struct {
@@ -95,6 +105,25 @@ func (b *Builder) Build(ctx context.Context, plan *Plan) error {
 	sha256sumsPath := filepath.Join(stageDir, "sha256sums.txt")
 	if err := b.buildChecksums(payloadDir, sha256sumsPath); err != nil {
 		return fmt.Errorf("failed to build checksums: %w", err)
+	}
+
+	releaseMetadataPath := filepath.Join(stageDir, "release-metadata.json")
+	metadata := releaseMetadata{
+		SchemaVersion: "1",
+		Product:       "ai-control-plane",
+		Version:       plan.Version,
+		BundleName:    GetBundleName(plan.Version),
+		PayloadRoot:   "payload",
+		Canonical:     append([]string(nil), CanonicalPaths...),
+	}
+	sort.Strings(metadata.Canonical)
+	metadataBytes, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal release metadata: %w", err)
+	}
+	metadataBytes = append(metadataBytes, '\n')
+	if err := fsutil.AtomicWritePrivateFile(releaseMetadataPath, metadataBytes); err != nil {
+		return fmt.Errorf("failed to create release metadata: %w", err)
 	}
 
 	if err := b.createReproducibleTarball(stageDir, plan.BundlePath); err != nil {
@@ -173,6 +202,7 @@ func (b *Builder) createReproducibleTarball(stageDir string, outputPath string) 
 
 	files := []string{
 		"install-manifest.txt",
+		"release-metadata.json",
 		"sha256sums.txt",
 	}
 

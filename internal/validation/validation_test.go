@@ -256,8 +256,10 @@ func writeValidDeploymentSurfaceRepo(t *testing.T, repoRoot string) {
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.production.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "otel-collector", "config.yaml"), "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:4317\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "caddy", "Caddyfile.prod"), canonicalProductionCaddyFixture())
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "inventory", "hosts.example.yml"), "all:\n  vars:\n    acp_runtime_overlays: [tls, ui]\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "playbooks", "gateway_host.yml"), "hosts: all\ntasks:\n  - debug:\n      msg: ok\n")
 	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "images", "litellm-hardened", "Dockerfile"), "FROM scratch\n")
+	writeValidConfigContractRepo(t, repoRoot)
 }
 
 func canonicalProductionComposeFixture() string {
@@ -312,4 +314,15 @@ func validProductionSecretsEnv() string {
 		"LITELLM_PUBLIC_URL=https://gateway.example.com\n" +
 		"LITELLM_SALT_KEY=prod-salt-token-abcdefghijklmnopqrstuvwxyz1234567890\n" +
 		"OTEL_INGEST_AUTH_TOKEN=otel-ingest-auth-token-abcdefghijklmnopqrstuvwxyz\n"
+}
+
+func writeValidConfigContractRepo(t *testing.T, repoRoot string) {
+	t.Helper()
+	writeFixtureFile(t, filepath.Join(repoRoot, "docs", "contracts", "config", "contract.yaml"), "version: 1\nschemas:\n  - id: litellm\n    path: demo/config/litellm.yaml\n    schema: docs/contracts/config/litellm.schema.json\n  - id: roles\n    path: demo/config/roles.yaml\n    schema: docs/contracts/config/roles.schema.json\n  - id: demo-presets\n    path: demo/config/demo_presets.yaml\n    schema: docs/contracts/config/demo_presets.schema.json\nnaming:\n  model_alias_pattern: '^[a-z0-9]+(?:[-.][a-z0-9]+)*$'\n  role_name_pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'\n  preset_name_pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'\nruntime:\n  allowed_overlays:\n    - tls\n    - ui\n    - dlp\n    - offline\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "docs", "contracts", "config", "litellm.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "docs", "contracts", "config", "roles.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "docs", "contracts", "config", "demo_presets.schema.json"), `{"type":"object"}`)
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "litellm.yaml"), "model_list:\n  - model_name: openai-gpt5.2\n    litellm_params:\n      model: openai/gpt-5.2\n      api_key: os.environ/OPENAI_API_KEY\ngeneral_settings:\n  database_url: os.environ/DATABASE_URL\nlitellm_settings:\n  master_key: os.environ/LITELLM_MASTER_KEY\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "roles.yaml"), "roles:\n  developer:\n    description: Developer\n    model_access: [openai-gpt5.2]\n    budget_ceiling: 25\n    can_approve: false\n    can_assign_roles: false\n    can_create_keys: true\n    read_only: false\n    approval_authority: null\ndefault_role: developer\nmodel_tiers:\n  standard: [openai-gpt5.2]\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "demo_presets.yaml"), "presets:\n  demo-default:\n    name: Demo Default\n    description: Default demo preset\n    timeout_minutes: 5\n    scenarios: [1]\n    stop_on_fail: true\n    intro_message: hello\nsettings:\n  default_timeout_minutes: 5\n  scenario_delay_seconds: 0\n  colors_enabled: true\n")
 }

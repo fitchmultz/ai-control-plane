@@ -106,7 +106,7 @@ services:
       # Signal that we're behind a reverse proxy
       - LITELLM_BEHIND_PROXY=true
       # Set the public URL (clients will connect to Caddy)
-      - LITELLM_PUBLIC_URL=${LITELLM_PUBLIC_URL:-https://localhost}
+      - LITELLM_PUBLIC_URL=${LITELLM_PUBLIC_URL:-https://127.0.0.1}
     # Note: In split-host mode (ACP_DATABASE_MODE=external), the postgres
     # service is not started. LiteLLM connects to external DB via DATABASE_URL.
 

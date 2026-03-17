@@ -28,15 +28,15 @@ func TestValidateVersion(t *testing.T) {
 		version string
 		wantErr bool
 	}{
-		{"valid semver", "v1.0.0", false},
-		{"valid git sha", "abc1234", false},
-		{"valid with dots", "2026.02.23", false},
-		{"valid with underscore", "v1_0_0", false},
-		{"valid with hyphen", "v1-0-0", false},
+		{"valid semver", "1.0.0", false},
+		{"valid prerelease", "1.0.0-rc.1", false},
+		{"valid build metadata", "1.0.0+build.1", false},
+		{"valid dev fallback", "dev", false},
 		{"empty version", "", true},
-		{"with slash", "v1/0", true},
-		{"with space", "v1 0", true},
-		{"with backslash", "v1\\0", true},
+		{"with prefix", "v1.0.0", true},
+		{"with slash", "1/0", true},
+		{"with space", "1 0", true},
+		{"with backslash", "1\\0", true},
 	}
 
 	for _, tt := range tests {
@@ -76,10 +76,10 @@ func TestParseArgs(t *testing.T) {
 		},
 		{
 			name:    "with version",
-			args:    []string{"build", "--version", "v1.0.0"},
+			args:    []string{"build", "--version", "1.0.0"},
 			wantErr: false,
 			checkFunc: func(c *Config) bool {
-				return c.Version == "v1.0.0"
+				return c.Version == "1.0.0"
 			},
 		},
 		{
@@ -141,7 +141,7 @@ func TestParseArgs(t *testing.T) {
 
 func TestCreatePlan(t *testing.T) {
 	config := &Config{
-		Version:   "v1.0.0",
+		Version:   "1.0.0",
 		OutputDir: "bundles",
 	}
 
@@ -150,15 +150,15 @@ func TestCreatePlan(t *testing.T) {
 		t.Fatalf("CreatePlan() error = %v", err)
 	}
 
-	if plan.Version != "v1.0.0" {
-		t.Errorf("plan.Version = %q, want %q", plan.Version, "v1.0.0")
+	if plan.Version != "1.0.0" {
+		t.Errorf("plan.Version = %q, want %q", plan.Version, "1.0.0")
 	}
 
 	if plan.RepoRoot != "/repo" {
 		t.Errorf("plan.RepoRoot = %q, want %q", plan.RepoRoot, "/repo")
 	}
 
-	expectedBundle := filepath.Join("/repo", "bundles", "ai-control-plane-deploy-v1.0.0.tar.gz")
+	expectedBundle := filepath.Join("/repo", "bundles", "ai-control-plane-deploy-1.0.0.tar.gz")
 	if plan.BundlePath != expectedBundle {
 		t.Errorf("plan.BundlePath = %q, want %q", plan.BundlePath, expectedBundle)
 	}
@@ -217,8 +217,8 @@ func TestValidateSourceFiles_Missing(t *testing.T) {
 }
 
 func TestGetBundleName(t *testing.T) {
-	name := GetBundleName("v1.0.0")
-	expected := "ai-control-plane-deploy-v1.0.0.tar.gz"
+	name := GetBundleName("1.0.0")
+	expected := "ai-control-plane-deploy-1.0.0.tar.gz"
 	if name != expected {
 		t.Errorf("GetBundleName() = %q, want %q", name, expected)
 	}
@@ -274,17 +274,21 @@ func TestHumanReadableSize(t *testing.T) {
 }
 
 func TestGetDefaultVersion(t *testing.T) {
-	// Create temp directory without git
 	tmpDir, err := os.MkdirTemp("", "version-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Without git, should return "dev"
-	version := GetDefaultVersion(tmpDir)
-	if version != "dev" {
-		t.Errorf("GetDefaultVersion() without git = %q, want 'dev'", version)
+	if version := GetDefaultVersion(tmpDir); version != "dev" {
+		t.Errorf("GetDefaultVersion() without VERSION = %q, want 'dev'", version)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "VERSION"), []byte("0.1.0\n"), 0o644); err != nil {
+		t.Fatalf("write VERSION: %v", err)
+	}
+	if version := GetDefaultVersion(tmpDir); version != "0.1.0" {
+		t.Errorf("GetDefaultVersion() with VERSION = %q, want '0.1.0'", version)
 	}
 }
 
@@ -310,7 +314,7 @@ func TestBuilder_Build(t *testing.T) {
 	defer func() { CanonicalPaths = originalPaths }()
 
 	plan := &Plan{
-		Version:    "v1.0.0",
+		Version:    "1.0.0",
 		RepoRoot:   tmpDir,
 		OutputDir:  filepath.Join(tmpDir, "output"),
 		BundlePath: filepath.Join(tmpDir, "output", "test.tar.gz"),
@@ -357,7 +361,7 @@ func TestVerifier_Verify(t *testing.T) {
 
 	// Build a bundle first
 	plan := &Plan{
-		Version:    "v1.0.0",
+		Version:    "1.0.0",
 		RepoRoot:   tmpDir,
 		OutputDir:  filepath.Join(tmpDir, "output"),
 		BundlePath: filepath.Join(tmpDir, "output", "test.tar.gz"),

@@ -4,7 +4,7 @@
 //   - Verify bundle helper edge cases that the main happy-path tests do not hit.
 //
 // Responsibilities:
-//   - Cover detached-HEAD default version detection.
+//   - Cover VERSION fallback handling.
 //   - Verify checksum parsing failures and payload mismatches.
 //   - Lock down safeJoinWithin path rejection rules.
 //
@@ -28,17 +28,11 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/testutil"
 )
 
-func TestGetDefaultVersion_CoversDetachedHeadAndShortSHAFallback(t *testing.T) {
+func TestGetDefaultVersion_BlankVersionFallsBackToDev(t *testing.T) {
 	repoRoot := t.TempDir()
-	testutil.WriteFile(t, filepath.Join(repoRoot, ".git", "HEAD"), "abcdef1234567890\n")
-	if got := GetDefaultVersion(repoRoot); got != "abcdef1" {
-		t.Fatalf("GetDefaultVersion detached HEAD = %q", got)
-	}
-
-	shortRepo := t.TempDir()
-	testutil.WriteFile(t, filepath.Join(shortRepo, ".git", "HEAD"), "abc\n")
-	if got := GetDefaultVersion(shortRepo); got != "dev" {
-		t.Fatalf("GetDefaultVersion short SHA = %q", got)
+	testutil.WriteFile(t, filepath.Join(repoRoot, "VERSION"), "  \n")
+	if got := GetDefaultVersion(repoRoot); got != "dev" {
+		t.Fatalf("GetDefaultVersion blank VERSION = %q", got)
 	}
 }
 
@@ -87,7 +81,7 @@ func TestVerifierVerify_ReportsPayloadChecksumFailure(t *testing.T) {
 
 	outputDir := filepath.Join(repoRoot, "output")
 	plan := &Plan{
-		Version:    "v1.0.0",
+		Version:    "1.0.0",
 		RepoRoot:   repoRoot,
 		OutputDir:  outputDir,
 		BundlePath: filepath.Join(outputDir, "bundle.tar.gz"),

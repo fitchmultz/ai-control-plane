@@ -107,7 +107,7 @@ make health      # Verify services
 - **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/readiness/plan.go` materializes it
 - **Artifact-run ownership:** `internal/artifactrun` owns generated readiness and closeout run lifecycle, inventories, latest pointers, and run-directory verification; avoid bespoke run-dir lifecycle code elsewhere
 - **Release artifact domains:** `internal/bundle` owns release tarball planning/build/verify, `internal/readiness` owns readiness evidence workflows, and `internal/closeout` owns pilot closeout bundle assembly
-- **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; `scripts/libexec/onboard_impl.sh` is a compatibility shim only
+- **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; do not add onboarding shell bridges or parallel non-typed flows
 - **User config safety:** home-directory tool config writes must be ACP-managed, atomic, private (`0600` files / `0700` dirs), and conflict-aware; never overwrite unmanaged user config or emit world-readable backups
 - **Local-only artifact privacy:** generated local-only outputs under `demo/backups/` and `demo/logs/` should default to private modes (`0600` files / `0700` dirs); use `internal/fsutil` private helpers and keep `internal/artifactrun` outputs private unless a broader mode is explicitly justified
 - **Make/env contract:** never globally include/export `demo/.env` from Make; pass Compose env files explicitly with `--env-file`, and let typed Go config load repo-local env data when non-Compose commands need it

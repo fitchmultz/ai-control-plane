@@ -48,7 +48,7 @@ func readinessEvidenceCommandSpec() *commandSpec {
 				Description: "Generate a new readiness evidence run.",
 				Options: []commandOptionSpec{
 					{Name: "output-dir", ValueName: "DIR", Summary: "Output root for readiness runs", Type: optionValueString, DefaultText: "demo/logs/evidence"},
-					{Name: "bundle-version", ValueName: "VALUE", Summary: "Bundle version for release-bundle commands", Type: optionValueString, DefaultText: "git short SHA"},
+					{Name: "bundle-version", ValueName: "VALUE", Summary: "Bundle version for release-bundle commands", Type: optionValueString, DefaultText: "VERSION file"},
 					{Name: "include-production", Summary: "Attempt the production-like gate if secrets are available", Type: optionValueBool},
 					{Name: "secrets-env-file", ValueName: "PATH", Summary: "Secrets file for production gate", Type: optionValueString, DefaultText: "/etc/ai-control-plane/secrets.env"},
 					{Name: "verbose", Summary: "Reserved for future verbose rendering", Type: optionValueBool},

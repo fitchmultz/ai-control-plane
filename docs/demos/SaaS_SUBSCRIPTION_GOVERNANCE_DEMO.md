@@ -123,7 +123,7 @@ Claude Code supports routing through the gateway even in subscription mode, givi
 
 ```bash
 # Onboard Claude Code in subscription mode
-make onboard TOOL=claude MODE=subscription VERIFY=1
+./scripts/acpctl.sh onboard claude
 ```
 
 This will:
@@ -134,7 +134,8 @@ This will:
 **Key configuration output:**
 ```bash
 # Set these environment variables:
-export ANTHROPIC_BASE_URL=http://127.0.0.1:4000
+export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:4000}"
+export ANTHROPIC_BASE_URL="$GATEWAY_URL"
 export ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-litellm-..."
 # Then select subscription login in Claude Code
 ```
@@ -160,13 +161,14 @@ Codex CLI can also route through the gateway using LiteLLM's ChatGPT provider su
 make chatgpt-login
 
 # Onboard Codex in subscription-backed mode
-make onboard TOOL=codex MODE=subscription VERIFY=1
+make onboard-codex
 ```
 
 **Key configuration output:**
 ```bash
 # Set these environment variables:
-export OPENAI_BASE_URL=http://127.0.0.1:4000
+export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:4000}"
+export OPENAI_BASE_URL="$GATEWAY_URL"
 export OPENAI_API_KEY="sk-litellm-..."  # LiteLLM virtual key
 # Then select API key authentication in Codex
 ```
@@ -204,7 +206,7 @@ make up-production
 make otel-health
 
 # Onboard Codex in direct mode (no gateway routing)
-make onboard TOOL=codex MODE=direct VERIFY=1
+./scripts/acpctl.sh onboard codex
 ```
 
 **Key configuration output:**

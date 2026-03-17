@@ -10,13 +10,55 @@
 - `deploy` is restricted to typed artifact workflows only: release bundle, readiness evidence, pilot closeout, and artifact retention.
 - Incubating deployment tracks are not part of the public `acpctl` surface.
 
+## Gateway operator contract
+
+Use one gateway variable everywhere in operator shells:
+
+```bash
+export GATEWAY_URL="${GATEWAY_URL:-http://${GATEWAY_HOST:-127.0.0.1}:${LITELLM_PORT:-4000}}"
+MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
+```
+
+Resolution order:
+1. `ACP_GATEWAY_URL` or `GATEWAY_URL`
+2. `GATEWAY_HOST` + `LITELLM_PORT` + `ACP_GATEWAY_SCHEME`/`ACP_GATEWAY_TLS`
+3. `http://127.0.0.1:4000`
+
+For remote TLS on standard 443, prefer setting `GATEWAY_URL=https://gateway.example.com` directly.
+
+## Guided onboarding
+
+Use the guided wizard for supported local tools:
+
+```bash
+make onboard
+```
+
+You can optionally preselect a tool and skip the first prompt:
+
+```bash
+make onboard-codex
+make onboard-claude
+make onboard-opencode
+make onboard-cursor
+```
+
+Or use the typed entrypoint directly:
+
+```bash
+./scripts/acpctl.sh onboard
+./scripts/acpctl.sh onboard codex
+```
+
+Legacy onboarding flags such as `--mode`, `--verify`, `--write-config`, and `--show-key` were removed. The wizard now asks for tool, mode, gateway address, verification, and any tool-specific setup choices interactively. It also lints the emitted env/config contract, validates ACP-managed writes, and when verification is enabled, checks reachability and authorized model access before reporting `Onboarding complete.`
+
 ## References
 
 - [ACPCTL Reference](../reference/acpctl.md)
 - [Support](../SUPPORT.md)
 - [Deployment](../DEPLOYMENT.md)
 
-### Generating Completion Scripts
+## Generating Completion Scripts
 
 Use the `make completions` target to regenerate completion scripts:
 
@@ -29,9 +71,9 @@ This generates three files in `scripts/completions/`:
 - `acpctl.zsh` - Zsh completion script
 - `acpctl.fish` - Fish completion script
 
-### Installing Completions
+## Installing Completions
 
-#### Bash
+### Bash
 
 Source the completion script in your shell:
 
@@ -51,7 +93,7 @@ cp scripts/completions/acpctl.bash ~/.bash_completion.d/acpctl
 echo 'source ~/.bash_completion.d/acpctl' >> ~/.bashrc
 ```
 
-#### Zsh
+### Zsh
 
 Ensure completions are enabled and source the script:
 
@@ -73,7 +115,7 @@ Ensure `~/.zsh/completions` is in your `fpath` by adding to `~/.zshrc`:
 fpath=(~/.zsh/completions $fpath)
 ```
 
-#### Fish
+### Fish
 
 Copy the completion file to Fish's completions directory:
 
@@ -82,7 +124,7 @@ mkdir -p ~/.config/fish/completions
 cp scripts/completions/acpctl.fish ~/.config/fish/completions/acpctl.fish
 ```
 
-### Dynamic Completions
+## Dynamic Completions
 
 The completion system provides intelligent suggestions for:
 
@@ -94,7 +136,7 @@ The completion system provides intelligent suggestions for:
   - Config keys: `CONFIG_KEY=` (parsed from config YAML files)
   - Preset names: `PRESET=` (parsed from `demo/config/demo_presets.yaml`)
 
-### Testing Completions
+## Testing Completions
 
 Verify completions are working:
 
@@ -118,7 +160,7 @@ Verify completions are working:
 ./scripts/acpctl.sh __complete demo preset PRESET=
 ```
 
-### Completion Command Reference
+## Completion Command Reference
 
 Generate completion scripts programmatically:
 

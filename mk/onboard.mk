@@ -1,51 +1,38 @@
 # AI Control Plane - Tool Onboarding Targets
 #
-# Purpose: Provide one-command onboarding for local CLI/IDE tools
+# Purpose: Provide guided one-command onboarding entrypoints for supported local tools.
 # Responsibilities:
-#   - Invoke the native acpctl onboarding workflow
-#   - Offer Codex-focused shortcuts for subscription-first demos
-#   - Trigger ChatGPT OAuth device login for LiteLLM ChatGPT provider
+#   - Invoke the native acpctl onboarding wizard.
+#   - Offer tool-preselected shortcuts for the supported onboarding surface.
+#   - Trigger ChatGPT OAuth device login for LiteLLM ChatGPT provider.
 #
 # Non-scope:
-#   - Does not start/stop services
-#   - Does not manage upstream SaaS accounts
+#   - Does not start or stop services.
+#   - Does not manage upstream SaaS accounts.
 
 .PHONY: onboard
-onboard: ## Onboard a tool (TOOL=codex|claude|opencode|cursor|copilot)
-	@if [ -z "$(TOOL)" ]; then \
-		echo 'Usage: make onboard TOOL=<tool> [MODE=<mode>] [VERIFY=1] [HOST=<host>] [TLS=1]'; \
-		echo 'Try: make onboard-help'; \
-		exit 64; \
-	fi
-	@$(ACPCTL_BIN) onboard "$(TOOL)" \
-		$(if $(MODE),--mode "$(MODE)",) \
-		$(if $(ALIAS),--alias "$(ALIAS)",) \
-		$(if $(BUDGET),--budget "$(BUDGET)",) \
-		$(if $(MODEL),--model "$(MODEL)",) \
-		$(if $(HOST),--host "$(HOST)",) \
-		$(if $(PORT),--port "$(PORT)",) \
-		$(if $(filter 1 true TRUE yes YES,$(TLS)),--tls,) \
-		$(if $(filter 1 true TRUE yes YES,$(VERIFY)),--verify,) \
-		$(if $(filter 1 true TRUE yes YES,$(WRITE_CONFIG)),--write-config,) \
-		$(if $(filter 1 true TRUE yes YES,$(SHOW_KEY)),--show-key,)
+onboard: ## Launch the guided onboarding wizard
+	@$(ACPCTL_BIN) onboard
 
 .PHONY: onboard-help
-onboard-help: ## Show onboarding script help
+onboard-help: ## Show onboarding wizard help
 	@$(ACPCTL_BIN) onboard --help
 
 .PHONY: onboard-codex
-onboard-codex: ## Codex onboarding shortcut (default MODE=subscription)
-	@$(ACPCTL_BIN) onboard codex \
-		--mode "$(or $(MODE),subscription)" \
-		$(if $(ALIAS),--alias "$(ALIAS)",) \
-		$(if $(BUDGET),--budget "$(BUDGET)",) \
-		$(if $(MODEL),--model "$(MODEL)",) \
-		$(if $(HOST),--host "$(HOST)",) \
-		$(if $(PORT),--port "$(PORT)",) \
-		$(if $(filter 1 true TRUE yes YES,$(TLS)),--tls,) \
-		$(if $(filter 1 true TRUE yes YES,$(VERIFY)),--verify,) \
-		$(if $(filter 1 true TRUE yes YES,$(WRITE_CONFIG)),--write-config,) \
-		$(if $(filter 1 true TRUE yes YES,$(SHOW_KEY)),--show-key,)
+onboard-codex: ## Launch the onboarding wizard with Codex preselected
+	@$(ACPCTL_BIN) onboard codex
+
+.PHONY: onboard-claude
+onboard-claude: ## Launch the onboarding wizard with Claude Code preselected
+	@$(ACPCTL_BIN) onboard claude
+
+.PHONY: onboard-opencode
+onboard-opencode: ## Launch the onboarding wizard with OpenCode preselected
+	@$(ACPCTL_BIN) onboard opencode
+
+.PHONY: onboard-cursor
+onboard-cursor: ## Launch the onboarding wizard with Cursor preselected
+	@$(ACPCTL_BIN) onboard cursor
 
 .PHONY: chatgpt-login
 chatgpt-login: ## Trigger ChatGPT OAuth device login for LiteLLM provider
@@ -62,10 +49,7 @@ chatgpt-auth-copy: ## Copy local Codex auth cache into running LiteLLM container
 		$(if $(CONTAINER),--container "$(CONTAINER)",)
 
 .PHONY: test-onboard
-test-onboard: ## Run onboarding script checks
-	@if [ -x scripts/tests/onboard_test.sh ]; then \
-		bash scripts/tests/onboard_test.sh; \
-	else \
-		echo 'scripts/tests/onboard_test.sh not present or not executable'; \
-		exit 2; \
-	fi
+test-onboard: ## Run onboarding shell contract checks
+	@bash scripts/tests/onboard_help_contract_test.sh
+	@bash scripts/tests/onboard_export_contract_test.sh
+	@bash scripts/tests/onboard_verify_mode_test.sh

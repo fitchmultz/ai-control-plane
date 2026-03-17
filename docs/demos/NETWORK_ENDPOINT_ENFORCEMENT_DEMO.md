@@ -345,7 +345,7 @@ make demo-scenario SCENARIO=7
 === Scenario 7: Network and Endpoint Enforcement ===
 
 Environment
-  Gateway: http://127.0.0.1:4000
+  Gateway: ${GATEWAY_URL:-http://127.0.0.1:4000}
   Database: postgres:5432 (internal; not published to host by default)
   Deployment: Local Mode
 
@@ -494,7 +494,7 @@ echo "ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-not set}"
 
 # Demonstrate what bypass looks like
 echo "Bypass attempt would use: https://api.openai.com/v1/chat/completions"
-echo "Approved path uses: ${OPENAI_BASE_URL:-http://127.0.0.1:4000}/v1/chat/completions"
+echo "Approved path uses: ${OPENAI_BASE_URL:-${GATEWAY_URL:-http://127.0.0.1:4000}}/v1/chat/completions"
 ```
 
 ---

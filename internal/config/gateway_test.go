@@ -43,18 +43,31 @@ func TestRequiredPorts(t *testing.T) {
 	}
 }
 
-func TestLoaderGatewayUsesExplicitURL(t *testing.T) {
-	loader := NewTestLoader(map[string]string{
-		"ACP_GATEWAY_URL":    "https://gateway.example.com",
-		"LITELLM_MASTER_KEY": "master-key",
-	}, "/repo", nil)
-
-	settings := loader.Gateway(false)
+func TestResolveGatewaySettingsUsesExplicitURL(t *testing.T) {
+	settings := ResolveGatewaySettings(GatewayResolveInput{
+		URL:       "https://gateway.example.com",
+		MasterKey: " master-key ",
+	})
 	if settings.Scheme != "https" || settings.Host != "gateway.example.com" || settings.PortInt != 443 {
 		t.Fatalf("unexpected gateway settings: %+v", settings)
 	}
 	if settings.BaseURL != "https://gateway.example.com" || !settings.TLSEnabled || settings.MasterKey != "master-key" {
 		t.Fatalf("unexpected gateway settings: %+v", settings)
+	}
+}
+
+func TestResolveGatewaySettingsFallsBackWhenExplicitURLIsInvalid(t *testing.T) {
+	settings := ResolveGatewaySettings(GatewayResolveInput{
+		URL:  "not-a-url",
+		Host: "gateway.internal",
+		Port: "not-a-port",
+		TLS:  "true",
+	})
+	if settings.Scheme != "https" || settings.PortInt != DefaultLiteLLMPort || settings.Port != "4000" {
+		t.Fatalf("unexpected gateway fallback settings: %+v", settings)
+	}
+	if settings.BaseURL != "https://gateway.internal:4000" {
+		t.Fatalf("unexpected gateway fallback settings: %+v", settings)
 	}
 }
 
@@ -96,6 +109,17 @@ func TestLoaderGatewayUsesRepoFallbackForHostAndPort(t *testing.T) {
 	}
 	if settings.MasterKey != "repo-key" {
 		t.Fatalf("MasterKey = %q", settings.MasterKey)
+	}
+}
+
+func TestLoaderGatewayIgnoresLegacyGatewayScheme(t *testing.T) {
+	loader := NewTestLoader(map[string]string{
+		"GATEWAY_SCHEME": "https",
+	}, "/repo", nil)
+
+	settings := loader.Gateway(false)
+	if settings.Scheme != "http" {
+		t.Fatalf("expected legacy GATEWAY_SCHEME to be ignored, got %+v", settings)
 	}
 }
 

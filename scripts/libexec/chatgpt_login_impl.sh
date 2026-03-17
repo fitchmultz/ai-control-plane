@@ -149,7 +149,7 @@ print_device_prompt_from_logs() {
     printf '  make chatgpt-auth-copy\n'
     printf '\nAfter completing device login, run:\n'
     printf '  make health\n'
-    printf '  make onboard-codex VERIFY=1\n\n'
+    printf '  make onboard-codex\n\n'
     return 0
 }
 

@@ -46,7 +46,7 @@ func releaseBundleCommandSpec() *commandSpec {
 				Summary:     "Build a versioned deployment bundle",
 				Description: "Build a versioned deployment bundle with checksums and install manifest.",
 				Options: []commandOptionSpec{
-					{Name: "version", ValueName: "VERSION", Summary: "Version tag for the bundle", Type: optionValueString, DefaultText: "git short sha"},
+					{Name: "version", ValueName: "VERSION", Summary: "Version tag for the bundle", Type: optionValueString, DefaultText: "VERSION file"},
 					{Name: "output-dir", ValueName: "DIR", Summary: "Output directory for the bundle", Type: optionValueString, DefaultText: "demo/logs/release-bundles"},
 					{Name: "verbose", Summary: "Enable verbose output", Type: optionValueBool},
 				},

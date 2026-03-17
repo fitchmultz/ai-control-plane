@@ -389,7 +389,7 @@ Organizations adopt AI through **two channels** requiring different controls:
 **Commands:**
 
 ```bash
-make onboard TOOL=claude MODE=api-key VERIFY=1
+make onboard-claude
 make demo-scenario SCENARIO=1
 make validate-detections && make release-bundle && make release-bundle-verify
 ```

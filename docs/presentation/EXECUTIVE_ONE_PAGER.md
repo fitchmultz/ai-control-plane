@@ -105,7 +105,7 @@ Latest published full certification snapshot: readiness run `readiness-20260219T
 **Demonstrable Proof Points:**
 
 ```bash
-make onboard TOOL=claude MODE=api-key VERIFY=1
+make onboard-claude
 make demo-scenario SCENARIO=1
 make validate-detections && make release-bundle && make release-bundle-verify
 ```

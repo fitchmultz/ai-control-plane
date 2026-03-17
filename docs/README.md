@@ -1,13 +1,29 @@
 # Documentation Index
 
-This directory is organized around the supported host-first product surface first, then generated references and non-primary material.
+Start here based on your role.
 
-## Canonical Public Docs
+## I am an operator
 
-- [Support](SUPPORT.md)
-- [Architecture](technical-architecture.md)
 - [Operations And Deployment](DEPLOYMENT.md)
+- [Support](SUPPORT.md)
+- [Troubleshooting](troubleshooting/README.md)
+- [Examples](../examples/README.md)
+- [ACPCTL Reference](reference/acpctl.md)
+
+## I am a buyer / reviewer
+
+- [Root README](../README.md)
 - [Security And Governance](SECURITY_GOVERNANCE.md)
+- [Technical Architecture](technical-architecture.md)
+- [Support Matrix](reference/support-matrix.md)
+- [Roadmap](ROADMAP.md)
+
+## I am a contributor
+
+- [AGENTS.md](../AGENTS.md)
+- [CONTRIBUTING.md](../CONTRIBUTING.md)
+- [ADR Home](adr/README.md)
+- [Tooling docs](tooling/ACPCTL.md)
 
 ## Generated References
 
@@ -16,8 +32,8 @@ This directory is organized around the supported host-first product surface firs
 - [Detection Rules](reference/detections.md)
 - [Support Matrix](reference/support-matrix.md)
 
-## Notes
+## Maintenance Rules
 
-- The supported operator UX is `make` plus typed `acpctl` workflows.
-- The supported runtime is the host-first Docker baseline plus explicit overlays.
-- Material outside the canonical public docs should be treated as reference or internal context, not as the primary support contract.
+- Generated references and shell completions must stay in sync with the live typed command tree.
+- Run `make generate` after command or reference-surface changes.
+- Run `make validate-generated-docs` before merging docs-affecting command changes.

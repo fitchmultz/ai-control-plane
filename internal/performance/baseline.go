@@ -34,6 +34,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
 // BaselineOptions configures a baseline run.
@@ -187,7 +189,7 @@ enqueue:
 
 func normalizeOptions(opts BaselineOptions) (BaselineOptions, error) {
 	if strings.TrimSpace(opts.GatewayURL) == "" {
-		opts.GatewayURL = "http://127.0.0.1:4000"
+		opts.GatewayURL = config.ResolveGatewaySettings(config.GatewayResolveInput{}).BaseURL
 	}
 	if strings.TrimSpace(opts.MasterKey) == "" {
 		return BaselineOptions{}, fmt.Errorf("master key is required")

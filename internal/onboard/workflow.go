@@ -2,8 +2,9 @@
 //
 // Purpose:
 //
-//	Coordinate typed onboarding layers for parsing defaults, prerequisite
-//	loading, key generation, export rendering, verification, and config writes.
+//	Coordinate typed onboarding layers for prompting, defaults,
+//	prerequisite loading, key generation, export rendering, verification, and
+//	config writes.
 //
 // Responsibilities:
 //   - Keep the top-level workflow thin and ordered.
@@ -30,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
 	"github.com/mitchfultz/ai-control-plane/internal/keygen"
@@ -37,25 +39,28 @@ import (
 )
 
 type GatewayKeyGenerator struct {
-	MasterKey string
+	MasterKey  string
+	HTTPClient *http.Client
 }
 
 func Run(ctx context.Context, opts Options) Result {
 	opts = withDefaults(opts)
 	logger := logging.FromContext(ctx).With(slog.String("component", "onboard"))
-	if opts.Tool == "" || isHelpToken(opts.Tool) {
-		var help strings.Builder
-		printMainHelp(&help)
-		return Result{ExitCode: exitcodes.ACPExitSuccess, Stdout: help.String()}
+
+	var err error
+	if opts.Stdin != nil {
+		opts, err = promptForWizardOptions(opts)
+		if err != nil {
+			logger.Error("wizard.prompt_failed", logging.Err(err))
+			return Result{ExitCode: exitcodes.ACPExitUsage, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
+		}
 	}
-	logger = logger.With(slog.String("tool", opts.Tool))
-	logger.Info("workflow.start", slog.String("mode", opts.Mode))
-	if opts.Mode == "help" {
-		var help strings.Builder
-		printMainHelp(&help)
-		printToolHelp(&help, opts.Tool)
-		return Result{ExitCode: exitcodes.ACPExitSuccess, Stdout: help.String()}
+	if strings.TrimSpace(opts.Tool) == "" {
+		return Result{ExitCode: exitcodes.ACPExitUsage, Stderr: "ERROR: tool is required\n"}
 	}
+
+	logger = logger.With(slog.String("tool", opts.Tool), slog.String("mode", opts.Mode))
+	logger.Info("workflow.start")
 
 	resolved, err := resolveDefaults(opts)
 	if err != nil {
@@ -78,38 +83,57 @@ func Run(ctx context.Context, opts Options) Result {
 		return Result{ExitCode: exitcodes.ACPExitDomain, Stderr: fmt.Sprintf("WARN: %v\n", err)}
 	}
 
-	if err := verifyOnboarding(ctx, state); err != nil {
-		logger.Error("workflow.verify_failed", logging.Err(err))
-		return Result{ExitCode: exitcodes.ACPExitDomain, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
-	}
-	if err := maybeWriteCodexConfig(state); err != nil {
+	state.ToolConfig, err = maybeWriteCodexConfig(state)
+	if err != nil {
 		logger.Error("workflow.config_write_failed", logging.Err(err))
 		return Result{ExitCode: exitcodes.ACPExitRuntime, Stderr: fmt.Sprintf("ERROR: %v\n", err)}
 	}
 
-	logger.Info("workflow.complete", slog.String("mode", state.Options.Mode), slog.String("alias", state.GeneratedAlias))
-	return Result{ExitCode: exitcodes.ACPExitSuccess, Stdout: renderSummary(state) + "Onboarding complete.\n"}
+	state.Verification = verifyOnboarding(ctx, state)
+
+	var stdout strings.Builder
+	stdout.WriteString(renderSummary(state))
+	if state.Verification.HasFailures() {
+		logger.Warn("workflow.verification_failed", slog.Int("issues", len(state.Verification.Issues)))
+		stdout.WriteString("Onboarding incomplete.\n")
+		return Result{
+			ExitCode: exitcodes.ACPExitDomain,
+			Stdout:   stdout.String(),
+			Stderr:   "ERROR: onboarding verification failed; review the verification section above for remediation.\n",
+		}
+	}
+
+	stdout.WriteString(renderFullKeyReveal(state))
+	stdout.WriteString("Onboarding complete.\n")
+
+	logger.Info("workflow.complete", slog.String("alias", state.GeneratedAlias))
+	return Result{ExitCode: exitcodes.ACPExitSuccess, Stdout: stdout.String()}
 }
 
 func prepareRunState(ctx context.Context, opts Options, prereqs prerequisites) (runState, error) {
+	gatewaySettings := config.ResolveGatewaySettings(config.GatewayResolveInput{
+		Host: opts.Host,
+		Port: opts.Port,
+		TLS:  strconv.FormatBool(opts.UseTLS),
+	})
+
 	state := runState{
 		Options:        opts,
 		Prereqs:        prereqs,
-		BaseURL:        buildBaseURL(opts.Host, opts.Port, opts.UseTLS),
+		Gateway:        gatewaySettings,
 		GeneratedAlias: opts.Alias,
 	}
 	if opts.Mode == "direct" {
 		return state, nil
 	}
 	if opts.KeyGenerator == nil {
-		opts.KeyGenerator = GatewayKeyGenerator{MasterKey: prereqs.MasterKey}
+		opts.KeyGenerator = GatewayKeyGenerator{MasterKey: prereqs.MasterKey, HTTPClient: opts.HTTPClient}
 		state.Options = opts
 	}
 	generated, err := state.Options.KeyGenerator.Generate(ctx, KeyRequest{
-		Alias:  state.Options.Alias,
-		Budget: state.Options.Budget,
-		Host:   state.Options.Host,
-		Port:   state.Options.Port,
+		Alias:   state.Options.Alias,
+		Budget:  state.Options.Budget,
+		BaseURL: state.Gateway.BaseURL,
 	})
 	if err != nil {
 		return runState{}, err
@@ -130,17 +154,26 @@ func withDefaults(opts Options) Options {
 		opts.Now = func() time.Time { return time.Now() }
 	}
 	if opts.HTTPClient == nil {
-		opts.HTTPClient = &http.Client{Timeout: 5 * time.Second}
+		opts.HTTPClient = &http.Client{Timeout: config.DefaultHTTPTimeout}
+	}
+
+	loader := config.NewLoader()
+	includeRepoFallback := false
+	if strings.TrimSpace(opts.RepoRoot) != "" {
+		loader = loader.WithRepoRoot(opts.RepoRoot)
+		includeRepoFallback = true
+	}
+	gatewaySettings := loader.Gateway(includeRepoFallback)
+	if strings.TrimSpace(opts.Host) == "" {
+		opts.Host = gatewaySettings.Host
+	}
+	if strings.TrimSpace(opts.Port) == "" {
+		opts.Port = gatewaySettings.Port
+	}
+	if !opts.UseTLS && gatewaySettings.TLSEnabled {
+		opts.UseTLS = true
 	}
 	return opts
-}
-
-func buildBaseURL(host string, port string, useTLS bool) string {
-	scheme := "http"
-	if useTLS {
-		scheme = "https"
-	}
-	return fmt.Sprintf("%s://%s:%s", scheme, host, port)
 }
 
 func (g GatewayKeyGenerator) Generate(ctx context.Context, req KeyRequest) (GeneratedKey, error) {
@@ -148,14 +181,10 @@ func (g GatewayKeyGenerator) Generate(ctx context.Context, req KeyRequest) (Gene
 	if err != nil {
 		return GeneratedKey{}, fmt.Errorf("invalid budget: %s", req.Budget)
 	}
-	port, err := strconv.Atoi(req.Port)
-	if err != nil {
-		return GeneratedKey{}, fmt.Errorf("invalid port: %s", req.Port)
-	}
 	client := gateway.NewClient(
-		gateway.WithHost(req.Host),
-		gateway.WithPort(port),
+		gateway.WithBaseURL(req.BaseURL),
 		gateway.WithMasterKey(g.MasterKey),
+		gateway.WithHTTPClient(g.HTTPClient),
 	)
 	plan, err := keygen.PlanGenerateRequest(keygen.GenerateRequestConfig{
 		Alias:    req.Alias,

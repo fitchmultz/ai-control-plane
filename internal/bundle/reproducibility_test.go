@@ -63,7 +63,7 @@ func TestBuilderBuild_DeterministicTarball(t *testing.T) {
 	builder := NewBuilder(repoRoot, false)
 
 	plan1 := &Plan{
-		Version:    "v1.0.0",
+		Version:    "1.0.0",
 		RepoRoot:   repoRoot,
 		OutputDir:  outputDir,
 		BundlePath: filepath.Join(outputDir, "first.tar.gz"),
@@ -85,7 +85,7 @@ func TestBuilderBuild_DeterministicTarball(t *testing.T) {
 	}
 
 	plan2 := &Plan{
-		Version:    "v1.0.0",
+		Version:    "1.0.0",
 		RepoRoot:   repoRoot,
 		OutputDir:  outputDir,
 		BundlePath: filepath.Join(outputDir, "second.tar.gz"),
@@ -180,7 +180,7 @@ func TestBuilderBuild_InstallManifestSorted(t *testing.T) {
 
 	outputDir := filepath.Join(repoRoot, "output")
 	plan := &Plan{
-		Version:    "v1.0.0",
+		Version:    "1.0.0",
 		RepoRoot:   repoRoot,
 		OutputDir:  outputDir,
 		BundlePath: filepath.Join(outputDir, "bundle.tar.gz"),

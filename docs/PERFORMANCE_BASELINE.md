@@ -54,7 +54,7 @@ Direct CLI form:
 
 The default harness uses:
 
-- gateway URL: `http://127.0.0.1:4000`
+- gateway URL: resolved from `ACP_GATEWAY_URL` or `GATEWAY_URL`, then `GATEWAY_HOST` + `LITELLM_PORT` + `ACP_GATEWAY_SCHEME`/`ACP_GATEWAY_TLS`, then `http://127.0.0.1:4000`
 - model: `mock-gpt`
 - requests: `20`
 - concurrency: `2`

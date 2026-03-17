@@ -23,7 +23,6 @@ package bundle
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -85,51 +84,4 @@ func ParseArgs(args []string, repoRoot string, defaultVersionFn func(string) str
 	}
 
 	return config, nil
-}
-
-// ValidateVersion checks if version string is valid
-func ValidateVersion(version string) error {
-	if version == "" {
-		return fmt.Errorf("version cannot be empty")
-	}
-	for _, c := range version {
-		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-') {
-			return fmt.Errorf("version must match [A-Za-z0-9._-]+ (no path separators or spaces)")
-		}
-	}
-	return nil
-}
-
-// GetDefaultVersion returns default version from git or "dev"
-func GetDefaultVersion(repoRoot string) string {
-	gitDir := filepath.Join(repoRoot, ".git")
-	if _, err := os.Stat(gitDir); err != nil {
-		return "dev"
-	}
-
-	headFile := filepath.Join(gitDir, "HEAD")
-	data, err := os.ReadFile(headFile)
-	if err != nil {
-		return "dev"
-	}
-
-	ref := strings.TrimSpace(string(data))
-	if after, ok := strings.CutPrefix(ref, "ref: "); ok {
-		refPath := filepath.Join(gitDir, after)
-		data, err = os.ReadFile(refPath)
-		if err != nil {
-			return "dev"
-		}
-		sha := strings.TrimSpace(string(data))
-		if len(sha) >= 7 {
-			return sha[:7]
-		}
-	} else {
-		// Detached HEAD
-		sha := strings.TrimSpace(ref)
-		if len(sha) >= 7 {
-			return sha[:7]
-		}
-	}
-	return "dev"
 }

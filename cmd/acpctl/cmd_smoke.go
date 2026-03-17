@@ -51,15 +51,7 @@ func smokeCommandSpec() *commandSpec {
 			{Name: "verbose", Short: "v", Summary: "Enable detailed output", Type: optionValueBool},
 		},
 		Sections: []commandHelpSection{
-			{
-				Title: "Environment",
-				Lines: []string{
-					"GATEWAY_HOST",
-					"LITELLM_PORT",
-					"LITELLM_MASTER_KEY",
-					"ACP_DATABASE_MODE",
-				},
-			},
+			gatewayContractHelpSection(),
 		},
 		Bind: bindParsedValue(func(input parsedCommandInput) smokeOptions {
 			return smokeOptions{Verbose: input.Bool("verbose")}

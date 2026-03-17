@@ -1,11 +1,11 @@
 // cmd_onboard.go - Onboarding command implementation.
 //
 // Purpose:
-//   - Expose typed onboarding workflows for local tools and IDE integrations.
+//   - Expose the guided typed onboarding workflow for supported local tools.
 //
 // Responsibilities:
-//   - Define the typed onboarding command surface.
-//   - Bind typed CLI options into `internal/onboard.Options`.
+//   - Define the onboarding command surface.
+//   - Bind optional tool preselection into `internal/onboard.Options`.
 //   - Delegate execution to `internal/onboard`.
 //
 // Scope:
@@ -31,45 +31,33 @@ import (
 func onboardCommandSpec() *commandSpec {
 	return &commandSpec{
 		Name:        "onboard",
-		Summary:     "Configure local tools to route through the gateway",
-		Description: "Configure local tools to route through the gateway.",
+		Summary:     "Launch the guided onboarding wizard",
+		Description: "Interactive guided setup for supported local tools that route through the AI Control Plane gateway.",
 		Examples: []string{
-			"acpctl onboard codex --mode subscription --verify",
-			"acpctl onboard codex --mode direct --write-config",
-			"acpctl onboard --help",
+			"acpctl onboard",
+			"acpctl onboard codex",
+			"make onboard",
+			"make onboard-codex",
 		},
-		Arguments: []commandArgumentSpec{
-			{Name: "tool", Summary: "Tool to onboard"},
-		},
-		Options: []commandOptionSpec{
-			{Name: "mode", ValueName: "MODE", Summary: "Onboarding mode", Type: optionValueString},
-			{Name: "alias", ValueName: "ALIAS", Summary: "Generated key alias override", Type: optionValueString},
-			{Name: "budget", ValueName: "USD", Summary: "Budget override", Type: optionValueString, DefaultText: onboard.DefaultBudget},
-			{Name: "model", ValueName: "MODEL", Summary: "Model override", Type: optionValueString},
-			{Name: "host", ValueName: "HOST", Summary: "Gateway host override", Type: optionValueString, DefaultText: onboard.DefaultHost},
-			{Name: "port", ValueName: "PORT", Summary: "Gateway port override", Type: optionValueString, DefaultText: onboard.DefaultPort},
-			{Name: "tls", Summary: "Use TLS when constructing gateway URLs", Type: optionValueBool},
-			{Name: "verify", Summary: "Verify subscription or gateway readiness", Type: optionValueBool},
-			{Name: "write-config", Summary: "Write ACP-managed Codex configuration", Type: optionValueBool},
-			{Name: "show-key", Summary: "Display generated key material", Type: optionValueBool},
+		Arguments: []commandArgumentSpec{{Name: "tool", Summary: "Optional tool name to preselect in the wizard"}},
+		Sections: []commandHelpSection{
+			{
+				Title: "Supported tools",
+				Lines: []string{"codex", "claude", "opencode", "cursor"},
+			},
+			{
+				Title: "Notes",
+				Lines: []string{
+					"Run `acpctl onboard` for the full wizard.",
+					"Run `acpctl onboard codex` to skip only the tool-selection step.",
+					"Legacy onboarding flags were removed; answer the prompts instead.",
+				},
+			},
 		},
 		Backend: commandBackend{
 			Kind: commandBackendNative,
 			NativeBind: bindRepoParsed(func(bindCtx commandBindContext, input parsedCommandInput) (onboard.Options, error) {
-				return onboard.Options{
-					RepoRoot:    bindCtx.RepoRoot,
-					Tool:        input.NormalizedArgument(0),
-					Mode:        input.NormalizedString("mode"),
-					Alias:       input.NormalizedString("alias"),
-					Budget:      input.NormalizedString("budget"),
-					Model:       input.NormalizedString("model"),
-					Host:        input.NormalizedString("host"),
-					Port:        input.NormalizedString("port"),
-					UseTLS:      input.Bool("tls"),
-					Verify:      input.Bool("verify"),
-					WriteConfig: input.Bool("write-config"),
-					ShowKey:     input.Bool("show-key"),
-				}, nil
+				return onboard.Options{RepoRoot: bindCtx.RepoRoot, Tool: input.NormalizedArgument(0)}, nil
 			}),
 			NativeRun: runOnboard,
 		},
@@ -78,7 +66,11 @@ func onboardCommandSpec() *commandSpec {
 
 func runOnboard(ctx context.Context, runCtx commandRunContext, raw any) int {
 	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "onboard")))
-	result := onboard.Run(ctx, raw.(onboard.Options))
+	opts := raw.(onboard.Options)
+	opts.Stdin = os.Stdin
+	opts.Stdout = runCtx.Stdout
+	opts.Stderr = runCtx.Stderr
+	result := onboard.Run(ctx, opts)
 	onboard.WriteHuman(runCtx.Stdout, runCtx.Stderr, result)
 	return result.ExitCode
 }

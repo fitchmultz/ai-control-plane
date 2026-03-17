@@ -46,12 +46,17 @@ func ValidateDeploymentConfig(repoRoot string, opts ConfigValidationOptions) ([]
 		profile = ConfigValidationProfileDemo
 	}
 
+	contractIssues, err := ValidateConfigContract(repoRoot)
+	if err != nil {
+		return nil, err
+	}
 	issues, err := ValidateDeploymentSurfaces(repoRoot)
 	if err != nil {
 		return nil, err
 	}
 	if profile != ConfigValidationProfileProduction {
-		acc := NewIssues(len(issues))
+		acc := NewIssues(len(contractIssues) + len(issues))
+		acc.Extend(contractIssues)
 		acc.Extend(issues)
 		return acc.Sorted(), nil
 	}
@@ -60,7 +65,8 @@ func ValidateDeploymentConfig(repoRoot string, opts ConfigValidationOptions) ([]
 	if err != nil {
 		return nil, err
 	}
-	acc := NewIssues(len(issues) + len(productionIssues))
+	acc := NewIssues(len(contractIssues) + len(issues) + len(productionIssues))
+	acc.Extend(contractIssues)
 	acc.Extend(issues)
 	acc.Extend(productionIssues)
 	return acc.Sorted(), nil

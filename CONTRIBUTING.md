@@ -9,6 +9,10 @@ make install
 make ci
 ```
 
+## Planning
+
+The canonical execution-ordered backlog lives in [docs/ROADMAP.md](docs/ROADMAP.md). Do not maintain competing roadmap sections in other documents; link to the roadmap instead. When work ships, remove it from the roadmap and capture the outcome in release notes or changelog entries.
+
 ## Local Development Workflow
 
 1. Create a focused branch from `main`

@@ -43,6 +43,6 @@ logs-offline: ## Tail offline mode logs
 .PHONY: health-offline
 health-offline: ## Run offline mode health checks
 	@echo '$(COLOR_BOLD)Running offline health checks...$(COLOR_RESET)'
-	@GATEWAY_HOST=localhost LITELLM_PORT=$(LITELLM_PORT) $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
+	@GATEWAY_HOST=127.0.0.1 LITELLM_PORT=$(LITELLM_PORT) $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
 		&& echo '$(COLOR_GREEN)✓ Offline health checks passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Offline health checks failed$(COLOR_RESET)'; exit 1; }

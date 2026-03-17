@@ -133,14 +133,15 @@ Generate shell completion scripts.
 
 ### `onboard`
 
-Configure local tools to route through the gateway.
+Launch the guided onboarding wizard.
 
 Examples:
 
 ```bash
-./scripts/acpctl.sh onboard codex --mode subscription --verify
-./scripts/acpctl.sh onboard codex --mode direct --write-config
-./scripts/acpctl.sh onboard --help
+./scripts/acpctl.sh onboard
+./scripts/acpctl.sh onboard codex
+make onboard
+make onboard-codex
 ```
 
 ### `deploy`

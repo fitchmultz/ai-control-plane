@@ -10,6 +10,13 @@ This directory contains presentation materials for leadership/internal and custo
 >
 > Generated PDF and PNG exports are local build artifacts and are **not committed**.
 
+## Asset Policy
+
+- Markdown, HTML, and other editable source materials in this directory are tracked.
+- Generated PDF and PNG exports remain local-only artifacts.
+- `slides-external/` may contain tracked guidance, but generated slide images are not committed.
+- Customer-facing and internal source decks stay distinct so the public repository does not blur support and audience boundaries.
+
 ---
 
 ## Materials Overview

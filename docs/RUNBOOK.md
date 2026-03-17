@@ -600,6 +600,28 @@ See also: [docs/DATABASE.md](DATABASE.md) section 7
 
 ---
 
+## Gateway operator contract
+
+Use one gateway variable everywhere:
+
+```bash
+export GATEWAY_URL="${GATEWAY_URL:-http://${GATEWAY_HOST:-127.0.0.1}:${LITELLM_PORT:-4000}}"
+MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
+```
+
+Resolution order:
+1. `ACP_GATEWAY_URL` or `GATEWAY_URL`
+2. `GATEWAY_HOST` + `LITELLM_PORT` + `ACP_GATEWAY_SCHEME`/`ACP_GATEWAY_TLS`
+3. `http://127.0.0.1:4000`
+
+For remote TLS on standard 443, prefer:
+
+```bash
+export GATEWAY_URL="https://gateway.example.com"
+```
+
+Never `source demo/.env` and never `grep` secrets from it.
+
 ## Key Management
 
 ### 6.1 Generating Virtual Keys
@@ -627,7 +649,7 @@ make key-revoke ALIAS=<alias>
 **Required environment:**
 
 ```bash
-# Read LITELLM_MASTER_KEY as data only (never source or grep demo/.env)
+export GATEWAY_URL="${GATEWAY_URL:-http://${GATEWAY_HOST:-127.0.0.1}:${LITELLM_PORT:-4000}}"
 export LITELLM_MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
 ```
 
@@ -638,7 +660,7 @@ export LITELLM_MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
 **Creating Keys with Expiry:**
 ```bash
 # Generate key that expires in 30 days
-curl -s -X POST "http://127.0.0.1:4000/key/generate" \
+curl -s -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/generate" \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -654,7 +676,7 @@ curl -s -X POST "http://127.0.0.1:4000/key/generate" \
 make db-status
 
 # Revoke via LiteLLM API
-curl -s -X POST "http://127.0.0.1:4000/key/delete" \
+curl -s -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/delete" \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key_alias": "key-to-revoke"}'
@@ -713,7 +735,7 @@ docker compose -f demo/docker-compose.yml ps
 
 **LiteLLM Health Endpoint:**
 ```bash
-curl http://127.0.0.1:4000/health
+curl "${GATEWAY_URL:-http://127.0.0.1:4000}/health"
 ```
 
 **PostgreSQL Connectivity:**
@@ -922,7 +944,7 @@ make validate-detections
 
 3. **Revoke Compromised Keys:**
    ```bash
-   curl -X POST "http://127.0.0.1:4000/key/delete" \
+   curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/delete" \
      -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
      -H "Content-Type: application/json" \
      -d '{"key_alias": "compromised-key"}'

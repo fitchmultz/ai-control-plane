@@ -98,7 +98,7 @@
     }
 
     # Redirect all HTTP traffic to HTTPS
-    redir https://localhost{uri} permanent
+    redir https://127.0.0.1{uri} permanent
 
     # Health check for HTTP (useful for container health checks)
     handle /health {

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-control-plane.local/contracts/config/litellm.schema.json",
+  "type": "object",
+  "required": ["model_list", "general_settings", "litellm_settings"],
+  "properties": {
+    "model_list": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["model_name", "litellm_params"],
+        "properties": {
+          "model_name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:[-.][a-z0-9]+)*$"
+          },
+          "litellm_params": {
+            "type": "object",
+            "required": ["model", "api_key"],
+            "properties": {
+              "model": { "type": "string", "minLength": 1 },
+              "api_key": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": true
+          },
+          "rpm": { "type": "integer", "minimum": 1 },
+          "tpm": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "general_settings": {
+      "type": "object",
+      "required": ["database_url"],
+      "properties": {
+        "database_url": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "litellm_settings": {
+      "type": "object",
+      "required": ["master_key"],
+      "properties": {
+        "master_key": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

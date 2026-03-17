@@ -6,9 +6,9 @@
 //	workflow execution begins.
 //
 // Responsibilities:
-//   - Validate repo-root and demo/.env availability.
+//   - Validate repo-root and demo/.env availability when gateway auth is required.
 //   - Resolve required gateway secrets through internal/config.
-//   - Keep prereq lookups out of the coordinator.
+//   - Keep prerequisite lookups out of the coordinator.
 //
 // Scope:
 //   - Onboarding prerequisite resolution only.
@@ -18,7 +18,7 @@
 //
 // Invariants/Assumptions:
 //   - Process env remains the highest precedence source.
-//   - Missing master key is a prerequisite failure.
+//   - Direct mode skips gateway-key prerequisites.
 package onboard
 
 import (
@@ -31,6 +31,9 @@ import (
 )
 
 func loadPrerequisites(opts Options) (prerequisites, error) {
+	if opts.Mode == "direct" {
+		return prerequisites{}, nil
+	}
 	if strings.TrimSpace(opts.RepoRoot) == "" {
 		return prerequisites{}, fmt.Errorf("repo root is required")
 	}

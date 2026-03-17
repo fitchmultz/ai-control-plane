@@ -1,84 +1,47 @@
-# Claude Code Testing - Quick Reference
+# Claude Code - Quick Reference
 
-## Quick Start
+## Quick start
 
-### One-Command Onboarding (Recommended)
+### API-key mode (default)
+
 ```bash
-# Onboard Claude Code in API key mode
-make onboard TOOL=claude MODE=api-key
-
-# Onboard in MAX subscription mode
-make onboard TOOL=claude MODE=subscription
-
-# With connectivity verification
-make onboard TOOL=claude MODE=api-key VERIFY=1
-
-# For remote Docker host
-make onboard TOOL=claude MODE=api-key HOST=GATEWAY_HOST
+make onboard-claude
 ```
 
-### Manual Mode Switching
-```bash
-# Activate API key mode
-cp ~/.claude/settings.local.json ~/.claude/settings.json
+Accept the default `api-key` mode in the wizard. The wizard prints the environment variables Claude Code needs.
 
-# Activate MAX subscription mode
-cp ~/.claude/settings.max.json ~/.claude/settings.json
+### Subscription-through-gateway mode
+
+```bash
+./scripts/acpctl.sh onboard claude
 ```
 
-## Virtual Keys
+Choose `subscription` in the wizard when you want Claude Code OAuth upstream with LiteLLM gateway enforcement.
 
-| Mode | Key Alias | How to create |
-|------|-----------|---------------|
-| API Key | `claude-code` | `make onboard TOOL=claude MODE=api-key` |
-| MAX Subscription | `claude-code-max` | `make onboard TOOL=claude MODE=subscription` |
+## Modes
 
-## Configuration Files
+| Mode | Default alias | What onboarding prints |
+|------|---------------|------------------------|
+| API key | `claude-code` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` |
+| Subscription | `claude-code-max` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_MODEL` |
 
-- `~/.claude/settings.local.json` - API key mode
-- `~/.claude/settings.max.json` - MAX subscription mode  
-- `~/.claude/settings.json` - Active config (copied from above)
-
-**Note:** Configs are stored in `~/.claude/` (home directory) to avoid committing secrets to the repo.
-
-## Key Differences
-
-### API Key Mode
-- Uses `ANTHROPIC_AUTH_TOKEN` with virtual key
-- Full gateway enforcement (budgets, rate limits, policies)
-- Requires `ANTHROPIC_API_KEY` in `demo/.env`
-- Per-tool cost tracking
-
-### MAX Subscription Mode
-- Uses `ANTHROPIC_CUSTOM_HEADERS` with virtual key
-- Claude Code signs in with MAX subscription (OAuth)
-- Gateway enforces policies and logs requests, OAuth forwarded to Anthropic
-- No upstream API key needed
-- Full governance mode for routed subscription traffic
-
-## Monitoring
+## Recommended verification flow
 
 ```bash
-# Real-time logs
-make logs
-
-# Database status
-make db-status
-
-# Health check
 make health
+make onboard-claude
 ```
 
-## Documentation
+If you pick subscription mode, launch Claude Code after exporting the printed values and sign in with your Claude subscription when prompted.
 
-Full guide: `CLAUDE_CODE_TESTING.md`
+## Notes
 
-## Script Help
+- The repo does not manage `~/.claude/` for you; apply the printed values in your preferred shell or config-management flow.
+- API-key mode is the lowest-friction governed path.
+- Subscription mode depends on LiteLLM header forwarding and Claude Code OAuth behavior; keep it aligned with the live repo config.
 
-```bash
-# Onboarding help
-make onboard-help
+## References
 
-# Onboarding help
-./scripts/acpctl.sh onboard claude --help
-```
+- [Claude Code testing guide](CLAUDE_CODE_TESTING.md)
+- [ACPCTL](ACPCTL.md)
+- [LiteLLM Claude Code MAX subscription docs](https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription)

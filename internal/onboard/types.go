@@ -6,19 +6,18 @@
 //	AI Control Plane gateway.
 //
 // Responsibilities:
-//   - Parse onboarding options and resolve tool-specific defaults.
-//   - Load required secrets from environment or demo/.env safely.
-//   - Generate virtual keys, verify gateway connectivity, and render exports.
-//   - Optionally write ACP-managed Codex configuration atomically.
+//   - Carry typed onboarding options, results, verification state, and workflow dependencies.
+//   - Define stable tool and mode metadata shapes shared across prompts and runtime.
+//   - Keep cross-file onboarding contracts centralized.
 //
 // Scope:
-//   - Local onboarding orchestration and output rendering only.
+//   - Shared onboarding types only.
 //
 // Usage:
-//   - Called by `acpctl onboard`.
+//   - Called by `acpctl onboard` and supporting onboarding package files.
 //
 // Invariants/Assumptions:
-//   - Secrets are redacted unless explicitly requested.
+//   - Secrets are redacted unless explicitly revealed in a one-time output block.
 //   - demo/.env is treated as data, never sourced for execution.
 package onboard
 
@@ -27,13 +26,11 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/config"
 )
 
-const (
-	DefaultHost   = "127.0.0.1"
-	DefaultPort   = "4000"
-	DefaultBudget = "10.00"
-)
+const DefaultBudget = "10.00"
 
 type Options struct {
 	RepoRoot     string
@@ -48,6 +45,7 @@ type Options struct {
 	Verify       bool
 	WriteConfig  bool
 	ShowKey      bool
+	Stdin        io.Reader
 	Stdout       io.Writer
 	Stderr       io.Writer
 	Now          func() time.Time
@@ -66,10 +64,9 @@ type KeyGenerator interface {
 }
 
 type KeyRequest struct {
-	Alias  string
-	Budget string
-	Host   string
-	Port   string
+	Alias   string
+	Budget  string
+	BaseURL string
 }
 
 type GeneratedKey struct {
@@ -77,11 +74,61 @@ type GeneratedKey struct {
 	Key   string
 }
 
+type VerificationStatus string
+
+const (
+	VerificationStatusPass VerificationStatus = "pass"
+	VerificationStatusFail VerificationStatus = "fail"
+	VerificationStatusSkip VerificationStatus = "skip"
+)
+
+type VerificationCheck struct {
+	Name        string
+	Status      VerificationStatus
+	Summary     string
+	Issues      []string
+	Remediation []string
+}
+
+type VerificationReport struct {
+	Checks []VerificationCheck
+	Issues []string
+}
+
+func (r VerificationReport) HasFailures() bool {
+	for _, check := range r.Checks {
+		if check.Status == VerificationStatusFail {
+			return true
+		}
+	}
+	return false
+}
+
+type ToolConfigResult struct {
+	Tool    string
+	Path    string
+	Written bool
+	Skipped bool
+	Summary string
+	Issues  []string
+}
+
+func (r ToolConfigResult) HasIssues() bool {
+	return len(r.Issues) > 0
+}
+
+type modeSpec struct {
+	Name    string
+	Summary string
+}
+
 type toolSpec struct {
-	Name           string
-	DefaultMode    string
-	DefaultModel   func(mode string) string
-	SupportedModes map[string]struct{}
+	Name         string
+	Summary      string
+	DefaultMode  string
+	DefaultAlias func(mode string) string
+	DefaultModel func(mode string) string
+	Modes        []modeSpec
 }
 
 type prerequisites struct {
@@ -91,7 +138,9 @@ type prerequisites struct {
 type runState struct {
 	Options        Options
 	Prereqs        prerequisites
-	BaseURL        string
+	Gateway        config.GatewaySettings
 	GeneratedAlias string
 	KeyValue       string
+	ToolConfig     ToolConfigResult
+	Verification   VerificationReport
 }

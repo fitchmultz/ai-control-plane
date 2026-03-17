@@ -146,7 +146,7 @@ ACP_OFFLINE_MODE=1 make key-gen ALIAS=demo-key BUDGET=1.00
 
 ```bash
 # Make a test request through the gateway
-curl -X POST http://localhost:4000/v1/chat/completions \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/v1/chat/completions" \
   -H "Authorization: Bearer $DEMO_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model": "mock-claude", "messages": [{"role": "user", "content": "Say hello in one word"}]}'
@@ -177,11 +177,11 @@ make db-status
 For deterministic offline demos, set `ACP_OFFLINE_MODE=1` before key generation so the generated key matches the offline model aliases. If you still encounter "Invalid model name" errors, use the raw API to generate a key with the correct offline models:
 
 ```bash
-# Read the master key as data only (never source demo/.env)
+export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:4000}"
 MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
 
 # Generate key with offline models
-curl -X POST http://localhost:4000/key/generate \
+curl -X POST "${GATEWAY_URL}/key/generate" \
   -H "Authorization: Bearer $MASTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key_alias": "demo-key", "max_budget": 1.00, "models": ["mock-gpt", "mock-claude"]}'
@@ -195,7 +195,7 @@ If key generation fails:
 > "The key generation uses the LiteLLM `/key/generate` endpoint. Let me show you the raw API..."
 
 ```bash
-curl -X POST http://localhost:4000/key/generate \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/generate" \
   -H "Authorization: Bearer $MASTER_KEY" \
   -d '{"key_alias": "fallback-key", "max_budget": 1.00}'
 ```
@@ -223,7 +223,7 @@ Or manually:
 
 ```bash
 # Test with SSN (will be blocked)
-curl -X POST http://localhost:4000/v1/chat/completions \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/v1/chat/completions" \
   -H "Authorization: Bearer $DEMO_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model": "mock-claude", "messages": [{"role": "user", "content": "My SSN is 123-45-6789"}]}'

@@ -524,7 +524,7 @@ Or test manually:
 make key-gen ALIAS=dlp-test BUDGET=5.00
 
 # Test with PII (will be blocked)
-curl -X POST http://127.0.0.1:4000/v1/chat/completions \
+curl -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/v1/chat/completions" \
   -H "Authorization: Bearer $TEST_KEY" \
   -H "Content-Type: application/json" \
   -d '{

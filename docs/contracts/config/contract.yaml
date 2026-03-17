@@ -1,0 +1,36 @@
+# =============================================================================
+# AI Control Plane - Machine-Readable Config Contract
+# =============================================================================
+# Purpose: Canonical machine-readable contract for tracked operator-facing config.
+# Usage: `acpctl validate config` and CI gates load this manifest.
+# Invariants:
+#   - Supported config surfaces must validate against their declared schema.
+#   - Cross-file naming and overlay invariants are enforced in typed validation.
+# =============================================================================
+
+version: 1
+
+schemas:
+  - id: litellm
+    path: demo/config/litellm.yaml
+    schema: docs/contracts/config/litellm.schema.json
+
+  - id: roles
+    path: demo/config/roles.yaml
+    schema: docs/contracts/config/roles.schema.json
+
+  - id: demo-presets
+    path: demo/config/demo_presets.yaml
+    schema: docs/contracts/config/demo_presets.schema.json
+
+naming:
+  model_alias_pattern: '^[a-z0-9]+(?:[-.][a-z0-9]+)*$'
+  role_name_pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+  preset_name_pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+
+runtime:
+  allowed_overlays:
+    - dlp
+    - offline
+    - tls
+    - ui

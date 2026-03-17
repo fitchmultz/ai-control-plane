@@ -4,20 +4,22 @@ set -euo pipefail
 # Onboard Help Contract Test
 #
 # Purpose:
-#   - Verify onboarding bridge help surfaces supported tools and usage text.
+#   - Verify the live onboarding help surface reflects the guided wizard cutover.
 #
 # Responsibilities:
-#   - Create an isolated onboard fixture with stubbed acpctl/curl commands.
-#   - Assert main and tool-specific help text remains available.
+#   - Build an isolated acpctl binary for the test.
+#   - Assert help text matches the wizard-first contract.
+#   - Ensure removed flags and deleted compatibility shim stay gone.
 #
 # Scope:
-#   - Help and invalid-tool behavior only.
+#   - Help and command-surface contract validation only.
 #
 # Usage:
 #   - bash scripts/tests/onboard_help_contract_test.sh
 #
 # Invariants/Assumptions:
-#   - Tests do not require real gateway services.
+#   - Tests do not require live gateway services.
+#   - The onboarding shim must not exist after the cutover.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/tests/test_helpers.sh
@@ -27,7 +29,7 @@ show_help() {
     cat <<'EOF'
 Usage: onboard_help_contract_test.sh [OPTIONS]
 
-Validate onboarding help and usage behavior.
+Validate onboarding wizard help and removed legacy surfaces.
 
 Options:
   --help    Show this help message
@@ -39,83 +41,40 @@ if [[ "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
+PROJECT_ROOT="$(test_repo_root)"
 test_fixture_init onboard-help-contract-test
-TMP_ROOT="${TEST_TMP_ROOT}"
-test_fixture_repo_init "${TMP_ROOT}"
-test_fixture_copy_libexec "onboard_impl.sh"
-
-test_write_fixture_env <<'EOF'
-LITELLM_MASTER_KEY=sk-master-test-12345
-EOF
-
-cat >"${TEST_BIN_DIR}/acpctl" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ "${1:-}" != "onboard" ]]; then
-    exit 1
-fi
-shift
-tool="${1:-}"
-if [[ -z "${tool}" || "${tool}" == "--help" || "${tool}" == "-h" ]]; then
-    cat <<'OUT'
-Usage: onboard_impl.sh <tool> [options]
-Tools:
-  codex
-  claude
-  opencode
-  cursor
-  copilot
-Examples:
-  onboard_impl.sh codex --mode subscription --verify
-OUT
-    exit 0
-fi
-shift || true
-if [[ "${1:-}" == "--help" || "${2:-}" == "--help" ]]; then
-    cat <<'OUT'
-Codex notes:
-  - For subscription mode, run `make chatgpt-login` on the gateway host first.
-  - Codex uses OPENAI_BASE_URL without /v1.
-OUT
-    exit 0
-fi
-if [[ "${tool}" == "invalid-tool" ]]; then
-    echo "ERROR: unsupported tool: ${tool}" >&2
-    exit 64
-fi
-printf 'stub\n'
-EOF
-chmod +x "${TEST_BIN_DIR}/acpctl"
-
-TEST_SCRIPT="${TEST_SCRIPT_DIR}/onboard_impl.sh"
-
-run_onboard() {
-    PATH="${TEST_STUB_BIN_DIR}:${PATH}" \
-        HOME="${TMP_ROOT}/home" \
-        "${TEST_SCRIPT}" "$@"
-}
-
-assert_contains() {
-    test_assert_contains "$1" "$2" "$3" || exit 1
-}
+BINARY_PATH="${TEST_TMP_ROOT}/acpctl"
+test_build_acpctl_binary "${BINARY_PATH}"
 
 printf 'Onboard Help Contract Test\n'
 printf '==========================\n'
 
-help_output="$(run_onboard --help 2>&1)"
-assert_contains "${help_output}" "Usage: onboard_impl.sh <tool> [options]" "main help includes usage"
-assert_contains "${help_output}" "codex" "main help lists codex"
-assert_contains "${help_output}" "claude" "main help lists claude"
-assert_contains "${help_output}" "Examples:" "main help includes examples"
+help_output="$(cd "${PROJECT_ROOT}" && ACPCTL_BIN="${BINARY_PATH}" ./scripts/acpctl.sh onboard --help 2>&1)"
 
-codex_help="$(run_onboard codex --help 2>&1)"
-assert_contains "${codex_help}" "Codex notes:" "codex help includes notes"
-assert_contains "${codex_help}" "subscription mode" "codex help mentions subscription mode"
+test_assert_contains "${help_output}" "Interactive guided setup" "help describes the wizard" || exit 1
+test_assert_contains "${help_output}" "acpctl onboard" "help shows canonical entrypoint" || exit 1
+test_assert_contains "${help_output}" "acpctl onboard codex" "help shows tool preselection" || exit 1
+test_assert_contains "${help_output}" "codex" "help lists codex" || exit 1
+test_assert_contains "${help_output}" "claude" "help lists claude" || exit 1
+test_assert_contains "${help_output}" "opencode" "help lists opencode" || exit 1
+test_assert_contains "${help_output}" "cursor" "help lists cursor" || exit 1
 
-invalid_rc=0
-invalid_output="$(run_onboard invalid-tool 2>&1)" || invalid_rc=$?
-if [[ "${invalid_rc}" -ne 64 ]]; then
-    printf '  ✗ invalid tool should exit 64 (got %s)\n' "${invalid_rc}"
+for legacy_flag in --mode --verify --write-config --show-key --host --port --tls; do
+    if grep -Fq -- "${legacy_flag}" <<<"${help_output}"; then
+        printf '  ✗ legacy flag %s must not appear in onboarding help\n' "${legacy_flag}"
+        exit 1
+    fi
+done
+printf '  ✓ onboarding help omits removed legacy flags\n'
+
+if grep -Fq -- "copilot" <<<"${help_output}"; then
+    printf '  ✗ unsupported copilot onboarding must not appear in wizard help\n'
     exit 1
 fi
-assert_contains "${invalid_output}" "unsupported tool: invalid-tool" "invalid tool reports explicit error"
+printf '  ✓ onboarding help omits unsupported copilot onboarding\n'
+
+if [[ -e "${PROJECT_ROOT}/scripts/libexec/onboard_impl.sh" ]]; then
+    printf '  ✗ legacy onboarding shim should be removed\n'
+    exit 1
+fi
+printf '  ✓ legacy onboarding shim is removed\n'
