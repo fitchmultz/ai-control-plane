@@ -306,6 +306,7 @@ func TestDefaultChecks(t *testing.T) {
 		"ports_free",
 		"env_vars_set",
 		"gateway_healthy",
+		"certificate_healthy",
 		"db_connectable",
 		"config_valid",
 		"credentials_valid",

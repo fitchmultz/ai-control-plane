@@ -28,6 +28,7 @@ func hostCommandSpec() *commandSpec {
 			"acpctl host check --inventory deploy/ansible/inventory/hosts.yml",
 			"acpctl host apply --inventory deploy/ansible/inventory/hosts.yml",
 			"acpctl host install --service-user acp --backup-retention-keep 14",
+			"acpctl cert renew-auto --env-file /etc/ai-control-plane/secrets.env",
 		},
 		Children: []*commandSpec{
 			hostPreflightCommandSpec(),

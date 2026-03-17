@@ -69,10 +69,24 @@ Rules:
 - Supported host overlays are selected through `acp_runtime_overlays` in the Ansible inventory. Allowed values are `tls`, `ui`, `dlp`, and `offline`.
 - Base host deployment remains the default, but without `tls` the supported `acp_public_url` stays loopback-only (`http://127.0.0.1:4000`).
 - Remote non-loopback ingress requires the `tls` overlay and an `https://...` `acp_public_url`.
-- Host overlay runs always execute `make health` and `make prod-smoke`, then run overlay-specific postchecks for `ui` (`make librechat-health`), `tls` (`make tls-health`), and `dlp` (`make dlp-health`).
-- `host apply` installs and enables the automated `ai-control-plane-backup.timer` by default. Local `host install` renders the same timer contract and `host service-status` reports both the runtime service and the backup timer.
-- Timer defaults come from tracked inventory variables: `acp_backup_timer_on_calendar: daily`, `acp_backup_timer_randomized_delay_sec: 15m`, and `acp_backup_retention_keep: 7`.
+- Host overlay runs always execute `make health` and `make prod-smoke`, then run overlay-specific postchecks for `ui` (`make librechat-health`), `tls` (`make tls-health` plus `./scripts/acpctl.sh cert check`), and `dlp` (`make dlp-health`).
+- `host apply` installs and enables the automated `ai-control-plane-backup.timer` by default and installs `ai-control-plane-cert-renewal.timer` whenever the `tls` overlay is enabled. Local `host install` still renders the runtime service and backup timer contract, and can optionally install the same certificate timer contract.
+- Timer defaults come from tracked inventory variables: `acp_backup_timer_on_calendar: daily`, `acp_backup_timer_randomized_delay_sec: 15m`, `acp_backup_retention_keep: 7`, `acp_cert_renewal_timer_on_calendar: daily`, `acp_cert_renewal_timer_randomized_delay_sec: 30m`, and `acp_cert_renewal_threshold_days: 30`.
 - Host firewall posture is host-level ingress hardening only. Customer-owned perimeter controls still own outbound allow-listing, SWG/CASB policy, and broader network enforcement.
+
+## Certificate Lifecycle Workflow
+
+For TLS-enabled host-first deployments, use the typed certificate lifecycle surface:
+
+```bash
+make cert-status DOMAIN=gateway.example.com
+make cert-renew DOMAIN=gateway.example.com THRESHOLD_DAYS=30
+sudo make cert-renew-install SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+```
+
+The supported path assumes Caddy owns certificate issuance and storage. ACP validates live certificate state through `acpctl cert check` and preserves rollback artifacts for controlled renewals under `demo/logs/cert-renewals/`.
+
+See [deployment/CERTIFICATE_LIFECYCLE.md](deployment/CERTIFICATE_LIFECYCLE.md) for the full runbook.
 
 ## Host-First Upgrade Workflow
 

@@ -1,0 +1,24 @@
+# AI Control Plane - Scheduled Certificate Renewal Timer Template
+# =============================================================================
+# Purpose: Schedule the host-first certificate renewal safety check.
+# Responsibilities:
+#   - Trigger the certificate renewal service on a configurable systemd calendar.
+# Scope:
+#   - Host-first systemd timer only.
+# Usage:
+#   - Render this template and install it to /etc/systemd/system/<service>-cert-renewal.timer
+# Invariants/Assumptions:
+#   - Persistent=true ensures missed runs fire after host downtime.
+# =============================================================================
+
+[Unit]
+Description=Schedule AI Control Plane certificate renewal checks
+
+[Timer]
+OnCalendar={{RENEW_ON_CALENDAR}}
+Persistent=true
+RandomizedDelaySec={{RANDOMIZED_DELAY_SEC}}
+Unit={{SERVICE_NAME}}-cert-renewal.service
+
+[Install]
+WantedBy=timers.target

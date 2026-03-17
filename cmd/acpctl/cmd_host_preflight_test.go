@@ -171,6 +171,8 @@ func writeHostPreflightTemplates(t *testing.T, repoRoot string) {
 	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"), "[Unit]\nDescription=ACP\n")
 	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane-backup.service.tmpl"), "[Unit]\nDescription=ACP Backup\n")
 	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane-backup.timer.tmpl"), "[Unit]\nDescription=ACP Backup Timer\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane-cert-renewal.service.tmpl"), "[Unit]\nDescription=ACP Cert Renewal\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane-cert-renewal.timer.tmpl"), "[Unit]\nDescription=ACP Cert Renewal Timer\n")
 }
 
 func writeExecutable(t *testing.T, path string, contents string) {

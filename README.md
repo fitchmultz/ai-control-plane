@@ -72,6 +72,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - Offline deterministic runtime: `make up-offline`
 - TLS ingress overlay: `make up-tls`
 - Day-2 reporting and recovery: `make operator-report`, `make chargeback-report`, `make db-backup`, `make db-backup-retention`, `make dr-drill`
+- Certificate lifecycle: `make cert-status`, `make cert-renew`, `sudo make cert-renew-install SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env`
 - Host-first upgrade lifecycle: `make upgrade-plan FROM_VERSION=X.Y.Z`, `make upgrade-check FROM_VERSION=X.Y.Z`, `make upgrade-execute FROM_VERSION=X.Y.Z`, `make upgrade-rollback UPGRADE_RUN_DIR=...`
 - Key lifecycle: `make key-list`, `make key-inspect ALIAS=<alias>`, `make key-rotate ALIAS=<alias>`
 - Guided diagnostics and remediation: `make doctor FIX=1 NOTIFY=1`
@@ -113,6 +114,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - [Support](docs/SUPPORT.md)
 - [Architecture](docs/technical-architecture.md)
 - [Operations And Deployment](docs/DEPLOYMENT.md)
+- [Certificate Lifecycle](docs/deployment/CERTIFICATE_LIFECYCLE.md)
 - [Upgrade And Migration](docs/deployment/UPGRADE_MIGRATION.md)
 - [Security And Governance](docs/SECURITY_GOVERNANCE.md)
 

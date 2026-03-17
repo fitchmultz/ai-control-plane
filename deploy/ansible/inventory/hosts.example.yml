@@ -65,6 +65,14 @@ all:
           # acp_backup_timer_randomized_delay_sec: 15m
           # acp_backup_retention_keep: 7
 
+          # Optional certificate-renewal overrides for TLS-enabled hosts.
+          # Defaults come from group_vars/gateway.yml and only apply when
+          # acp_runtime_overlays includes tls.
+          # acp_cert_renewal_timer_enabled: true
+          # acp_cert_renewal_timer_on_calendar: daily
+          # acp_cert_renewal_timer_randomized_delay_sec: 30m
+          # acp_cert_renewal_threshold_days: 30
+
           # External database configuration (optional)
           # When enabled, assumes external PostgreSQL instead of embedded
           acp_external_db:

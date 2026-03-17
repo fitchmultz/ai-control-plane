@@ -39,6 +39,9 @@ _acpctl() {
         key)
             _acpctl_key
             ;;
+        cert)
+            _acpctl_cert
+            ;;
         upgrade)
             _acpctl_upgrade
             ;;
@@ -68,6 +71,7 @@ _acpctl_commands() {
         "validate:Configuration and policy validation operations"
         "db:Database backup, restore, and inspection operations"
         "key:Virtual key lifecycle operations"
+        "cert:TLS certificate lifecycle operations"
         "upgrade:Plan, validate, execute, and roll back host-first upgrades"
         "host:Host-first deployment and operations"
         "help:Show this help message"
@@ -173,6 +177,17 @@ _acpctl_key() {
         "gen-lead:Generate a team-lead key"
     )
     _describe -t commands 'key subcommands' subcmds "$@"
+}
+
+_acpctl_cert() {
+    local subcmds=(
+        "list:List tracked TLS certificates"
+        "inspect:Inspect one certificate"
+        "check:Validate certificate expiry and live TLS state"
+        "renew:Trigger controlled certificate reissuance"
+        "renew-auto:Install the automatic certificate renewal timer"
+    )
+    _describe -t commands 'cert subcommands' subcmds "$@"
 }
 
 _acpctl_upgrade() {

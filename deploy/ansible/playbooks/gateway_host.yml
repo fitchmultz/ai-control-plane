@@ -58,7 +58,14 @@
           - acp_host_required_packages is iterable
           - acp_host_firewall_tls_allowed_cidrs is iterable
           - acp_host_sysctl_settings is mapping
+          - acp_backup_timer_enabled is defined
+          - acp_backup_timer_on_calendar is defined
+          - acp_backup_timer_randomized_delay_sec is defined
           - acp_backup_retention_keep | int >= 1
+          - acp_cert_renewal_timer_enabled is defined
+          - acp_cert_renewal_timer_on_calendar is defined
+          - acp_cert_renewal_timer_randomized_delay_sec is defined
+          - acp_cert_renewal_threshold_days is defined
           - (acp_runtime_overlays | difference(['tls', 'ui', 'dlp', 'offline'])) | length == 0
         fail_msg: >-
           Missing required variables or unsupported overlay values.
@@ -121,6 +128,9 @@
           - "  Backup timer enabled: {{ acp_backup_timer_enabled }}"
           - "  Backup schedule: {{ acp_backup_timer_on_calendar }}"
           - "  Backup retention keep: {{ acp_backup_retention_keep }}"
+          - "  Certificate renewal timer enabled: {{ acp_cert_renewal_timer_enabled }}"
+          - "  Certificate renewal schedule: {{ acp_cert_renewal_timer_on_calendar }}"
+          - "  Certificate renewal threshold days: {{ acp_cert_renewal_threshold_days }}"
 
     # =========================================================================
     # Phase 2: Repository, Secrets, And Runtime Prerequisite Checks
@@ -485,6 +495,55 @@
         enabled: "{{ acp_backup_timer_enabled | bool }}"
         state: "{{ 'started' if (acp_backup_timer_enabled | bool) else 'stopped' }}"
 
+    - name: Render automated certificate renewal service unit
+      become: true
+      ansible.builtin.template:
+        src: ../../systemd/ai-control-plane-cert-renewal.service.tmpl
+        dest: /etc/systemd/system/ai-control-plane-cert-renewal.service
+        owner: root
+        group: root
+        mode: '0644'
+      vars:
+        SERVICE_NAME: ai-control-plane
+        SERVICE_USER: "{{ acp_service_user | default(ansible_user_id) }}"
+        SERVICE_GROUP: "{{ acp_service_group | default(acp_service_user | default(ansible_user_id)) }}"
+        WORKING_DIR: "{{ acp_repo_path }}"
+        ENV_FILE: "{{ acp_env_file }}"
+        RENEW_THRESHOLD_DAYS: "{{ acp_cert_renewal_threshold_days }}"
+      register: cert_renewal_service_unit
+      when: "'tls' in acp_runtime_overlays"
+
+    - name: Render automated certificate renewal timer unit
+      become: true
+      ansible.builtin.template:
+        src: ../../systemd/ai-control-plane-cert-renewal.timer.tmpl
+        dest: /etc/systemd/system/ai-control-plane-cert-renewal.timer
+        owner: root
+        group: root
+        mode: '0644'
+      vars:
+        SERVICE_NAME: ai-control-plane
+        RENEW_ON_CALENDAR: "{{ acp_cert_renewal_timer_on_calendar }}"
+        RANDOMIZED_DELAY_SEC: "{{ acp_cert_renewal_timer_randomized_delay_sec }}"
+      register: cert_renewal_timer_unit
+      when: "'tls' in acp_runtime_overlays"
+
+    - name: Reload systemd after certificate renewal unit changes
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when:
+        - "'tls' in acp_runtime_overlays"
+        - cert_renewal_service_unit.changed or cert_renewal_timer_unit.changed
+
+    - name: Ensure automated certificate renewal timer state matches contract
+      become: true
+      ansible.builtin.systemd:
+        name: ai-control-plane-cert-renewal.timer
+        enabled: "{{ ('tls' in acp_runtime_overlays) and (acp_cert_renewal_timer_enabled | bool) }}"
+        state: "{{ 'started' if ('tls' in acp_runtime_overlays) and (acp_cert_renewal_timer_enabled | bool) else 'stopped' }}"
+      when: "'tls' in acp_runtime_overlays"
+
     - name: Converge Docker Compose services
       become: true
       ansible.builtin.command:
@@ -597,6 +656,26 @@
         msg: TLS overlay health check passed
       when: "'tls' in acp_runtime_overlays"
 
+    - name: Run certificate lifecycle check
+      become: true
+      ansible.builtin.command:
+        argv:
+          - ./scripts/acpctl.sh
+          - cert
+          - check
+          - --threshold-days
+          - "{{ acp_cert_renewal_threshold_days }}"
+        chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
+      changed_when: false
+      register: cert_check
+      when: "'tls' in acp_runtime_overlays"
+
+    - name: Display certificate lifecycle check result
+      ansible.builtin.debug:
+        msg: Certificate lifecycle check passed
+      when: "'tls' in acp_runtime_overlays"
+
     - name: Run DLP overlay health check
       become: true
       ansible.builtin.command:
@@ -653,6 +732,10 @@
           - "Automatic security updates: ENABLED"
           - >-
             Backup timer: {{ 'ENABLED (' ~ acp_backup_timer_on_calendar ~ ', keep ' ~ (acp_backup_retention_keep | string) ~ ')' if (acp_backup_timer_enabled | bool)
+            else 'DISABLED' }}
+          - >-
+            Certificate renewal timer: {{ 'ENABLED (' ~ acp_cert_renewal_timer_on_calendar ~ ', threshold ' ~ (acp_cert_renewal_threshold_days | string) ~ 'd)'
+            if ('tls' in acp_runtime_overlays and (acp_cert_renewal_timer_enabled | bool))
             else 'DISABLED' }}
           - "Health check: PASSED"
           - >-

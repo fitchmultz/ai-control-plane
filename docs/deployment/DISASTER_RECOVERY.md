@@ -10,6 +10,7 @@ The supported disaster-recovery story is the host-first Docker reference impleme
   - `ai-control-plane-backup.timer`
   - `ai-control-plane-backup.service`
   - retention cleanup via `acpctl db backup-retention --apply`
+- Certificate renewal rollback artifacts under `demo/logs/cert-renewals/` when controlled renewal has been run
 - Release bundle, readiness evidence, and pilot closeout artifacts when applicable
 
 ## Supported Automation Contract
@@ -17,6 +18,7 @@ The supported disaster-recovery story is the host-first Docker reference impleme
 The supported host-first path makes backup automation part of the deployment contract:
 
 - `host apply` renders and enables the automated backup timer by default.
+- `host apply` also renders and enables the certificate renewal timer whenever the `tls` overlay is enabled.
 - `host install` renders the same backup timer for local systemd-managed hosts.
 - Default tracked settings:
   - schedule: `daily`

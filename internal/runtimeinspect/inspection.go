@@ -85,6 +85,7 @@ func (i *Inspector) Close() error {
 func (i *Inspector) Collect(ctx context.Context, opts status.Options) status.StatusReport {
 	return status.CollectAll(ctx, []status.Collector{
 		collectors.NewGatewayCollector(i.gateway),
+		collectors.NewCertificateCollector(i.repoRoot),
 		collectors.NewDatabaseCollector(i.runtime),
 		collectors.NewKeysCollector(i.readonly),
 		collectors.NewBudgetCollector(i.readonly),

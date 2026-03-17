@@ -17,4 +17,4 @@
 package status
 
 // DefaultComponentOrder defines stable human output ordering for runtime components.
-var DefaultComponentOrder = []string{"gateway", "database", "keys", "budget", "detections"}
+var DefaultComponentOrder = []string{"gateway", "certificate", "database", "keys", "budget", "detections"}

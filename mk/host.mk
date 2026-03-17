@@ -4,13 +4,42 @@
 # Responsibilities:
 #   - Host preflight checks
 #   - Host deployment (check/apply)
-#   - Systemd service and backup-timer management
+#   - Systemd service, backup-timer, and certificate lifecycle management
 #
 # Non-scope:
-#   - Does not manage Docker containers
+#   - Does not manage Docker containers directly
 #   - Does not handle Kubernetes deployments
 
 INVENTORY ?= deploy/ansible/inventory/hosts.yml
+
+.PHONY: cert-status
+cert-status: ## Check certificate lifecycle status
+	@$(ACPCTL_BIN) cert check \
+		$(if $(DOMAIN),--domain "$(DOMAIN)",) \
+		$(if $(THRESHOLD_DAYS),--threshold-days "$(THRESHOLD_DAYS)",) \
+		$(if $(CRITICAL_DAYS),--critical-days "$(CRITICAL_DAYS)",) \
+		$(if $(JSON),--json,)
+
+.PHONY: cert-renew
+cert-renew: ## Trigger certificate renewal
+	@$(ACPCTL_BIN) cert renew \
+		$(if $(DOMAIN),--domain "$(DOMAIN)",) \
+		$(if $(THRESHOLD_DAYS),--threshold-days "$(THRESHOLD_DAYS)",) \
+		$(if $(filter 1 true TRUE yes YES,$(DRY_RUN)),--dry-run,) \
+		$(if $(filter 1 true TRUE yes YES,$(FORCE)),--force,) \
+		$(if $(OUTPUT_DIR),--output-dir "$(OUTPUT_DIR)",) \
+		$(if $(JSON),--json,)
+
+.PHONY: cert-renew-install
+cert-renew-install: ## Install automatic certificate renewal timer
+	@$(ACPCTL_BIN) cert renew-auto \
+		--env-file "$(SECRETS_ENV_FILE)" \
+		$(if $(SERVICE_USER),--service-user "$(SERVICE_USER)",) \
+		$(if $(SERVICE_GROUP),--service-group "$(SERVICE_GROUP)",) \
+		$(if $(ON_CALENDAR),--on-calendar "$(ON_CALENDAR)",) \
+		$(if $(RANDOMIZED_DELAY),--randomized-delay "$(RANDOMIZED_DELAY)",) \
+		$(if $(THRESHOLD_DAYS),--threshold-days "$(THRESHOLD_DAYS)",) \
+		$(if $(JSON),--json,)
 
 .PHONY: host-preflight
 host-preflight: ## Validate host readiness

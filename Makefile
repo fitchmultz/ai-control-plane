@@ -111,6 +111,8 @@ help-deploy:
 	@echo '  $(COLOR_GREEN)up-tls$(COLOR_RESET)             Start TLS mode'
 	@echo '  $(COLOR_GREEN)up-offline$(COLOR_RESET)         Start offline mode with local hardened images'
 	@echo '  $(COLOR_GREEN)up-offline-ci$(COLOR_RESET)      Start offline mode for CI using pinned fallback images'
+	@echo '  $(COLOR_GREEN)cert-status$(COLOR_RESET)        Check certificate lifecycle status'
+	@echo '  $(COLOR_GREEN)cert-renew$(COLOR_RESET)         Trigger certificate renewal'
 
 .PHONY: help-lint
 help-lint:
@@ -185,11 +187,14 @@ help-host:
 	@echo '  $(COLOR_GREEN)host-check$(COLOR_RESET)         Check mode'
 	@echo '  $(COLOR_GREEN)host-apply$(COLOR_RESET)         Apply mode'
 	@echo '  $(COLOR_GREEN)host-install$(COLOR_RESET)       Install systemd service and backup timer'
-	@echo '  $(COLOR_GREEN)host-uninstall$(COLOR_RESET)     Remove systemd service and backup timer'
-	@echo '  $(COLOR_GREEN)host-service-status$(COLOR_RESET) Show service and backup timer status'
+	@echo '  $(COLOR_GREEN)host-uninstall$(COLOR_RESET)     Remove systemd service and installed timers'
+	@echo '  $(COLOR_GREEN)host-service-status$(COLOR_RESET) Show service and installed timer status'
 	@echo '  $(COLOR_GREEN)host-service-start$(COLOR_RESET) Start service'
 	@echo '  $(COLOR_GREEN)host-service-stop$(COLOR_RESET)  Stop service'
 	@echo '  $(COLOR_GREEN)host-service-restart$(COLOR_RESET) Restart service'
+	@echo '  $(COLOR_GREEN)cert-status$(COLOR_RESET)        Check certificate lifecycle status'
+	@echo '  $(COLOR_GREEN)cert-renew$(COLOR_RESET)         Trigger certificate renewal'
+	@echo '  $(COLOR_GREEN)cert-renew-install$(COLOR_RESET) Install the certificate renewal timer'
 
 .PHONY: help-upgrade
 help-upgrade:

@@ -14,6 +14,7 @@ public_docs:
   - docs/SUPPORT.md
   - docs/technical-architecture.md
   - docs/DEPLOYMENT.md
+  - docs/deployment/CERTIFICATE_LIFECYCLE.md
   - docs/deployment/UPGRADE_MIGRATION.md
   - docs/deployment/UPGRADE_COMPATIBILITY_MATRIX.md
   - docs/SECURITY_GOVERNANCE.md
@@ -103,6 +104,7 @@ surfaces:
       - demo/docker-compose.tls.yml
     validation:
       - make up-tls
+      - make cert-status
       - make up-production
 
   - id: helm

@@ -4,11 +4,12 @@
 #
 # Purpose:
 #   Install and manage the systemd units that own the host-first Docker Compose
-#   runtime and automated backup timer for AI Control Plane.
+#   runtime plus the automated backup and optional certificate-renewal timers
+#   for AI Control Plane.
 #
 # Responsibilities:
 #   - Render the tracked systemd templates with concrete deployment paths.
-#   - Execute systemd lifecycle actions for the installed service and backup timer.
+#   - Execute systemd lifecycle actions for the installed service and timers.
 #
 # Non-scope:
 #   - Does not reimplement Docker Compose orchestration.
@@ -28,27 +29,32 @@ show_help() {
     cat <<'EOF'
 Usage: host_install_impl.sh <install|uninstall|service-status|service-start|service-stop|service-restart> [OPTIONS]
 
-Manage the systemd service and automated backup timer for host-first AI Control Plane deployments.
+Manage the systemd service, automated backup timer, and optional certificate renewal timer for host-first AI Control Plane deployments.
 
 Options:
-  --service-name NAME              systemd unit base name (default: ai-control-plane)
-  --service-user USER              Service user (default: current user)
-  --service-group GROUP            Service group (default: current user's primary group)
-  --repo-root PATH                 Repository root (default: current checkout)
-  --unit-dir PATH                  systemd unit directory (default: /etc/systemd/system)
-  --env-file PATH                  Canonical secrets file (default: /etc/ai-control-plane/secrets.env)
-  --compose-file PATH              Compose file for the service (default: demo/docker-compose.yml)
-  --compose-bin CMD                Compose binary/command (default: auto-detect)
-  --backup-on-calendar SPEC        systemd OnCalendar schedule (default: daily)
-  --backup-randomized-delay SPEC   systemd RandomizedDelaySec value (default: 15m)
-  --backup-retention-keep N        Number of newest backups to retain (default: 7)
-  --no-enable                      Skip `systemctl enable` during install
-  --no-start                       Skip `systemctl start` during install
-  --help                           Show this help message
+  --service-name NAME                 systemd unit base name (default: ai-control-plane)
+  --service-user USER                 Service user (default: current user)
+  --service-group GROUP               Service group (default: current user's primary group)
+  --repo-root PATH                    Repository root (default: current checkout)
+  --unit-dir PATH                     systemd unit directory (default: /etc/systemd/system)
+  --env-file PATH                     Canonical secrets file (default: /etc/ai-control-plane/secrets.env)
+  --compose-file PATH                 Compose file for the service (default: demo/docker-compose.yml)
+  --compose-bin CMD                   Compose binary/command (default: auto-detect)
+  --backup-on-calendar SPEC           systemd OnCalendar schedule (default: daily)
+  --backup-randomized-delay SPEC      systemd RandomizedDelaySec value (default: 15m)
+  --backup-retention-keep N           Number of newest backups to retain (default: 7)
+  --install-cert-renewal              Render and manage the certificate renewal timer too
+  --cert-renewal-on-calendar SPEC     certificate renewal OnCalendar schedule (default: daily)
+  --cert-renewal-randomized-delay SPEC certificate renewal RandomizedDelaySec value (default: 30m)
+  --cert-renewal-threshold-days N     Renewal threshold passed to `acpctl cert renew` (default: 30)
+  --no-enable                         Skip `systemctl enable` during install
+  --no-start                          Skip `systemctl start` during install
+  --help                              Show this help message
 
 Examples:
   host_install_impl.sh install --service-user acp --service-group acp
   host_install_impl.sh install --backup-on-calendar 'Mon *-*-* 02:00:00' --backup-retention-keep 14
+  host_install_impl.sh install --install-cert-renewal --cert-renewal-threshold-days 21
   host_install_impl.sh service-status
   host_install_impl.sh uninstall
 
@@ -90,6 +96,10 @@ compose_bin=""
 backup_on_calendar="daily"
 backup_randomized_delay_sec="15m"
 backup_retention_keep="7"
+install_cert_renewal="false"
+cert_renewal_on_calendar="daily"
+cert_renewal_randomized_delay_sec="30m"
+cert_renewal_threshold_days="30"
 enable_service="true"
 start_service="true"
 
@@ -183,6 +193,34 @@ while [[ $# -gt 0 ]]; do
         backup_retention_keep="$2"
         shift 2
         ;;
+    --install-cert-renewal)
+        install_cert_renewal="true"
+        shift
+        ;;
+    --cert-renewal-on-calendar)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --cert-renewal-on-calendar\n' >&2
+            exit "${ACP_EXIT_USAGE}"
+        }
+        cert_renewal_on_calendar="$2"
+        shift 2
+        ;;
+    --cert-renewal-randomized-delay)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --cert-renewal-randomized-delay\n' >&2
+            exit "${ACP_EXIT_USAGE}"
+        }
+        cert_renewal_randomized_delay_sec="$2"
+        shift 2
+        ;;
+    --cert-renewal-threshold-days)
+        [[ $# -ge 2 ]] || {
+            printf 'ERROR: missing value for --cert-renewal-threshold-days\n' >&2
+            exit "${ACP_EXIT_USAGE}"
+        }
+        cert_renewal_threshold_days="$2"
+        shift 2
+        ;;
     --no-enable)
         enable_service="false"
         shift
@@ -207,6 +245,10 @@ if ! [[ "${backup_retention_keep}" =~ ^[1-9][0-9]*$ ]]; then
     printf 'ERROR: --backup-retention-keep must be a positive integer\n' >&2
     exit "${ACP_EXIT_USAGE}"
 fi
+if ! [[ "${cert_renewal_threshold_days}" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'ERROR: --cert-renewal-threshold-days must be a positive integer\n' >&2
+    exit "${ACP_EXIT_USAGE}"
+fi
 
 bridge_require_command systemctl
 
@@ -215,11 +257,17 @@ compose_file="$(bridge_abspath "${compose_file}")"
 main_template_path="${repo_root}/deploy/systemd/ai-control-plane.service.tmpl"
 backup_service_template_path="${repo_root}/deploy/systemd/ai-control-plane-backup.service.tmpl"
 backup_timer_template_path="${repo_root}/deploy/systemd/ai-control-plane-backup.timer.tmpl"
+cert_renewal_service_template_path="${repo_root}/deploy/systemd/ai-control-plane-cert-renewal.service.tmpl"
+cert_renewal_timer_template_path="${repo_root}/deploy/systemd/ai-control-plane-cert-renewal.timer.tmpl"
 unit_path="${unit_dir}/${service_name}.service"
 backup_service_unit_path="${unit_dir}/${service_name}-backup.service"
 backup_timer_unit_path="${unit_dir}/${service_name}-backup.timer"
+cert_renewal_service_unit_path="${unit_dir}/${service_name}-cert-renewal.service"
+cert_renewal_timer_unit_path="${unit_dir}/${service_name}-cert-renewal.timer"
 backup_service_unit_name="${service_name}-backup.service"
 backup_timer_unit_name="${service_name}-backup.timer"
+cert_renewal_service_unit_name="${service_name}-cert-renewal.service"
+cert_renewal_timer_unit_name="${service_name}-cert-renewal.timer"
 
 if [[ -z "${compose_bin}" ]]; then
     compose_bin="$(bridge_detect_compose_bin)"
@@ -250,8 +298,24 @@ backup_service_action() {
     unit_action "${action}" "${backup_service_unit_name}" "$@"
 }
 
+cert_renewal_timer_action() {
+    local action="$1"
+    shift || true
+    unit_action "${action}" "${cert_renewal_timer_unit_name}" "$@"
+}
+
+cert_renewal_service_action() {
+    local action="$1"
+    shift || true
+    unit_action "${action}" "${cert_renewal_service_unit_name}" "$@"
+}
+
 backup_timer_installed() {
     [[ -f "${backup_timer_unit_path}" ]]
+}
+
+cert_renewal_timer_installed() {
+    [[ -f "${cert_renewal_timer_unit_path}" ]]
 }
 
 render_main_unit() {
@@ -288,6 +352,25 @@ render_backup_timer_unit() {
         "${backup_timer_template_path}"
 }
 
+render_cert_renewal_service_unit() {
+    sed \
+        -e "s|{{SERVICE_NAME}}|$(bridge_escape_sed_replacement "${service_name}")|g" \
+        -e "s|{{SERVICE_USER}}|$(bridge_escape_sed_replacement "${service_user}")|g" \
+        -e "s|{{SERVICE_GROUP}}|$(bridge_escape_sed_replacement "${service_group}")|g" \
+        -e "s|{{WORKING_DIR}}|$(bridge_escape_sed_replacement "${repo_root}")|g" \
+        -e "s|{{ENV_FILE}}|$(bridge_escape_sed_replacement "${env_file}")|g" \
+        -e "s|{{RENEW_THRESHOLD_DAYS}}|$(bridge_escape_sed_replacement "${cert_renewal_threshold_days}")|g" \
+        "${cert_renewal_service_template_path}"
+}
+
+render_cert_renewal_timer_unit() {
+    sed \
+        -e "s|{{SERVICE_NAME}}|$(bridge_escape_sed_replacement "${service_name}")|g" \
+        -e "s|{{RENEW_ON_CALENDAR}}|$(bridge_escape_sed_replacement "${cert_renewal_on_calendar}")|g" \
+        -e "s|{{RANDOMIZED_DELAY_SEC}}|$(bridge_escape_sed_replacement "${cert_renewal_randomized_delay_sec}")|g" \
+        "${cert_renewal_timer_template_path}"
+}
+
 verify_unit_if_possible() {
     local path="$1"
     if command -v systemd-analyze >/dev/null 2>&1; then
@@ -296,12 +379,17 @@ verify_unit_if_possible() {
 }
 
 cleanup_temp_units() {
-    rm -f "${temp_main_unit:-}" "${temp_backup_service_unit:-}" "${temp_backup_timer_unit:-}"
+    rm -f "${temp_main_unit:-}" "${temp_backup_service_unit:-}" "${temp_backup_timer_unit:-}" \
+        "${temp_cert_renewal_service_unit:-}" "${temp_cert_renewal_timer_unit:-}"
 }
 
 case "${subcommand}" in
 install)
-    for template_path in "${main_template_path}" "${backup_service_template_path}" "${backup_timer_template_path}"; do
+    template_paths=("${main_template_path}" "${backup_service_template_path}" "${backup_timer_template_path}")
+    if [[ "${install_cert_renewal}" == "true" ]]; then
+        template_paths+=("${cert_renewal_service_template_path}" "${cert_renewal_timer_template_path}")
+    fi
+    for template_path in "${template_paths[@]}"; do
         [[ -f "${template_path}" ]] || {
             printf 'ERROR: systemd template not found: %s\n' "${template_path}" >&2
             exit "${ACP_EXIT_RUNTIME}"
@@ -311,22 +399,44 @@ install)
     temp_main_unit="$(mktemp "${unit_dir}/${service_name}.service.tmp.XXXXXX")"
     temp_backup_service_unit="$(mktemp "${unit_dir}/${service_name}-backup.service.tmp.XXXXXX")"
     temp_backup_timer_unit="$(mktemp "${unit_dir}/${service_name}-backup.timer.tmp.XXXXXX")"
+    if [[ "${install_cert_renewal}" == "true" ]]; then
+        temp_cert_renewal_service_unit="$(mktemp "${unit_dir}/${service_name}-cert-renewal.service.tmp.XXXXXX")"
+        temp_cert_renewal_timer_unit="$(mktemp "${unit_dir}/${service_name}-cert-renewal.timer.tmp.XXXXXX")"
+    fi
     trap cleanup_temp_units EXIT
     render_main_unit >"${temp_main_unit}"
     render_backup_service_unit >"${temp_backup_service_unit}"
     render_backup_timer_unit >"${temp_backup_timer_unit}"
+    if [[ "${install_cert_renewal}" == "true" ]]; then
+        render_cert_renewal_service_unit >"${temp_cert_renewal_service_unit}"
+        render_cert_renewal_timer_unit >"${temp_cert_renewal_timer_unit}"
+    fi
     chmod 0644 "${temp_main_unit}" "${temp_backup_service_unit}" "${temp_backup_timer_unit}"
+    if [[ "${install_cert_renewal}" == "true" ]]; then
+        chmod 0644 "${temp_cert_renewal_service_unit}" "${temp_cert_renewal_timer_unit}"
+    fi
     mv "${temp_main_unit}" "${unit_path}"
     mv "${temp_backup_service_unit}" "${backup_service_unit_path}"
     mv "${temp_backup_timer_unit}" "${backup_timer_unit_path}"
+    if [[ "${install_cert_renewal}" == "true" ]]; then
+        mv "${temp_cert_renewal_service_unit}" "${cert_renewal_service_unit_path}"
+        mv "${temp_cert_renewal_timer_unit}" "${cert_renewal_timer_unit_path}"
+    fi
     trap - EXIT
     systemctl daemon-reload
     verify_unit_if_possible "${unit_path}"
     verify_unit_if_possible "${backup_service_unit_path}"
     verify_unit_if_possible "${backup_timer_unit_path}"
+    if [[ "${install_cert_renewal}" == "true" ]]; then
+        verify_unit_if_possible "${cert_renewal_service_unit_path}"
+        verify_unit_if_possible "${cert_renewal_timer_unit_path}"
+    fi
     if [[ "${enable_service}" == "true" ]]; then
         main_service_action enable
         backup_timer_action enable
+        if [[ "${install_cert_renewal}" == "true" ]]; then
+            cert_renewal_timer_action enable
+        fi
     fi
     if [[ "${start_service}" == "true" ]]; then
         if systemctl is-active --quiet "${service_name}.service" >/dev/null 2>&1; then
@@ -339,27 +449,48 @@ install)
         else
             backup_timer_action start
         fi
+        if [[ "${install_cert_renewal}" == "true" ]]; then
+            if systemctl is-active --quiet "${cert_renewal_timer_unit_name}" >/dev/null 2>&1; then
+                cert_renewal_timer_action restart
+            else
+                cert_renewal_timer_action start
+            fi
+        fi
     fi
     printf 'Installed %s\n' "${unit_path}"
     printf 'Installed %s\n' "${backup_service_unit_path}"
     printf 'Installed %s\n' "${backup_timer_unit_path}"
+    if [[ "${install_cert_renewal}" == "true" ]]; then
+        printf 'Installed %s\n' "${cert_renewal_service_unit_path}"
+        printf 'Installed %s\n' "${cert_renewal_timer_unit_path}"
+    fi
     ;;
 uninstall)
+    if cert_renewal_timer_installed; then
+        cert_renewal_timer_action stop >/dev/null 2>&1 || true
+        cert_renewal_timer_action disable >/dev/null 2>&1 || true
+    fi
     if backup_timer_installed; then
         backup_timer_action stop >/dev/null 2>&1 || true
         backup_timer_action disable >/dev/null 2>&1 || true
     fi
+    [[ -f "${cert_renewal_service_unit_path}" ]] && cert_renewal_service_action stop >/dev/null 2>&1 || true
     [[ -f "${backup_service_unit_path}" ]] && backup_service_action stop >/dev/null 2>&1 || true
     main_service_action stop >/dev/null 2>&1 || true
     main_service_action disable >/dev/null 2>&1 || true
-    rm -f "${unit_path}" "${backup_service_unit_path}" "${backup_timer_unit_path}"
+    rm -f "${unit_path}" "${backup_service_unit_path}" "${backup_timer_unit_path}" \
+        "${cert_renewal_service_unit_path}" "${cert_renewal_timer_unit_path}"
     systemctl daemon-reload
     systemctl reset-failed "${service_name}.service" >/dev/null 2>&1 || true
     systemctl reset-failed "${backup_service_unit_name}" >/dev/null 2>&1 || true
     systemctl reset-failed "${backup_timer_unit_name}" >/dev/null 2>&1 || true
+    systemctl reset-failed "${cert_renewal_service_unit_name}" >/dev/null 2>&1 || true
+    systemctl reset-failed "${cert_renewal_timer_unit_name}" >/dev/null 2>&1 || true
     printf 'Removed %s\n' "${unit_path}"
     printf 'Removed %s\n' "${backup_service_unit_path}"
     printf 'Removed %s\n' "${backup_timer_unit_path}"
+    printf 'Removed %s\n' "${cert_renewal_service_unit_path}"
+    printf 'Removed %s\n' "${cert_renewal_timer_unit_path}"
     ;;
 service-status)
     main_service_action status --no-pager
@@ -367,14 +498,24 @@ service-status)
         printf '\n'
         backup_timer_action status --no-pager
     fi
+    if cert_renewal_timer_installed; then
+        printf '\n'
+        cert_renewal_timer_action status --no-pager
+    fi
     ;;
 service-start)
     main_service_action start
     if backup_timer_installed; then
         backup_timer_action start
     fi
+    if cert_renewal_timer_installed; then
+        cert_renewal_timer_action start
+    fi
     ;;
 service-stop)
+    if cert_renewal_timer_installed; then
+        cert_renewal_timer_action stop
+    fi
     if backup_timer_installed; then
         backup_timer_action stop
     fi
@@ -384,6 +525,9 @@ service-restart)
     main_service_action restart
     if backup_timer_installed; then
         backup_timer_action restart
+    fi
+    if cert_renewal_timer_installed; then
+        cert_renewal_timer_action restart
     fi
     ;;
 esac

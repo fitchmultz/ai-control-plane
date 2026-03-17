@@ -25,6 +25,7 @@ func DefaultChecks() []Check {
 		portsFreeCheck{},
 		envVarsSetCheck{},
 		gatewayHealthyCheck{},
+		certificateHealthyCheck{},
 		dbConnectableCheck{},
 		configValidCheck{},
 		credentialsValidCheck{},

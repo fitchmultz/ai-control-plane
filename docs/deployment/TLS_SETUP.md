@@ -597,57 +597,40 @@ For production handoff procedures, see the [Production Handoff Runbook](./PRODUC
 
 ## 10. Certificate Management
 
-### Certificate Storage
+Certificate lifecycle is now part of the supported operator surface.
 
-Caddy stores certificates in Docker named volumes:
-- `caddy_data`: Certificates and private keys
-- `caddy_config`: Caddy configuration state
-
-**Location on host** (for inspection/backup):
-```bash
-# Find volume location
-docker volume inspect ai_control_plane_caddy_data
-
-# Inspect certificates
-docker run --rm -v ai_control_plane_caddy_data:/data \
-  alpine ls -la /data/caddy/certs/
-```
-
-### Backup Certificates
+### Day-to-day commands
 
 ```bash
-# Backup Caddy data volume
-docker run --rm -v ai_control_plane_caddy_data:/data \
-  -v $(pwd)/backups:/backup \
-  alpine tar czf /backup/caddy-data-backup.tar.gz -C /data .
+make cert-status DOMAIN=gateway.example.com
+./scripts/acpctl.sh cert list
+./scripts/acpctl.sh cert inspect --domain gateway.example.com
+./scripts/acpctl.sh cert check --threshold-days 30
+./scripts/acpctl.sh cert renew --domain gateway.example.com
 ```
 
-### Certificate Renewal
+### Automated renewal
 
-**Let's Encrypt**: Automatic renewal happens in background (typically 30 days before expiry)
+Install the host timer on the supported host-first path:
 
-**Self-signed**: No renewal needed, but regeneration is possible:
 ```bash
-# Remove existing certificates
-docker run --rm -v ai_control_plane_caddy_data:/data \
-  alpine rm -rf /data/caddy/pki
-
-# Restart Caddy to regenerate
-docker compose restart caddy
+sudo make cert-renew-install SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+systemctl status ai-control-plane-cert-renewal.timer
 ```
 
-### Certificate Expiration Monitoring
+### Rollback artifacts
 
-**Check Let's Encrypt certificate expiry:**
-```bash
-echo | openssl s_client -connect gateway.example.com:443 2>/dev/null | \
-  openssl x509 -noout -dates
+When ACP forces certificate reissuance, rollback artifacts are preserved under:
+
+```text
+demo/logs/cert-renewals/
 ```
 
-**Monitor Caddy logs for renewal events:**
-```bash
-docker compose logs caddy | grep -i renew
-```
+### Low-level recovery only
+
+Raw `openssl`, direct Docker-volume inspection, and manual volume deletion are recovery-only troubleshooting steps, not the primary operator workflow.
+
+For the full runbook, see [CERTIFICATE_LIFECYCLE.md](./CERTIFICATE_LIFECYCLE.md).
 
 ---
 

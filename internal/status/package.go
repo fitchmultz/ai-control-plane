@@ -58,6 +58,19 @@ type ComponentDetails struct {
 	Mode                   string   `json:"mode,omitempty"`
 	Scheme                 string   `json:"scheme,omitempty"`
 	BaseURL                string   `json:"base_url,omitempty"`
+	Domain                 string   `json:"domain,omitempty"`
+	Domains                []string `json:"domains,omitempty"`
+	Issuer                 string   `json:"issuer,omitempty"`
+	Subject                string   `json:"subject,omitempty"`
+	SerialNumber           string   `json:"serial_number,omitempty"`
+	NotBefore              string   `json:"not_before,omitempty"`
+	NotAfter               string   `json:"not_after,omitempty"`
+	DaysRemaining          int      `json:"days_remaining,omitempty"`
+	CertificateCount       int      `json:"certificate_count,omitempty"`
+	SelfSigned             bool     `json:"self_signed,omitempty"`
+	ManagedBy              string   `json:"managed_by,omitempty"`
+	StoragePath            string   `json:"storage_path,omitempty"`
+	FingerprintSHA256      string   `json:"fingerprint_sha256,omitempty"`
 	DatabaseName           string   `json:"database_name,omitempty"`
 	DatabaseUser           string   `json:"database_user,omitempty"`
 	ContainerID            string   `json:"container_id,omitempty"`
@@ -143,6 +156,19 @@ func (d ComponentDetails) lines() []string {
 	appendText("mode", d.Mode)
 	appendText("scheme", d.Scheme)
 	appendText("base_url", d.BaseURL)
+	appendText("domain", d.Domain)
+	appendList("domains", d.Domains)
+	appendText("issuer", d.Issuer)
+	appendText("subject", d.Subject)
+	appendText("serial_number", d.SerialNumber)
+	appendText("not_before", d.NotBefore)
+	appendText("not_after", d.NotAfter)
+	appendInt("days_remaining", d.DaysRemaining)
+	appendInt("certificate_count", d.CertificateCount)
+	appendBool("self_signed", d.SelfSigned)
+	appendText("managed_by", d.ManagedBy)
+	appendText("storage_path", d.StoragePath)
+	appendText("fingerprint_sha256", d.FingerprintSHA256)
 	appendText("database_name", d.DatabaseName)
 	appendText("database_user", d.DatabaseUser)
 	appendText("container_id", d.ContainerID)

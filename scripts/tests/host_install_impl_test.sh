@@ -55,6 +55,8 @@ mkdir -p "${FIXTURE_REPO}/deploy/systemd" "${UNIT_DIR}" "${BIN_DIR}"
 cp "${REPO_ROOT}/deploy/systemd/ai-control-plane.service.tmpl" "${FIXTURE_REPO}/deploy/systemd/"
 cp "${REPO_ROOT}/deploy/systemd/ai-control-plane-backup.service.tmpl" "${FIXTURE_REPO}/deploy/systemd/"
 cp "${REPO_ROOT}/deploy/systemd/ai-control-plane-backup.timer.tmpl" "${FIXTURE_REPO}/deploy/systemd/"
+cp "${REPO_ROOT}/deploy/systemd/ai-control-plane-cert-renewal.service.tmpl" "${FIXTURE_REPO}/deploy/systemd/"
+cp "${REPO_ROOT}/deploy/systemd/ai-control-plane-cert-renewal.timer.tmpl" "${FIXTURE_REPO}/deploy/systemd/"
 
 cat >"${SECRETS_FILE}" <<'EOF'
 LITELLM_MASTER_KEY=0123456789abcdef0123456789abcdef
@@ -102,31 +104,43 @@ run_bridge install \
     --compose-bin 'docker compose' \
     --backup-on-calendar 'Mon *-*-* 02:00:00' \
     --backup-randomized-delay 5m \
-    --backup-retention-keep 9 >/dev/null
+    --backup-retention-keep 9 \
+    --install-cert-renewal \
+    --cert-renewal-on-calendar 'daily' \
+    --cert-renewal-randomized-delay 10m \
+    --cert-renewal-threshold-days 21 >/dev/null
 
 test_assert_file_contains "${UNIT_DIR}/ai-control-plane-backup.service" 'db backup-retention --apply --keep 9' 'backup service renders retention keep value'
 test_assert_file_contains "${UNIT_DIR}/ai-control-plane-backup.timer" 'OnCalendar=Mon *-*-* 02:00:00' 'backup timer renders OnCalendar value'
 test_assert_file_contains "${UNIT_DIR}/ai-control-plane-backup.timer" 'RandomizedDelaySec=5m' 'backup timer renders RandomizedDelaySec value'
+test_assert_file_contains "${UNIT_DIR}/ai-control-plane-cert-renewal.service" 'cert renew --threshold-days 21' 'cert renewal service renders threshold value'
+test_assert_file_contains "${UNIT_DIR}/ai-control-plane-cert-renewal.timer" 'OnCalendar=daily' 'cert renewal timer renders OnCalendar value'
+test_assert_file_contains "${UNIT_DIR}/ai-control-plane-cert-renewal.timer" 'RandomizedDelaySec=10m' 'cert renewal timer renders RandomizedDelaySec value'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'enable ai-control-plane.service' 'install enables main service'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'enable ai-control-plane-backup.timer' 'install enables backup timer'
+test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'enable ai-control-plane-cert-renewal.timer' 'install enables cert renewal timer'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'start ai-control-plane.service' 'install starts main service'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'start ai-control-plane-backup.timer' 'install starts backup timer'
+test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'start ai-control-plane-cert-renewal.timer' 'install starts cert renewal timer'
 
 : >"${SYSTEMCTL_CAPTURE}"
 run_bridge service-status --unit-dir "${UNIT_DIR}" >/dev/null
 
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'status --no-pager ai-control-plane.service' 'service-status checks main service'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'status --no-pager ai-control-plane-backup.timer' 'service-status checks backup timer'
+test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'status --no-pager ai-control-plane-cert-renewal.timer' 'service-status checks cert renewal timer'
 
 : >"${SYSTEMCTL_CAPTURE}"
 run_bridge uninstall --unit-dir "${UNIT_DIR}" >/dev/null
 
-if [[ -e "${UNIT_DIR}/ai-control-plane.service" || -e "${UNIT_DIR}/ai-control-plane-backup.service" || -e "${UNIT_DIR}/ai-control-plane-backup.timer" ]]; then
+if [[ -e "${UNIT_DIR}/ai-control-plane.service" || -e "${UNIT_DIR}/ai-control-plane-backup.service" || -e "${UNIT_DIR}/ai-control-plane-backup.timer" || -e "${UNIT_DIR}/ai-control-plane-cert-renewal.service" || -e "${UNIT_DIR}/ai-control-plane-cert-renewal.timer" ]]; then
     printf '  ✗ uninstall should remove rendered units\n'
     exit 1
 fi
 
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'stop ai-control-plane-backup.timer' 'uninstall stops backup timer'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'disable ai-control-plane-backup.timer' 'uninstall disables backup timer'
+test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'stop ai-control-plane-cert-renewal.timer' 'uninstall stops cert renewal timer'
+test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'disable ai-control-plane-cert-renewal.timer' 'uninstall disables cert renewal timer'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'stop ai-control-plane.service' 'uninstall stops main service'
 test_assert_file_contains "${SYSTEMCTL_CAPTURE}" 'disable ai-control-plane.service' 'uninstall disables main service'

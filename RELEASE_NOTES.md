@@ -36,10 +36,12 @@ For every release:
 ## Validation
 - `make ci`
 - `make validate-config`
+- `./scripts/acpctl.sh cert check --threshold-days 30`
 - Any release-specific verification commands
 
 ## Docs Updated
 - README
+- certificate lifecycle runbook
 - deployment docs
 - reference docs
 - examples

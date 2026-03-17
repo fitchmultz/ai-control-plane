@@ -246,6 +246,28 @@ Examples:
 ./scripts/acpctl.sh key revoke alice
 ```
 
+### `cert`
+
+TLS certificate lifecycle operations.
+
+| Subcommand | Summary |
+| --- | --- |
+| `list` | List tracked TLS certificates |
+| `inspect` | Inspect one certificate |
+| `check` | Validate certificate expiry and live TLS state |
+| `renew` | Trigger controlled certificate reissuance |
+| `renew-auto` | Install the automatic certificate renewal timer |
+
+Examples:
+
+```bash
+./scripts/acpctl.sh cert list
+./scripts/acpctl.sh cert inspect --domain gateway.example.com
+./scripts/acpctl.sh cert check --threshold-days 30
+./scripts/acpctl.sh cert renew --domain gateway.example.com
+sudo ./scripts/acpctl.sh cert renew-auto --env-file /etc/ai-control-plane/secrets.env
+```
+
 ### `upgrade`
 
 Plan, validate, execute, and roll back host-first upgrades.
@@ -289,5 +311,6 @@ Examples:
 ./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.yml
 ./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml
 ./scripts/acpctl.sh host install --service-user acp --backup-retention-keep 14
+./scripts/acpctl.sh cert renew-auto --env-file /etc/ai-control-plane/secrets.env
 ```
 

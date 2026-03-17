@@ -107,6 +107,8 @@ func runHostPreflight(_ context.Context, runCtx commandRunContext, raw any) int 
 		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"),
 		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane-backup.service.tmpl"),
 		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane-backup.timer.tmpl"),
+		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane-cert-renewal.service.tmpl"),
+		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane-cert-renewal.timer.tmpl"),
 	}
 	for _, templatePath := range requiredTemplates {
 		if _, err := os.Stat(templatePath); err != nil {

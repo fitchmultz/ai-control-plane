@@ -35,7 +35,6 @@ Objective: make the validated host-first path operationally defensible for real 
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 13 | **Manage certificate lifecycle.** Remove TLS hand-waving from the production story. | Buyers expect TLS operations to be explicit and repeatable. | Certificate issuance, renewal, expiry detection, and operator runbooks are documented and at least partially automated for the supported path. |
 | 14 | **Publish a reference HA and failover pattern.** Be explicit about single-node limits and the next credible step. | Honest topology guidance builds more trust than vague “enterprise ready” language. | The repo documents a supported primary topology, failure domains, backup and failover expectations, and what remains customer-owned. |
 | 15 | **Validate the cloud path deliberately with AWS first.** Do not broaden claims without proof. | Cloud buyers need evidence, not architecture intent. | An AWS-first path is validated with tested IaC, cloud hardening guidance, and a basic cost-estimation model; unsupported cloud claims remain explicitly out. |
 

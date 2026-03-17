@@ -39,6 +39,7 @@ func TestCommandSpec_ApprovedCommandInventory(t *testing.T) {
 		"validate": {"lint", "config", "detections", "siem-queries", "public-hygiene", "license", "supply-chain", "secrets-audit", "compose-healthchecks", "headers", "env-access", "security"},
 		"db":       {"status", "backup", "backup-retention", "restore", "shell", "dr-drill"},
 		"key":      {"gen", "list", "inspect", "rotate", "revoke", "gen-dev", "gen-lead"},
+		"cert":     {"list", "inspect", "check", "renew", "renew-auto"},
 		"ops":      {"report"},
 		"host":     {"preflight", "check", "apply", "install", "uninstall", "service-status", "service-start", "service-stop", "service-restart"},
 		"upgrade":  {"plan", "check", "execute", "rollback"},

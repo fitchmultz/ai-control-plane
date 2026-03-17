@@ -24,7 +24,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/certlifecycle"
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
@@ -75,6 +77,75 @@ func (f fakeReadonlyReader) BudgetSummary(context.Context) (db.BudgetSummary, er
 
 func (f fakeReadonlyReader) DetectionSummary(context.Context) (db.DetectionSummary, error) {
 	return f.detectionSummary, f.detectionErr
+}
+
+func TestCertificateCollectorCoversInactiveWarningAndHealthyBranches(t *testing.T) {
+	t.Parallel()
+
+	inactiveRepo := t.TempDir()
+	testutil.WriteRepoFile(t, inactiveRepo, "demo/.env", "ACP_GATEWAY_URL=http://127.0.0.1:4000\n")
+	inactive := NewCertificateCollector(inactiveRepo).Collect(context.Background())
+	if inactive.Level != status.HealthLevelHealthy || inactive.Message != "TLS overlay inactive; certificate lifecycle not applicable" {
+		t.Fatalf("unexpected inactive certificate status: %+v", inactive)
+	}
+
+	warningRepo := t.TempDir()
+	testutil.WriteRepoFile(t, warningRepo, "demo/.env", "ACP_GATEWAY_URL=https://gateway.example.com\n")
+	originalCheck := certificateCheck
+	originalStore := newCertificateStore
+	certificateCheck = func(context.Context, certlifecycle.Store, certlifecycle.CheckRequest) (certlifecycle.CheckResult, error) {
+		return certlifecycle.CheckResult{
+			CheckedAt: time.Now().UTC(),
+			Status:    certlifecycle.StatusWarning,
+			Message:   "Certificate expires in 10 day(s)",
+			Certificates: []certlifecycle.CertificateInfo{{
+				DNSNames:          []string{"gateway.example.com"},
+				NotAfter:          time.Now().UTC().Add(10 * 24 * time.Hour),
+				Issuer:            "Issuer",
+				Subject:           "gateway.example.com",
+				SerialNumber:      "SERIAL",
+				ManagedBy:         "lets-encrypt",
+				StoragePath:       "/data/caddy/certificates/example/gateway.example.com.crt",
+				FingerprintSHA256: "ABC123",
+			}},
+			Suggestions: []string{"Renew soon"},
+		}, nil
+	}
+	newCertificateStore = func(string) certlifecycle.Store { return nil }
+	defer func() {
+		certificateCheck = originalCheck
+		newCertificateStore = originalStore
+	}()
+
+	warning := NewCertificateCollector(warningRepo).Collect(context.Background())
+	if warning.Level != status.HealthLevelWarning || warning.Details.Domain != "gateway.example.com" || warning.Details.DaysRemaining == 0 {
+		t.Fatalf("unexpected warning certificate status: %+v", warning)
+	}
+	if len(warning.Suggestions) == 0 {
+		t.Fatalf("expected renewal suggestion, got %+v", warning)
+	}
+
+	certificateCheck = func(context.Context, certlifecycle.Store, certlifecycle.CheckRequest) (certlifecycle.CheckResult, error) {
+		return certlifecycle.CheckResult{
+			CheckedAt: time.Now().UTC(),
+			Status:    certlifecycle.StatusHealthy,
+			Message:   "Certificate valid for 90 day(s)",
+			Certificates: []certlifecycle.CertificateInfo{{
+				DNSNames:          []string{"gateway.example.com"},
+				NotAfter:          time.Now().UTC().Add(90 * 24 * time.Hour),
+				Issuer:            "Issuer",
+				Subject:           "gateway.example.com",
+				SerialNumber:      "SERIAL",
+				ManagedBy:         "lets-encrypt",
+				StoragePath:       "/data/caddy/certificates/example/gateway.example.com.crt",
+				FingerprintSHA256: "ABC123",
+			}},
+		}, nil
+	}
+	healthy := NewCertificateCollector(warningRepo).Collect(context.Background())
+	if healthy.Level != status.HealthLevelHealthy || healthy.Details.Domain != "gateway.example.com" {
+		t.Fatalf("unexpected healthy certificate status: %+v", healthy)
+	}
 }
 
 func TestGatewayCollectorCoversWarningAndHealthyBranches(t *testing.T) {
