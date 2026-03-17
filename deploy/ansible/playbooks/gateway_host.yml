@@ -1,38 +1,39 @@
 # AI Control Plane - Gateway Host Convergence Playbook
 #
-# Purpose: Idempotently converge a single ACP gateway host to desired state
-#          using the tracked typed command surface and host-first Make/runtime flows.
+# Purpose: Idempotently converge a single ACP gateway host to the supported
+#          hardened host-first state.
 #
 # Responsibilities:
-#   - Validate prerequisites (variables, binaries, paths)
+#   - Validate the supported host boundary and required variables
+#   - Enforce baseline package, update, SSH, sysctl, and firewall posture
 #   - Validate deployment configuration against the canonical secrets file
-#   - Converge Docker Compose services
-#   - Run post-apply health, smoke, and overlay-specific validation
+#   - Converge Docker Compose services and run truthful postchecks
 #
 # Non-scope:
 #   - Does NOT generate secrets or env files (assumes they exist)
-#   - Does NOT manage external PostgreSQL (assumes connectivity)
+#   - Does NOT bootstrap Docker itself (Docker + Compose must already exist)
 #   - Does NOT handle rollback (use make db-restore separately)
 #
 # Invariants:
-#   - Safe to run multiple times (idempotent)
-#   - Uses tracked acpctl and Make entrypoints (no duplicate deployment logic)
-#   - Fails fast on validation errors
+#   - Safe to run multiple times
+#   - Remote non-loopback ingress requires the tls overlay
+#   - Raw gateway and OTEL ports remain loopback-only unless the tracked TLS
+#     ingress contract is enabled
 #
 # Usage:
 #   ansible-playbook -i inventory/hosts.yml \
 #     playbooks/gateway_host.yml -l gateway
 #
-# Variables (required):
+# Variables (required/used):
 #   - acp_repo_path: Path to cloned repository on host
-#   - acp_env_file: Path to environment file
+#   - acp_env_file: Path to canonical environment file
 #   - acp_runtime_overlays: list of overlay ids (tls, ui, dlp, offline)
-#   - acp_public_url: Public URL for smoke checks
+#   - acp_public_url: Supported public URL contract for smoke checks
 
 ---
 - name: Converge ACP Gateway Host
   hosts: gateway
-  gather_facts: false
+  gather_facts: true
   vars:
     acp_wait_for_stabilization: true
     acp_stabilization_seconds: 5
@@ -40,7 +41,7 @@
 
   tasks:
     # =========================================================================
-    # Phase 1: Variable Validation
+    # Phase 1: Variable And Host Boundary Validation
     # =========================================================================
     - name: Validate required variables are defined
       ansible.builtin.assert:
@@ -50,10 +51,43 @@
           - acp_runtime_overlays is defined
           - acp_public_url is defined
           - acp_runtime_overlays is iterable
+          - acp_host_required_packages is iterable
+          - acp_host_firewall_tls_allowed_cidrs is iterable
+          - acp_host_sysctl_settings is mapping
           - (acp_runtime_overlays | difference(['tls', 'ui', 'dlp', 'offline'])) | length == 0
         fail_msg: >-
-          Missing required variables. Check inventory and --extra-vars.
-        success_msg: "All required variables present"
+          Missing required variables or unsupported overlay values.
+        success_msg: All required variables present
+
+    - name: Assert supported host boundary
+      ansible.builtin.assert:
+        that:
+          - ansible_system == 'Linux'
+          - ansible_service_mgr == 'systemd'
+          - ansible_os_family == 'Debian'
+          - >-
+            (ansible_distribution | lower == 'ubuntu' and
+            ansible_distribution_version is version(acp_host_minimum_ubuntu_version, '>='))
+            or
+            (ansible_distribution | lower == 'debian' and
+            ansible_distribution_version is version(acp_host_minimum_debian_version, '>='))
+        fail_msg: >-
+          Unsupported host boundary. Supported hosts are Debian 12+ or Ubuntu 24.04+
+          with systemd.
+        success_msg: Host facts match the supported boundary
+
+    - name: Assert public URL contract stays within the supported boundary
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('tls' in acp_runtime_overlays and (acp_public_url is match('^https://')))
+            or
+            ('tls' not in acp_runtime_overlays and
+            (acp_public_url is match('^http://(127\\.0\\.0\\.1|localhost|\[::1\])(?::[0-9]+)?/?$')))
+        fail_msg: >-
+          acp_public_url must stay loopback-only without the tls overlay. For remote
+          ingress, enable the tls overlay and use an https:// URL.
+        success_msg: Public URL contract matches the selected overlays
 
     - name: Display convergence plan
       ansible.builtin.debug:
@@ -63,27 +97,29 @@
           - "  Environment file: {{ acp_env_file }}"
           - "  Runtime overlays: {{ acp_runtime_overlays | join(',') if (acp_runtime_overlays | length) > 0 else 'base' }}"
           - "  Public URL: {{ acp_public_url }}"
+          - "  Firewall default incoming: {{ acp_host_firewall_default_incoming_policy }}"
+          - "  Firewall default outgoing: {{ acp_host_firewall_default_outgoing_policy }}"
+          - "  Apt upgrade mode: {{ acp_host_apt_upgrade_mode }}"
 
     # =========================================================================
-    # Phase 2: Prerequisite Checks
+    # Phase 2: Repository, Secrets, And Runtime Prerequisite Checks
     # =========================================================================
-    - name: Check required binaries exist
+    - name: Check required Docker binaries exist
       ansible.builtin.command:
         argv: "{{ item }}"
       loop:
         - ["docker", "--version"]
-        - ["make", "--version"]
       changed_when: false
-      register: binary_check
 
     - name: Verify Docker daemon is accessible
+      become: true
       ansible.builtin.command:
         argv:
           - docker
           - ps
       changed_when: false
 
-    - name: Check for docker-compose or docker compose
+    - name: Check for docker compose availability
       ansible.builtin.shell: |
         if docker compose version >/dev/null 2>&1; then
           echo "docker compose"
@@ -102,9 +138,6 @@
       ansible.builtin.debug:
         msg: "Detected compose command: {{ compose_cmd_check.stdout }}"
 
-    # =========================================================================
-    # Phase 3: Repository and Environment Validation
-    # =========================================================================
     - name: Verify repository path exists
       ansible.builtin.stat:
         path: "{{ acp_repo_path }}"
@@ -142,9 +175,214 @@
           Makefile not found in repository: {{ acp_repo_path }}/Makefile
 
     # =========================================================================
+    # Phase 3: Baseline Host Hardening
+    # =========================================================================
+    - name: Refresh apt cache and apply safe package upgrades
+      become: true
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+        upgrade: "{{ acp_host_apt_upgrade_mode }}"
+
+    - name: Ensure required host packages are installed
+      become: true
+      ansible.builtin.apt:
+        name: "{{ acp_host_required_packages }}"
+        state: present
+
+    - name: Ensure canonical secrets directory permissions are private
+      become: true
+      ansible.builtin.file:
+        path: "{{ acp_env_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0750'
+
+    - name: Ensure canonical secrets file permissions are private
+      become: true
+      ansible.builtin.file:
+        path: "{{ acp_env_file }}"
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Configure automatic security updates cadence
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Download-Upgradeable-Packages "1";
+          APT::Periodic::AutocleanInterval "7";
+          APT::Periodic::Unattended-Upgrade "1";
+
+    - name: Configure unattended-upgrades policy
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/52ai-control-plane-unattended-upgrades
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          Unattended-Upgrade::Allowed-Origins {
+              "${distro_id}:${distro_codename}";
+              "${distro_id}:${distro_codename}-security";
+              "${distro_id}:${distro_codename}-updates";
+          };
+          Unattended-Upgrade::Automatic-Reboot "false";
+          Unattended-Upgrade::Remove-Unused-Dependencies "true";
+          Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+          Unattended-Upgrade::SyslogEnable "true";
+
+    - name: Ensure unattended-upgrades service is enabled
+      become: true
+      ansible.builtin.service:
+        name: unattended-upgrades
+        enabled: true
+        state: started
+
+    - name: Install SSH hardening drop-in
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/60-ai-control-plane-hardening.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          PasswordAuthentication {{ 'yes' if acp_host_ssh_password_authentication else 'no' }}
+          KbdInteractiveAuthentication no
+          ChallengeResponseAuthentication no
+          PubkeyAuthentication yes
+          PermitRootLogin {{ 'yes' if acp_host_ssh_permit_root_login else 'no' }}
+          MaxAuthTries {{ acp_host_ssh_max_auth_tries }}
+          X11Forwarding no
+      register: ssh_hardening_dropin
+
+    - name: Reload SSH after hardening change
+      become: true
+      ansible.builtin.service:
+        name: ssh
+        state: reloaded
+      when: ssh_hardening_dropin.changed
+
+    - name: Install sysctl hardening profile
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/60-ai-control-plane-hardening.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          {% for key, value in acp_host_sysctl_settings | dictsort %}
+          {{ key }} = {{ value }}
+          {% endfor %}
+      register: sysctl_hardening_profile
+
+    - name: Apply sysctl hardening profile
+      become: true
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - --system
+      changed_when: false
+      when: sysctl_hardening_profile.changed
+
+    - name: Reset UFW to tracked baseline
+      become: true
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - --force
+          - reset
+      changed_when: true
+
+    - name: Configure UFW default policies
+      become: true
+      ansible.builtin.command:
+        argv: "{{ item }}"
+      loop:
+        - ["ufw", "default", "{{ acp_host_firewall_default_incoming_policy }}", "incoming"]
+        - ["ufw", "default", "{{ acp_host_firewall_default_outgoing_policy }}", "outgoing"]
+        - ["ufw", "default", "{{ acp_host_firewall_default_routed_policy }}", "routed"]
+      changed_when: true
+
+    - name: Allow rate-limited SSH through UFW
+      become: true
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - limit
+          - OpenSSH
+      changed_when: true
+
+    - name: Allow TLS HTTP ingress CIDRs through UFW
+      become: true
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - allow
+          - from
+          - "{{ item }}"
+          - to
+          - any
+          - port
+          - '80'
+          - proto
+          - tcp
+      loop: "{{ acp_host_firewall_tls_allowed_cidrs }}"
+      changed_when: true
+      when: "'tls' in acp_runtime_overlays"
+
+    - name: Allow TLS HTTPS ingress CIDRs through UFW
+      become: true
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - allow
+          - from
+          - "{{ item }}"
+          - to
+          - any
+          - port
+          - '443'
+          - proto
+          - tcp
+      loop: "{{ acp_host_firewall_tls_allowed_cidrs }}"
+      changed_when: true
+      when: "'tls' in acp_runtime_overlays"
+
+    - name: Enable UFW
+      become: true
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - --force
+          - enable
+      changed_when: true
+
+    - name: Capture firewall status summary
+      become: true
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      changed_when: false
+      register: ufw_status
+
+    - name: Display firewall status summary
+      ansible.builtin.debug:
+        var: ufw_status.stdout_lines
+
+    # =========================================================================
     # Phase 4: Configuration Validation
     # =========================================================================
     - name: Run deployment configuration validation
+      become: true
       ansible.builtin.command:
         argv:
           - ./scripts/acpctl.sh
@@ -154,13 +392,14 @@
           - --secrets-env-file
           - "{{ acp_env_file }}"
         chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
       changed_when: false
       register: config_validation
-      no_log: true  # Prevent any secret leakage
+      no_log: true
 
     - name: Display configuration validation success
       ansible.builtin.debug:
-        msg: "Configuration validation passed"
+        msg: Configuration validation passed
 
     # =========================================================================
     # Phase 5: Service Convergence
@@ -170,6 +409,7 @@
         acp_runtime_overlays_csv: "{{ acp_runtime_overlays | join(',') }}"
 
     - name: Converge Docker Compose services
+      become: true
       ansible.builtin.command:
         argv:
           - make
@@ -179,8 +419,9 @@
           - ACP_RUNTIME_PRODUCTION_PROFILE=1
           - ACP_RUNTIME_OTEL_COLLECTOR_CONFIG_FILE=config.production.yaml
         chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
       register: converge_result
-      changed_when: >
+      changed_when: >-
         ('Creating' in converge_result.stdout) or
         ('Recreating' in converge_result.stdout) or
         ('Starting' in converge_result.stdout) or
@@ -206,85 +447,95 @@
         - acp_wait_for_stabilization | bool
 
     - name: Run health check
+      become: true
       ansible.builtin.command:
         argv:
           - make
           - health
           - COMPOSE_ENV_FILE={{ acp_env_file }}
         chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
       changed_when: false
       register: health_check
 
     - name: Display health check result
       ansible.builtin.debug:
-        msg: "Health check passed"
+        msg: Health check passed
 
     # =========================================================================
     # Phase 7: Smoke Validation (Optional but Recommended)
     # =========================================================================
     - name: Run production smoke check
+      become: true
       ansible.builtin.command:
         argv:
           - make
           - prod-smoke
           - COMPOSE_ENV_FILE={{ acp_env_file }}
         chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
       changed_when: false
       register: smoke_check
-      no_log: true  # Prevent secret leakage
+      no_log: true
       when: acp_run_smoke_tests | bool
 
     - name: Display smoke check result
       ansible.builtin.debug:
-        msg: "Smoke check passed"
+        msg: Smoke check passed
       when: acp_run_smoke_tests | bool
 
     - name: Run managed UI overlay health check
+      become: true
       ansible.builtin.command:
         argv:
           - make
           - librechat-health
           - COMPOSE_ENV_FILE={{ acp_env_file }}
         chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
       changed_when: false
       register: librechat_health_check
       when: "'ui' in acp_runtime_overlays"
 
     - name: Display managed UI overlay health result
       ansible.builtin.debug:
-        msg: "Managed UI overlay health check passed"
+        msg: Managed UI overlay health check passed
       when: "'ui' in acp_runtime_overlays"
 
     - name: Run TLS overlay health check
+      become: true
       ansible.builtin.command:
         argv:
           - make
           - tls-health
           - COMPOSE_ENV_FILE={{ acp_env_file }}
         chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
       changed_when: false
       register: tls_health_check
       when: "'tls' in acp_runtime_overlays"
 
     - name: Display TLS overlay health result
       ansible.builtin.debug:
-        msg: "TLS overlay health check passed"
+        msg: TLS overlay health check passed
       when: "'tls' in acp_runtime_overlays"
 
     - name: Run DLP overlay health check
+      become: true
       ansible.builtin.command:
         argv:
           - make
           - dlp-health
           - COMPOSE_ENV_FILE={{ acp_env_file }}
         chdir: "{{ acp_repo_path }}"
+      environment: "{{ acp_extra_env }}"
       changed_when: false
       register: dlp_health_check
       when: "'dlp' in acp_runtime_overlays"
 
     - name: Display DLP overlay health result
       ansible.builtin.debug:
-        msg: "DLP overlay health check passed"
+        msg: DLP overlay health check passed
       when: "'dlp' in acp_runtime_overlays"
 
     # =========================================================================
@@ -295,7 +546,10 @@
         msg:
           - "=== ACP Gateway Host Convergence Summary ==="
           - "Host: {{ inventory_hostname }}"
+          - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
           - "Services changed: {{ converge_result.changed }}"
+          - "Firewall: UFW enabled with {{ acp_host_firewall_default_incoming_policy }} incoming / {{ acp_host_firewall_default_outgoing_policy }} outgoing defaults"
+          - "Automatic security updates: ENABLED"
           - "Health check: PASSED"
           - >-
             Smoke check: {{ 'SKIPPED' if not (acp_run_smoke_tests | bool)

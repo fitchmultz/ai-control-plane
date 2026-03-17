@@ -30,6 +30,7 @@ The canonical execution roadmap for outstanding work lives in [docs/ROADMAP.md](
 | Not yet validated | Broad cloud-production claims, multi-tenant managed-service claims, and universal browser-bypass prevention |
 
 - Supported runtime: host-first Docker baseline plus explicit overlays
+- Supported host boundary: Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, Docker Compose, and verified SSH host keys
 - Primary operator UX: `make`
 - Typed workflow UX: `./scripts/acpctl.sh`
 - Incubating only: deployment-exploration assets under `deploy/incubating/`
@@ -73,7 +74,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - Day-2 reporting: `make operator-report`, `make chargeback-report`
 - Key lifecycle: `make key-list`, `make key-inspect ALIAS=<alias>`, `make key-rotate ALIAS=<alias>`
 - Guided diagnostics and remediation: `make doctor FIX=1 NOTIFY=1`
-- Production-like host path: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- Production-like host path with baseline host hardening: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ## Repo Map
 

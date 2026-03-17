@@ -19,12 +19,16 @@ Start with [README.md](../README.md) for the public repo overview, [troubleshoot
 - Use `demo/.env` for local-only runs.
 - Use `/etc/ai-control-plane/secrets.env` for host-production workflows.
 - Select supported host overlays through `acp_runtime_overlays` in the Ansible inventory.
+- Keep `acp_public_url` loopback-only unless the `tls` overlay is enabled.
+- Expect the supported host path to verify SSH host keys and enforce baseline host hardening (UFW defaults, unattended security updates, SSH hardening, private secrets-file permissions).
+- Treat outbound allow-listing, SWG/CASB policy, and broader perimeter controls as customer-owned responsibilities outside the host playbook.
 
 ## Migration Notes
 
 - Removed public `acpctl` groups for demo, incubating deployment tracks, and bridge delegation.
 - Removed `host secrets-refresh`; production reads `/etc/ai-control-plane/secrets.env` directly.
 - Moved incubating deployment assets into `deploy/incubating/`.
+- Hardened the supported Ansible host path around Debian 12+/Ubuntu 24.04+, verified SSH host keys, explicit firewall defaults, and automatic security updates.
 
 ## Not Part Of The Supported Surface
 

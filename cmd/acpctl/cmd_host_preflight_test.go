@@ -1,13 +1,13 @@
 // cmd_host_preflight_test.go - Tests for the native host preflight command.
 //
 // Purpose:
-//   - Lock the typed host preflight command to the expected local prerequisite
-//     and production-validation contract.
+//   - Lock the typed host preflight command to the expected supported-host
+//     boundary and production-validation contract.
 //
 // Responsibilities:
 //   - Cover successful host preflight execution.
 //   - Cover unsupported profile usage.
-//   - Cover missing local prerequisites before validation runs.
+//   - Cover missing or unsupported host-boundary prerequisites.
 //
 // Scope:
 //   - Host preflight command behavior only.
@@ -49,7 +49,7 @@ func TestRunHostPreflightSucceedsForCanonicalProductionFixture(t *testing.T) {
 		"LITELLM_SALT_KEY=prod-salt-token-abcdefghijklmnopqrstuvwxyz1234567890\n"+
 		"OTEL_INGEST_AUTH_TOKEN=otel-ingest-auth-token-abcdefghijklmnopqrstuvwxyz\n", 0o600)
 
-	restore := stubHostPreflightPrereqs(t)
+	restore := stubHostPreflightPrereqs(t, "ubuntu", "24.04")
 	defer restore()
 
 	stdout, stderr := newTestFiles(t)
@@ -84,7 +84,7 @@ func TestRunHostPreflightFailsWhenSystemctlMissing(t *testing.T) {
 	secretsPath := filepath.Join(repoRoot, "local", "host-preflight", "secrets.env")
 	writeFileWithMode(t, secretsPath, "LITELLM_MASTER_KEY=prod-master-token-abcdefghijklmnopqrstuvwxyz1234567890\n", 0o600)
 
-	restore := stubHostPreflightPrereqsWithoutSystemctl(t)
+	restore := stubHostPreflightPrereqsWithoutSystemctl(t, "ubuntu", "24.04")
 	defer restore()
 
 	stdout, stderr := newTestFiles(t)
@@ -100,25 +100,70 @@ func TestRunHostPreflightFailsWhenSystemctlMissing(t *testing.T) {
 	}
 }
 
-func stubHostPreflightPrereqs(t *testing.T) func() {
-	t.Helper()
-	binDir := t.TempDir()
-	writeExecutable(t, filepath.Join(binDir, "docker"), "#!/bin/sh\nexit 0\n")
-	writeExecutable(t, filepath.Join(binDir, "make"), "#!/bin/sh\nexit 0\n")
-	writeExecutable(t, filepath.Join(binDir, "systemctl"), "#!/bin/sh\nexit 0\n")
-	originalPath := os.Getenv("PATH")
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+originalPath)
-	return func() {}
+func TestRunHostPreflightRejectsUnsupportedDistribution(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeProductionValidationFixtureRepo(t, repoRoot)
+	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"), "[Unit]\nDescription=ACP\n")
+	writeFile(t, filepath.Join(repoRoot, "demo", ".env"), "ACP_DATABASE_MODE=embedded\n")
+	secretsPath := filepath.Join(repoRoot, "local", "host-preflight", "secrets.env")
+	writeFileWithMode(t, secretsPath, "LITELLM_MASTER_KEY=prod-master-token-abcdefghijklmnopqrstuvwxyz1234567890\n", 0o600)
+
+	restore := stubHostPreflightPrereqs(t, "fedora", "41")
+	defer restore()
+
+	stdout, stderr := newTestFiles(t)
+	exitCode := withRepoRoot(t, repoRoot, func() int {
+		return runTestCommand(t, context.Background(), stdout, stderr, "host", "preflight", "--secrets-env-file", secretsPath)
+	})
+
+	if exitCode != exitcodes.ACPExitPrereq {
+		t.Fatalf("expected prereq exit, got %d stdout=%s stderr=%s", exitCode, readFile(t, stdout), readFile(t, stderr))
+	}
+	if got := readFile(t, stderr); !strings.Contains(got, "unsupported host distribution: fedora 41") {
+		t.Fatalf("expected unsupported distro error, got %s", got)
+	}
 }
 
-func stubHostPreflightPrereqsWithoutSystemctl(t *testing.T) func() {
+func stubHostPreflightPrereqs(t *testing.T, distro string, version string) func() {
 	t.Helper()
 	binDir := t.TempDir()
 	writeExecutable(t, filepath.Join(binDir, "docker"), "#!/bin/sh\nexit 0\n")
-	writeExecutable(t, filepath.Join(binDir, "make"), "#!/bin/sh\nexit 0\n")
+	writeExecutable(t, filepath.Join(binDir, "apt-get"), "#!/bin/sh\nexit 0\n")
+	writeExecutable(t, filepath.Join(binDir, "systemctl"), "#!/bin/sh\nexit 0\n")
+	return installHostPreflightBoundaryFixture(t, binDir, distro, version)
+}
+
+func stubHostPreflightPrereqsWithoutSystemctl(t *testing.T, distro string, version string) func() {
+	t.Helper()
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "docker"), "#!/bin/sh\nexit 0\n")
+	writeExecutable(t, filepath.Join(binDir, "apt-get"), "#!/bin/sh\nexit 0\n")
+	return installHostPreflightBoundaryFixture(t, binDir, distro, version)
+}
+
+func installHostPreflightBoundaryFixture(t *testing.T, binDir string, distro string, version string) func() {
+	t.Helper()
 	originalPath := os.Getenv("PATH")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+originalPath)
-	return func() {}
+
+	osReleasePath := filepath.Join(t.TempDir(), "os-release")
+	writeFileWithMode(t, osReleasePath, "ID="+distro+"\nVERSION_ID=\""+version+"\"\n", 0o644)
+	systemdDir := filepath.Join(t.TempDir(), "systemd")
+	if err := os.MkdirAll(systemdDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", systemdDir, err)
+	}
+
+	origRuntimeGOOS := hostRuntimeGOOS
+	origOSReleasePath := hostOSReleasePath
+	origSystemdRuntimeDir := hostSystemdRuntimeDir
+	hostRuntimeGOOS = "linux"
+	hostOSReleasePath = osReleasePath
+	hostSystemdRuntimeDir = systemdDir
+	return func() {
+		hostRuntimeGOOS = origRuntimeGOOS
+		hostOSReleasePath = origOSReleasePath
+		hostSystemdRuntimeDir = origSystemdRuntimeDir
+	}
 }
 
 func writeExecutable(t *testing.T, path string, contents string) {

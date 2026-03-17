@@ -16,3 +16,7 @@ The production contract is the host-first Docker deployment path described in [D
 - `demo/.env` is local-demo only.
 - Production workflows do not sync secrets back into the repository tree.
 - The supported runtime remains the host-first Docker baseline, with overlays only when explicitly selected.
+- Without the `tls` overlay, the supported `acp_public_url` remains loopback-only.
+- Remote non-loopback ingress requires the `tls` overlay and an `https://...` public URL.
+- The supported host boundary is Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, and Docker Compose.
+- The tracked host playbook enforces baseline package/update posture, SSH hardening, private secrets-file permissions, and explicit UFW defaults.

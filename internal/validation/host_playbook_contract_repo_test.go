@@ -4,6 +4,7 @@
 //   - Lock down the tracked host-first playbook postcheck contract.
 //
 // Responsibilities:
+//   - Ensure baseline host hardening remains part of the tracked playbook.
 //   - Ensure generic host health and smoke checks remain in place.
 //   - Ensure supported overlays trigger their expected postchecks.
 //
@@ -35,6 +36,13 @@ func TestTrackedGatewayHostPlaybookRunsOverlaySpecificPostchecks(t *testing.T) {
 	content := string(data)
 
 	requiredSnippets := []string{
+		"upgrade: \"{{ acp_host_apt_upgrade_mode }}\"",
+		"name: \"{{ acp_host_required_packages }}\"",
+		"dest: /etc/apt/apt.conf.d/20auto-upgrades",
+		"dest: /etc/ssh/sshd_config.d/60-ai-control-plane-hardening.conf",
+		"dest: /etc/sysctl.d/60-ai-control-plane-hardening.conf",
+		"argv:\n          - ufw\n          - --force\n          - reset",
+		"argv:\n          - ufw\n          - limit\n          - OpenSSH",
 		"argv:\n          - make\n          - health\n          - COMPOSE_ENV_FILE={{ acp_env_file }}",
 		"argv:\n          - make\n          - prod-smoke\n          - COMPOSE_ENV_FILE={{ acp_env_file }}",
 		"argv:\n          - make\n          - librechat-health\n          - COMPOSE_ENV_FILE={{ acp_env_file }}",
@@ -43,6 +51,7 @@ func TestTrackedGatewayHostPlaybookRunsOverlaySpecificPostchecks(t *testing.T) {
 		`when: "'ui' in acp_runtime_overlays"`,
 		`when: "'tls' in acp_runtime_overlays"`,
 		`when: "'dlp' in acp_runtime_overlays"`,
+		`acp_public_url must stay loopback-only without the tls overlay`,
 	}
 
 	for _, snippet := range requiredSnippets {

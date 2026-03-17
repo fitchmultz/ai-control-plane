@@ -1,11 +1,12 @@
 # AI Control Plane - Gateway Group Variables
 #
-# Purpose: Default variables for all gateway hosts.
-#          These are merged with host-specific variables.
+# Purpose: Default variables for all supported gateway hosts.
+#          These defaults define the hardened host-first contract.
 #
 # Security Notes:
 #   - No secrets in this file (use env files or vault)
 #   - Use password_file paths, not actual passwords
+#   - Remote non-loopback ingress must go through the TLS overlay
 
 ---
 # Connection defaults
@@ -17,6 +18,48 @@ ansible_port: 22
 acp_repo_path: /opt/ai-control-plane
 acp_env_file: /etc/ai-control-plane/secrets.env
 acp_runtime_overlays: []
+acp_public_url: http://127.0.0.1:4000
+acp_extra_env: {}
+
+# Supported host boundary
+acp_host_minimum_debian_version: "12"
+acp_host_minimum_ubuntu_version: "24.04"
+
+# Baseline package and update posture
+acp_host_required_packages:
+  - ca-certificates
+  - curl
+  - git
+  - make
+  - ufw
+  - unattended-upgrades
+acp_host_apt_upgrade_mode: safe
+
+# Firewall posture
+acp_host_firewall_default_incoming_policy: deny
+acp_host_firewall_default_outgoing_policy: allow
+acp_host_firewall_default_routed_policy: deny
+acp_host_firewall_tls_allowed_cidrs:
+  - 0.0.0.0/0
+  - ::/0
+
+# Baseline SSH hardening
+acp_host_ssh_password_authentication: false
+acp_host_ssh_permit_root_login: false
+acp_host_ssh_max_auth_tries: 3
+
+# Baseline kernel/sysctl hardening compatible with Docker hosts
+acp_host_sysctl_settings:
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.tcp_syncookies: 1
+  kernel.randomize_va_space: 2
+  fs.protected_hardlinks: 1
+  fs.protected_symlinks: 1
 
 # External database defaults
 acp_external_db:

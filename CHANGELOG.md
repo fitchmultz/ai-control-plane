@@ -16,6 +16,7 @@ This repository uses:
 - Typed key inventory, inspection, and rotation workflows via `acpctl key list|inspect|rotate` plus `make key-list|key-inspect|key-rotate`.
 - One-command operator runtime reporting via `acpctl ops report` and `make operator-report` with private local archive output.
 - Doctor budget/detection finding adapters, safe gateway/database remediation helpers, and webhook fanout for `acpctl doctor --notify`.
+- Hardened host-playbook defaults for package/update posture, UFW ingress policy, unattended security updates, SSH hardening, and Debian/Ubuntu support-boundary enforcement.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
@@ -24,6 +25,7 @@ This repository uses:
 - Gateway host, URL, TLS, and secret ergonomics now follow one canonical operator contract across `make`, `acpctl`, onboarding, and operator docs.
 - `acpctl onboard` now performs post-write config linting plus actionable verification summaries for local contract issues, gateway reachability, and authorized model access.
 - Wave 2 operator adoption work is now productized through canonical make and `acpctl` entrypoints instead of manual key and reporting runbooks.
+- Host production docs and preflight checks now enforce the hardened support boundary: Debian 12+/Ubuntu 24.04+, verified SSH host keys, loopback-only non-TLS base access, and TLS for remote ingress.
 
 ### Removed
 - Redundant empty placeholder packages: `internal/validate`, `internal/release`, and `internal/key`.

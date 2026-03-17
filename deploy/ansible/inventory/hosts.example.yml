@@ -6,7 +6,7 @@
 # Security Notes:
 #   - Do NOT commit real hostnames, IPs, or secrets to version control
 #   - Keep secrets in external files referenced by path (password_file)
-#   - Use ansible-vault for sensitive variables if needed
+#   - Verify SSH host keys instead of disabling StrictHostKeyChecking
 #
 # Usage:
 #   cp hosts.example.yml hosts.yml
@@ -21,7 +21,6 @@ all:
 
     # SSH settings
     ansible_ssh_private_key_file: ~/.ssh/acp_gateway_key
-    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   children:
     gateway:
       hosts:
@@ -42,12 +41,22 @@ all:
 
           # Supported overlays for host convergence.
           # Allowed values: tls, ui, dlp, offline
-          # Base host-first convergence uses an empty list.
+          # Base host-first convergence keeps the gateway loopback-only.
           acp_runtime_overlays: []
 
-          # Public URL for smoke checks and client access
-          # Should match LITELLM_PUBLIC_URL in .env when TLS is enabled
-          acp_public_url: http://192.168.1.122:4000
+          # Public URL contract:
+          # - Without the tls overlay, stay loopback-only.
+          # - For remote ingress, set acp_runtime_overlays: [tls] and switch to https.
+          acp_public_url: http://127.0.0.1:4000
+          # Example remote TLS override:
+          # acp_runtime_overlays: [tls]
+          # acp_public_url: https://gateway.example.com
+
+          # Optional CIDR allow-list for TLS ingress when tls overlay is enabled.
+          # Defaults remain 0.0.0.0/0 and ::/0 if not overridden.
+          acp_host_firewall_tls_allowed_cidrs:
+            - 203.0.113.0/24
+            - 2001:db8::/48
 
           # External database configuration (optional)
           # When enabled, assumes external PostgreSQL instead of embedded
@@ -62,6 +71,6 @@ all:
             password_file: /etc/acp/secrets/postgres_password
 
           # Additional environment overrides (optional)
-          # These are passed to make commands as extra environment variables
+          # These are exported to validation and make commands on the host.
           acp_extra_env:
             LITELLM_LOG_LEVEL: INFO

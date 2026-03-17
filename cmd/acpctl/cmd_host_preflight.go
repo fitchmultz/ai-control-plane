@@ -5,8 +5,8 @@
 //     internal bridge script.
 //
 // Responsibilities:
-//   - Validate required local binaries for host-first workflows.
-//   - Verify the tracked systemd unit template exists.
+//   - Validate the supported host boundary for production host deployments.
+//   - Verify tracked host deployment assets exist locally.
 //   - Run the canonical production deployment-contract validation.
 //
 // Scope:
@@ -17,6 +17,8 @@
 //
 // Invariants/Assumptions:
 //   - Only the production profile is supported.
+//   - The supported host boundary is Debian 12+ or Ubuntu 24.04+ with systemd,
+//     apt, Docker, and Docker Compose available.
 //   - Relative paths resolve from the repository root.
 package main
 
@@ -25,21 +27,33 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
-	"github.com/mitchfultz/ai-control-plane/internal/proc"
 	"github.com/mitchfultz/ai-control-plane/internal/validation"
 )
 
 const defaultHostSecretsEnvFile = "/etc/ai-control-plane/secrets.env"
 
+var (
+	hostRuntimeGOOS       = runtime.GOOS
+	hostOSReleasePath     = "/etc/os-release"
+	hostSystemdRuntimeDir = "/run/systemd/system"
+)
+
 type hostPreflightOptions struct {
 	Profile        string
 	SecretsEnvFile string
+}
+
+type hostOSRelease struct {
+	ID        string
+	VersionID string
 }
 
 func hostPreflightCommandSpec() *commandSpec {
@@ -84,7 +98,7 @@ func runHostPreflight(_ context.Context, runCtx commandRunContext, raw any) int 
 	fmt.Fprintf(runCtx.Stdout, "Profile: %s\n", opts.Profile)
 	fmt.Fprintf(runCtx.Stdout, "Secrets file: %s\n", opts.SecretsEnvFile)
 
-	if err := requireHostPreflightPrereqs(runCtx.RepoRoot); err != nil {
+	if err := requireHostPreflightPrereqs(); err != nil {
 		workflowFailure(logger, err)
 		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitPrereq, err, "Host preflight prerequisites failed")
 	}
@@ -113,13 +127,25 @@ func runHostPreflight(_ context.Context, runCtx commandRunContext, raw any) int 
 	return exitcodes.ACPExitSuccess
 }
 
-func requireHostPreflightPrereqs(repoRoot string) error {
+func requireHostPreflightPrereqs() error {
+	if hostRuntimeGOOS != "linux" {
+		return fmt.Errorf("unsupported host OS: %s (supported: Debian 12+ or Ubuntu 24.04+ on Linux)", hostRuntimeGOOS)
+	}
+	osRelease, err := loadHostOSRelease(hostOSReleasePath)
+	if err != nil {
+		return err
+	}
+	if !supportedHostOS(osRelease) {
+		return fmt.Errorf("unsupported host distribution: %s %s (supported: Debian 12+ or Ubuntu 24.04+)", osRelease.ID, osRelease.VersionID)
+	}
+	if _, err := os.Stat(hostSystemdRuntimeDir); err != nil {
+		return fmt.Errorf("systemd runtime not detected at %s", hostSystemdRuntimeDir)
+	}
+	if !prereq.CommandExists("apt-get") {
+		return fmt.Errorf("required command not found: apt-get")
+	}
 	if !prereq.CommandExists("docker") {
 		return fmt.Errorf("required command not found: docker")
-	}
-	makeBin := config.NewLoader().WithRepoRoot(repoRoot).Tooling().MakeBinary
-	if err := proc.ValidateExecutable(makeBin); err != nil {
-		return fmt.Errorf("required command not found or not executable: %s", makeBin)
 	}
 	if !prereq.CommandExists("systemctl") {
 		return fmt.Errorf("required command not found: systemctl")
@@ -128,4 +154,89 @@ func requireHostPreflightPrereqs(repoRoot string) error {
 		return fmt.Errorf("docker compose not available: %w", err)
 	}
 	return nil
+}
+
+func loadHostOSRelease(path string) (hostOSRelease, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return hostOSRelease{}, fmt.Errorf("read host os-release: %w", err)
+	}
+	info := hostOSRelease{}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		value = strings.Trim(strings.TrimSpace(value), `"`)
+		switch strings.TrimSpace(key) {
+		case "ID":
+			info.ID = strings.ToLower(value)
+		case "VERSION_ID":
+			info.VersionID = value
+		}
+	}
+	if info.ID == "" || info.VersionID == "" {
+		return hostOSRelease{}, fmt.Errorf("host os-release missing ID or VERSION_ID")
+	}
+	return info, nil
+}
+
+func supportedHostOS(info hostOSRelease) bool {
+	switch strings.ToLower(strings.TrimSpace(info.ID)) {
+	case "debian":
+		return versionAtLeast(info.VersionID, "12")
+	case "ubuntu":
+		return versionAtLeast(info.VersionID, "24.04")
+	default:
+		return false
+	}
+}
+
+func versionAtLeast(actual string, minimum string) bool {
+	actualParts := parseVersionParts(actual)
+	minimumParts := parseVersionParts(minimum)
+	maxParts := len(actualParts)
+	if len(minimumParts) > maxParts {
+		maxParts = len(minimumParts)
+	}
+	for i := 0; i < maxParts; i++ {
+		actualValue := 0
+		if i < len(actualParts) {
+			actualValue = actualParts[i]
+		}
+		minimumValue := 0
+		if i < len(minimumParts) {
+			minimumValue = minimumParts[i]
+		}
+		if actualValue > minimumValue {
+			return true
+		}
+		if actualValue < minimumValue {
+			return false
+		}
+	}
+	return true
+}
+
+func parseVersionParts(value string) []int {
+	fields := strings.FieldsFunc(strings.TrimSpace(value), func(r rune) bool {
+		return r == '.' || r == '-'
+	})
+	parts := make([]int, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		n, err := strconv.Atoi(field)
+		if err != nil {
+			break
+		}
+		parts = append(parts, n)
+	}
+	return parts
 }

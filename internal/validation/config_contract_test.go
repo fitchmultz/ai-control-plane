@@ -48,6 +48,21 @@ func TestValidateConfigContractFlagsCrossFileIssues(t *testing.T) {
 	}
 }
 
+func TestValidateConfigContractFlagsUnsupportedHostInventoryURLContract(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeValidConfigContractRepo(t, repoRoot)
+	writeFixtureFile(t, filepath.Join(repoRoot, "deploy", "ansible", "inventory", "hosts.example.yml"), "all:\n  children:\n    gateway:\n      hosts:\n        gateway:\n          acp_runtime_overlays: []\n          acp_public_url: http://gateway.example.com:4000\n")
+
+	issues, err := ValidateConfigContract(repoRoot)
+	if err != nil {
+		t.Fatalf("ValidateConfigContract() error = %v", err)
+	}
+	joined := strings.Join(issues, "\n")
+	if !strings.Contains(joined, `acp_public_url "http://gateway.example.com:4000" must stay loopback-only`) {
+		t.Fatalf("expected host inventory URL contract issue, got %v", issues)
+	}
+}
+
 func TestNormalizeYAMLAndOverlayValuesHelpers(t *testing.T) {
 	normalized := normalizeYAML(map[any]any{
 		"outer": []any{map[any]any{"inner": true}},
