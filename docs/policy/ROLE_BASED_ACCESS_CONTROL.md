@@ -46,6 +46,11 @@ make key-gen-dev ALIAS=my-dev-key
 # Team-lead preset
 make key-gen-lead ALIAS=my-lead-key
 
+# Inventory, inspection, and rotation
+make key-list
+make key-inspect ALIAS=my-key REPORT_MONTH=2026-02
+make key-rotate ALIAS=my-key DRY_RUN=1
+
 # Key revocation
 make key-revoke ALIAS=<alias>
 
@@ -53,6 +58,9 @@ make key-revoke ALIAS=<alias>
 ./scripts/acpctl.sh key gen my-key --budget 10.00
 ./scripts/acpctl.sh key gen-dev my-dev-key
 ./scripts/acpctl.sh key gen-lead my-lead-key
+./scripts/acpctl.sh key list
+./scripts/acpctl.sh key inspect my-key --month 2026-02
+./scripts/acpctl.sh key rotate my-key --dry-run
 ./scripts/acpctl.sh key revoke my-key
 ```
 
@@ -72,8 +80,9 @@ make ci-pr
 
 1. Keep `roles.yaml` and model allowlists aligned.
 2. Prefer preset commands (`key-gen-dev`, `key-gen-lead`) for standard role workflows.
-3. Use `key-revoke` for immediate containment in incident response.
-4. Validate rule and SIEM consistency after policy changes.
+3. Use `key-inspect` and `key-rotate` for controlled cutovers instead of manual API calls.
+4. Use `key-revoke` for immediate containment in incident response.
+5. Validate rule and SIEM consistency after policy changes.
 
 ## Incident Response Tie-In
 

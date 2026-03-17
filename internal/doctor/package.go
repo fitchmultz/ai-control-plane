@@ -78,6 +78,7 @@ type Check interface {
 type Options struct {
 	RepoRoot      string
 	Gateway       config.GatewaySettings
+	Alerts        config.AlertSettings
 	RequiredPorts []int
 	SkipChecks    map[string]struct{}
 	Fix           bool

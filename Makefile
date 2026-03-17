@@ -98,6 +98,7 @@ help-deploy:
 	@echo '  $(COLOR_GREEN)logs$(COLOR_RESET)               Tail service logs'
 	@echo '  $(COLOR_GREEN)status$(COLOR_RESET)             Show system status'
 	@echo '  $(COLOR_GREEN)health$(COLOR_RESET)             Run health checks'
+	@echo '  $(COLOR_GREEN)operator-report$(COLOR_RESET)    Generate canonical operator report'
 	@echo '  $(COLOR_GREEN)librechat-health$(COLOR_RESET)   Check managed LibreChat health'
 	@echo '  $(COLOR_GREEN)doctor$(COLOR_RESET)             Run diagnostics'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate readiness proof pack'
@@ -168,6 +169,7 @@ help-db:
 	@echo '$(COLOR_BOLD)Database Targets:$(COLOR_RESET)'
 	@echo '  $(COLOR_GREEN)db-status$(COLOR_RESET)          Show database status'
 	@echo '  $(COLOR_GREEN)chargeback-report$(COLOR_RESET)  Generate chargeback/showback report artifacts'
+	@echo '  $(COLOR_GREEN)operator-report$(COLOR_RESET)    Generate typed operator runtime report'
 	@echo '  $(COLOR_GREEN)db-backup$(COLOR_RESET)          Create backup'
 	@echo '  $(COLOR_GREEN)db-restore$(COLOR_RESET)         Restore from backup'
 	@echo '  $(COLOR_GREEN)db-shell$(COLOR_RESET)           Open database shell'
@@ -190,12 +192,17 @@ help-host:
 help-key:
 	@echo '$(COLOR_BOLD)Virtual Key Targets:$(COLOR_RESET)'
 	@echo '  $(COLOR_GREEN)key-gen$(COLOR_RESET)            Generate key'
+	@echo '  $(COLOR_GREEN)key-list$(COLOR_RESET)           List keys'
+	@echo '  $(COLOR_GREEN)key-inspect$(COLOR_RESET)        Inspect a key and its usage'
+	@echo '  $(COLOR_GREEN)key-rotate$(COLOR_RESET)         Stage or execute key rotation'
 	@echo '  $(COLOR_GREEN)key-revoke$(COLOR_RESET)         Revoke key'
 	@echo '  $(COLOR_GREEN)key-gen-dev$(COLOR_RESET)        Generate developer key'
 	@echo '  $(COLOR_GREEN)key-gen-lead$(COLOR_RESET)       Generate team-lead key'
 	@echo ''
 	@echo 'Examples:'
 	@echo '  make key-gen ALIAS=alice BUDGET=10.00'
+	@echo '  make key-inspect ALIAS=alice REPORT_MONTH=2026-02'
+	@echo '  make key-rotate ALIAS=alice DRY_RUN=1'
 	@echo '  make key-revoke ALIAS=alice'
 
 .PHONY: help-onboard

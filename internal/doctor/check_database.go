@@ -28,7 +28,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type dbConnectableCheck struct{ noFixCheck }
+type dbConnectableCheck struct{}
 
 func (c dbConnectableCheck) ID() string { return "db_connectable" }
 
@@ -36,6 +36,10 @@ func (c dbConnectableCheck) Run(_ context.Context, opts Options) CheckResult {
 	return runtimeComponentCheck(opts, c.ID(), "Database Connectable", "database", "Database", func(component status.ComponentStatus) CheckResult {
 		return componentCheckResult(c.ID(), "Database Connectable", component, databaseSeverity(component))
 	})
+}
+
+func (c dbConnectableCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
+	return recoverEmbeddedDatabase(ctx, opts)
 }
 
 func databaseSeverity(component status.ComponentStatus) Severity {

@@ -28,11 +28,13 @@ This runbook provides day-to-day operational procedures, incident response guida
 | View logs | `make logs` |
 | Container status | `make ps` |
 | Database status | `make db-status` |
+| Operator runtime report | `make operator-report` |
 | Create backup | `make db-backup` |
 | Restore backup | `make db-restore` |
 | Validate detection rules | `make validate-detections` |
 | Generate release evidence bundle | `make release-bundle` |
 | Generate virtual key | `make key-gen ALIAS=foo BUDGET=10.00` |
+| Inspect virtual key usage | `make key-inspect ALIAS=foo REPORT_MONTH=2026-02` |
 | TLS mode start | `make up-tls` |
 | TLS health check | `make tls-health` |
 
@@ -62,7 +64,13 @@ See `docs/DEPLOYMENT.md` (Network Configuration) and `docs/demos/NETWORK_ENDPOIN
 make health
 
 # Detailed diagnostics
-make doctor
+make doctor FIX=1 NOTIFY=1
+```
+
+**Operator Reporting:**
+```bash
+# Generate the canonical runtime report and archive it locally
+make operator-report
 ```
 
 **Log Inspection:**
@@ -624,7 +632,7 @@ Never `source demo/.env` and never `grep` secrets from it.
 
 ## Key Management
 
-### 6.1 Generating Virtual Keys
+### 6.1 Generating and Listing Virtual Keys
 
 Use the canonical key lifecycle surface:
 
@@ -636,6 +644,10 @@ make key-gen ALIAS=my-key BUDGET=10.00
 make key-gen-dev ALIAS=my-dev-key
 make key-gen-lead ALIAS=my-lead-key
 
+# Inventory and inspection
+make key-list
+make key-inspect ALIAS=my-key REPORT_MONTH=2026-02
+
 # Revoke a key
 make key-revoke ALIAS=<alias>
 
@@ -643,6 +655,8 @@ make key-revoke ALIAS=<alias>
 ./scripts/acpctl.sh key gen my-key --budget 10.00
 ./scripts/acpctl.sh key gen-dev my-dev-key
 ./scripts/acpctl.sh key gen-lead my-lead-key
+./scripts/acpctl.sh key list
+./scripts/acpctl.sh key inspect my-key --month 2026-02
 ./scripts/acpctl.sh key revoke <alias>
 ```
 
@@ -657,43 +671,36 @@ export LITELLM_MASTER_KEY="$(./scripts/acpctl.sh env get LITELLM_MASTER_KEY)"
 
 ### 6.2 Key Lifecycle
 
-**Creating Keys with Expiry:**
+Use the typed rotation workflow instead of direct API calls:
+
 ```bash
-# Generate key that expires in 30 days
-curl -s -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/generate" \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "key_alias": "temp-key",
-    "max_budget": 5.00,
-    "expires": "2026-03-01T00:00:00Z"
-  }'
+# Preview the staged cutover without generating a replacement
+make key-rotate ALIAS=my-key DRY_RUN=1
+
+# Generate a replacement with an explicit alias
+make key-rotate ALIAS=my-key REPLACEMENT_ALIAS=my-key-rotated
+
+# Execute rotation and revoke the old key immediately when appropriate
+make key-rotate ALIAS=my-key REPLACEMENT_ALIAS=my-key-rotated REVOKE_OLD=1
 ```
 
-**Revoking Keys:**
-```bash
-# List keys first
-make db-status
-
-# Revoke via LiteLLM API
-curl -s -X POST "${GATEWAY_URL:-http://127.0.0.1:4000}/key/delete" \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"key_alias": "key-to-revoke"}'
-```
-
-**Key Rotation:**
-1. Generate new key with same permissions
-2. Update clients to use new key
-3. Verify old key is no longer in use
-4. Revoke old key
+Typical controlled cutover:
+1. `make key-rotate ALIAS=my-key DRY_RUN=1`
+2. `make key-rotate ALIAS=my-key REPLACEMENT_ALIAS=my-key-rotated`
+3. Distribute the new secret to consumers.
+4. Verify adoption with `make key-inspect ALIAS=my-key-rotated` and compare the old alias with `make key-inspect ALIAS=my-key`.
+5. Revoke the old key with `make key-revoke ALIAS=my-key` when the old alias is idle.
 
 ### 6.3 Key Monitoring
 
 **View Active Keys:**
 ```bash
-make db-status
-# Check section 3: "Virtual Keys"
+make key-list
+```
+
+**Inspect Key Usage:**
+```bash
+make key-inspect ALIAS=my-key REPORT_MONTH=2026-02
 ```
 
 **Check Budget Usage:**

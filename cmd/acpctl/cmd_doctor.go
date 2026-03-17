@@ -38,6 +38,7 @@ type doctorOptions struct {
 	JSON       bool
 	Wide       bool
 	Fix        bool
+	Notify     bool
 	SkipChecks []string
 }
 
@@ -52,19 +53,33 @@ func doctorCommandSpec() *commandSpec {
 			"acpctl doctor",
 			"acpctl doctor --json",
 			"acpctl doctor --fix --skip-check db_connectable",
+			"acpctl doctor --notify",
 			"acpctl doctor --wide",
 		},
 		Options: []commandOptionSpec{
 			{Name: "json", Summary: "Output in JSON format", Type: optionValueBool},
 			{Name: "wide", Short: "w", Summary: "Show extended details", Type: optionValueBool},
 			{Name: "fix", Summary: "Attempt safe auto-remediation", Type: optionValueBool},
+			{Name: "notify", Summary: "Emit budget and security findings through configured alert adapters", Type: optionValueBool},
 			{Name: "skip-check", ValueName: "CHECK", Summary: "Skip a specific check", Type: optionValueString, Repeatable: true},
+		},
+		Sections: []commandHelpSection{
+			{
+				Title: "Alert environment",
+				Lines: []string{
+					"ACP_ALERT_GENERIC_WEBHOOK_URL",
+					"ACP_ALERT_SLACK_WEBHOOK_URL",
+					"GENERIC_WEBHOOK_URL",
+					"SLACK_WEBHOOK_URL",
+				},
+			},
 		},
 		Bind: bindParsedValue(func(input parsedCommandInput) doctorOptions {
 			return doctorOptions{
 				JSON:       input.Bool("json"),
 				Wide:       input.Bool("wide"),
 				Fix:        input.Bool("fix"),
+				Notify:     input.Bool("notify"),
 				SkipChecks: input.Strings("skip-check"),
 			}
 		}),
@@ -86,9 +101,11 @@ func runDoctor(ctx context.Context, runCtx commandRunContext, raw any) int {
 		TimeoutMessage:  "Doctor runtime inspection timed out",
 		CanceledMessage: "Doctor runtime inspection canceled",
 	}, func(out *output.Output, runtimeReport status.StatusReport) int {
+		loader := config.NewLoader().WithRepoRoot(runCtx.RepoRoot)
 		diagnosticOpts := doctor.Options{
 			RepoRoot:      runCtx.RepoRoot,
-			Gateway:       config.NewLoader().Gateway(true),
+			Gateway:       loader.Gateway(true),
+			Alerts:        loader.Alerts(true),
 			RequiredPorts: config.RequiredPorts(),
 			SkipChecks:    skipChecks,
 			Fix:           opts.Fix,
@@ -104,6 +121,12 @@ func runDoctor(ctx context.Context, runCtx commandRunContext, raw any) int {
 			return writeDoctorHuman(w, report, opts.Wide)
 		}); code != exitcodes.ACPExitSuccess {
 			return code
+		}
+		if opts.Notify {
+			if err := doctor.NotifyActionableFindings(doctorCtx, diagnosticOpts.Alerts, report); err != nil {
+				fmt.Fprintf(runCtx.Stderr, "Error: notify doctor findings: %v\n", err)
+				return exitcodes.ACPExitRuntime
+			}
 		}
 		return doctor.ExitCodeForReport(report)
 	})

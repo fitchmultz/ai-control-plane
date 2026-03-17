@@ -69,3 +69,27 @@ func TestComposeBuildArgs_WithOptions(t *testing.T) {
 		t.Fatalf("buildArgs() = %#v, want %#v", got, want)
 	}
 }
+
+func TestComposeBuildArgsWithEnvFile(t *testing.T) {
+	t.Parallel()
+
+	compose := &Compose{
+		cmd:        "docker",
+		argsPrefix: []string{"compose"},
+		projectDir: "/repo/demo",
+	}
+
+	got := compose.buildArgsWithEnvFile("/repo/demo/.env", "up", "-d", "litellm")
+	want := []string{
+		"compose",
+		"--env-file", "/repo/demo/.env",
+		"-f", filepath.Join("/repo/demo", "docker-compose.yml"),
+		"--project-directory", "/repo/demo",
+		"up",
+		"-d",
+		"litellm",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("buildArgsWithEnvFile() = %#v, want %#v", got, want)
+	}
+}

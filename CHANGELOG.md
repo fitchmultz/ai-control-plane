@@ -13,6 +13,9 @@ This repository uses:
 - `examples/` operator reference directory with reusable deployment and pilot artifacts.
 - Troubleshooting index, ADR home, and explicit generated-doc drift validation.
 - Shared `internal/health` and tracked `internal/rbac` packages.
+- Typed key inventory, inspection, and rotation workflows via `acpctl key list|inspect|rotate` plus `make key-list|key-inspect|key-rotate`.
+- One-command operator runtime reporting via `acpctl ops report` and `make operator-report` with private local archive output.
+- Doctor budget/detection finding adapters, safe gateway/database remediation helpers, and webhook fanout for `acpctl doctor --notify`.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
@@ -20,6 +23,7 @@ This repository uses:
 - Root README now presents the validated support boundary, examples, and release discipline more clearly.
 - Gateway host, URL, TLS, and secret ergonomics now follow one canonical operator contract across `make`, `acpctl`, onboarding, and operator docs.
 - `acpctl onboard` now performs post-write config linting plus actionable verification summaries for local contract issues, gateway reachability, and authorized model access.
+- Wave 2 operator adoption work is now productized through canonical make and `acpctl` entrypoints instead of manual key and reporting runbooks.
 
 ### Removed
 - Redundant empty placeholder packages: `internal/validate`, `internal/release`, and `internal/key`.

@@ -4,12 +4,12 @@
 //
 // Responsibilities:
 //   - Define the typed `key` command tree and binders.
-//   - Validate key options using internal/keygen helpers.
-//   - Execute key generation via the gateway client.
+//   - Validate key-generation options using internal/keygen helpers.
+//   - Execute key generation and revocation via the gateway client.
 //
 // Non-scope:
+//   - Does not own lifecycle inspection or rotation workflows.
 //   - Does not own business validation rules.
-//   - Does not implement revoke support in the gateway.
 //
 // Scope:
 //   - File-local implementation and interfaces only.
@@ -56,10 +56,80 @@ func keyCommandSpec() *commandSpec {
 		Description: "Virtual key lifecycle operations.",
 		Examples: []string{
 			"acpctl key gen alice --budget 10.00",
+			"acpctl key list",
+			"acpctl key inspect alice --month 2026-02",
+			"acpctl key rotate alice --replacement-alias alice-rotated",
 			"acpctl key revoke alice",
 		},
 		Children: []*commandSpec{
 			keyGenCommandSpec("gen", "Generate a standard virtual key", ""),
+			newNativeCommandSpec(nativeCommandConfig{
+				Name:        "list",
+				Summary:     "List virtual keys",
+				Description: "List virtual keys and their configured limits.",
+				Examples: []string{
+					"acpctl key list",
+					"acpctl key list --json",
+				},
+				Options: []commandOptionSpec{
+					{Name: "json", Summary: "Output JSON", Type: optionValueBool},
+				},
+				Bind: bindParsedValue(func(input parsedCommandInput) keyListOptions {
+					return keyListOptions{JSON: input.Bool("json")}
+				}),
+				Run: runKeyList,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
+				Name:        "inspect",
+				Summary:     "Inspect a virtual key and its usage",
+				Description: "Inspect a virtual key and summarize spend and usage for the selected report month.",
+				Examples: []string{
+					"acpctl key inspect alice",
+					"acpctl key inspect alice --month 2026-02",
+					"acpctl key inspect alice --json",
+				},
+				Arguments: []commandArgumentSpec{
+					{Name: "alias", Summary: "Key alias to inspect", Required: true},
+				},
+				Options: []commandOptionSpec{
+					{Name: "month", ValueName: "YYYY-MM", Summary: "Usage month", Type: optionValueString},
+					{Name: "json", Summary: "Output JSON", Type: optionValueBool},
+				},
+				Bind: bindParsed(func(input parsedCommandInput) (keyInspectOptions, error) {
+					return bindKeyInspectOptions(input)
+				}),
+				Run: runKeyInspect,
+			}),
+			newNativeCommandSpec(nativeCommandConfig{
+				Name:        "rotate",
+				Summary:     "Stage rotation for a virtual key",
+				Description: "Generate a replacement key, inspect current usage, and stage a controlled cutover.",
+				Examples: []string{
+					"acpctl key rotate alice --replacement-alias alice-rotated",
+					"acpctl key rotate alice --dry-run",
+					"acpctl key rotate alice --revoke-old",
+				},
+				Arguments: []commandArgumentSpec{
+					{Name: "alias", Summary: "Existing key alias", Required: true},
+				},
+				Options: []commandOptionSpec{
+					{Name: "replacement-alias", ValueName: "ALIAS", Summary: "Replacement alias; defaults to a timestamped alias", Type: optionValueString},
+					{Name: "budget", ValueName: "BUDGET", Summary: "Replacement max budget in USD", Type: optionValueFloat},
+					{Name: "rpm", ValueName: "RPM", Summary: "Replacement requests-per-minute limit", Type: optionValueInt},
+					{Name: "tpm", ValueName: "TPM", Summary: "Replacement tokens-per-minute limit", Type: optionValueInt},
+					{Name: "parallel", ValueName: "N", Summary: "Replacement max parallel requests", Type: optionValueInt},
+					{Name: "duration", ValueName: "DUR", Summary: "Replacement budget duration", Type: optionValueString},
+					{Name: "role", ValueName: "ROLE", Summary: "Replacement role override", Type: optionValueString, Suggestions: func(string) []string { return keygen.ValidRoles() }},
+					{Name: "month", ValueName: "YYYY-MM", Summary: "Usage month for inspection context", Type: optionValueString},
+					{Name: "dry-run", Summary: "Preview the staged rotation plan without generating the replacement", Type: optionValueBool},
+					{Name: "revoke-old", Summary: "Immediately revoke the old key after generating the replacement", Type: optionValueBool},
+					{Name: "json", Summary: "Output JSON", Type: optionValueBool},
+				},
+				Bind: bindParsed(func(input parsedCommandInput) (keyRotateOptions, error) {
+					return bindKeyRotateOptions(input)
+				}),
+				Run: runKeyRotate,
+			}),
 			{
 				Name:        "revoke",
 				Summary:     "Revoke a virtual key by alias",

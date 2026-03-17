@@ -52,6 +52,7 @@ Standard connected baseline:
 make install
 make up
 make health
+make operator-report
 make prod-smoke
 ```
 
@@ -69,6 +70,9 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - DLP overlay: `make up-dlp`
 - Offline deterministic runtime: `make up-offline`
 - TLS ingress overlay: `make up-tls`
+- Day-2 reporting: `make operator-report`, `make chargeback-report`
+- Key lifecycle: `make key-list`, `make key-inspect ALIAS=<alias>`, `make key-rotate ALIAS=<alias>`
+- Guided diagnostics and remediation: `make doctor FIX=1 NOTIFY=1`
 - Production-like host path: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ## Repo Map

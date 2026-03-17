@@ -102,8 +102,8 @@ Events support glob-style pattern matching:
 
 | Event Type | Description | Trigger |
 |------------|-------------|---------|
-| `key.created` | New API key generated | `make key-gen` |
-| `key.revoked` | API key revoked | `make key-revoke` |
+| `key.created` | New API key generated | `make key-gen` or `make key-rotate` |
+| `key.revoked` | API key revoked | `make key-revoke` or `make key-rotate REVOKE_OLD=1` |
 | `key.expired` | Key budget exhausted | Detection rule DR-004 |
 | `approval.requested` | New approval request | Approval workflow integration event (no direct Make target) |
 | `approval.approved` | Request approved | Approval workflow integration event (no direct Make target) |

@@ -49,6 +49,11 @@ make key-gen ALIAS=my-key BUDGET=10.00
 make key-gen-dev ALIAS=my-dev-key
 make key-gen-lead ALIAS=my-lead-key
 
+# Inventory, inspection, and rotation
+make key-list
+make key-inspect ALIAS=my-key REPORT_MONTH=2026-02
+make key-rotate ALIAS=my-key DRY_RUN=1
+
 # Revoke a key
 make key-revoke ALIAS=<alias>
 
@@ -56,6 +61,9 @@ make key-revoke ALIAS=<alias>
 ./scripts/acpctl.sh key gen my-key --budget 10.00
 ./scripts/acpctl.sh key gen-dev my-dev-key
 ./scripts/acpctl.sh key gen-lead my-lead-key
+./scripts/acpctl.sh key list
+./scripts/acpctl.sh key inspect my-key --month 2026-02
+./scripts/acpctl.sh key rotate my-key --dry-run
 ./scripts/acpctl.sh key revoke my-key
 ```
 
@@ -65,6 +73,7 @@ make key-revoke ALIAS=<alias>
 
 ```bash
 make db-status
+make key-inspect ALIAS=my-key REPORT_MONTH=2026-02
 ```
 
 ### Detection validation

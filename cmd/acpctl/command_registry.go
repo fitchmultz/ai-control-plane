@@ -23,6 +23,7 @@ func acpctlCommandSpec() *commandSpec {
 		ciCommandSpec(),
 		envCommandSpec(),
 		chargebackCommandSpec(),
+		opsCommandSpec(),
 		statusCommandSpec(),
 		healthCommandSpec(),
 		doctorCommandSpec(),

@@ -56,6 +56,14 @@ Examples:
 ./scripts/acpctl.sh chargeback payload --target generic
 ```
 
+### `ops`
+
+Operator reporting workflows.
+
+| Subcommand | Summary |
+| --- | --- |
+| `report` | Render a canonical operator status report |
+
 ### `status`
 
 Aggregated system health overview.
@@ -90,6 +98,7 @@ Examples:
 ./scripts/acpctl.sh doctor
 ./scripts/acpctl.sh doctor --json
 ./scripts/acpctl.sh doctor --fix --skip-check db_connectable
+./scripts/acpctl.sh doctor --notify
 ./scripts/acpctl.sh doctor --wide
 ```
 
@@ -218,6 +227,9 @@ Virtual key lifecycle operations.
 | Subcommand | Summary |
 | --- | --- |
 | `gen` | Generate a standard virtual key |
+| `list` | List virtual keys |
+| `inspect` | Inspect a virtual key and its usage |
+| `rotate` | Stage rotation for a virtual key |
 | `revoke` | Revoke a virtual key by alias |
 | `gen-dev` | Generate a developer key |
 | `gen-lead` | Generate a team-lead key |
@@ -226,6 +238,9 @@ Examples:
 
 ```bash
 ./scripts/acpctl.sh key gen alice --budget 10.00
+./scripts/acpctl.sh key list
+./scripts/acpctl.sh key inspect alice --month 2026-02
+./scripts/acpctl.sh key rotate alice --replacement-alias alice-rotated
 ./scripts/acpctl.sh key revoke alice
 ```
 

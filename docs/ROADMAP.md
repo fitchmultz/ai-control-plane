@@ -29,16 +29,6 @@ Primary claim-discipline references:
 
 ## Execution order
 
-### Wave 2 — Operator adoption and day-2 usability
-
-Objective: collapse time-to-first-success, make routine operations obvious, and remove the need for tribal knowledge.
-
-| # | Initiative | Why it matters | Done when |
-| --- | --- | --- | --- |
-| 7 | **Automate key lifecycle workflows.** Replace manual rotation and inspection runbooks with productized flows. | Key management is security-critical and should not depend on copy-pasted steps. | Operators can generate replacements, inspect current usage, stage cutover, and revoke old keys through typed workflows. |
-| 8 | **Add one-command finance and operator workflows.** Remove the need for direct SQL and Docker knowledge for routine operations. | Operational confidence goes up when common tasks are easy and safe. | Monthly chargeback and showback reporting plus common operator reporting tasks have first-class commands with documented outputs. |
-| 9 | **Extend doctor with safe remediation and alert adapters.** Turn diagnosis into controlled action. | Troubleshooting should be fast, guided, and low-risk. | `doctor --fix` safely handles common recoveries, and budget or security findings can emit notifications through pluggable channels. |
-
 ### Wave 3 — Host-first production readiness
 
 Objective: make the validated host-first path operationally defensible for real deployments and easier to procure.

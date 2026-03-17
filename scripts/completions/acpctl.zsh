@@ -18,6 +18,9 @@ _acpctl() {
         chargeback)
             _acpctl_chargeback
             ;;
+        ops)
+            _acpctl_ops
+            ;;
         benchmark)
             _acpctl_benchmark
             ;;
@@ -50,6 +53,7 @@ _acpctl_commands() {
         "ci:CI and local gate helpers"
         "env:Strict .env access helpers"
         "chargeback:Typed chargeback rendering helpers"
+        "ops:Operator reporting workflows"
         "status:Aggregated system health overview"
         "health:Run service health checks"
         "doctor:Environment preflight diagnostics"
@@ -89,6 +93,13 @@ _acpctl_chargeback() {
         "payload:Render canonical chargeback webhook payload JSON"
     )
     _describe -t commands 'chargeback subcommands' subcmds "$@"
+}
+
+_acpctl_ops() {
+    local subcmds=(
+        "report:Render a canonical operator status report"
+    )
+    _describe -t commands 'ops subcommands' subcmds "$@"
 }
 
 _acpctl_benchmark() {
@@ -149,6 +160,9 @@ _acpctl_db() {
 _acpctl_key() {
     local subcmds=(
         "gen:Generate a standard virtual key"
+        "list:List virtual keys"
+        "inspect:Inspect a virtual key and its usage"
+        "rotate:Stage rotation for a virtual key"
         "revoke:Revoke a virtual key by alias"
         "gen-dev:Generate a developer key"
         "gen-lead:Generate a team-lead key"

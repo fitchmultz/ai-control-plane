@@ -224,11 +224,17 @@ status-watch: ## Watch service status (continuous monitoring)
 
 .PHONY: doctor
 doctor: ## Run environment preflight diagnostics
-	@$(ACPCTL_BIN) doctor
+	@$(ACPCTL_BIN) doctor \
+		$(if $(filter 1 true TRUE yes YES,$(FIX)),--fix,) \
+		$(if $(filter 1 true TRUE yes YES,$(NOTIFY)),--notify,) \
+		$(if $(filter 1 true TRUE yes YES,$(WIDE)),--wide,)
 
 .PHONY: doctor-json
 doctor-json: ## Run doctor diagnostics with JSON output
-	@$(ACPCTL_BIN) doctor --json
+	@$(ACPCTL_BIN) doctor --json \
+		$(if $(filter 1 true TRUE yes YES,$(FIX)),--fix,) \
+		$(if $(filter 1 true TRUE yes YES,$(NOTIFY)),--notify,) \
+		$(if $(filter 1 true TRUE yes YES,$(WIDE)),--wide,)
 
 .PHONY: update
 update: install-binary ## Update dependencies (pull base images, rebuild local hardened images, refresh generated files)

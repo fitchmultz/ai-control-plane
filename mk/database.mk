@@ -4,6 +4,7 @@
 # Responsibilities:
 #   - Database backup and restore
 #   - Database shell access
+#   - Chargeback and operator reporting workflows
 #   - DR drills and testing
 #
 # Non-scope:
@@ -46,6 +47,13 @@ chargeback-report: install-binary ## Generate chargeback/showback report artifac
 		$(if $(BUDGET_ALERT_THRESHOLD),--budget-alert-threshold $(BUDGET_ALERT_THRESHOLD),) \
 		$(if $(filter 1 true TRUE yes YES,$(NOTIFY)),--notify,) \
 		$(if $(filter 1 true TRUE yes YES,$(VERBOSE)),--verbose,)
+
+.PHONY: operator-report
+operator-report: install-binary ## Generate operator runtime report
+	@$(ACPCTL_BIN) ops report \
+		$(if $(OUTPUT_FORMAT),--format $(OUTPUT_FORMAT),) \
+		$(if $(ARCHIVE_DIR),--archive-dir $(ARCHIVE_DIR),) \
+		$(if $(filter 1 true TRUE yes YES,$(WIDE)),--wide,)
 
 .PHONY: db-backup
 db-backup: ## Create database backup

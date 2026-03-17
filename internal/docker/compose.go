@@ -189,15 +189,21 @@ func (c *Compose) IsServiceRunning(ctx context.Context, service string) bool {
 	return strings.Contains(output, "Up")
 }
 
-// Up starts services
+// Up starts all configured services.
 func (c *Compose) Up(ctx context.Context, detach bool, profiles ...string) error {
-	args := c.buildArgs("up")
+	return c.UpServices(ctx, "", detach, nil, profiles...)
+}
+
+// UpServices starts the selected services using the configured project scope.
+func (c *Compose) UpServices(ctx context.Context, envFile string, detach bool, services []string, profiles ...string) error {
+	args := c.buildArgsWithEnvFile(envFile, "up")
 	if detach {
 		args = append(args, "-d")
 	}
 	for _, profile := range profiles {
 		args = append(args, "--profile", profile)
 	}
+	args = append(args, services...)
 	res := proc.Run(ctx, proc.Request{
 		Name:    c.cmd,
 		Args:    args,
@@ -277,10 +283,17 @@ func ExecInContainerWithStdin(ctx context.Context, containerID string, stdin io.
 	return res.Stdout + res.Stderr, nil
 }
 
-// buildArgs builds the full argument list including project directory
+// buildArgs builds the full argument list including project directory.
 func (c *Compose) buildArgs(args ...string) []string {
-	result := make([]string, 0, len(c.argsPrefix)+2+(len(c.files)*2)+len(args))
+	return c.buildArgsWithEnvFile("", args...)
+}
+
+func (c *Compose) buildArgsWithEnvFile(envFile string, args ...string) []string {
+	result := make([]string, 0, len(c.argsPrefix)+4+(len(c.files)*2)+len(args))
 	result = append(result, c.argsPrefix...)
+	if strings.TrimSpace(envFile) != "" {
+		result = append(result, "--env-file", envFile)
+	}
 	if c.projectName != "" {
 		result = append(result, "--project-name", c.projectName)
 	}

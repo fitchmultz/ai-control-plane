@@ -93,6 +93,9 @@ if [[ -s "${CAPTURE_FILE}" ]]; then
 fi
 printf '  ✓ validate config --production stays make-independent\n'
 assert_no_delegation "chargeback report help stays make-independent" chargeback report --help
+assert_no_delegation "ops report help stays make-independent" ops report --help
+assert_no_delegation "key list help stays make-independent" key list --help
+assert_no_delegation "key inspect help stays make-independent" key inspect --help
 assert_no_delegation "host preflight help stays make-independent" host preflight --help
 
 key_output="$(

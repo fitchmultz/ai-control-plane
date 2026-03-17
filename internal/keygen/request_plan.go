@@ -34,6 +34,7 @@ type GenerateRequestConfig struct {
 	Parallel int
 	Duration string
 	Role     string
+	Models   []string
 }
 
 type GenerateRequestPlan struct {
@@ -58,6 +59,9 @@ func PlanGenerateRequest(cfg GenerateRequestConfig) (GenerateRequestPlan, error)
 	}
 
 	models := GetModelsForRole(role)
+	if len(cfg.Models) > 0 {
+		models = append([]string(nil), cfg.Models...)
+	}
 	request := gateway.GenerateKeyRequest{
 		KeyAlias:       cfg.Alias,
 		MaxBudget:      cfg.Budget,

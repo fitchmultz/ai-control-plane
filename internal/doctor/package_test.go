@@ -309,6 +309,8 @@ func TestDefaultChecks(t *testing.T) {
 		"db_connectable",
 		"config_valid",
 		"credentials_valid",
+		"budget_findings",
+		"detections_findings",
 	}
 
 	if len(checks) != len(expectedIDs) {

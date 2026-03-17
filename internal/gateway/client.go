@@ -33,6 +33,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -262,6 +263,40 @@ func (c *Client) Models(ctx context.Context) (bool, int, error) {
 	return probe.Healthy, probe.HTTPStatus, nil
 }
 
+// ListKeys lists virtual keys from the LiteLLM gateway.
+func (c *Client) ListKeys(ctx context.Context) ([]KeyInfo, error) {
+	if c.masterKey == "" {
+		return nil, fmt.Errorf("master key is required for key listing")
+	}
+
+	url := fmt.Sprintf("%s/key/list", c.BaseURL())
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create list request: %w", err)
+	}
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.masterKey))
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("list request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read list response body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("key listing failed: HTTP %d - %s", resp.StatusCode, string(body))
+	}
+
+	keys, err := parseKeyList(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse key list response: %w", err)
+	}
+	return keys, nil
+}
+
 // GenerateKey generates a new virtual key.
 func (c *Client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (*GenerateKeyResponse, error) {
 	if c.masterKey == "" {
@@ -306,6 +341,30 @@ func (c *Client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (*Gen
 	return &result, nil
 }
 
+func parseKeyList(body []byte) ([]KeyInfo, error) {
+	var direct []KeyInfo
+	if err := json.Unmarshal(body, &direct); err == nil {
+		sort.Slice(direct, func(i, j int) bool {
+			return direct[i].Alias() < direct[j].Alias()
+		})
+		return direct, nil
+	}
+
+	var envelope keyListEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, err
+	}
+
+	keys := envelope.Keys
+	if len(keys) == 0 {
+		keys = envelope.Data
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].Alias() < keys[j].Alias()
+	})
+	return keys, nil
+}
+
 func (c *Client) probe(ctx context.Context, path string) Probe {
 	url := c.BaseURL() + path
 	probe := Probe{
@@ -341,6 +400,33 @@ func (c *Client) probe(ctx context.Context, path string) Probe {
 	probe.Healthy = resp.StatusCode == http.StatusOK
 
 	return probe
+}
+
+// KeyInfo captures a virtual key inventory entry returned by LiteLLM.
+type KeyInfo struct {
+	KeyAlias            string   `json:"key_alias"`
+	AliasValue          string   `json:"alias,omitempty"`
+	MaxBudget           float64  `json:"max_budget"`
+	BudgetDuration      string   `json:"budget_duration,omitempty"`
+	Spend               float64  `json:"spend,omitempty"`
+	Models              []string `json:"models,omitempty"`
+	RPMLimit            int      `json:"rpm_limit,omitempty"`
+	TPMLimit            int      `json:"tpm_limit,omitempty"`
+	MaxParallelRequests int      `json:"max_parallel_requests,omitempty"`
+}
+
+// Alias returns the canonical alias for the key entry.
+func (k KeyInfo) Alias() string {
+	if strings.TrimSpace(k.KeyAlias) != "" {
+		return strings.TrimSpace(k.KeyAlias)
+	}
+	return strings.TrimSpace(k.AliasValue)
+}
+
+// keyListEnvelope captures common LiteLLM list-key response wrappers.
+type keyListEnvelope struct {
+	Keys []KeyInfo `json:"keys"`
+	Data []KeyInfo `json:"data"`
 }
 
 // GenerateKeyRequest represents a key generation request.

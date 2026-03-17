@@ -28,5 +28,7 @@ func DefaultChecks() []Check {
 		dbConnectableCheck{},
 		configValidCheck{},
 		credentialsValidCheck{},
+		budgetFindingsCheck{},
+		detectionsFindingsCheck{},
 	}
 }

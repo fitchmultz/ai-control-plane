@@ -23,7 +23,7 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-type gatewayHealthyCheck struct{ noFixCheck }
+type gatewayHealthyCheck struct{}
 
 func (c gatewayHealthyCheck) ID() string { return "gateway_healthy" }
 
@@ -40,6 +40,10 @@ func (c gatewayHealthyCheck) Run(_ context.Context, opts Options) CheckResult {
 
 		return componentCheckResult(c.ID(), "Gateway Healthy", component, severityForLevel(component.Level))
 	})
+}
+
+func (c gatewayHealthyCheck) Fix(ctx context.Context, opts Options) (bool, string, error) {
+	return recoverGatewayRuntime(ctx, opts)
 }
 
 func severityForLevel(level status.HealthLevel) Severity {
