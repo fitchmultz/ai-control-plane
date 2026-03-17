@@ -33,8 +33,6 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 )
 
-const expectedCoreTables = 4
-
 type dbStatusReaders struct {
 	Mode     string
 	Runtime  db.RuntimeServiceReader
@@ -102,6 +100,7 @@ func runDBStatus(ctx context.Context, runCtx commandRunContext, _ any) int {
 	fmt.Fprintln(runCtx.Stdout)
 	printCommandSection(runCtx.Stdout, out, "2. Schema Verification")
 	printCommandDetail(runCtx.Stdout, "PostgreSQL", summary.Version)
+	expectedCoreTables := db.ExpectedCoreSchemaTableCount()
 	printCommandDetail(runCtx.Stdout, "Core tables", fmt.Sprintf("%d/%d", summary.ExpectedTables, expectedCoreTables))
 	if summary.ExpectedTables < expectedCoreTables {
 		printCommandDetail(runCtx.Stdout, "Status", "schema incomplete; LiteLLM initialization may still be in progress")

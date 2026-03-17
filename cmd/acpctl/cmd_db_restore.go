@@ -6,7 +6,7 @@
 // Responsibilities:
 //   - Restore backups through the typed admin service.
 //   - Resolve latest backup files deterministically.
-//   - Preserve test-only wrapper helpers until restore tests move to direct CLI entry.
+//   - Execute a real scratch-restore verification drill.
 //
 // Scope:
 //   - Database restore and DR drill flows only.
@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchfultz/ai-control-plane/internal/db"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	"github.com/mitchfultz/ai-control-plane/internal/prereq"
@@ -117,15 +118,110 @@ func runDBRestore(ctx context.Context, runCtx commandRunContext, raw any) int {
 	return exitcodes.ACPExitSuccess
 }
 
-func runDBDRDrillTyped(_ context.Context, runCtx commandRunContext, _ any) int {
+func runDBDRDrillTyped(ctx context.Context, runCtx commandRunContext, _ any) int {
 	out := output.New()
 	logger := workflowLogger(runCtx, "db_dr_drill")
 	workflowStart(logger)
+
+	repoRoot := runCtx.RepoRoot
+	backupDir := resolveBackupDir(repoRoot)
+	if err := ensureBackupDir(backupDir); err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to create backup directory: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+	if err := requireDBWorkflowPrereqs(repoRoot); err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitPrereq
+	}
+
+	services, err := openDBServices(repoRoot)
+	if err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitPrereq
+	}
+	defer services.Close()
+	if services.Admin == nil {
+		err := fmt.Errorf("backup and restore are not supported for external database mode")
+		workflowFailure(logger, err)
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitPrereq
+	}
+
+	if code := requireAccessibleDatabase(ctx, runCtx, logger, out, services.Runtime); code != exitcodes.ACPExitSuccess {
+		return code
+	}
+
+	backupFile, err := resolveBackupOutputPath(backupDir, "")
+	if err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitUsage
+	}
+	scratchDatabase := newDRDrillDatabaseName(time.Now())
+	logger = workflowLogger(runCtx, "db_dr_drill", "backup_file", backupFile, "scratch_database", scratchDatabase)
+
 	printDBWorkflowHeader(runCtx.Stdout, out, "=== Database DR Drill ===", map[string]string{
-		"Action": "Running disaster recovery drill...",
+		"Backup file":       backupFile,
+		"Scratch database":  scratchDatabase,
+		"Verification goal": "Backup -> restore into scratch DB -> verify LiteLLM core schema -> cleanup",
 	})
-	printDBWorkflowSuccess(runCtx.Stdout, out, "DR drill completed successfully", nil)
-	workflowComplete(logger)
+
+	sql, err := services.Admin.Backup(ctx)
+	if err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Backup failed: %v\n"), err)
+		return exitcodes.ACPExitDomain
+	}
+	if err := writeCompressedBackupFile(backupFile, sql); err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to persist drill backup: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+
+	rewrittenSQL, err := services.Admin.RewriteBackupForScratchDatabase(sql, scratchDatabase)
+	if err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Failed to prepare scratch restore SQL: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+
+	_ = cleanupScratchDatabase(services.Admin, scratchDatabase)
+	if err := services.Admin.Restore(ctx, strings.NewReader(rewrittenSQL)); err != nil {
+		_ = cleanupScratchDatabase(services.Admin, scratchDatabase)
+		workflowFailure(logger, err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Scratch restore failed: %v\n"), err)
+		return exitcodes.ACPExitDomain
+	}
+
+	verification, err := services.Admin.VerifyCoreSchema(ctx, scratchDatabase)
+	cleanupErr := cleanupScratchDatabase(services.Admin, scratchDatabase)
+	if err != nil {
+		workflowFailure(logger, err)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Scratch schema verification failed: %v\n"), err)
+		return exitcodes.ACPExitRuntime
+	}
+	if cleanupErr != nil {
+		workflowFailure(logger, cleanupErr)
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Scratch database cleanup failed: %v\n"), cleanupErr)
+		return exitcodes.ACPExitRuntime
+	}
+	if verification.FoundTables != verification.ExpectedTables {
+		err := fmt.Errorf("restore verification failed: expected %d core tables, found %d", verification.ExpectedTables, verification.FoundTables)
+		workflowFailure(logger, err)
+		fmt.Fprintln(runCtx.Stderr, out.Fail(err.Error()))
+		return exitcodes.ACPExitDomain
+	}
+
+	printDBWorkflowSuccess(runCtx.Stdout, out, "DR drill completed successfully!", map[string]any{
+		"Backup file":          backupFile,
+		"Scratch database":     scratchDatabase,
+		"Verified core tables": fmt.Sprintf("%d/%d", verification.FoundTables, verification.ExpectedTables),
+		"PostgreSQL":           verification.Version,
+	})
+	workflowComplete(logger, "backup_file", backupFile, "scratch_database", scratchDatabase)
 	return exitcodes.ACPExitSuccess
 }
 
@@ -175,4 +271,14 @@ func findLatestBackup(backupDir string) (string, error) {
 	}
 
 	return filepath.Join(backupDir, latest.Name()), nil
+}
+
+func newDRDrillDatabaseName(now time.Time) string {
+	return fmt.Sprintf("acp_dr_drill_%s", now.UTC().Format("20060102_150405"))
+}
+
+func cleanupScratchDatabase(admin *db.AdminService, databaseName string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return admin.DropDatabaseIfExists(cleanupCtx, databaseName)
 }

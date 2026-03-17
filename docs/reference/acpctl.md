@@ -208,15 +208,17 @@ Database backup, restore, and inspection operations.
 | --- | --- |
 | `status` | Show database status and statistics |
 | `backup` | Create database backup |
+| `backup-retention` | Enforce backup retention policy |
 | `restore` | Restore embedded database from backup |
 | `shell` | Open database shell |
-| `dr-drill` | Run database DR restore drill |
+| `dr-drill` | Create a fresh backup and verify restore into a scratch database |
 
 Examples:
 
 ```bash
 ./scripts/acpctl.sh db status
 ./scripts/acpctl.sh db backup
+./scripts/acpctl.sh db backup-retention --check
 ./scripts/acpctl.sh db dr-drill
 ```
 
@@ -253,9 +255,9 @@ Host-first deployment and operations.
 | `preflight` | Validate host readiness |
 | `check` | Run declarative host preflight/check mode |
 | `apply` | Run declarative host apply/converge |
-| `install` | Install systemd service |
-| `uninstall` | Uninstall systemd service |
-| `service-status` | Show service status |
+| `install` | Install systemd service and automated backup timer |
+| `uninstall` | Uninstall systemd service and automated backup timer |
+| `service-status` | Show service and backup timer status |
 | `service-start` | Start the systemd service |
 | `service-stop` | Stop the systemd service |
 | `service-restart` | Restart the systemd service |
@@ -266,6 +268,6 @@ Examples:
 ./scripts/acpctl.sh host preflight
 ./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.yml
 ./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml
-./scripts/acpctl.sh host install --service-user acp
+./scripts/acpctl.sh host install --service-user acp --backup-retention-keep 14
 ```
 

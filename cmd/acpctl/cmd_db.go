@@ -1,8 +1,8 @@
 // cmd_db.go - Database command tree assembly.
 //
 // Purpose:
-//   - Compose the typed `db` command tree from focused backup and restore
-//     command handlers.
+//   - Compose the typed `db` command tree from focused backup, retention,
+//     restore, and verification command handlers.
 //
 // Responsibilities:
 //   - Define the root `db` command surface and shared option payloads.
@@ -33,6 +33,7 @@ func dbCommandSpec() *commandSpec {
 		Examples: []string{
 			"acpctl db status",
 			"acpctl db backup",
+			"acpctl db backup-retention --check",
 			"acpctl db dr-drill",
 		},
 		Children: []*commandSpec{
@@ -49,6 +50,7 @@ func dbCommandSpec() *commandSpec {
 				}),
 				Run: runDBBackup,
 			}),
+			dbBackupRetentionCommandSpec(),
 			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "restore",
 				Summary:     "Restore embedded database from backup",
@@ -62,7 +64,7 @@ func dbCommandSpec() *commandSpec {
 				Run: runDBRestore,
 			}),
 			newNativeLeafCommandSpec("shell", "Open database shell", runDBShell),
-			newNativeLeafCommandSpec("dr-drill", "Run database DR restore drill", runDBDRDrillTyped),
+			newNativeLeafCommandSpec("dr-drill", "Create a fresh backup and verify restore into a scratch database", runDBDRDrillTyped),
 		},
 	}
 }

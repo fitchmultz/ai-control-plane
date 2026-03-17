@@ -21,6 +21,12 @@ acp_runtime_overlays: []
 acp_public_url: http://127.0.0.1:4000
 acp_extra_env: {}
 
+# Automated backup contract
+acp_backup_timer_enabled: true
+acp_backup_timer_on_calendar: daily
+acp_backup_timer_randomized_delay_sec: 15m
+acp_backup_retention_keep: 7
+
 # Supported host boundary
 acp_host_minimum_debian_version: "12"
 acp_host_minimum_ubuntu_version: "24.04"

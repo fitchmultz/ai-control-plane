@@ -35,7 +35,6 @@ Objective: make the validated host-first path operationally defensible for real 
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 11 | **Automate backups and restore verification.** Make recovery boring. | Procurement and operations teams need evidence that recovery is routine, not theoretical. | Scheduled backups, retention, restore validation, and drill documentation exist for the supported host-first path. |
 | 12 | **Add an upgrade and migration framework.** Close the gap between reference implementation and operable product. | Real deployments need a safe path forward, not just a clean install story. | Version-to-version upgrade steps, database and config migrations, rollback guidance, and compatibility expectations are documented and tested. |
 | 13 | **Manage certificate lifecycle.** Remove TLS hand-waving from the production story. | Buyers expect TLS operations to be explicit and repeatable. | Certificate issuance, renewal, expiry detection, and operator runbooks are documented and at least partially automated for the supported path. |
 | 14 | **Publish a reference HA and failover pattern.** Be explicit about single-node limits and the next credible step. | Honest topology guidance builds more trust than vague “enterprise ready” language. | The repo documents a supported primary topology, failure domains, backup and failover expectations, and what remains customer-owned. |

@@ -32,7 +32,7 @@ import (
 func TestRunHostPreflightSucceedsForCanonicalProductionFixture(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeProductionValidationFixtureRepo(t, repoRoot)
-	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"), "[Unit]\nDescription=ACP\n")
+	writeHostPreflightTemplates(t, repoRoot)
 	writeFile(t, filepath.Join(repoRoot, "demo", ".env"), "ACP_DATABASE_MODE=embedded\n")
 	secretsPath := filepath.Join(repoRoot, "local", "host-preflight", "secrets.env")
 	writeFileWithMode(t, secretsPath, ""+
@@ -79,7 +79,7 @@ func TestRunHostPreflightRejectsUnsupportedProfile(t *testing.T) {
 func TestRunHostPreflightFailsWhenSystemctlMissing(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeProductionValidationFixtureRepo(t, repoRoot)
-	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"), "[Unit]\nDescription=ACP\n")
+	writeHostPreflightTemplates(t, repoRoot)
 	writeFile(t, filepath.Join(repoRoot, "demo", ".env"), "ACP_DATABASE_MODE=embedded\n")
 	secretsPath := filepath.Join(repoRoot, "local", "host-preflight", "secrets.env")
 	writeFileWithMode(t, secretsPath, "LITELLM_MASTER_KEY=prod-master-token-abcdefghijklmnopqrstuvwxyz1234567890\n", 0o600)
@@ -103,7 +103,7 @@ func TestRunHostPreflightFailsWhenSystemctlMissing(t *testing.T) {
 func TestRunHostPreflightRejectsUnsupportedDistribution(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeProductionValidationFixtureRepo(t, repoRoot)
-	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"), "[Unit]\nDescription=ACP\n")
+	writeHostPreflightTemplates(t, repoRoot)
 	writeFile(t, filepath.Join(repoRoot, "demo", ".env"), "ACP_DATABASE_MODE=embedded\n")
 	secretsPath := filepath.Join(repoRoot, "local", "host-preflight", "secrets.env")
 	writeFileWithMode(t, secretsPath, "LITELLM_MASTER_KEY=prod-master-token-abcdefghijklmnopqrstuvwxyz1234567890\n", 0o600)
@@ -164,6 +164,13 @@ func installHostPreflightBoundaryFixture(t *testing.T, binDir string, distro str
 		hostOSReleasePath = origOSReleasePath
 		hostSystemdRuntimeDir = origSystemdRuntimeDir
 	}
+}
+
+func writeHostPreflightTemplates(t *testing.T, repoRoot string) {
+	t.Helper()
+	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"), "[Unit]\nDescription=ACP\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane-backup.service.tmpl"), "[Unit]\nDescription=ACP Backup\n")
+	writeFile(t, filepath.Join(repoRoot, "deploy", "systemd", "ai-control-plane-backup.timer.tmpl"), "[Unit]\nDescription=ACP Backup Timer\n")
 }
 
 func writeExecutable(t *testing.T, path string, contents string) {

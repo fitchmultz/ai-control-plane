@@ -9,6 +9,7 @@ The production contract is the host-first Docker deployment path described in [D
 3. Run `./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.yml`.
 4. Run `./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml`.
 5. Run `make prod-smoke COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env`.
+6. Confirm `make host-service-status` shows the runtime service and automated backup timer.
 
 ## Invariants
 
@@ -19,4 +20,5 @@ The production contract is the host-first Docker deployment path described in [D
 - Without the `tls` overlay, the supported `acp_public_url` remains loopback-only.
 - Remote non-loopback ingress requires the `tls` overlay and an `https://...` public URL.
 - The supported host boundary is Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, and Docker Compose.
-- The tracked host playbook enforces baseline package/update posture, SSH hardening, private secrets-file permissions, and explicit UFW defaults.
+- The tracked host playbook enforces baseline package/update posture, SSH hardening, private secrets-file permissions, explicit UFW defaults, and automated backup-timer installation.
+- The supported recovery contract includes scheduled backups, tracked retention, and a repeatable scratch-restore verification drill.

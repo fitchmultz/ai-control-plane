@@ -54,6 +54,7 @@
           - acp_host_required_packages is iterable
           - acp_host_firewall_tls_allowed_cidrs is iterable
           - acp_host_sysctl_settings is mapping
+          - acp_backup_retention_keep | int >= 1
           - (acp_runtime_overlays | difference(['tls', 'ui', 'dlp', 'offline'])) | length == 0
         fail_msg: >-
           Missing required variables or unsupported overlay values.
@@ -100,6 +101,9 @@
           - "  Firewall default incoming: {{ acp_host_firewall_default_incoming_policy }}"
           - "  Firewall default outgoing: {{ acp_host_firewall_default_outgoing_policy }}"
           - "  Apt upgrade mode: {{ acp_host_apt_upgrade_mode }}"
+          - "  Backup timer enabled: {{ acp_backup_timer_enabled }}"
+          - "  Backup schedule: {{ acp_backup_timer_on_calendar }}"
+          - "  Backup retention keep: {{ acp_backup_retention_keep }}"
 
     # =========================================================================
     # Phase 2: Repository, Secrets, And Runtime Prerequisite Checks
@@ -408,6 +412,53 @@
       ansible.builtin.set_fact:
         acp_runtime_overlays_csv: "{{ acp_runtime_overlays | join(',') }}"
 
+    # =========================================================================
+    # Phase 5a: Automated Backup Timer Installation
+    # =========================================================================
+    - name: Render automated backup service unit
+      become: true
+      ansible.builtin.template:
+        src: ../../systemd/ai-control-plane-backup.service.tmpl
+        dest: /etc/systemd/system/ai-control-plane-backup.service
+        owner: root
+        group: root
+        mode: '0644'
+      vars:
+        SERVICE_NAME: ai-control-plane
+        SERVICE_USER: "{{ acp_service_user | default(ansible_user_id) }}"
+        SERVICE_GROUP: "{{ acp_service_group | default(acp_service_user | default(ansible_user_id)) }}"
+        WORKING_DIR: "{{ acp_repo_path }}"
+        ENV_FILE: "{{ acp_env_file }}"
+        BACKUP_RETENTION_KEEP: "{{ acp_backup_retention_keep }}"
+      register: backup_service_unit
+
+    - name: Render automated backup timer unit
+      become: true
+      ansible.builtin.template:
+        src: ../../systemd/ai-control-plane-backup.timer.tmpl
+        dest: /etc/systemd/system/ai-control-plane-backup.timer
+        owner: root
+        group: root
+        mode: '0644'
+      vars:
+        SERVICE_NAME: ai-control-plane
+        BACKUP_ON_CALENDAR: "{{ acp_backup_timer_on_calendar }}"
+        RANDOMIZED_DELAY_SEC: "{{ acp_backup_timer_randomized_delay_sec }}"
+      register: backup_timer_unit
+
+    - name: Reload systemd after backup unit changes
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: backup_service_unit.changed or backup_timer_unit.changed
+
+    - name: Ensure automated backup timer state matches contract
+      become: true
+      ansible.builtin.systemd:
+        name: ai-control-plane-backup.timer
+        enabled: "{{ acp_backup_timer_enabled | bool }}"
+        state: "{{ 'started' if (acp_backup_timer_enabled | bool) else 'stopped' }}"
+
     - name: Converge Docker Compose services
       become: true
       ansible.builtin.command:
@@ -550,6 +601,9 @@
           - "Services changed: {{ converge_result.changed }}"
           - "Firewall: UFW enabled with {{ acp_host_firewall_default_incoming_policy }} incoming / {{ acp_host_firewall_default_outgoing_policy }} outgoing defaults"
           - "Automatic security updates: ENABLED"
+          - >-
+            Backup timer: {{ 'ENABLED (' ~ acp_backup_timer_on_calendar ~ ', keep ' ~ (acp_backup_retention_keep | string) ~ ')' if (acp_backup_timer_enabled | bool)
+            else 'DISABLED' }}
           - "Health check: PASSED"
           - >-
             Smoke check: {{ 'SKIPPED' if not (acp_run_smoke_tests | bool)

@@ -377,6 +377,10 @@ func validateTrackedHostHardeningDefaults(repoRoot string) []string {
 		content := string(groupVarsData)
 		for _, snippet := range []string{
 			"acp_public_url: http://127.0.0.1:4000",
+			"acp_backup_timer_enabled: true",
+			"acp_backup_timer_on_calendar: daily",
+			"acp_backup_timer_randomized_delay_sec: 15m",
+			"acp_backup_retention_keep: 7",
 			"acp_host_required_packages:",
 			"- ufw",
 			"- unattended-upgrades",

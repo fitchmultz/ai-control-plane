@@ -1,0 +1,36 @@
+# AI Control Plane - Scheduled Backup Service Template
+# =============================================================================
+# Purpose: Run one automated database backup plus retention cleanup.
+# Responsibilities:
+#   - Execute the typed backup workflow.
+#   - Apply the typed retention policy after a successful backup.
+# Scope:
+#   - Host-first systemd backup job only.
+# Usage:
+#   - Render this template and install it to /etc/systemd/system/<service>-backup.service
+# Invariants/Assumptions:
+#   - Runs on the supported host-first path with a rendered repo working dir.
+#   - Uses the canonical typed CLI path for all database backup operations.
+# =============================================================================
+
+[Unit]
+Description=AI Control Plane database backup job
+Documentation=https://github.com/tetrainsights/ai-control-plane/blob/main/docs/deployment/DISASTER_RECOVERY.md
+After=docker.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{SERVICE_USER}}
+Group={{SERVICE_GROUP}}
+WorkingDirectory={{WORKING_DIR}}
+EnvironmentFile={{ENV_FILE}}
+Environment=ACP_REPO_ROOT={{WORKING_DIR}}
+ExecStart=/bin/bash -lc 'set -euo pipefail; ./scripts/acpctl.sh db backup && ./scripts/acpctl.sh db backup-retention --apply --keep {{BACKUP_RETENTION_KEEP}}'
+TimeoutStartSec=300
+NoNewPrivileges=yes
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier={{SERVICE_NAME}}-backup

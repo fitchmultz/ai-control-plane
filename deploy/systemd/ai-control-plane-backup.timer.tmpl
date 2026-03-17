@@ -1,0 +1,25 @@
+# AI Control Plane - Scheduled Backup Timer Template
+# =============================================================================
+# Purpose: Schedule the host-first database backup job.
+# Responsibilities:
+#   - Trigger the backup service on a configurable systemd calendar.
+# Scope:
+#   - Host-first systemd timer only.
+# Usage:
+#   - Render this template and install it to /etc/systemd/system/<service>-backup.timer
+# Invariants/Assumptions:
+#   - Default cadence is daily.
+#   - Persistent=true ensures missed runs fire after host downtime.
+# =============================================================================
+
+[Unit]
+Description=Schedule AI Control Plane database backups
+
+[Timer]
+OnCalendar={{BACKUP_ON_CALENDAR}}
+Persistent=true
+RandomizedDelaySec={{RANDOMIZED_DELAY_SEC}}
+Unit={{SERVICE_NAME}}-backup.service
+
+[Install]
+WantedBy=timers.target

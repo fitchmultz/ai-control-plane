@@ -77,7 +77,7 @@ func (c DatabaseCollector) Collect(ctx context.Context) status.ComponentStatus {
 		)
 	}
 
-	if summary.ExpectedTables < 4 {
+	if summary.ExpectedTables < db.ExpectedCoreSchemaTableCount() {
 		return componentStatus(c.Name(), status.HealthLevelWarning, "Database accessible, but schema is incomplete", details,
 			"Run the stack long enough for LiteLLM schema initialization",
 			"Verify LiteLLM database migrations completed",

@@ -2,7 +2,7 @@
 #
 # Purpose: Database backup, restore, and inspection operations
 # Responsibilities:
-#   - Database backup and restore
+#   - Database backup, retention, and restore
 #   - Database shell access
 #   - Chargeback and operator reporting workflows
 #   - DR drills and testing
@@ -62,6 +62,13 @@ db-backup: ## Create database backup
 		&& echo '$(COLOR_GREEN)✓ Database backup created$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Database backup failed$(COLOR_RESET)'; exit 1; }
 
+.PHONY: db-backup-retention
+db-backup-retention: ## Enforce backup retention policy (default: check mode, KEEP=7)
+	@echo '$(COLOR_BOLD)Evaluating database backup retention...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) db backup-retention \
+		$(if $(filter 1 true TRUE yes YES,$(APPLY)),--apply,--check) \
+		$(if $(KEEP),--keep $(KEEP),)
+
 .PHONY: db-restore
 db-restore: ## Restore embedded database from backup
 	@echo '$(COLOR_BOLD)Restoring database from backup...$(COLOR_RESET)'
@@ -75,8 +82,8 @@ db-shell: ## Open database shell
 	@$(ACPCTL_BIN) db shell
 
 .PHONY: dr-drill
-dr-drill: ## Run database DR restore drill
-	@echo '$(COLOR_BOLD)Running DR restore drill...$(COLOR_RESET)'
+dr-drill: ## Run automated database restore verification drill
+	@echo '$(COLOR_BOLD)Running automated restore verification...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) db dr-drill \
-		&& echo '$(COLOR_GREEN)✓ DR drill completed$(COLOR_RESET)' \
-		|| { echo '$(COLOR_RED)✗ DR drill failed$(COLOR_RESET)'; exit 1; }
+		&& echo '$(COLOR_GREEN)✓ Restore verification completed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Restore verification failed$(COLOR_RESET)'; exit 1; }

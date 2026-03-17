@@ -384,50 +384,74 @@ make db-shell
 
 ## 6. Backup and Restore
 
-### Backup Script
+### Backup Workflow
 
-Create timestamped backups of the PostgreSQL database.
+Create timestamped backups of the embedded PostgreSQL database through the typed operator surface.
 
 #### Usage
 
 ```bash
-# Interactive backup with timestamp
+# Create a timestamped backup
 make db-backup
 
-# Backup with custom name (typed CLI path)
+# Create a custom-named backup
 ./scripts/acpctl.sh db backup my-custom-backup
 ```
 
 #### Backup Location
 
-Backups are stored in `demo/backups/`:
+Backups are stored in `demo/backups/` by default:
 
 ```
 demo/backups/
-  litellm-backup-20240128-143052.sql.gz
-  litellm-backup-20240127-090000.sql.gz
+  litellm-backup-20260317-113000.sql.gz
+  litellm-backup-20260316-020000.sql.gz
   my-custom-backup.sql.gz
 ```
 
-#### Environment Variables
+The backup directory stays local-only and private. Backup files are written with `0600` permissions and the containing directory with `0700` permissions.
+
+#### Environment Variable
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BACKUP_DIR` | `demo/backups/` | Backup directory |
-| `DB_CONTAINER` | Auto-detected | Postgres container name |
-| `DB_NAME` | `litellm` | Database name |
-| `DB_USER` | `litellm` | Database user |
+| `BACKUP_DIR` | `demo/backups/` | Override the canonical backup directory |
 
 #### Backup Format
 
-Backups are compressed SQL dumps:
+Backups are compressed SQL dumps created with `pg_dump -c -C --no-owner --no-acl`:
 
 ```bash
+# Validate gzip integrity
+gzip -t demo/backups/litellm-backup-20260317-113000.sql.gz
+
 # View backup contents (decompress to stdout)
-gunzip -c demo/backups/litellm-backup-20240128-143052.sql.gz | less
+gunzip -c demo/backups/litellm-backup-20260317-113000.sql.gz | less
 ```
 
-### Restore Script
+### Backup Retention Workflow
+
+The supported retention contract is now typed and deterministic.
+
+```bash
+# Check for stale backups (default keep=7)
+make db-backup-retention
+
+# Check with a custom keep count
+make db-backup-retention KEEP=14
+
+# Apply cleanup
+make db-backup-retention APPLY=1 KEEP=14
+```
+
+Behavior:
+
+1. Collect canonical `.sql.gz` backup artifacts from the configured backup directory.
+2. Sort them newest-first by modification time.
+3. Keep the newest `N` artifacts.
+4. Either fail in check mode or delete stale artifacts in apply mode.
+
+### Restore Workflow
 
 Restore from the latest backup or a specific backup file.
 
@@ -438,33 +462,53 @@ Restore from the latest backup or a specific backup file.
 make db-restore
 
 # Restore specific backup (typed CLI path)
-./scripts/acpctl.sh db restore demo/backups/litellm-backup-20240128-143052.sql.gz
+./scripts/acpctl.sh db restore demo/backups/litellm-backup-20260317-113000.sql.gz
 ```
 
 #### What Happens During Restore
 
-1. Resolve backup file (latest if none is provided)
-2. Validate the backup file exists and can be read
-3. Overwrite embedded PostgreSQL data with backup contents
-4. Report success/failure using the standard exit-code contract
+1. Resolve the backup file (latest if none is provided).
+2. Validate that the archive exists and is readable.
+3. Stream the decompressed SQL into `psql` against the embedded PostgreSQL instance.
+4. Report success/failure using the standard exit-code contract.
 
 #### Safety Warnings
 
-- **Data loss**: Restore overwrites existing embedded database data
-- **Downtime**: Gateway may experience errors during restore
-- **Backup first**: Always run `make db-backup` before restore
-- **Integrity check**: Validate archive before restore (`gzip -t demo/backups/<backup>.sql.gz`)
+- **Data loss**: Restore overwrites existing embedded database data.
+- **Downtime**: Gateway may experience errors during restore.
+- **Backup first**: Always run `make db-backup` before restore.
+- **Integrity check**: Validate the archive before restore (`gzip -t demo/backups/<backup>.sql.gz`).
+- **Mode restriction**: Backup and restore are unsupported for external database mode.
 
-### Backup Retention Policy
+### Restore Verification Drill
 
-**Recommendation**: Keep last 7 days of backups for demo environments.
-
-**Example cleanup command**:
+The supported DR drill is now a real restore-verification workflow, not a stub.
 
 ```bash
-# Remove backups older than 7 days
-find demo/backups/ -name "litellm-backup-*.sql.gz" -mtime +7 -delete
+# Create a fresh backup, restore it into a scratch DB,
+# verify the LiteLLM core schema, and clean up the scratch DB
+make dr-drill
 ```
+
+What the drill proves:
+
+1. The current embedded PostgreSQL instance can be backed up.
+2. The resulting backup can be rewritten safely for a scratch database.
+3. The scratch database restore succeeds.
+4. The expected LiteLLM core schema is present after restore.
+5. The scratch database is dropped after verification.
+
+### Host-First Backup Automation
+
+On the supported host-first path, backup automation is part of the deployment contract:
+
+- `host apply` installs and enables `ai-control-plane-backup.timer` by default.
+- `host install` renders the same timer contract for local systemd-managed hosts.
+- Default tracked settings:
+  - schedule: `daily`
+  - randomized delay: `15m`
+  - retention keep count: `7`
+- `make host-service-status` reports both the runtime service and the backup timer.
 
 ---
 

@@ -193,8 +193,23 @@ func (c *Connector) containerID(ctx context.Context) (string, error) {
 }
 
 func (c *Connector) scalarString(ctx context.Context, query string) (string, error) {
+	return c.scalarStringInDatabase(ctx, c.databaseName(), query)
+}
+
+func (c *Connector) scalarInt(ctx context.Context, query string) (int, error) {
+	return c.scalarIntInDatabase(ctx, c.databaseName(), query)
+}
+
+func (c *Connector) scalarStringInDatabase(ctx context.Context, databaseName string, query string) (string, error) {
 	if err := c.ConfigError(); err != nil {
 		return "", err
+	}
+	resolvedDatabaseName := strings.TrimSpace(databaseName)
+	if resolvedDatabaseName == "" {
+		resolvedDatabaseName = c.databaseName()
+	}
+	if c.IsExternal() && resolvedDatabaseName != c.databaseName() {
+		return "", fmt.Errorf("cross-database queries are unsupported for external database mode")
 	}
 	if c.IsExternal() {
 		dbConn, err := c.ensureSQLDB(ctx)
@@ -219,7 +234,7 @@ func (c *Connector) scalarString(ctx context.Context, query string) (string, err
 	defer cancel()
 	res := proc.Run(runCtx, proc.Request{
 		Name:    "docker",
-		Args:    []string{"exec", containerID, "psql", "-X", "-A", "-t", "-U", c.databaseUser(), "-d", c.databaseName(), "-c", query},
+		Args:    []string{"exec", containerID, "psql", "-X", "-A", "-t", "-U", c.databaseUser(), "-d", resolvedDatabaseName, "-c", query},
 		Timeout: queryTimeout,
 	})
 	if res.Err != nil {
@@ -228,8 +243,8 @@ func (c *Connector) scalarString(ctx context.Context, query string) (string, err
 	return strings.TrimSpace(res.Stdout), nil
 }
 
-func (c *Connector) scalarInt(ctx context.Context, query string) (int, error) {
-	value, err := c.scalarString(ctx, query)
+func (c *Connector) scalarIntInDatabase(ctx context.Context, databaseName string, query string) (int, error) {
+	value, err := c.scalarStringInDatabase(ctx, databaseName, query)
 	if err != nil {
 		return 0, err
 	}

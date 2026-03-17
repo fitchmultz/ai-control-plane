@@ -70,11 +70,7 @@ func (s *RuntimeService) Summary(ctx context.Context) (Summary, error) {
 		summary.ContainerID = containerID
 	}
 
-	tableCount, err := s.connector.scalarInt(ctx, `
-		SELECT COUNT(*) FROM information_schema.tables
-		WHERE table_schema = 'public'
-		AND table_name IN ('LiteLLM_VerificationToken', 'LiteLLM_UserTable', 'LiteLLM_BudgetTable', 'LiteLLM_SpendLogs');
-	`)
+	tableCount, err := s.connector.scalarInt(ctx, coreSchemaTableCountQuery())
 	if err != nil {
 		return summary, err
 	}

@@ -45,6 +45,7 @@ The host playbook hardens the host baseline by enforcing:
 - SSH hardening (no password auth, no root login)
 - UFW defaults: `deny incoming`, `allow outgoing`, `deny routed`
 - Docker-compatible sysctl hardening
+- automated database backup timer installation with tracked retention defaults
 
 ## Host-First Production Workflow
 
@@ -56,6 +57,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 ./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.yml
 ./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml
 make prod-smoke COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env
+make host-service-status
 ```
 
 Rules:
@@ -68,6 +70,8 @@ Rules:
 - Base host deployment remains the default, but without `tls` the supported `acp_public_url` stays loopback-only (`http://127.0.0.1:4000`).
 - Remote non-loopback ingress requires the `tls` overlay and an `https://...` `acp_public_url`.
 - Host overlay runs always execute `make health` and `make prod-smoke`, then run overlay-specific postchecks for `ui` (`make librechat-health`), `tls` (`make tls-health`), and `dlp` (`make dlp-health`).
+- `host apply` installs and enables the automated `ai-control-plane-backup.timer` by default. Local `host install` renders the same timer contract and `host service-status` reports both the runtime service and the backup timer.
+- Timer defaults come from tracked inventory variables: `acp_backup_timer_on_calendar: daily`, `acp_backup_timer_randomized_delay_sec: 15m`, and `acp_backup_retention_keep: 7`.
 - Host firewall posture is host-level ingress hardening only. Customer-owned perimeter controls still own outbound allow-listing, SWG/CASB policy, and broader network enforcement.
 
 ## Inventory Guidance

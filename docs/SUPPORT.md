@@ -20,7 +20,7 @@ Start with [README.md](../README.md) for the public repo overview, [troubleshoot
 - Use `/etc/ai-control-plane/secrets.env` for host-production workflows.
 - Select supported host overlays through `acp_runtime_overlays` in the Ansible inventory.
 - Keep `acp_public_url` loopback-only unless the `tls` overlay is enabled.
-- Expect the supported host path to verify SSH host keys and enforce baseline host hardening (UFW defaults, unattended security updates, SSH hardening, private secrets-file permissions).
+- Expect the supported host path to verify SSH host keys, enforce baseline host hardening (UFW defaults, unattended security updates, SSH hardening, private secrets-file permissions), and install the automated backup timer contract.
 - Treat outbound allow-listing, SWG/CASB policy, and broader perimeter controls as customer-owned responsibilities outside the host playbook.
 
 ## Migration Notes

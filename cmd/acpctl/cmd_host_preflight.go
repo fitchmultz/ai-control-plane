@@ -103,10 +103,16 @@ func runHostPreflight(_ context.Context, runCtx commandRunContext, raw any) int 
 		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitPrereq, err, "Host preflight prerequisites failed")
 	}
 
-	templatePath := filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl")
-	if _, err := os.Stat(templatePath); err != nil {
-		workflowFailure(logger, err)
-		return failCommand(runCtx.Stderr, out, exitcodes.ACPExitRuntime, err, "Missing systemd template")
+	requiredTemplates := []string{
+		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane.service.tmpl"),
+		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane-backup.service.tmpl"),
+		filepath.Join(runCtx.RepoRoot, "deploy", "systemd", "ai-control-plane-backup.timer.tmpl"),
+	}
+	for _, templatePath := range requiredTemplates {
+		if _, err := os.Stat(templatePath); err != nil {
+			workflowFailure(logger, err, "template", templatePath)
+			return failCommand(runCtx.Stderr, out, exitcodes.ACPExitRuntime, err, "Missing systemd template")
+		}
 	}
 
 	issues, err := validation.ValidateDeploymentConfig(runCtx.RepoRoot, validation.ConfigValidationOptions{

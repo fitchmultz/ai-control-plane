@@ -171,9 +171,10 @@ help-db:
 	@echo '  $(COLOR_GREEN)chargeback-report$(COLOR_RESET)  Generate chargeback/showback report artifacts'
 	@echo '  $(COLOR_GREEN)operator-report$(COLOR_RESET)    Generate typed operator runtime report'
 	@echo '  $(COLOR_GREEN)db-backup$(COLOR_RESET)          Create backup'
+	@echo '  $(COLOR_GREEN)db-backup-retention$(COLOR_RESET) Check or apply backup retention cleanup'
 	@echo '  $(COLOR_GREEN)db-restore$(COLOR_RESET)         Restore from backup'
 	@echo '  $(COLOR_GREEN)db-shell$(COLOR_RESET)           Open database shell'
-	@echo '  $(COLOR_GREEN)dr-drill$(COLOR_RESET)           Run DR drill'
+	@echo '  $(COLOR_GREEN)dr-drill$(COLOR_RESET)           Run automated restore verification'
 
 .PHONY: help-host
 help-host:
@@ -181,9 +182,9 @@ help-host:
 	@echo '  $(COLOR_GREEN)host-preflight$(COLOR_RESET)     Run preflight checks'
 	@echo '  $(COLOR_GREEN)host-check$(COLOR_RESET)         Check mode'
 	@echo '  $(COLOR_GREEN)host-apply$(COLOR_RESET)         Apply mode'
-	@echo '  $(COLOR_GREEN)host-install$(COLOR_RESET)       Install systemd service'
-	@echo '  $(COLOR_GREEN)host-uninstall$(COLOR_RESET)     Remove systemd service'
-	@echo '  $(COLOR_GREEN)host-service-status$(COLOR_RESET) Show service status'
+	@echo '  $(COLOR_GREEN)host-install$(COLOR_RESET)       Install systemd service and backup timer'
+	@echo '  $(COLOR_GREEN)host-uninstall$(COLOR_RESET)     Remove systemd service and backup timer'
+	@echo '  $(COLOR_GREEN)host-service-status$(COLOR_RESET) Show service and backup timer status'
 	@echo '  $(COLOR_GREEN)host-service-start$(COLOR_RESET) Start service'
 	@echo '  $(COLOR_GREEN)host-service-stop$(COLOR_RESET)  Stop service'
 	@echo '  $(COLOR_GREEN)host-service-restart$(COLOR_RESET) Restart service'

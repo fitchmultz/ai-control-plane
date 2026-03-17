@@ -17,6 +17,7 @@ This repository uses:
 - One-command operator runtime reporting via `acpctl ops report` and `make operator-report` with private local archive output.
 - Doctor budget/detection finding adapters, safe gateway/database remediation helpers, and webhook fanout for `acpctl doctor --notify`.
 - Hardened host-playbook defaults for package/update posture, UFW ingress policy, unattended security updates, SSH hardening, and Debian/Ubuntu support-boundary enforcement.
+- Automated host-first backup timer assets, typed backup retention cleanup, and a real scratch-restore DR drill workflow.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

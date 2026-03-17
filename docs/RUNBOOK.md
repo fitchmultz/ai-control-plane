@@ -30,7 +30,9 @@ This runbook provides day-to-day operational procedures, incident response guida
 | Database status | `make db-status` |
 | Operator runtime report | `make operator-report` |
 | Create backup | `make db-backup` |
+| Apply backup retention | `make db-backup-retention APPLY=1 KEEP=7` |
 | Restore backup | `make db-restore` |
+| Verify restore drill | `make dr-drill` |
 | Validate detection rules | `make validate-detections` |
 | Generate release evidence bundle | `make release-bundle` |
 | Generate virtual key | `make key-gen ALIAS=foo BUDGET=10.00` |
@@ -122,18 +124,19 @@ make db-status
 
 **Backup Verification:**
 ```bash
-# List recent backups
-ls -la demo/backups/
+# Check for stale backups against the tracked retention contract
+make db-backup-retention KEEP=7
 
-# Verify at least one backup exists from the past week
-find demo/backups/ -name "litellm-backup-*.sql.gz" -mtime -7
+# On host-first deployments, confirm the backup timer is active
+make host-service-status
 ```
 
 ### 3.3 Monthly Operations
 
-**Full Database Backup:**
+**Full Database Backup And Restore Verification:**
 ```bash
 make db-backup
+make dr-drill
 ```
 
 **Audit Log Review for Trends:**
@@ -537,7 +540,7 @@ See also: [docs/DATABASE.md](DATABASE.md) section 5
 
 ### 5.2 Backup Procedures
 
-**Automated Backup:**
+**Create Backup:**
 ```bash
 make db-backup
 ```
@@ -549,9 +552,13 @@ Creates: `demo/backups/litellm-backup-YYYYMMDD-HHMMSS.sql.gz`
 ./scripts/acpctl.sh db backup my-custom-backup
 ```
 
-**Retention Cleanup (7 days):**
+**Retention Check / Cleanup:**
 ```bash
-find demo/backups/ -name "litellm-backup-*.sql.gz" -mtime +7 -delete
+# Check the tracked retention contract
+make db-backup-retention KEEP=7
+
+# Apply cleanup
+make db-backup-retention APPLY=1 KEEP=7
 ```
 
 **Pre-Clean Backup:**
@@ -566,29 +573,29 @@ make clean
 
 ### 5.3 Restore Procedures
 
-**Restore Command (Current Open-Source Release Behavior):**
+**Restore Command:**
 ```bash
 # Attempt restore using latest backup (auto-detected)
 make db-restore
 
 # Restore a specific backup file
-./scripts/acpctl.sh db restore demo/backups/litellm-backup-20240128-143052.sql.gz
+./scripts/acpctl.sh db restore demo/backups/litellm-backup-20260317-113000.sql.gz
 ```
 
-Current typed restore flow validates prerequisites and backup input, then prints guided manual restore instructions.
+The typed restore flow now streams the decompressed archive directly into the embedded PostgreSQL instance.
 
-**Manual Restore Path (when required):**
+**Restore Verification Drill:**
 ```bash
-gunzip < demo/backups/litellm-backup-20240128-143052.sql.gz \
-  | docker exec -i $(docker compose -f demo/docker-compose.yml ps -q postgres) \
-      psql -U litellm -d litellm
+# Create a fresh backup, restore into a scratch DB,
+# verify the LiteLLM core schema, and clean up the scratch DB
+make dr-drill
 ```
 
 **Safety Notes:**
-- Restore overwrites ALL existing data
-- LiteLLM is stopped during restore
-- Always backup current state before restoring
-- Validate backup integrity before restore (e.g., `gzip -t <backup.sql.gz`)
+- Restore overwrites ALL existing data.
+- Always back up current state before restoring.
+- Validate backup integrity before restore (for example, `gzip -t <backup.sql.gz`).
+- Backup, restore, and drill workflows are unsupported for external database mode.
 
 ### 5.4 Direct Database Access
 
@@ -1366,17 +1373,20 @@ make key-revoke ALIAS=<alias>
 
 ### 10.1 Backup Strategy
 
-**Automated Backups:**
+**Supported host-first automation:**
 ```bash
-# Create timestamped backup
-make db-backup
+# Confirm the runtime service and backup timer are active
+make host-service-status
 ```
 
-**Retention Policy (Recommended):**
-- Demo environments: 7 days
-- Production environments: 30+ days with offsite storage
+**Manual backup / retention workflows:**
+```bash
+make db-backup
+make db-backup-retention KEEP=7
+make db-backup-retention APPLY=1 KEEP=7
+```
 
-**Offsite Backup (Production):**
+**Offsite Backup (Production, customer-owned):**
 ```bash
 # Create backup
 make db-backup
@@ -1390,8 +1400,9 @@ aws s3 cp demo/backups/litellm-backup-*.sql.gz s3://my-backup-bucket/ai-control-
 **Service Recovery (Infrastructure Issues):**
 ```bash
 # After infrastructure is restored
-make up
-make health
+./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml
+make health COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env
+make prod-smoke COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env
 ```
 
 **Data Recovery:**
@@ -1399,8 +1410,9 @@ make health
 # Restore from backup
 make db-restore
 
-# Verify restore
+# Verify runtime and schema
 make db-status
+make prod-smoke
 ```
 
 **Full Rebuild (Data Loss Scenario):**
@@ -1414,27 +1426,26 @@ make health
 
 ### 10.3 Testing Recovery
 
-**Monthly Test Procedure:**
+**Monthly test procedure:**
 
-1. **Create Test Backup:**
+1. **Create test backup:**
    ```bash
    make db-backup
    ```
 
-2. **Verify Backup Integrity:**
+2. **Verify backup integrity:**
    ```bash
-   gunzip -t demo/backups/litellm-backup-*.sql.gz
+   gzip -t demo/backups/litellm-backup-*.sql.gz
    ```
 
-3. **Test Restore (on separate instance or after backup):**
+3. **Run restore verification drill:**
    ```bash
-   make db-restore
+   make dr-drill
    ```
 
-4. **Verify Data:**
+4. **Confirm backup timer health on host-first deployments:**
    ```bash
-   make db-status
-   # Compare key counts, budget data, recent audit logs
+   make host-service-status
    ```
 
 ---
@@ -1638,16 +1649,17 @@ See [docs/DEPLOYMENT.md](DEPLOYMENT.md) section 9 for detailed network troublesh
 
 - [ ] Run high-severity detection rules: `make validate-detections`
 - [ ] Check budget status: `make db-status` (section 4)
-- [ ] Verify backup exists from past week: `ls -la demo/backups/`
+- [ ] Verify backup retention contract passes: `make db-backup-retention KEEP=7`
 - [ ] Review audit log for anomalies
 
 ### 15.3 Monthly Checklist
 
 - [ ] Full database backup: `make db-backup`
+- [ ] Run restore verification drill: `make dr-drill`
 - [ ] Audit log trend analysis
 - [ ] Key rotation assessment
 - [ ] Storage usage check
-- [ ] Test restore procedure on non-production instance
+- [ ] Confirm host backup timer status on production hosts: `make host-service-status`
 
 ### 15.4 Incident Response Checklist
 

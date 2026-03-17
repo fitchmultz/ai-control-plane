@@ -86,6 +86,28 @@ func TestConnectorScalarHelpersUseExternalDB(t *testing.T) {
 	}
 }
 
+func TestConnectorScalarHelpersUseNamedDatabaseForExternalDefaultDatabase(t *testing.T) {
+	connector, mock := newExternalSQLMockConnector(t)
+
+	expectExactQuery(mock, "SELECT version();", exactQueryRows("version").AddRow(" PostgreSQL 17 "))
+
+	version, err := connector.scalarStringInDatabase(context.Background(), "litellm", "SELECT version();")
+	if err != nil {
+		t.Fatalf("scalarStringInDatabase() error = %v", err)
+	}
+	if version != "PostgreSQL 17" {
+		t.Fatalf("scalarStringInDatabase() = %q, want trimmed value", version)
+	}
+}
+
+func TestConnectorScalarHelpersRejectCrossDatabaseExternalQueries(t *testing.T) {
+	connector, _ := newExternalSQLMockConnector(t)
+
+	if _, err := connector.scalarStringInDatabase(context.Background(), "scratch", "SELECT version();"); err == nil {
+		t.Fatal("expected cross-database query to be rejected for external mode")
+	}
+}
+
 func TestConnectorScalarIntRejectsNonIntegerResults(t *testing.T) {
 	connector, mock := newExternalSQLMockConnector(t)
 	expectExactQuery(mock, "SELECT COUNT(*) FROM counts;", exactQueryRows("count").AddRow("abc"))

@@ -8,7 +8,7 @@ set -euo pipefail
 #     not recurse back into Make.
 #
 # Responsibilities:
-#   - Stub the `ACPCTL_BIN` target for `make db-status` and `make db-shell`.
+#   - Stub the `ACPCTL_BIN` target for `make db-status`, `make db-shell`, and retention wrappers.
 #   - Assert each target executes the expected typed subcommand exactly once.
 #
 # Scope:
@@ -28,7 +28,7 @@ show_help() {
     cat <<'EOF'
 Usage: db_make_contract_test.sh [OPTIONS]
 
-Validate that `make db-status` and `make db-shell` call the typed CLI once.
+Validate that `make db-status`, `make db-shell`, and backup-retention entrypoints call the typed CLI once.
 
 Options:
   --help    Show this help message
@@ -86,6 +86,7 @@ printf '=====================\n'
 
 assert_single_invocation "db-status" "db status"
 assert_single_invocation "db-shell" "db shell"
+assert_single_invocation "db-backup-retention" "db backup-retention --check"
 
 printf '\n'
 printf 'Production Runtime Contract Test\n'

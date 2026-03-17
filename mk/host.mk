@@ -4,7 +4,7 @@
 # Responsibilities:
 #   - Host preflight checks
 #   - Host deployment (check/apply)
-#   - Systemd service management
+#   - Systemd service and backup-timer management
 #
 # Non-scope:
 #   - Does not manage Docker containers
@@ -28,8 +28,8 @@ host-apply: ## Run declarative host apply/converge
 	@$(ACPCTL_BIN) host apply --inventory "$(INVENTORY)"
 
 .PHONY: host-install
-host-install: ## Install systemd service
-	@echo '$(COLOR_BOLD)Installing systemd service...$(COLOR_RESET)'
+host-install: ## Install systemd service and automated backup timer
+	@echo '$(COLOR_BOLD)Installing systemd service and backup timer...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) host install --env-file "$(SECRETS_ENV_FILE)"
 
 .PHONY: host-uninstall
@@ -38,7 +38,7 @@ host-uninstall: ## Uninstall systemd service
 	@$(ACPCTL_BIN) host uninstall
 
 .PHONY: host-service-status
-host-service-status: ## Show service status
+host-service-status: ## Show service and backup timer status
 	@$(ACPCTL_BIN) host service-status
 
 .PHONY: host-service-start

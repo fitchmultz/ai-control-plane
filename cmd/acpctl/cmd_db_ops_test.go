@@ -388,3 +388,70 @@ func TestWriteCompressedBackupFileUsesPrivateModes(t *testing.T) {
 		t.Fatalf("payload = %q, want %q", got, "SELECT 1;\n")
 	}
 }
+
+func TestCollectBackupArtifactsSortsNewestFirst(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldPath := filepath.Join(tmpDir, "litellm-backup-older.sql.gz")
+	newPath := filepath.Join(tmpDir, "litellm-backup-newer.sql.gz")
+	ignorePath := filepath.Join(tmpDir, "notes.txt")
+
+	for _, path := range []string{oldPath, newPath, ignorePath} {
+		if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+
+	oldTime := time.Now().Add(-2 * time.Hour)
+	newTime := time.Now().Add(-1 * time.Hour)
+	if err := os.Chtimes(oldPath, oldTime, oldTime); err != nil {
+		t.Fatalf("chtimes old: %v", err)
+	}
+	if err := os.Chtimes(newPath, newTime, newTime); err != nil {
+		t.Fatalf("chtimes new: %v", err)
+	}
+
+	artifacts, err := collectBackupArtifacts(tmpDir)
+	if err != nil {
+		t.Fatalf("collectBackupArtifacts() error = %v", err)
+	}
+	if len(artifacts) != 2 {
+		t.Fatalf("len(artifacts) = %d, want 2", len(artifacts))
+	}
+	if artifacts[0].Path != newPath {
+		t.Fatalf("artifacts[0] = %s, want %s", artifacts[0].Path, newPath)
+	}
+	if artifacts[1].Path != oldPath {
+		t.Fatalf("artifacts[1] = %s, want %s", artifacts[1].Path, oldPath)
+	}
+}
+
+func TestComputeStaleBackups(t *testing.T) {
+	ordered := []backupArtifact{
+		{Name: "a.sql.gz"},
+		{Name: "b.sql.gz"},
+		{Name: "c.sql.gz"},
+		{Name: "d.sql.gz"},
+	}
+
+	stale := computeStaleBackups(ordered, 2)
+	if len(stale) != 2 {
+		t.Fatalf("len(stale) = %d, want 2", len(stale))
+	}
+	if stale[0].Name != "c.sql.gz" || stale[1].Name != "d.sql.gz" {
+		t.Fatalf("unexpected stale ordering: %#v", stale)
+	}
+}
+
+func TestRunDBBackupRetentionCommand_Help(t *testing.T) {
+	stdout, err := os.CreateTemp("", "acpctl_test_stdout")
+	if err != nil {
+		t.Fatalf("failed to create temp stdout: %v", err)
+	}
+	defer os.Remove(stdout.Name())
+
+	exitCode := runDBBackupRetentionCommand(context.Background(), []string{"--help"}, stdout, os.Stderr)
+	if exitCode != exitcodes.ACPExitSuccess {
+		t.Fatalf("expected exit code 0 for --help, got %d", exitCode)
+	}
+}
