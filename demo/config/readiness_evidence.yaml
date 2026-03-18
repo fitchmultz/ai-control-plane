@@ -52,3 +52,16 @@ gates:
       - release-bundle-verify
       - RELEASE_BUNDLE_VERSION=${BUNDLE_VERSION}
     notes: Confirms bundle integrity using the current checksum sidecar.
+
+  - id: replacement_host_recovery_evidence
+    title: Replacement Host Recovery Evidence
+    required: true
+    production_only: true
+    log_name: make-db-off-host-drill.log
+    command:
+      - db-off-host-drill
+      - OFF_HOST_RECOVERY_MANIFEST=demo/logs/recovery-inputs/off_host_recovery.yaml
+    notes: >
+      Validates a customer-owned off-host backup copy by digest and scratch restore,
+      and emits evidence proving rebuild can start from off-host inputs rather than
+      canonical same-host demo/backups artifacts only.

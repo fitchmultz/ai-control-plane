@@ -128,17 +128,19 @@ func TestRunContextSkipsProductionWithoutSecrets(t *testing.T) {
 	if summary.ProductionEnabled {
 		t.Fatal("ProductionEnabled = true, want false")
 	}
-	var sawSkipped bool
+	skipped := map[string]bool{}
 	for _, gate := range summary.GateResults {
-		if gate.ID == "production_ci" {
-			sawSkipped = true
+		if gate.ID == "production_ci" || gate.ID == "replacement_host_recovery_evidence" {
+			skipped[gate.ID] = true
 			if gate.Status != "SKIPPED" {
-				t.Fatalf("production gate status = %s, want SKIPPED", gate.Status)
+				t.Fatalf("production gate %s status = %s, want SKIPPED", gate.ID, gate.Status)
 			}
 		}
 	}
-	if !sawSkipped {
-		t.Fatal("expected production gate result")
+	for _, gateID := range []string{"production_ci", "replacement_host_recovery_evidence"} {
+		if !skipped[gateID] {
+			t.Fatalf("expected production gate result for %s", gateID)
+		}
 	}
 }
 
@@ -212,7 +214,7 @@ func writeFakeMake(t *testing.T, repoRoot string) string {
 set -eu
 printf 'fake make %s\n' "$*"
 case "$1" in
-  ci|release-bundle|release-bundle-verify|ci-nightly)
+  ci|release-bundle|release-bundle-verify|ci-nightly|db-off-host-drill)
     exit 0
     ;;
   *)
@@ -266,6 +268,15 @@ func writePlanFixture(t *testing.T, repoRoot string) {
       - release-bundle-verify
       - RELEASE_BUNDLE_VERSION=${BUNDLE_VERSION}
     notes: Confirms bundle integrity using the current checksum sidecar.
+  - id: replacement_host_recovery_evidence
+    title: Replacement Host Recovery Evidence
+    required: true
+    production_only: true
+    log_name: make-db-off-host-drill.log
+    command:
+      - db-off-host-drill
+      - OFF_HOST_RECOVERY_MANIFEST=demo/logs/recovery-inputs/off_host_recovery.yaml
+    notes: Validates staged off-host recovery inputs.
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write readiness plan fixture: %v", err)

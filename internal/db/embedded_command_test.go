@@ -75,6 +75,9 @@ func TestAdminServiceBackupAndRestoreSucceedWithEmbeddedCommandSurface(t *testin
 	if err := service.Restore(context.Background(), strings.NewReader("select 1;")); err != nil {
 		t.Fatalf("Restore() error = %v", err)
 	}
+	if err := service.DropDatabaseIfExists(context.Background(), "scratch_db"); err != nil {
+		t.Fatalf("DropDatabaseIfExists() error = %v", err)
+	}
 }
 
 func installFakeDocker(t *testing.T) func() {
@@ -91,6 +94,9 @@ case "$args" in
     ;;
   *" pg_dump "*)
     printf 'backup payload\n'
+    ;;
+  *" dropdb "*)
+    exit 0
     ;;
   *" psql "*"-c "*)
     printf ' 42 \n'

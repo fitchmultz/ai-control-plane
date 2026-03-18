@@ -87,6 +87,25 @@ printf '=====================\n'
 assert_single_invocation "db-status" "db status"
 assert_single_invocation "db-shell" "db shell"
 assert_single_invocation "db-backup-retention" "db backup-retention --check"
+run_make_target_with_manifest() {
+    : >"${CAPTURE_FILE}"
+    (
+        cd "${REPO_ROOT}"
+        ACPCTL_BIN="${ACPCTL_STUB}" \
+            ACPCTL_TEST_CAPTURE_FILE="${CAPTURE_FILE}" \
+            OFF_HOST_RECOVERY_MANIFEST="demo/logs/recovery-inputs/off_host_recovery.yaml" \
+            make --silent db-off-host-drill
+    ) >/dev/null
+}
+
+run_make_target_with_manifest
+actual="$(tr -d '\r' <"${CAPTURE_FILE}")"
+expected="db off-host-drill --manifest demo/logs/recovery-inputs/off_host_recovery.yaml"
+if [[ "${actual}" != "${expected}"$'\n' && "${actual}" != "${expected}" ]]; then
+    printf '  ✗ db-off-host-drill should invoke "%s" once (got %q)\n' "${expected}" "${actual}"
+    exit 1
+fi
+printf '  ✓ db-off-host-drill -> %s\n' "${expected}"
 
 printf '\n'
 printf 'Production Runtime Contract Test\n'

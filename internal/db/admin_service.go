@@ -121,19 +121,11 @@ func (s *AdminService) DropDatabaseIfExists(ctx context.Context, databaseName st
 		return fmt.Errorf("scratch database name is required")
 	}
 
-	dropSQL := fmt.Sprintf(`
-SELECT pg_terminate_backend(pid)
-FROM pg_stat_activity
-WHERE datname = %s
-  AND pid <> pg_backend_pid();
-DROP DATABASE IF EXISTS %s;
-`, quoteSQLStringLiteral(databaseName), quoteSQLIdentifier(databaseName))
-
 	runCtx, cancel := withTimeoutContext(ctx, restoreCommandTimeout)
 	defer cancel()
 	res := proc.Run(runCtx, proc.Request{
 		Name:    "docker",
-		Args:    []string{"exec", containerID, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", s.connector.databaseUser(), "-d", "postgres", "-c", dropSQL},
+		Args:    []string{"exec", containerID, "dropdb", "-U", s.connector.databaseUser(), "--if-exists", "--force", databaseName},
 		Timeout: restoreCommandTimeout,
 	})
 	if res.Err != nil {
@@ -211,7 +203,8 @@ func rewriteBackupControlLine(line string, targetDatabase string) (string, bool,
 	case strings.HasPrefix(line, "DROP DATABASE IF EXISTS "):
 		return replaceDatabaseToken(line, "DROP DATABASE IF EXISTS ", targetDatabase), false, false
 	case strings.HasPrefix(line, "DROP DATABASE "):
-		return replaceDatabaseToken(line, "DROP DATABASE ", targetDatabase), false, false
+		rewritten := replaceDatabaseToken(line, "DROP DATABASE ", targetDatabase)
+		return strings.Replace(rewritten, "DROP DATABASE ", "DROP DATABASE IF EXISTS ", 1), false, false
 	case strings.HasPrefix(line, "CREATE DATABASE "):
 		return replaceDatabaseToken(line, "CREATE DATABASE ", targetDatabase), true, false
 	case strings.HasPrefix(line, "ALTER DATABASE "):

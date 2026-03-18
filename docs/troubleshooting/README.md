@@ -9,6 +9,17 @@ Use this page when the supported workflow does not behave as expected.
   - run `./scripts/acpctl.sh doctor`
   - run `make health`
 
+- local hardened LiteLLM fails with Prisma or filesystem permission errors:
+  - common symptoms:
+    - `prisma.engine.errors.NotConnectedError: Not connected to the query engine`
+    - `Permission denied` writing under `litellm/proxy/_experimental/out`
+    - noisy `P1012` warnings for duplicate model `LiteLLM_DeletedTeamTable` during the post-migration sanity check
+  - `make up` builds and uses the local hardened image: `ai-control-plane/litellm-hardened:local`
+  - rebuild the local hardened image: `make hardened-images-build`
+  - the hardened image now hotfixes the current upstream `litellm_proxy_extras/schema.prisma` duplicate-model packaging defect during image build and clears generated `*_baseline_diff` migrations before each startup; if you still see the warning, confirm the local image was rebuilt before startup
+  - inspect gateway logs with Docker Compose or `docker logs`
+  - CI intentionally uses the pinned fallback image for offline runtime checks by clearing `ACP_RUNTIME_LITELLM_IMAGE`; do not remove that override when debugging local runtime issues
+
 ## Config validation failures
 
 - Run `make validate-config`

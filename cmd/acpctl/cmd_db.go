@@ -34,6 +34,7 @@ func dbCommandSpec() *commandSpec {
 			"acpctl db status",
 			"acpctl db backup",
 			"acpctl db backup-retention --check",
+			"acpctl db off-host-drill --manifest demo/logs/recovery-inputs/off_host_recovery.yaml",
 			"acpctl db dr-drill",
 		},
 		Children: []*commandSpec{
@@ -63,6 +64,7 @@ func dbCommandSpec() *commandSpec {
 				}),
 				Run: runDBRestore,
 			}),
+			dbOffHostDrillCommandSpec(),
 			newNativeLeafCommandSpec("shell", "Open database shell", runDBShell),
 			newNativeLeafCommandSpec("dr-drill", "Create a fresh backup and verify restore into a scratch database", runDBDRDrillTyped),
 		},

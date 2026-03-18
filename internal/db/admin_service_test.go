@@ -26,7 +26,7 @@ func TestRewriteBackupDatabaseName(t *testing.T) {
 	t.Parallel()
 
 	sql := strings.Join([]string{
-		`DROP DATABASE IF EXISTS litellm;`,
+		`DROP DATABASE litellm;`,
 		`CREATE DATABASE litellm WITH TEMPLATE = template0 ENCODING = 'UTF8';`,
 		`ALTER DATABASE litellm OWNER TO litellm;`,
 		`\connect litellm`,

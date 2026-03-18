@@ -234,6 +234,21 @@ func TestRunDBDRDrill_Help(t *testing.T) {
 	}
 }
 
+func TestRunDBOffHostDrillCommand_Help(t *testing.T) {
+	stdout, err := os.CreateTemp("", "acpctl_test_stdout")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(stdout.Name())
+
+	stderr := os.Stderr
+
+	exitCode := runDBOffHostDrillCommand(context.Background(), []string{"--help"}, stdout, stderr)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0 for --help, got %d", exitCode)
+	}
+}
+
 // TestDecompressErrorHandling verifies that decompression errors are properly handled
 func TestDecompressErrorHandling(t *testing.T) {
 	// Create a valid gzip file

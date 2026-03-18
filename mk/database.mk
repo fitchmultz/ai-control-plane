@@ -76,6 +76,17 @@ db-restore: ## Restore embedded database from backup
 		&& echo '$(COLOR_GREEN)✓ Database restore completed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Database restore failed$(COLOR_RESET)'; exit 1; }
 
+.PHONY: db-off-host-drill
+db-off-host-drill: ## Validate a staged off-host backup copy and emit replacement-host recovery evidence
+	@echo '$(COLOR_BOLD)Running off-host recovery drill...$(COLOR_RESET)'
+	@manifest='$(OFF_HOST_RECOVERY_MANIFEST)'; \
+	if [ -z "$$manifest" ]; then \
+		echo 'OFF_HOST_RECOVERY_MANIFEST is required (example: demo/logs/recovery-inputs/off_host_recovery.yaml)'; \
+		exit 64; \
+	fi; \
+	$(ACPCTL_BIN) db off-host-drill --manifest "$$manifest" \
+		$(if $(OUTPUT_ROOT),--output-root $(OUTPUT_ROOT),)
+
 .PHONY: db-shell
 db-shell: ## Open database shell
 	@echo '$(COLOR_BOLD)Opening database shell...$(COLOR_RESET)'

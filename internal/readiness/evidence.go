@@ -194,7 +194,7 @@ func RunContext(ctx context.Context, opts Options) (*Summary, error) {
 			summary.GateResults = append(summary.GateResults, result)
 			continue
 		}
-		if !gate.Required && !productionEnabled && gate.ID == "production_ci" {
+		if gate.ProductionOnly && !productionEnabled {
 			result.Status = "SKIPPED"
 			result.Notes = appendNote(result.Notes, fmt.Sprintf("Production gate skipped because secrets file is unavailable: %s", opts.SecretsEnvFile))
 			logger.Warn("gate.skipped", slog.String("gate_id", gate.ID), slog.String("reason", "production secrets unavailable"))

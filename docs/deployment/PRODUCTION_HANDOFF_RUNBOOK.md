@@ -13,6 +13,12 @@ This runbook covers the supported host-first handoff only.
 - Confirm `./scripts/acpctl.sh cert check --threshold-days 30` passes.
 - Confirm `systemctl status ai-control-plane-cert-renewal.timer` is active when TLS is enabled.
 - Capture `./scripts/acpctl.sh cert list` output in the handoff notes for the deployed hostname.
+- Confirm a customer-owned off-host backup copy exists for the deployment and is not only retained under `demo/backups/` on the primary host.
+- Confirm `demo/logs/recovery-inputs/off_host_recovery.yaml` (or the customer-approved equivalent manifest path) documents the staged off-host recovery inputs.
+- Run `make db-off-host-drill OFF_HOST_RECOVERY_MANIFEST=demo/logs/recovery-inputs/off_host_recovery.yaml`.
+- Capture the latest successful run under `demo/logs/evidence/replacement-host-recovery/` in the handoff packet.
+- In the handoff notes, label the evidence as either a **single-machine staged off-host drill** or a separate-host exercise. Do not present a staged local drill as proof of real customer transport or separate-hardware replacement-host recovery.
+- Confirm operators understand the replacement-host recovery sequence: initial `host apply --skip-smoke-tests` -> `db restore <off-host backup>` -> normal `host apply` -> health/smoke verification.
 - Confirm the handoff notes explicitly state that the supported deployment is **single-node** unless a separate customer-owned HA design exists.
 - Confirm operators understand that scheduled backups and restore drills are **disaster recovery**, not automatic failover.
 - Review [HA_FAILOVER_TOPOLOGY.md](HA_FAILOVER_TOPOLOGY.md) whenever availability expectations are part of the handoff.

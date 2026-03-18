@@ -55,6 +55,7 @@ complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'status' -d 'Show data
 complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'backup' -d 'Create database backup'
 complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'backup-retention' -d 'Enforce backup retention policy'
 complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'restore' -d 'Restore embedded database from backup'
+complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'off-host-drill' -d 'Validate a staged off-host backup copy and emit replacement-host recovery evidence'
 complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'shell' -d 'Open database shell'
 complete -c acpctl -n '__fish_seen_subcommand_from db' -a 'dr-drill' -d 'Create a fresh backup and verify restore into a scratch database'
 complete -c acpctl -n '__fish_seen_subcommand_from key' -a 'gen' -d 'Generate a standard virtual key'

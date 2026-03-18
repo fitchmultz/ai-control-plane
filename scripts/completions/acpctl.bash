@@ -44,7 +44,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         db)
-            local subcmds="status backup backup-retention restore shell dr-drill"
+            local subcmds="status backup backup-retention restore off-host-drill shell dr-drill"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         key)
