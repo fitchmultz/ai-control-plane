@@ -42,6 +42,7 @@ complete -c acpctl -n '__fish_seen_subcommand_from completion' -a 'fish' -d 'Gen
 complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'release-bundle' -d 'Build deployment release bundle'
 complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'readiness-evidence' -d 'Generate and verify dated readiness evidence'
 complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'pilot-closeout-bundle' -d 'Assemble and verify a pilot closeout evidence bundle'
+complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'assessor-packet' -d 'Assemble and verify an ACP-native assessor handoff packet'
 complete -c acpctl -n '__fish_seen_subcommand_from deploy' -a 'artifact-retention' -d 'Enforce document artifact retention policy'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'lint' -d 'Run static validation/lint gate'
 complete -c acpctl -n '__fish_seen_subcommand_from validate' -a 'config' -d 'Validate deployment configuration (use --production for host contract checks)'

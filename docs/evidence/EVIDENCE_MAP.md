@@ -36,4 +36,4 @@
 ## External-review preparation
 
 - **Claim:** The repo has a structured pre-review packet for outside assessors without overstating it as completed third-party validation.
-- **Evidence:** `docs/security/EXTERNAL_REVIEW_READINESS.md`, `docs/security/SECURITY_WHITEPAPER_AND_THREAT_MODEL.md`, `docs/COMPLIANCE_CROSSWALK.md`, `docs/KNOWN_LIMITATIONS.md`, `docs/release/READINESS_EVIDENCE_WORKFLOW.md`.
+- **Evidence:** `docs/security/EXTERNAL_REVIEW_READINESS.md`, `docs/security/SECURITY_WHITEPAPER_AND_THREAT_MODEL.md`, `docs/COMPLIANCE_CROSSWALK.md`, `docs/KNOWN_LIMITATIONS.md`, `docs/release/READINESS_EVIDENCE_WORKFLOW.md`, `internal/assessor/*`, `make assessor-packet`, `make assessor-packet-verify`.

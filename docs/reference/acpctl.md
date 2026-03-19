@@ -192,6 +192,7 @@ Typed evidence and artifact workflows.
 | `release-bundle` | Build deployment release bundle |
 | `readiness-evidence` | Generate and verify dated readiness evidence |
 | `pilot-closeout-bundle` | Assemble and verify a pilot closeout evidence bundle |
+| `assessor-packet` | Assemble and verify an ACP-native assessor handoff packet |
 | `artifact-retention` | Enforce document artifact retention policy |
 
 Examples:
@@ -200,6 +201,7 @@ Examples:
 ./scripts/acpctl.sh deploy readiness-evidence run
 ./scripts/acpctl.sh deploy release-bundle build
 ./scripts/acpctl.sh deploy pilot-closeout-bundle build
+./scripts/acpctl.sh deploy assessor-packet build
 ```
 
 ### `validate`

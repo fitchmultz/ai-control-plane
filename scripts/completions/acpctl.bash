@@ -44,7 +44,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         deploy)
-            local subcmds="release-bundle readiness-evidence pilot-closeout-bundle artifact-retention"
+            local subcmds="release-bundle readiness-evidence pilot-closeout-bundle assessor-packet artifact-retention"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         validate)

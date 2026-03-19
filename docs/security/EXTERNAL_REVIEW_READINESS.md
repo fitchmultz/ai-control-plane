@@ -37,7 +37,8 @@ No external assessment has been completed from this repository yet, and roadmap 
 
 ## Canonical reviewer packet
 
-Give an external reviewer these artifacts first:
+Give an external reviewer these artifacts first. `make assessor-packet` copies these ten tracked documents verbatim into the generated dated run so operators no longer have to gather them manually.
+
 
 | Artifact | Why it matters | Path |
 | --- | --- | --- |
@@ -52,6 +53,26 @@ Give an external reviewer these artifacts first:
 | Evidence map | Connects repo claims to commands and source artifacts | `docs/evidence/EVIDENCE_MAP.md` |
 | Go/No-Go criteria | Shows release decision rules and the still-open independent-review expectation | `docs/release/GO_NO_GO.md` |
 
+## ACP-native assessor packet workflow
+
+After regenerating current evidence, assemble the reviewer handoff packet with:
+
+```bash
+make assessor-packet
+make assessor-packet-verify
+```
+
+This workflow packages:
+
+- the 10 canonical reviewer documents listed above
+- the latest verified successful readiness evidence run
+- the release bundle tarball and checksum referenced by that readiness run
+- a machine-readable `summary.json`
+- a human-readable `assessor-summary.md`
+- a packet inventory and latest-run pointer
+
+The assessor packet is **preparation infrastructure only**. It does **not** mean an external assessment has been completed, and it does **not** close roadmap item `#22`.
+
 ## Regenerate current evidence before review
 
 Run these commands before handing material to an external reviewer:
@@ -61,16 +82,17 @@ make security-gate
 make release-bundle
 make readiness-evidence
 make readiness-evidence-verify
-make pilot-closeout-bundle
+make assessor-packet
+make assessor-packet-verify
 ```
+
+The assessor-packet step is a packaging workflow only. It does not execute the gates above for you.
 
 Use the latest dated outputs under:
 
-- `demo/logs/evidence/readiness-<TIMESTAMP>/`
-- `demo/logs/release-bundles/`
-- `demo/logs/pilot-closeout/pilot-closeout-<TIMESTAMP>/`
+- `demo/logs/assessor-packet/assessor-packet-<TIMESTAMP>/`
 
-Generated evidence is local-only and intentionally not committed. See `docs/ARTIFACTS.md`.
+The packet includes copied tracked documents plus generated readiness and release artifacts. Generated evidence remains local-only and intentionally not committed. See `docs/ARTIFACTS.md`.
 
 ## Review options and likely scope
 

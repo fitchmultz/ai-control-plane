@@ -44,7 +44,7 @@ func TestCommandSpec_ApprovedCommandInventory(t *testing.T) {
 		"ops":      {"report"},
 		"host":     {"preflight", "check", "apply", "failover-drill", "install", "uninstall", "service-status", "service-start", "service-stop", "service-restart"},
 		"upgrade":  {"plan", "check", "execute", "rollback"},
-		"deploy":   {"release-bundle", "readiness-evidence", "pilot-closeout-bundle", "artifact-retention"},
+		"deploy":   {"release-bundle", "readiness-evidence", "pilot-closeout-bundle", "assessor-packet", "artifact-retention"},
 	}
 
 	spec, err := loadCommandSpec()

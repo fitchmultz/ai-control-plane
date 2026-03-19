@@ -28,7 +28,7 @@ func TestResolveSuggestionsRootAndSubcommands(t *testing.T) {
 	}
 
 	deploySuggestions := resolveSuggestions([]string{"deploy"}, "", t.TempDir())
-	if !slices.Contains(deploySuggestions, "release-bundle") || !slices.Contains(deploySuggestions, "readiness-evidence") {
+	if !slices.Contains(deploySuggestions, "release-bundle") || !slices.Contains(deploySuggestions, "readiness-evidence") || !slices.Contains(deploySuggestions, "assessor-packet") {
 		t.Fatalf("expected deploy suggestions from command tree, got %v", deploySuggestions)
 	}
 }

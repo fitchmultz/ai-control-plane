@@ -55,6 +55,7 @@ help: ## Show this help message
 	@echo '  $(COLOR_GREEN)ci-pr$(COLOR_RESET)              Run PR-required fast checks'
 	@echo '  $(COLOR_GREEN)ci-heavy$(COLOR_RESET)           Run heavyweight local checks'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate current readiness evidence'
+	@echo '  $(COLOR_GREEN)assessor-packet$(COLOR_RESET)    Build a local assessor handoff packet'
 	@echo '  $(COLOR_GREEN)pilot-closeout-bundle$(COLOR_RESET) Build a local pilot closeout bundle'
 	@echo '  $(COLOR_GREEN)help$(COLOR_RESET)               Show this help'
 	@echo '  $(COLOR_GREEN)onboard$(COLOR_RESET)            Onboard a CLI/IDE tool'
@@ -105,6 +106,7 @@ help-deploy:
 	@echo '  $(COLOR_GREEN)librechat-health$(COLOR_RESET)   Check managed LibreChat health'
 	@echo '  $(COLOR_GREEN)doctor$(COLOR_RESET)             Run diagnostics'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate readiness proof pack'
+	@echo '  $(COLOR_GREEN)assessor-packet$(COLOR_RESET)    Build assessor handoff packet for external-review preparation'
 	@echo '  $(COLOR_GREEN)pilot-closeout-bundle$(COLOR_RESET) Build pilot closeout artifact set'
 	@echo ''
 	@echo 'Production/Offline:'
@@ -161,6 +163,8 @@ help-ci:
 	@echo '  $(COLOR_GREEN)coverage-critical$(COLOR_RESET)  High-risk package coverage gate enforced by ci-pr and ci-fast'
 	@echo '  $(COLOR_GREEN)readiness-evidence$(COLOR_RESET) Generate dated readiness proof package'
 	@echo '  $(COLOR_GREEN)readiness-evidence-verify$(COLOR_RESET) Verify latest readiness proof package'
+	@echo '  $(COLOR_GREEN)assessor-packet$(COLOR_RESET)    Build dated assessor handoff packet'
+	@echo '  $(COLOR_GREEN)assessor-packet-verify$(COLOR_RESET) Verify latest assessor handoff packet'
 	@echo '  $(COLOR_GREEN)pilot-closeout-bundle$(COLOR_RESET) Build dated pilot closeout artifact package'
 	@echo '  $(COLOR_GREEN)pilot-closeout-bundle-verify$(COLOR_RESET) Verify latest pilot closeout artifact package'
 	@echo ''
@@ -169,6 +173,7 @@ help-ci:
 	@echo '  make ci               # local full validation via pinned offline images'
 	@echo '  make ci-heavy         # optional local hardened image build/scan lane'
 	@echo '  make readiness-evidence # regenerate current enterprise proof'
+	@echo '  make assessor-packet  # assemble the external-review preparation packet'
 	@echo '  make pilot-closeout-bundle # assemble the pilot closeout packet'
 
 .PHONY: help-db

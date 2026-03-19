@@ -246,6 +246,11 @@ func ResolveLatestRun(outputRoot string) (string, error) {
 	return artifactrun.ResolveLatest(outputRoot, LatestRunPointerName)
 }
 
+// ResolveLatestSuccessRun resolves the most recent passing readiness run pointer.
+func ResolveLatestSuccessRun(outputRoot string) (string, error) {
+	return artifactrun.ResolveLatest(outputRoot, LatestSuccessPointerName)
+}
+
 func persistRun(outputRoot string, summary *Summary) error {
 	if err := writeArtifacts(summary.RunDirectory, summary); err != nil {
 		return err

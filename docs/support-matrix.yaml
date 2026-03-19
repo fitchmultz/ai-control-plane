@@ -57,10 +57,11 @@ surfaces:
   - id: evidence-workflows
     label: Evidence workflows
     status: supported
-    summary: Readiness evidence, release bundle, and pilot closeout artifacts generated locally from tracked inputs.
+    summary: Readiness evidence, release bundle, assessor packet, and pilot closeout artifacts generated locally from tracked inputs.
     owner: platform
     validation:
       - make readiness-evidence
+      - make assessor-packet
       - make pilot-closeout-bundle
 
   - id: managed-ui-overlay

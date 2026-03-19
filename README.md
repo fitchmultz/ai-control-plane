@@ -72,7 +72,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - DLP overlay: `make up-dlp`
 - Offline deterministic runtime: `make up-offline`
 - TLS ingress overlay: `make up-tls`
-- Day-2 reporting and recovery: `make operator-report`, `make operator-dashboard`, `make chargeback-report`, `make db-backup`, `make db-backup-retention`, `make dr-drill`, `make ha-failover-drill`, `make validate-policy-rules`, `make policy-eval`
+- Day-2 reporting and recovery: `make operator-report`, `make operator-dashboard`, `make chargeback-report`, `make db-backup`, `make db-backup-retention`, `make dr-drill`, `make ha-failover-drill`, `make validate-policy-rules`, `make policy-eval`, `make assessor-packet`
 - Certificate lifecycle: `make cert-status`, `make cert-renew`, `sudo make cert-renew-install SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env`
 - Host-first upgrade lifecycle: `make upgrade-plan FROM_VERSION=X.Y.Z`, `make upgrade-check FROM_VERSION=X.Y.Z`, `make upgrade-execute FROM_VERSION=X.Y.Z`, `make upgrade-rollback UPGRADE_RUN_DIR=...`
 - Key lifecycle: `make key-list`, `make key-inspect ALIAS=<alias>`, `make key-rotate ALIAS=<alias>`
@@ -117,7 +117,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - Current tracked version: [`VERSION`](VERSION)
 - Changes over time: [`CHANGELOG.md`](CHANGELOG.md)
 - Release-note convention: [`RELEASE_NOTES.md`](RELEASE_NOTES.md)
-- Generated release artifacts: `make release-bundle`, `make readiness-evidence`, `make pilot-closeout-bundle`
+- Generated release artifacts: `make release-bundle`, `make readiness-evidence`, `make assessor-packet`, `make pilot-closeout-bundle`
 
 ## Canonical Docs
 

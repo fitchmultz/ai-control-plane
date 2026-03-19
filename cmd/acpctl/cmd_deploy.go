@@ -25,11 +25,13 @@ func deployCommandSpec() *commandSpec {
 			"acpctl deploy readiness-evidence run",
 			"acpctl deploy release-bundle build",
 			"acpctl deploy pilot-closeout-bundle build",
+			"acpctl deploy assessor-packet build",
 		},
 		Children: []*commandSpec{
 			releaseBundleCommandSpec(),
 			readinessEvidenceCommandSpec(),
 			pilotCloseoutBundleCommandSpec(),
+			assessorPacketCommandSpec(),
 			artifactRetentionCommandSpec(),
 		},
 	}

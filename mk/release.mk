@@ -5,6 +5,7 @@
 #   - Build versioned deployment bundles
 #   - Verify bundle checksums
 #   - Generate and verify readiness evidence packs
+#   - Build and verify assessor handoff packets
 #   - Manage artifact retention
 #
 # Non-scope:
@@ -65,6 +66,26 @@ pilot-closeout-bundle: install-binary ## Build a local pilot closeout bundle fro
 	fi; \
 	if [ -n "$(PILOT_READINESS_RUN_DIR)" ]; then \
 		set -- "$$@" --readiness-run-dir "$(PILOT_READINESS_RUN_DIR)"; \
+	fi; \
+	"$$@"
+
+.PHONY: assessor-packet
+assessor-packet: install-binary ## Build a local assessor handoff packet from canonical docs and verified readiness evidence
+	@echo '$(COLOR_BOLD)Building assessor packet...$(COLOR_RESET)'
+	@set -euo pipefail; \
+	set -- "$(ACPCTL_BIN)" deploy assessor-packet build \
+		--output-dir "$(ASSESSOR_PACKET_OUT_DIR)"; \
+	if [ -n "$(ASSESSOR_READINESS_RUN_DIR)" ]; then \
+		set -- "$$@" --readiness-run-dir "$(ASSESSOR_READINESS_RUN_DIR)"; \
+	fi; \
+	"$$@"
+
+.PHONY: assessor-packet-verify
+assessor-packet-verify: install-binary ## Verify the latest assessor handoff packet
+	@set -euo pipefail; \
+	set -- "$(ACPCTL_BIN)" deploy assessor-packet verify; \
+	if [ -n "$(ASSESSOR_PACKET_RUN_DIR)" ]; then \
+		set -- "$$@" --run-dir "$(ASSESSOR_PACKET_RUN_DIR)"; \
 	fi; \
 	"$$@"
 

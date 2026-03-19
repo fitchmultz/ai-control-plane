@@ -32,6 +32,7 @@ This repository uses:
 - Host-first observability now includes typed traffic, backup, and readiness status collectors plus a browser-friendly static operator dashboard snapshot via `make operator-dashboard`.
 - Typed vendor evidence ingest via `acpctl evidence ingest`, including compliance-export normalization, schema validation, artifact runs, and example payloads.
 - ACP-native local custom policy evaluation via `acpctl policy eval`, including tracked rule validation, request/response guardrail inspection, auditable decision artifacts, and sample policy-engine payloads.
+- ACP-native assessor handoff packaging via `acpctl deploy assessor-packet build|verify` and `make assessor-packet|assessor-packet-verify`, producing a verifiable external-review preparation packet with canonical reviewer docs, readiness evidence, and the referenced release bundle while keeping roadmap item #22 explicitly open.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

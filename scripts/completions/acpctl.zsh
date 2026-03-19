@@ -153,6 +153,7 @@ _acpctl_deploy() {
         "release-bundle:Build deployment release bundle"
         "readiness-evidence:Generate and verify dated readiness evidence"
         "pilot-closeout-bundle:Assemble and verify a pilot closeout evidence bundle"
+        "assessor-packet:Assemble and verify an ACP-native assessor handoff packet"
         "artifact-retention:Enforce document artifact retention policy"
     )
     _describe -t commands 'deploy subcommands' subcmds "$@"

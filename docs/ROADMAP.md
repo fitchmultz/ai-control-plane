@@ -8,7 +8,7 @@ It contains outstanding work only. When an item is complete, remove it from this
 
 The roadmap must stay aligned to the current validated claim boundary:
 
-- **Validated now:** local host-first Docker reference implementation, typed operator workflows, readiness evidence, and pilot closeout artifact generation.
+- **Validated now:** local host-first Docker reference implementation, typed operator workflows, readiness evidence, pilot closeout artifact generation, and ACP-native assessor packet generation for external-review preparation.
 - **Conditionally ready:** customer pilots on controlled Linux hosts where customer-owned network, IAM, SIEM, retention, and workspace controls are validated.
 - **Not yet validated:** cloud-production enforcement claims, multi-tenant managed-service claims, and universal browser-bypass prevention.
 
@@ -47,7 +47,7 @@ Objective: make security, procurement, and executive stakeholders comfortable sa
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 22 | **Obtain external validation.** Add third-party credibility beyond self-assertion. Prep work is collected in [security/EXTERNAL_REVIEW_READINESS.md](security/EXTERNAL_REVIEW_READINESS.md), but this item stays open until a real outside assessment exists. | External review materially strengthens buyer confidence. | A security review, architecture review, or equivalent external assessment is completed and can be referenced in buyer conversations. |
+| 22 | **Obtain external validation.** Add third-party credibility beyond self-assertion. ACP can now generate a preparation-only assessor packet via `make assessor-packet`, but this item stays open until a real outside assessment exists. Prep work is collected in [security/EXTERNAL_REVIEW_READINESS.md](security/EXTERNAL_REVIEW_READINESS.md). | External review materially strengthens buyer confidence. | A security review, architecture review, or equivalent external assessment is completed and can be referenced in buyer conversations. |
 
 ### Wave 5 — Product differentiation and deeper platform capability
 

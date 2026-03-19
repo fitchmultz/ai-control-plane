@@ -40,6 +40,7 @@ This is an infrastructure-first demo reference implementation with a typed opera
 | PR CI gate (fast deterministic) | `make ci-pr` |
 | Critical package coverage gate | `make coverage-critical` |
 | Performance baseline | `make performance-baseline` |
+| Assessor packet | `make assessor-packet` |
 | Pilot closeout bundle | `make pilot-closeout-bundle` |
 | Service health | `make health` |
 | Project structure | `tree -L 2 -d` |
@@ -56,6 +57,7 @@ make ci-pr       # Fast deterministic PR gate
 make ci          # Full CI gate (REQUIRED before claiming completion; runtime uses pinned offline image fallback)
 make up          # Start services
 make performance-baseline # Run local reference-host performance baseline
+make assessor-packet # Build the local assessor handoff packet
 make pilot-closeout-bundle # Build the local pilot closeout artifact set
 make health      # Verify services
 ```
@@ -106,7 +108,8 @@ make health      # Verify services
 - **Production config gate:** `acpctl validate config --production --secrets-env-file <path>` / `make validate-config-production` enforce the host-side production contract: canonical secrets file permissions, localhost-only raw OTEL, Caddy-owned TLS exposure, and authenticated `/otel/*` ingress via `demo/config/caddy/Caddyfile.prod`
 - **Readiness gate plan:** `demo/config/readiness_evidence.yaml` is the tracked source of truth for readiness evidence gate membership; `internal/readiness/plan.go` materializes it
 - **Artifact-run ownership:** `internal/artifactrun` owns generated readiness and closeout run lifecycle, inventories, latest pointers, and run-directory verification; avoid bespoke run-dir lifecycle code elsewhere
-- **Release artifact domains:** `internal/bundle` owns release tarball planning/build/verify, `internal/readiness` owns readiness evidence workflows, and `internal/closeout` owns pilot closeout bundle assembly
+- **Release artifact domains:** `internal/bundle` owns release tarball planning/build/verify, `internal/readiness` owns readiness evidence workflows, `internal/closeout` owns pilot closeout bundle assembly, and `internal/assessor` owns external-review assessor packet assembly and verification
+- **Assessor handoff ownership:** external-review preparation packet assembly and verification live in `internal/assessor` plus `acpctl deploy assessor-packet`; keep docs as source inputs and do not rebuild that packaging logic in ad hoc scripts
 - **Onboarding ownership:** `acpctl onboard` / `internal/onboard` own onboarding product logic; do not add onboarding shell bridges or parallel non-typed flows
 - **User config safety:** home-directory tool config writes must be ACP-managed, atomic, private (`0600` files / `0700` dirs), and conflict-aware; never overwrite unmanaged user config or emit world-readable backups
 - **Local-only artifact privacy:** generated local-only outputs under `demo/backups/` and `demo/logs/` should default to private modes (`0600` files / `0700` dirs); use `internal/fsutil` private helpers and keep `internal/artifactrun` outputs private unless a broader mode is explicitly justified

@@ -85,7 +85,7 @@ Before presenting, confirm:
 - [ ] `make supply-chain-gate` and `make supply-chain-allowlist-expiry-check` passed (timestamp + evidence link).
 - [ ] Evidence package complete and linked (see `demo/logs/evidence/readiness-<TIMESTAMP>/evidence-inventory.txt`).
 - [ ] Release bundle generated and verified (see `demo/logs/release-bundles/` and the readiness run logs).
-- [ ] Independent review completed and linked. Preparation material may be assembled with [security/EXTERNAL_REVIEW_READINESS.md](../security/EXTERNAL_REVIEW_READINESS.md), but that does not satisfy this checkbox by itself.
+- [ ] Independent review completed and linked. `make assessor-packet` / `acpctl deploy assessor-packet build` can assemble the preparation packet described in [security/EXTERNAL_REVIEW_READINESS.md](../security/EXTERNAL_REVIEW_READINESS.md), but that does not satisfy this checkbox by itself.
 - [ ] All open Major/Minor findings are documented in `docs/KNOWN_LIMITATIONS.md`.
 
 ## Current Decision Reference
