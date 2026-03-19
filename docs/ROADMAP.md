@@ -47,7 +47,6 @@ Objective: make security, procurement, and executive stakeholders comfortable sa
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 21 | **Create an anonymized case-study and pilot closeout kit.** Turn delivery maturity into reusable external proof. | Social proof and measurable outcomes reduce sales friction. | A reusable case-study template, measurable outcomes format, and evidence-backed closeout packet exist for successful pilots. |
 | 22 | **Obtain external validation.** Add third-party credibility beyond self-assertion. | External review materially strengthens buyer confidence. | A security review, architecture review, or equivalent external assessment is completed and can be referenced in buyer conversations. |
 
 ### Wave 5 — Product differentiation and deeper platform capability

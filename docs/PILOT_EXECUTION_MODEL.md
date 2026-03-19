@@ -147,6 +147,8 @@ Goal:
 
 Required outputs:
 - Signed acceptance memo
+- Measurable outcomes scorecard
+- Anonymized case study
 - Shared-responsibility agreement
 - Named next-phase owners
 - Explicit list of open risks that remain customer-owned

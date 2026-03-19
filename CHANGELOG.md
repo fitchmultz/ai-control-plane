@@ -27,6 +27,7 @@ This repository uses:
 - Canonical security whitepaper and threat model covering architecture, trust boundaries, attacker paths, mitigations, residual risks, and control ownership.
 - `docs/PERFORMANCE_BASELINE.md` now serves as the published public benchmark and sizing artifact, with reproducible methodology, profile tables, hardware tiers, result bands, and explicit claim-boundary caveats.
 - Canonical CVE governance documentation now formalizes remediation, time-bounded accepted-risk handling, quarterly review records, and buyer-safe vulnerability status communication.
+- Pilot closeout materials now include a reusable closeout kit, an anonymized case-study template, a measurable outcomes scorecard template, and a filled Falcon example packet for external-proof reuse.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

@@ -2,6 +2,8 @@
 
 Use these examples to keep closeout language crisp and decision-grade.
 
+Pair them with `docs/templates/PILOT_MEASURABLE_OUTCOMES_SCORECARD.md` and `docs/templates/PILOT_CASE_STUDY.md` when producing a reusable closeout packet.
+
 They are not marketing copy. They are examples of what a real pilot closeout should sound like when the evidence is mixed, constrained, or strong.
 
 ## Example 1: Expand

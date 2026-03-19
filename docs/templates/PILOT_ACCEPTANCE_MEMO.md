@@ -50,6 +50,8 @@ Add any scoped exceptions here:
 - `make validate-detections`
 - `make validate-siem-schema`
 - [PILOT_CLOSEOUT_BUNDLE_REFERENCE]
+- [PILOT_MEASURABLE_OUTCOMES_SCORECARD_REFERENCE]
+- [PILOT_CASE_STUDY_REFERENCE]
 - [CUSTOMER_EVIDENCE_REFERENCE]
 
 ## 6. Recommendation

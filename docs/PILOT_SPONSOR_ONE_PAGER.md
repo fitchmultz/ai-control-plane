@@ -63,7 +63,9 @@ The sponsor packet should point to:
 - `make readiness-evidence`
 - `make pilot-closeout-bundle`
 - `docs/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md`
+- `docs/templates/PILOT_MEASURABLE_OUTCOMES_SCORECARD.md`
 - `docs/templates/PILOT_ACCEPTANCE_MEMO.md`
+- `docs/templates/PILOT_CASE_STUDY.md`
 
 ## Sponsor Review Questions
 

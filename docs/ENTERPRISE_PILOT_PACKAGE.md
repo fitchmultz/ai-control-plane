@@ -56,9 +56,12 @@ Use these documents together instead of creating custom pilot prose from scratch
 - `docs/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md` for customer-environment validation tracking
 - `docs/SHARED_RESPONSIBILITY_MODEL.md` for the operating boundary after handoff
 - `docs/templates/PILOT_CHARTER.md` to start the pilot
+- `docs/templates/PILOT_MEASURABLE_OUTCOMES_SCORECARD.md` to quantify closeout results
 - `docs/templates/PILOT_ACCEPTANCE_MEMO.md` to close the pilot or record checkpoint decisions
+- `docs/templates/PILOT_CASE_STUDY.md` to publish a sanitized buyer-facing narrative
 - `docs/templates/PILOT_OPERATOR_HANDOFF_CHECKLIST.md` for day-to-day operator turnover
 - `docs/PILOT_CLOSEOUT_EXAMPLES.md` for decision-grade closeout language
+- `docs/PILOT_CLOSEOUT_KIT.md` for the reusable assembly workflow
 
 ---
 
@@ -162,7 +165,9 @@ make validate-siem-schema
 
 To build a complete packet, start from:
 - `docs/templates/PILOT_CHARTER.md`
+- `docs/templates/PILOT_MEASURABLE_OUTCOMES_SCORECARD.md`
 - `docs/templates/PILOT_ACCEPTANCE_MEMO.md`
+- `docs/templates/PILOT_CASE_STUDY.md`
 - `docs/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md`
 - `docs/templates/PILOT_OPERATOR_HANDOFF_CHECKLIST.md`
 
@@ -185,8 +190,8 @@ The minimum deliverable set for a credible pilot is:
 5. Release bundle and validation record
 6. Explicit enforce-vs-detect boundary statement signed off by customer stakeholders
 7. Named control-owner matrix and shared responsibility matrix
-8. Pilot charter and acceptance memo
-9. Customer validation checklist with evidence references
+8. Pilot charter, measurable outcomes scorecard, and acceptance memo
+9. An anonymized case study plus customer validation checklist with evidence references
 10. Pilot closeout bundle containing the closeout packet plus current readiness evidence
 
 Recommended supporting docs:
@@ -198,6 +203,7 @@ Recommended supporting docs:
 - `docs/PILOT_CONTROL_OWNERSHIP_MATRIX.md`
 - `docs/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md`
 - `docs/PILOT_CLOSEOUT_EXAMPLES.md`
+- `docs/PILOT_CLOSEOUT_KIT.md`
 - `docs/SHARED_RESPONSIBILITY_MODEL.md`
 
 ---
@@ -216,3 +222,5 @@ Do not call the pilot complete until all of the following are true:
 ## Pilot Governance Rule
 
 If customer-owned prerequisites are not met, the pilot should be reframed as a reference validation exercise, not an enterprise rollout readiness pilot. That distinction protects credibility and prevents false claims at closeout.
+prevents false claims at closeout.
+validation exercise, not an enterprise rollout readiness pilot. That distinction protects credibility and prevents false claims at closeout.

@@ -29,6 +29,8 @@ make readiness-evidence
 make readiness-evidence-verify
 
 # Generate a dated pilot closeout bundle from source documents plus readiness evidence
+# Typical inputs now include the charter, measurable outcomes scorecard,
+# acceptance memo, case study, and operator handoff checklist.
 make pilot-closeout-bundle
 make pilot-closeout-bundle-verify
 

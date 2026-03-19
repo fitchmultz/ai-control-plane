@@ -6,11 +6,14 @@ This example provides a sanitized customer-shaped artifact set for pilot closeou
 
 - `PILOT_CHARTER.md`
 - `PILOT_ACCEPTANCE_MEMO.md`
+- `PILOT_CASE_STUDY.md`
+- `PILOT_MEASURABLE_OUTCOMES_SCORECARD.md`
 - `PILOT_CUSTOMER_VALIDATION_CHECKLIST.md`
 - `PILOT_OPERATOR_HANDOFF_CHECKLIST.md`
 
 ## Purpose
 
 - Provide a real example location for `make pilot-closeout-bundle` defaults
+- Demonstrate the reusable case-study and measurable-outcomes closeout packet shape
 - Eliminate stale `docs/examples/...` references
 - Keep examples outside the canonical docs surface

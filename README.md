@@ -121,6 +121,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - [Security Whitepaper and Threat Model](docs/security/SECURITY_WHITEPAPER_AND_THREAT_MODEL.md)
 - [CVE Remediation and Risk Acceptance Policy](docs/security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md)
 - [Performance Benchmarks and Sizing Guidance](docs/PERFORMANCE_BASELINE.md)
+- [Pilot Closeout Kit](docs/PILOT_CLOSEOUT_KIT.md)
 - [Support](docs/SUPPORT.md)
 - [Architecture](docs/technical-architecture.md)
 - [Operations And Deployment](docs/DEPLOYMENT.md)

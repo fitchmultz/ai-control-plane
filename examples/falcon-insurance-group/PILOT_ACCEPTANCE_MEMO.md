@@ -36,6 +36,8 @@ The customer confirmed ownership for network egress, IdP and enterprise access p
 - `make pilot-closeout-bundle-verify`
 - `make validate-detections`
 - `make validate-siem-schema`
+- `PILOT_MEASURABLE_OUTCOMES_SCORECARD.md`
+- `PILOT_CASE_STUDY.md`
 
 ## 6. Recommendation
 

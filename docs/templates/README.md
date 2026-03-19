@@ -30,8 +30,9 @@ These templates are working deal-delivery tools. They are not legal boilerplate,
 3. Replace placeholders with customer names, dates, contacts, and service commitments.
 4. Delete sections that are not in scope instead of leaving aspirational language in place.
 5. Attach pricing, legal terms, and procurement language outside these templates.
-6. When closeout evidence matters, build a dated artifact set with `make pilot-closeout-bundle`.
-7. Compare your filled-in pilot docs with the sanitized example set under `examples/falcon-insurance-group/`.
+6. When closeout evidence matters, complete `PILOT_MEASURABLE_OUTCOMES_SCORECARD.md` before the memo and case study.
+7. Build a dated artifact set with `make pilot-closeout-bundle`.
+8. Compare your filled-in pilot docs with the sanitized example set under `examples/falcon-insurance-group/`.
 
 ## Required Companion Docs
 
@@ -40,6 +41,7 @@ Use these documents with the templates instead of duplicating their content:
 - `docs/ENTERPRISE_PILOT_PACKAGE.md`
 - `docs/PILOT_SPONSOR_ONE_PAGER.md`
 - `docs/PILOT_CONTROL_OWNERSHIP_MATRIX.md`
+- `docs/PILOT_CLOSEOUT_KIT.md`
 - `docs/SHARED_RESPONSIBILITY_MODEL.md`
 - `docs/SERVICE_OFFERINGS.md`
 - `docs/ENTERPRISE_BUYER_OBJECTIONS.md`
@@ -51,5 +53,8 @@ Keep every document:
 
 - explicit about what is proven vs customer-validated
 - clear about who owns cloud, network, IAM, SIEM, and workspace controls
+- short enough to survive procurement and sponsor review
+- free of legal filler, promises that are not staffed, or platform claims that are not validated
+workspace controls
 - short enough to survive procurement and sponsor review
 - free of legal filler, promises that are not staffed, or platform claims that are not validated
