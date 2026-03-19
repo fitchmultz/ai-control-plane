@@ -25,9 +25,12 @@ Primary claim-discipline references:
 - Other docs may describe strategy, maturity progression, or support boundaries, but they should link here instead of carrying a competing backlog.
 - Prioritize work that improves truthfulness, operator adoption, deployment confidence, and procurement credibility before adding differentiating scope.
 - Harden the host-first deployment path before broadening cloud or managed-service claims.
+- One-time operational or readiness drills for already-supported workflows belong in runbooks, evidence bundles, and changelog entries, not as roadmap initiatives.
 - Do not keep completed items here.
 
 ## Execution order
+
+Sequence is deliberate to minimize churn: prove the host-first HA path first, validate AWS on top of that baseline second, ship buyer-proof artifacts next, and only then invest in deeper platform differentiation.
 
 ### Wave 3 — Host-first production readiness
 
