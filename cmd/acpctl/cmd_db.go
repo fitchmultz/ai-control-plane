@@ -35,6 +35,7 @@ func dbCommandSpec() *commandSpec {
 			"acpctl db backup",
 			"acpctl db backup-retention --check",
 			"acpctl db off-host-drill --manifest demo/logs/recovery-inputs/off_host_recovery.yaml",
+			"acpctl db off-host-drill --manifest demo/config/off_host_recovery.separate_host.yaml",
 			"acpctl db dr-drill",
 		},
 		Children: []*commandSpec{

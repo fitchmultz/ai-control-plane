@@ -77,7 +77,7 @@ db-restore: ## Restore embedded database from backup
 		|| { echo '$(COLOR_RED)✗ Database restore failed$(COLOR_RESET)'; exit 1; }
 
 .PHONY: db-off-host-drill
-db-off-host-drill: ## Validate a staged off-host backup copy and emit replacement-host recovery evidence
+db-off-host-drill: ## Validate a staged off-host backup copy (staged-local or separate-host) and emit replacement-host recovery evidence
 	@echo '$(COLOR_BOLD)Running off-host recovery drill...$(COLOR_RESET)'
 	@manifest='$(OFF_HOST_RECOVERY_MANIFEST)'; \
 	if [ -z "$$manifest" ]; then \

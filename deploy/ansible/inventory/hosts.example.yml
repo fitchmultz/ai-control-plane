@@ -12,6 +12,11 @@
 #   cp hosts.example.yml hosts.yml
 #   # Edit hosts.yml with your actual values
 #   ansible-playbook -i hosts.yml playbooks/gateway_host.yml
+#
+# Recovery proof note:
+#   - This inventory template can also be used for a separate-host recovery drill.
+#   - For replacement-host proof, the target host here should match the replacement
+#     host or VM identified by `drill_host` in the off-host recovery manifest.
 
 ---
 all:

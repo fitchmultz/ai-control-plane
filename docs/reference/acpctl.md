@@ -210,7 +210,7 @@ Database backup, restore, and inspection operations.
 | `backup` | Create database backup |
 | `backup-retention` | Enforce backup retention policy |
 | `restore` | Restore embedded database from backup |
-| `off-host-drill` | Validate a staged off-host backup copy and emit replacement-host recovery evidence |
+| `off-host-drill` | Validate a staged off-host backup copy and emit staged-local or separate-host recovery evidence |
 | `shell` | Open database shell |
 | `dr-drill` | Create a fresh backup and verify restore into a scratch database |
 
@@ -221,6 +221,7 @@ Examples:
 ./scripts/acpctl.sh db backup
 ./scripts/acpctl.sh db backup-retention --check
 ./scripts/acpctl.sh db off-host-drill --manifest demo/logs/recovery-inputs/off_host_recovery.yaml
+./scripts/acpctl.sh db off-host-drill --manifest demo/config/off_host_recovery.separate_host.yaml
 ./scripts/acpctl.sh db dr-drill
 ```
 

@@ -38,30 +38,59 @@ import (
 
 var sha256HexPattern = regexp.MustCompile(`^[A-Fa-f0-9]{64}$`)
 
+type OffHostRecoveryDrillMode string
+
+const (
+	OffHostRecoveryDrillModeStagedLocal  OffHostRecoveryDrillMode = "staged-local"
+	OffHostRecoveryDrillModeSeparateHost OffHostRecoveryDrillMode = "separate-host"
+)
+
+func (m OffHostRecoveryDrillMode) Valid() bool {
+	switch m {
+	case OffHostRecoveryDrillModeStagedLocal, OffHostRecoveryDrillModeSeparateHost:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m OffHostRecoveryDrillMode) EvidenceBoundary() string {
+	switch m {
+	case OffHostRecoveryDrillModeSeparateHost:
+		return "Separate-host or separate-VM proof. This run validates a customer-owned off-host copy, replacement-host rebuild workflow, and readiness/handoff evidence. ACP does not transport backups or automate HA cutover."
+	default:
+		return "Single-machine staged validation only. This run validates a staged off-host copy outside demo/backups on the same machine. It does not prove customer transport or separate-host replacement-host recovery."
+	}
+}
+
 // OffHostRecoveryContract captures the staged off-host recovery inputs.
 type OffHostRecoveryContract struct {
-	BackupFile          string `yaml:"backup_file" json:"backup_file"`
-	BackupSourceURI     string `yaml:"backup_source_uri" json:"backup_source_uri"`
-	BackupSHA256        string `yaml:"backup_sha256" json:"backup_sha256"`
-	InventoryPath       string `yaml:"inventory_path" json:"inventory_path"`
-	SecretsEnvFile      string `yaml:"secrets_env_file" json:"secrets_env_file"`
-	ExpectedRepoVersion string `yaml:"expected_repo_version,omitempty" json:"expected_repo_version,omitempty"`
-	Notes               string `yaml:"notes,omitempty" json:"notes,omitempty"`
+	DrillMode           OffHostRecoveryDrillMode `yaml:"drill_mode,omitempty" json:"drill_mode"`
+	DrillHost           string                   `yaml:"drill_host,omitempty" json:"drill_host,omitempty"`
+	BackupFile          string                   `yaml:"backup_file" json:"backup_file"`
+	BackupSourceURI     string                   `yaml:"backup_source_uri" json:"backup_source_uri"`
+	BackupSHA256        string                   `yaml:"backup_sha256" json:"backup_sha256"`
+	InventoryPath       string                   `yaml:"inventory_path" json:"inventory_path"`
+	SecretsEnvFile      string                   `yaml:"secrets_env_file" json:"secrets_env_file"`
+	ExpectedRepoVersion string                   `yaml:"expected_repo_version,omitempty" json:"expected_repo_version,omitempty"`
+	Notes               string                   `yaml:"notes,omitempty" json:"notes,omitempty"`
 }
 
 // OffHostRecoveryResult captures the typed drill result and provenance.
 type OffHostRecoveryResult struct {
-	BackupFile       string              `json:"backup_file"`
-	BackupSourceURI  string              `json:"backup_source_uri"`
-	BackupSHA256     string              `json:"backup_sha256"`
-	BackupSizeBytes  int64               `json:"backup_size_bytes"`
-	InventoryPath    string              `json:"inventory_path"`
-	SecretsEnvFile   string              `json:"secrets_env_file"`
-	RepoVersion      string              `json:"repo_version"`
-	LocalBackupDir   string              `json:"local_backup_dir"`
-	UsedOffHostInput bool                `json:"used_off_host_input"`
-	ScratchDatabase  string              `json:"scratch_database"`
-	Verification     RestoreVerification `json:"verification"`
+	DrillMode        OffHostRecoveryDrillMode `json:"drill_mode"`
+	DrillHost        string                   `json:"drill_host"`
+	BackupFile       string                   `json:"backup_file"`
+	BackupSourceURI  string                   `json:"backup_source_uri"`
+	BackupSHA256     string                   `json:"backup_sha256"`
+	BackupSizeBytes  int64                    `json:"backup_size_bytes"`
+	InventoryPath    string                   `json:"inventory_path"`
+	SecretsEnvFile   string                   `json:"secrets_env_file"`
+	RepoVersion      string                   `json:"repo_version"`
+	LocalBackupDir   string                   `json:"local_backup_dir"`
+	UsedOffHostInput bool                     `json:"used_off_host_input"`
+	ScratchDatabase  string                   `json:"scratch_database"`
+	Verification     RestoreVerification      `json:"verification"`
 }
 
 // LoadOffHostRecoveryContract reads one YAML recovery contract from disk.
@@ -91,6 +120,9 @@ func NormalizeOffHostRecoveryContract(repoRoot string, contract OffHostRecoveryC
 func ValidateOffHostRecoveryContract(repoRoot string, contract OffHostRecoveryContract) error {
 	if strings.TrimSpace(repoRoot) == "" {
 		return fmt.Errorf("repo root is required")
+	}
+	if !contract.DrillMode.Valid() {
+		return fmt.Errorf("drill_mode must be %q or %q", OffHostRecoveryDrillModeStagedLocal, OffHostRecoveryDrillModeSeparateHost)
 	}
 	if contract.BackupFile == "" {
 		return fmt.Errorf("backup_file is required")
@@ -200,6 +232,8 @@ func (s *AdminService) RunOffHostRecoveryDrill(ctx context.Context, repoRoot str
 	}
 
 	return OffHostRecoveryResult{
+		DrillMode:        contract.DrillMode,
+		DrillHost:        resolveOffHostRecoveryDrillHost(contract, currentOffHostRecoveryDrillHost()),
 		BackupFile:       contract.BackupFile,
 		BackupSourceURI:  contract.BackupSourceURI,
 		BackupSHA256:     strings.ToLower(digest),
@@ -215,6 +249,12 @@ func (s *AdminService) RunOffHostRecoveryDrill(ctx context.Context, repoRoot str
 }
 
 func normalizeOffHostContractFields(contract OffHostRecoveryContract) OffHostRecoveryContract {
+	mode := strings.TrimSpace(string(contract.DrillMode))
+	if mode == "" {
+		mode = string(OffHostRecoveryDrillModeStagedLocal)
+	}
+	contract.DrillMode = OffHostRecoveryDrillMode(mode)
+	contract.DrillHost = strings.TrimSpace(contract.DrillHost)
 	contract.BackupFile = strings.TrimSpace(contract.BackupFile)
 	contract.BackupSourceURI = strings.TrimSpace(contract.BackupSourceURI)
 	contract.BackupSHA256 = strings.TrimSpace(contract.BackupSHA256)
@@ -232,6 +272,25 @@ func normalizeOffHostContractFields(contract OffHostRecoveryContract) OffHostRec
 		contract.SecretsEnvFile = filepath.Clean(contract.SecretsEnvFile)
 	}
 	return contract
+}
+
+func currentOffHostRecoveryDrillHost() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(hostname)
+}
+
+func resolveOffHostRecoveryDrillHost(contract OffHostRecoveryContract, runtimeHost string) string {
+	if contract.DrillHost != "" {
+		return contract.DrillHost
+	}
+	runtimeHost = strings.TrimSpace(runtimeHost)
+	if runtimeHost != "" {
+		return runtimeHost
+	}
+	return "unknown"
 }
 
 func readCompressedBackup(path string) (sqlText string, digest string, sizeBytes int64, err error) {

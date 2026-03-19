@@ -1,0 +1,26 @@
+---
+# Purpose:
+#   Example off-host recovery manifest for a true separate-host or separate-VM proof.
+# Responsibilities:
+#   - Show how to record customer-owned off-host provenance and replacement-host drill metadata.
+# Scope:
+#   - Example data only; operators must replace every placeholder before use.
+# Usage:
+#   - Copy to a host-local manifest path on the replacement host or VM, then run:
+#     ./scripts/acpctl.sh db off-host-drill --manifest <path>
+# Invariants/Assumptions:
+#   - ACP does not automate backup transport.
+#   - The staged backup file must already exist on the replacement host at an absolute path outside demo/backups.
+#   - drill_mode: separate-host is only truthful when the drill is executed on a different host or VM from the source system.
+drill_mode: separate-host
+drill_host: acp-recovery-vm-01
+backup_file: /var/tmp/ai-control-plane-recovery/litellm-backup-20260306-010203.sql.gz
+backup_source_uri: s3://customer-dr-bucket/ai-control-plane/prod/litellm-backup-20260306-010203.sql.gz
+backup_sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+inventory_path: deploy/ansible/inventory/hosts.yml
+secrets_env_file: /etc/ai-control-plane/secrets.env
+expected_repo_version: v0.0.0-example
+notes: >
+  Execute this manifest on the replacement host or replacement VM after staging
+  the customer-owned off-host copy locally. This proves replacement-host rebuild
+  readiness without claiming ACP-native transport or automatic failover.

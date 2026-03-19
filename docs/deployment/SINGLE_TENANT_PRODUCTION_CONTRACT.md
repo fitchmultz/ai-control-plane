@@ -12,7 +12,7 @@ The production contract is the host-first Docker deployment path described in [D
 6. Run `./scripts/acpctl.sh cert check --threshold-days 30`.
 7. Confirm `systemctl status ai-control-plane-cert-renewal.timer` is healthy when the `tls` overlay is enabled.
 8. Confirm `make host-service-status` shows the runtime service and automated backup timer, plus the certificate renewal timer where applicable.
-9. When host-loss recovery readiness is in scope, run `make db-off-host-drill OFF_HOST_RECOVERY_MANIFEST=demo/logs/recovery-inputs/off_host_recovery.yaml` and retain the latest successful evidence run.
+9. When host-loss recovery readiness is in scope, run `make db-off-host-drill OFF_HOST_RECOVERY_MANIFEST=demo/logs/recovery-inputs/off_host_recovery.yaml` (or a customer-approved separate-host manifest path) and retain the latest successful evidence run.
 
 ## Invariants
 
@@ -26,7 +26,7 @@ The production contract is the host-first Docker deployment path described in [D
 - When the `tls` overlay is enabled, Caddy owns certificate issuance and storage, and the supported host-first path installs the certificate renewal timer.
 - The automated backup timer creates local ACP backup artifacts; it does not by itself create an off-host copy.
 - Truthful host-loss recovery claims require a customer-owned off-host backup copy, an off-host recovery manifest, and a passing off-host recovery drill.
-- A passing `db-off-host-drill` can be used as truthful **single-machine staged off-host validation** when the backup is copied to an absolute path outside `demo/backups/`, but that drill alone does not prove real customer transport or separate-hardware replacement-host recovery.
+- A passing `db-off-host-drill` is only as strong as its recorded `drill_mode`: `staged-local` is truthful single-machine staged validation, while `separate-host` is truthful separate-host or separate-VM recovery evidence. Neither mode implies ACP-native backup transport or HA automation.
 - Scheduled backups, restore drills, rollback artifacts, and off-host recovery evidence are part of the recovery contract, but they do **not** provide automatic failover.
 - Customer-owned DNS, load balancers, and network infrastructure determine any multi-host traffic cutover outside the current supported surface.
 - Availability expectations and the next credible HA pattern are documented in [HA_FAILOVER_TOPOLOGY.md](HA_FAILOVER_TOPOLOGY.md).

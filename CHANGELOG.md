@@ -21,9 +21,11 @@ This repository uses:
 - Typed host-first certificate lifecycle workflows for listing, validating, renewing, and automating Caddy-managed TLS certificates.
 - Typed host-first upgrade planning, rollback artifact capture, compatibility documentation, and future release-edge migration hooks.
 - Truthful HA and failover topology guidance for the single-node host-first deployment, including explicit failure-domain, DR-vs-HA, and next-step active-passive reference documentation.
+- Separate-host-aware off-host recovery manifests and evidence, including explicit `drill_mode`/`drill_host` labeling and a dedicated replacement-host manifest example.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
+- Disaster-recovery, HA, production handoff, and production-contract docs now distinguish `staged-local` proof from `separate-host` proof and remove the completed off-host recovery roadmap item.
 - Release bundles include explicit release metadata and version-source files.
 - Root README now presents the validated support boundary, examples, and release discipline more clearly.
 - Gateway host, URL, TLS, and secret ergonomics now follow one canonical operator contract across `make`, `acpctl`, onboarding, and operator docs.

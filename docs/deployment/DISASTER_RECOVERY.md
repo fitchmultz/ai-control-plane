@@ -55,10 +55,15 @@ The supported contract is:
 2. The operator copies a selected `.sql.gz` backup into customer-owned off-host storage.
 3. For recovery proof, the operator stages that off-host copy onto the host being used for the drill or rebuild.
 4. The staged file must live at an absolute path **outside** the repo's canonical `demo/backups/` directory.
-5. The operator records the staged path, off-host source URI, SHA256 digest, inventory path, and secrets env file path in an off-host recovery manifest.
+5. The operator records the drill mode, drill host, staged path, off-host source URI, SHA256 digest, inventory path, and secrets env file path in an off-host recovery manifest.
 6. `./scripts/acpctl.sh db off-host-drill --manifest ...` validates the manifest, digest, and scratch restore.
 
-Supported off-host destinations are customer-owned patterns such as `rsync`/`scp` targets, object storage, or mounted network storage. When no real off-host system or second host is available, operators may still run a truthful **single-machine staged validation** by copying a fresh ACP backup to an absolute path outside `demo/backups/` and using a truthful `file://...` source URI in the manifest. ACP validates the recovered copy after staging; it does not implement the transport, and a single-machine staged drill does not prove customer transport or separate-host replacement.
+Supported drill modes are:
+
+- `staged-local` — truthful single-machine staged validation only
+- `separate-host` — truthful separate-host or separate-VM replacement-host proof
+
+Supported off-host destinations are customer-owned patterns such as `rsync`/`scp` targets, object storage, or mounted network storage. ACP validates the recovered copy after staging; it does not implement the transport.
 
 ## Replacement-Host Recovery Workflow
 
@@ -68,26 +73,50 @@ Recommended supported sequence for a replacement host:
 2. Restore `/etc/ai-control-plane/secrets.env`.
 3. Stage the selected off-host backup copy onto the replacement host at an absolute path outside `demo/backups/`.
 4. Check out the matching repo version or release bundle.
-5. Run an initial converge without smoke gating:
+5. Prepare or update the inventory so it targets the replacement host that will run the rebuild.
+6. Run an initial converge without smoke gating:
    - `./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml --env-file /etc/ai-control-plane/secrets.env --skip-smoke-tests`
-6. Restore the database from the staged off-host copy:
+7. Restore the database from the staged off-host copy:
    - `./scripts/acpctl.sh db restore /var/tmp/ai-control-plane-recovery/<backup>.sql.gz`
-7. Re-run host convergence normally:
+8. Re-run host convergence normally:
    - `./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml --env-file /etc/ai-control-plane/secrets.env`
-8. Verify:
+9. Verify:
    - `make health COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env`
    - `make prod-smoke COMPOSE_ENV_FILE=/etc/ai-control-plane/secrets.env`
    - `make host-service-status`
 
+## Separate-Host Or Separate-VM Proof
+
+Use this path when you need truthful evidence that a customer-owned off-host copy can rebuild ACP on a replacement host or replacement VM.
+
+1. Provision the replacement host or replacement VM.
+2. Restore `/etc/ai-control-plane/secrets.env` on that host.
+3. Check out the matching repo version or unpack the matching release bundle on that host.
+4. Stage the selected customer-owned off-host backup copy onto that host at an absolute path outside `demo/backups/`.
+5. Prepare an inventory that targets the replacement host.
+6. Copy `demo/config/off_host_recovery.separate_host.yaml` to a host-local manifest path and update:
+   - `drill_mode: separate-host`
+   - `drill_host: <replacement-hostname>`
+   - `backup_file`
+   - truthful `backup_source_uri`
+   - `backup_sha256`
+   - `inventory_path`
+   - `secrets_env_file`
+7. Run `./scripts/acpctl.sh db off-host-drill --manifest <path>` on the replacement host or replacement VM.
+8. Capture the generated evidence bundle and handoff notes with the drill labeled as `separate-host`.
+
+When no second host or real customer storage is available, operators may still run a truthful `staged-local` drill by copying a fresh ACP backup to an absolute path outside `demo/backups/` and using a truthful `file://...` source URI in the manifest. ACP validates the recovered copy after staging, but a staged-local drill does not prove customer transport or separate-host replacement.
+
 ## Off-Host Recovery Evidence
 
-Prepare the local manifest:
+Prepare the manifest for the drill mode you are running:
 
 ```bash
 mkdir -p demo/logs/recovery-inputs
 cp demo/config/off_host_recovery.example.yaml demo/logs/recovery-inputs/off_host_recovery.yaml
+# or start from demo/config/off_host_recovery.separate_host.yaml on the replacement host
 sha256sum /var/tmp/ai-control-plane-recovery/<backup>.sql.gz
-# update the manifest with the real digest and paths
+# update the manifest with the real digest, drill_mode, drill_host, and paths
 ```
 
 Run the non-destructive proof drill:
@@ -100,7 +129,7 @@ A successful run writes a timestamped evidence bundle under:
 
 - `demo/logs/evidence/replacement-host-recovery/`
 
-That evidence proves the staged backup copy came from outside the canonical same-host backup directory and can restore into a scratch database with the expected core schema. When the manifest uses a truthful local `file://...` provenance and the drill runs on the same machine that created the backup, treat the result as **single-machine staged off-host validation only**. It does **not** prove real customer transport or real replacement-host recovery on separate hardware.
+That evidence proves the staged backup copy came from outside the canonical same-host backup directory and can restore into a scratch database with the expected core schema. The generated JSON and Markdown summaries record `drill_mode`, `drill_host`, and an explicit claim-boundary statement so staged-local evidence and separate-host evidence cannot be conflated. When the manifest uses a truthful local `file://...` provenance and the drill runs on the same machine that created the backup, treat the result as **single-machine staged off-host validation only**. It does **not** prove real customer transport or real replacement-host recovery on separate hardware.
 
 ## Backup And Restore Operations
 

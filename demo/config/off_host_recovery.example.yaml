@@ -2,15 +2,19 @@
 # Purpose:
 #   Example off-host recovery manifest for staged replacement-host drills.
 # Responsibilities:
-#   - Show the required staged backup, provenance, inventory, and secrets inputs.
+#   - Show the required staged backup, provenance, drill-mode, inventory, and secrets inputs.
 # Scope:
 #   - Example data only; operators must replace every placeholder before use.
 # Usage:
 #   - Copy to demo/logs/recovery-inputs/off_host_recovery.yaml and update paths.
 # Invariants/Assumptions:
+#   - drill_mode defaults to staged-local when omitted, but examples should declare it explicitly.
+#   - drill_host should name the machine executing the drill; if omitted, ACP records the runtime hostname.
 #   - backup_file must be an absolute staged path outside demo/backups.
 #   - backup_source_uri must be truthful: use the real customer storage URI, or a truthful file:// URI for single-machine staged validation.
 #   - secrets_env_file must be an absolute host path.
+drill_mode: staged-local
+drill_host: localhost
 backup_file: /var/tmp/ai-control-plane-recovery/litellm-backup-20260306-010203.sql.gz
 backup_source_uri: file:///var/tmp/customer-transfer/litellm-backup-20260306-010203.sql.gz
 backup_sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -18,9 +22,7 @@ inventory_path: deploy/ansible/inventory/hosts.yml
 secrets_env_file: /etc/ai-control-plane/secrets.env
 expected_repo_version: v0.0.0-example
 notes: >
-  Backup was copied onto the replacement-host staging path above from a truthful
-  source URI. For single-machine staged validation, that source may be a local
-  file:// path to the original backup; for customer recovery proof, use the real
-  customer-owned off-host source. The staged backup file must remain outside the
-  repo's canonical demo/backups directory so the drill proves off-host recovery
-  inputs without overstating transport or separate-host proof.
+  This example is for staged-local validation. Use drill_mode: staged-local when
+  the ACP backup was created and the proof drill is executed on the same machine.
+  ACP validates the staged copy after it has been placed outside demo/backups,
+  but it does not prove customer transport or separate-host recovery.

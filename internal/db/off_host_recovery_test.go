@@ -31,7 +31,9 @@ import (
 func TestLoadOffHostRecoveryContractTrimsFields(t *testing.T) {
 	repoRoot := t.TempDir()
 	manifestPath := filepath.Join(repoRoot, "off_host_recovery.yaml")
-	const content = `backup_file: /var/tmp/recovery/backup.sql.gz
+	const content = `drill_mode: " separate-host "
+drill_host: " recovery-vm-01 "
+backup_file: /var/tmp/recovery/backup.sql.gz
 backup_source_uri: "  s3://bucket/backup.sql.gz  "
 backup_sha256: " 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef "
 inventory_path: " deploy/ansible/inventory/hosts.yml "
@@ -49,6 +51,12 @@ notes: "  staged copy  "
 	}
 	if len(raw) == 0 {
 		t.Fatal("expected raw contract bytes")
+	}
+	if contract.DrillMode != OffHostRecoveryDrillModeSeparateHost {
+		t.Fatalf("DrillMode = %q", contract.DrillMode)
+	}
+	if contract.DrillHost != "recovery-vm-01" {
+		t.Fatalf("DrillHost = %q", contract.DrillHost)
 	}
 	if contract.BackupSourceURI != "s3://bucket/backup.sql.gz" {
 		t.Fatalf("BackupSourceURI = %q", contract.BackupSourceURI)
@@ -75,6 +83,16 @@ func TestNormalizeOffHostRecoveryContractResolvesRelativeInventoryPath(t *testin
 	want := filepath.Join(repoRoot, "deploy", "ansible", "inventory", "hosts.yml")
 	if got.InventoryPath != want {
 		t.Fatalf("InventoryPath = %q, want %q", got.InventoryPath, want)
+	}
+}
+
+func TestNormalizeOffHostRecoveryContractDefaultsDrillMode(t *testing.T) {
+	repoRoot := t.TempDir()
+	got := NormalizeOffHostRecoveryContract(repoRoot, OffHostRecoveryContract{
+		InventoryPath: "deploy/ansible/inventory/hosts.yml",
+	})
+	if got.DrillMode != OffHostRecoveryDrillModeStagedLocal {
+		t.Fatalf("DrillMode = %q, want %q", got.DrillMode, OffHostRecoveryDrillModeStagedLocal)
 	}
 }
 
@@ -117,6 +135,41 @@ func TestValidateOffHostRecoveryContractHappyPath(t *testing.T) {
 	}
 }
 
+func TestValidateOffHostRecoveryContractRejectsUnknownDrillMode(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repoRoot, "deploy", "ansible", "inventory"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "demo", "backups"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "staged", "backup.sql.gz")
+	if err := writeTestGzip(backupPath, "SELECT 1;"); err != nil {
+		t.Fatal(err)
+	}
+	inventoryPath := filepath.Join(repoRoot, "deploy", "ansible", "inventory", "hosts.yml")
+	if err := os.WriteFile(inventoryPath, []byte("all: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	secretsPath := filepath.Join(t.TempDir(), "secrets.env")
+	if err := os.WriteFile(secretsPath, []byte("TEST=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := ValidateOffHostRecoveryContract(repoRoot, OffHostRecoveryContract{
+		DrillMode:       OffHostRecoveryDrillMode("unsupported-mode"),
+		BackupFile:      backupPath,
+		BackupSourceURI: "s3://bucket/backup.sql.gz",
+		BackupSHA256:    strings.Repeat("a", 64),
+		InventoryPath:   inventoryPath,
+		SecretsEnvFile:  secretsPath,
+	})
+	if err == nil || !strings.Contains(err.Error(), "drill_mode must be") {
+		t.Fatalf("expected drill_mode validation error, got %v", err)
+	}
+}
+
 func TestValidateOffHostRecoveryContractRejectsRelativeSecretsPath(t *testing.T) {
 	repoRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(repoRoot, "deploy", "ansible", "inventory"), 0o700); err != nil {
@@ -136,6 +189,7 @@ func TestValidateOffHostRecoveryContractRejectsRelativeSecretsPath(t *testing.T)
 	}
 
 	err := ValidateOffHostRecoveryContract(repoRoot, OffHostRecoveryContract{
+		DrillMode:       OffHostRecoveryDrillModeStagedLocal,
 		BackupFile:      backupPath,
 		BackupSourceURI: "s3://bucket/backup.sql.gz",
 		BackupSHA256:    strings.Repeat("a", 64),
@@ -170,6 +224,7 @@ func TestValidateOffHostRecoveryContractRejectsRepoVersionMismatch(t *testing.T)
 	}
 
 	err := ValidateOffHostRecoveryContract(repoRoot, OffHostRecoveryContract{
+		DrillMode:           OffHostRecoveryDrillModeStagedLocal,
 		BackupFile:          backupPath,
 		BackupSourceURI:     "s3://bucket/backup.sql.gz",
 		BackupSHA256:        strings.Repeat("a", 64),
@@ -208,6 +263,7 @@ func TestValidateOffHostRecoveryContractRejectsCanonicalLocalBackupDir(t *testin
 	}
 
 	err := ValidateOffHostRecoveryContract(repoRoot, OffHostRecoveryContract{
+		DrillMode:           OffHostRecoveryDrillModeStagedLocal,
 		BackupFile:          backupPath,
 		BackupSourceURI:     "s3://bucket/backup.sql.gz",
 		BackupSHA256:        strings.Repeat("a", 64),
@@ -230,6 +286,18 @@ func TestRunOffHostRecoveryDrillRejectsInvalidContractBeforeDatabaseAccess(t *te
 	_, err := service.RunOffHostRecoveryDrill(context.Background(), repoRoot, OffHostRecoveryContract{}, time.Now().UTC())
 	if err == nil || !strings.Contains(err.Error(), "backup_file is required") {
 		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+func TestResolveOffHostRecoveryDrillHost(t *testing.T) {
+	if got := resolveOffHostRecoveryDrillHost(OffHostRecoveryContract{DrillHost: "recovery-vm-01"}, "runtime-host"); got != "recovery-vm-01" {
+		t.Fatalf("resolveOffHostRecoveryDrillHost() = %q, want %q", got, "recovery-vm-01")
+	}
+	if got := resolveOffHostRecoveryDrillHost(OffHostRecoveryContract{}, "runtime-host"); got != "runtime-host" {
+		t.Fatalf("resolveOffHostRecoveryDrillHost() = %q, want %q", got, "runtime-host")
+	}
+	if got := resolveOffHostRecoveryDrillHost(OffHostRecoveryContract{}, ""); got != "unknown" {
+		t.Fatalf("resolveOffHostRecoveryDrillHost() = %q, want %q", got, "unknown")
 	}
 }
 

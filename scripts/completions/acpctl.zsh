@@ -160,7 +160,7 @@ _acpctl_db() {
         "backup:Create database backup"
         "backup-retention:Enforce backup retention policy"
         "restore:Restore embedded database from backup"
-        "off-host-drill:Validate a staged off-host backup copy and emit replacement-host recovery evidence"
+        "off-host-drill:Validate a staged off-host backup copy and emit staged-local or separate-host recovery evidence"
         "shell:Open database shell"
         "dr-drill:Create a fresh backup and verify restore into a scratch database"
     )

@@ -49,29 +49,33 @@ type dbOffHostDrillOptions struct {
 }
 
 type replacementHostRecoverySummary struct {
-	RunID            string                   `json:"run_id"`
-	GeneratedAtUTC   string                   `json:"generated_at_utc"`
-	RepoRoot         string                   `json:"repo_root"`
-	RunDirectory     string                   `json:"run_directory"`
-	ContractPath     string                   `json:"contract_path"`
-	Result           db.OffHostRecoveryResult `json:"result"`
-	RecoveryCommands []string                 `json:"recovery_commands"`
-	GeneratedFiles   []string                 `json:"generated_files"`
+	RunID            string                      `json:"run_id"`
+	GeneratedAtUTC   string                      `json:"generated_at_utc"`
+	RepoRoot         string                      `json:"repo_root"`
+	RunDirectory     string                      `json:"run_directory"`
+	ContractPath     string                      `json:"contract_path"`
+	DrillMode        db.OffHostRecoveryDrillMode `json:"drill_mode"`
+	DrillHost        string                      `json:"drill_host"`
+	EvidenceBoundary string                      `json:"evidence_boundary"`
+	Result           db.OffHostRecoveryResult    `json:"result"`
+	RecoveryCommands []string                    `json:"recovery_commands"`
+	GeneratedFiles   []string                    `json:"generated_files"`
 }
 
 func dbOffHostDrillCommandSpec() *commandSpec {
 	return newNativeCommandSpec(nativeCommandConfig{
 		Name:        "off-host-drill",
-		Summary:     "Validate a staged off-host backup copy and emit replacement-host recovery evidence",
-		Description: "Load an off-host recovery manifest, verify digest and provenance, restore into a scratch database, verify the core schema, and write handoff evidence.",
+		Summary:     "Validate a staged off-host backup copy and emit staged-local or separate-host recovery evidence",
+		Description: "Load an off-host recovery manifest, verify digest and provenance, restore into a scratch database, verify the core schema, and write replacement-host evidence with explicit drill mode and host labeling.",
 		Examples: []string{
 			"acpctl db off-host-drill --manifest demo/logs/recovery-inputs/off_host_recovery.yaml",
+			"acpctl db off-host-drill --manifest demo/config/off_host_recovery.separate_host.yaml",
 		},
 		Options: []commandOptionSpec{
 			{
 				Name:        "manifest",
 				ValueName:   "PATH",
-				Summary:     "YAML contract describing the staged off-host backup copy",
+				Summary:     "YAML contract describing the staged off-host backup copy, drill mode, and drill host",
 				Type:        optionValueString,
 				DefaultText: "demo/logs/recovery-inputs/off_host_recovery.yaml",
 			},
@@ -140,6 +144,8 @@ func runDBOffHostDrill(ctx context.Context, runCtx commandRunContext, raw any) i
 
 	printDBWorkflowHeader(runCtx.Stdout, out, "=== Off-Host Recovery Drill ===", map[string]string{
 		"Manifest":        opts.ManifestPath,
+		"Drill mode":      string(contract.DrillMode),
+		"Drill host":      displayOffHostRecoveryDrillHost(contract),
 		"Backup file":     contract.BackupFile,
 		"Backup source":   contract.BackupSourceURI,
 		"Inventory":       contract.InventoryPath,
@@ -168,6 +174,8 @@ func runDBOffHostDrill(ctx context.Context, runCtx commandRunContext, raw any) i
 
 	printDBWorkflowSuccess(runCtx.Stdout, out, "Replacement-host recovery evidence completed successfully!", map[string]any{
 		"Run directory":         summary.RunDirectory,
+		"Drill mode":            string(result.DrillMode),
+		"Drill host":            result.DrillHost,
 		"Backup file":           result.BackupFile,
 		"Backup SHA256":         result.BackupSHA256,
 		"Verified core tables":  fmt.Sprintf("%d/%d", result.Verification.FoundTables, result.Verification.ExpectedTables),
@@ -190,6 +198,9 @@ func persistReplacementHostRecoveryEvidence(repoRoot string, outputRoot string, 
 		RepoRoot:         repoRoot,
 		RunDirectory:     run.Directory,
 		ContractPath:     manifestPath,
+		DrillMode:        result.DrillMode,
+		DrillHost:        result.DrillHost,
+		EvidenceBoundary: result.DrillMode.EvidenceBoundary(),
 		Result:           result,
 		RecoveryCommands: replacementHostRecoveryCommands(result),
 	}
@@ -236,6 +247,8 @@ func renderReplacementHostRecoverySummary(summary *replacementHostRecoverySummar
 	builder.WriteString(fmt.Sprintf("- Run ID: `%s`\n", summary.RunID))
 	builder.WriteString(fmt.Sprintf("- Generated: `%s`\n", summary.GeneratedAtUTC))
 	builder.WriteString(fmt.Sprintf("- Contract path: `%s`\n", summary.ContractPath))
+	builder.WriteString(fmt.Sprintf("- Drill mode: `%s`\n", summary.DrillMode))
+	builder.WriteString(fmt.Sprintf("- Drill host: `%s`\n", summary.DrillHost))
 	builder.WriteString(fmt.Sprintf("- Off-host source URI: `%s`\n", summary.Result.BackupSourceURI))
 	builder.WriteString(fmt.Sprintf("- Staged backup file: `%s`\n", summary.Result.BackupFile))
 	builder.WriteString(fmt.Sprintf("- Backup SHA256: `%s`\n", summary.Result.BackupSHA256))
@@ -249,6 +262,9 @@ func renderReplacementHostRecoverySummary(summary *replacementHostRecoverySummar
 	builder.WriteString(fmt.Sprintf("- Verified core tables: `%d/%d`\n", summary.Result.Verification.FoundTables, summary.Result.Verification.ExpectedTables))
 	builder.WriteString(fmt.Sprintf("- PostgreSQL: `%s`\n", summary.Result.Verification.Version))
 
+	builder.WriteString("\n## Claim Boundary\n\n")
+	builder.WriteString(summary.EvidenceBoundary + "\n")
+
 	builder.WriteString("\n## Replacement-Host Workflow\n\n")
 	for index, command := range summary.RecoveryCommands {
 		builder.WriteString(fmt.Sprintf("%d. `%s`\n", index+1, command))
@@ -259,6 +275,13 @@ func renderReplacementHostRecoverySummary(summary *replacementHostRecoverySummar
 		builder.WriteString(fmt.Sprintf("- `%s`\n", file))
 	}
 	return builder.String()
+}
+
+func displayOffHostRecoveryDrillHost(contract db.OffHostRecoveryContract) string {
+	if strings.TrimSpace(contract.DrillHost) != "" {
+		return contract.DrillHost
+	}
+	return "auto-detect at runtime"
 }
 
 func runDBOffHostDrillCommand(ctx context.Context, args []string, stdout *os.File, stderr *os.File) int {

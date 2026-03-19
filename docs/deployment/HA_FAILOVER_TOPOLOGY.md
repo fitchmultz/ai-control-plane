@@ -73,7 +73,7 @@ Truthful implications:
 - With the default daily backup timer, the **worst-case reference RPO** is up to **24 hours of data loss** since the last successful backup.
 - That RPO is a **reference based on current timer defaults**, not a universal SLA or guarantee.
 - If backups exist **only on the same host/storage that failed**, a disk or host-loss event can destroy both the live database and the local backup artifacts. In that case, effective data loss can be total.
-- Off-host backup copies and retention remain customer-owned. The repo now validates a staged off-host copy through an explicit manifest plus scratch-restore drill, including truthful **single-machine staged** validation when no second host or real customer storage is available, but it still does **not** automate replication transport into S3, NFS, rsync targets, or other customer storage, and that staged drill is not separate-host recovery proof.
+- Off-host backup copies and retention remain customer-owned. The repo now validates a staged off-host copy through an explicit manifest plus scratch-restore drill, with truthful `staged-local` and `separate-host` evidence labeling, but it still does **not** automate replication transport into S3, NFS, rsync targets, or other customer storage, and neither drill mode is HA or failover automation.
 - The repo does **not** currently publish a fixed minute-based RTO. Recovery time depends on spare-host availability, operator response, backup accessibility, network cutover, and environment-specific constraints.
 - The validated recovery sequence is: restore host access -> restore `/etc/ai-control-plane/secrets.env` -> restore the database -> re-apply the deployment -> verify with `make health` and `make prod-smoke`.
 
