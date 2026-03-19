@@ -212,18 +212,25 @@ func TestGetModelsForRole(t *testing.T) {
 	tests := []struct {
 		role     string
 		expected int
+		wantErr  bool
 	}{
-		{"admin", 4},
-		{"team-lead", 3},
-		{"developer", 2},
-		{"auditor", 0},
-		{"unknown", 2}, // defaults to developer
-		{"", 2},        // defaults to developer
+		{"admin", 3, false},
+		{"team-lead", 3, false},
+		{"developer", 2, false},
+		{"auditor", 0, false},
+		{"unknown", 0, true},
+		{"", 2, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.role, func(t *testing.T) {
-			models := GetModelsForRole(tt.role)
+			models, err := GetModelsForRole(tt.role)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("GetModelsForRole(%q) error = %v, wantErr %v", tt.role, err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
 			if len(models) != tt.expected {
 				t.Errorf("GetModelsForRole(%q) returned %d models, want %d", tt.role, len(models), tt.expected)
 			}
@@ -250,7 +257,10 @@ func TestResolveRole(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Setenv("ACP_USER_ROLE", tt.envRole)
-			result := ResolveRole(tt.explicitRole)
+			result, err := ResolveRole(tt.explicitRole)
+			if err != nil {
+				t.Fatalf("ResolveRole(%q) error = %v", tt.explicitRole, err)
+			}
 			if result != tt.expected {
 				t.Errorf("ResolveRole(%q) with env=%q = %q, want %q",
 					tt.explicitRole, tt.envRole, result, tt.expected)
@@ -317,7 +327,7 @@ func TestCheckPrerequisites(t *testing.T) {
 
 func TestValidRoles(t *testing.T) {
 	roles := ValidRoles()
-	expected := []string{"admin", "team-lead", "developer", "auditor"}
+	expected := []string{"admin", "auditor", "developer", "team-lead"}
 	if len(roles) != len(expected) {
 		t.Errorf("ValidRoles() returned %d roles, want %d", len(roles), len(expected))
 	}

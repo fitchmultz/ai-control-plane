@@ -4,8 +4,8 @@
 //
 // Responsibilities:
 //   - Validate alias format
-//   - Validate role values
-//   - Get models for roles
+//   - Validate role values against the tracked RBAC contract
+//   - Resolve effective roles and model access for key workflows
 //   - Check prerequisites
 //
 // Non-scope:
@@ -25,7 +25,6 @@ package keygen
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
@@ -57,42 +56,46 @@ func ValidateAlias(alias string) error {
 	return nil
 }
 
-// ValidateRole checks if the role is valid
+// ValidateRole checks if the role is valid.
 func ValidateRole(role string) error {
-	validRoles := []string{"admin", "team-lead", "developer", "auditor", ""}
-	if slices.Contains(validRoles, role) {
+	trimmed := strings.TrimSpace(role)
+	if trimmed == "" {
 		return nil
 	}
-	return &ValidationError{Field: "role", Message: fmt.Sprintf("invalid role: %s", role)}
+	cfg, _, err := loadTrackedRoleContract()
+	if err != nil {
+		return fmt.Errorf("load tracked RBAC contract: %w", err)
+	}
+	if cfg.HasRole(trimmed) {
+		return nil
+	}
+	return &ValidationError{Field: "role", Message: fmt.Sprintf("invalid role: %s", trimmed)}
 }
 
-// GetModelsForRole returns the allowed models for a role
-func GetModelsForRole(role string) []string {
-	switch role {
-	case "admin":
-		return []string{"openai-gpt5.2", "claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"}
-	case "team-lead":
-		return []string{"openai-gpt5.2", "claude-haiku-4-5", "claude-sonnet-4-5"}
-	case "developer":
-		return []string{"openai-gpt5.2", "claude-haiku-4-5"}
-	case "auditor":
-		return []string{} // No model access
-	default:
-		// Default to developer models
-		return []string{"openai-gpt5.2", "claude-haiku-4-5"}
+// GetModelsForRole returns the allowed models for a role.
+func GetModelsForRole(role string) ([]string, error) {
+	cfg, approvedModels, err := loadTrackedRoleContract()
+	if err != nil {
+		return nil, fmt.Errorf("load tracked RBAC contract: %w", err)
 	}
+	models := cfg.ModelsForRole(role, approvedModels)
+	if models == nil {
+		return nil, &ValidationError{Field: "role", Message: fmt.Sprintf("invalid role: %s", strings.TrimSpace(role))}
+	}
+	return models, nil
 }
 
-// ResolveRole determines the effective role
-func ResolveRole(explicitRole string) string {
-	if explicitRole != "" {
-		return explicitRole
+// ResolveRole determines the effective role.
+func ResolveRole(explicitRole string) (string, error) {
+	cfg, _, err := loadTrackedRoleContract()
+	if err != nil {
+		return "", fmt.Errorf("load tracked RBAC contract: %w", err)
 	}
-	role := config.NewLoader().Tooling().Role
-	if role != "" {
-		return role
+	role := cfg.ResolveRole(explicitRole, config.NewLoader().Tooling().Role)
+	if strings.TrimSpace(role) == "" {
+		return "", &ValidationError{Field: "role", Message: "no default role configured"}
 	}
-	return "developer" // default
+	return role, nil
 }
 
 // CheckPrerequisites verifies required environment and tools
@@ -109,9 +112,13 @@ func CheckPrerequisites(requireMasterKey bool) error {
 	return nil
 }
 
-// ValidRoles returns the list of valid role names
+// ValidRoles returns the list of valid role names.
 func ValidRoles() []string {
-	return []string{"admin", "team-lead", "developer", "auditor"}
+	cfg, _, err := loadTrackedRoleContract()
+	if err != nil {
+		return nil
+	}
+	return cfg.RoleNames()
 }
 
 // FormatValidationErrors formats multiple validation errors

@@ -48,7 +48,10 @@ func PlanGenerateRequest(cfg GenerateRequestConfig) (GenerateRequestPlan, error)
 		return GenerateRequestPlan{}, err
 	}
 
-	role := ResolveRole(cfg.Role)
+	role, err := ResolveRole(cfg.Role)
+	if err != nil {
+		return GenerateRequestPlan{}, err
+	}
 	if err := ValidateRole(role); err != nil {
 		return GenerateRequestPlan{}, err
 	}
@@ -58,7 +61,10 @@ func PlanGenerateRequest(cfg GenerateRequestConfig) (GenerateRequestPlan, error)
 		duration = DefaultConfig().Duration
 	}
 
-	models := GetModelsForRole(role)
+	models, err := GetModelsForRole(role)
+	if err != nil {
+		return GenerateRequestPlan{}, err
+	}
 	if len(cfg.Models) > 0 {
 		models = append([]string(nil), cfg.Models...)
 	}

@@ -22,7 +22,6 @@ package keygen
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -178,7 +177,11 @@ func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, 
 
 	role := strings.TrimSpace(req.Role)
 	if role == "" {
-		role = InferRole(inspection.Key.Models)
+		inferredRole, err := InferRole(inspection.Key.Models)
+		if err != nil {
+			return RotationResult{}, err
+		}
+		role = inferredRole
 	}
 
 	duration := strings.TrimSpace(req.Duration)
@@ -209,7 +212,11 @@ func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, 
 
 	models := inspection.Key.Models
 	if len(models) == 0 {
-		models = GetModelsForRole(role)
+		resolvedModels, err := GetModelsForRole(role)
+		if err != nil {
+			return RotationResult{}, err
+		}
+		models = resolvedModels
 	}
 
 	plan, err := PlanGenerateRequest(GenerateRequestConfig{
@@ -257,27 +264,16 @@ func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, 
 }
 
 // InferRole picks the least-privileged canonical role that matches the model set.
-func InferRole(models []string) string {
-	normalized := normalizeModels(models)
-	if len(normalized) == 0 {
-		return "auditor"
+func InferRole(models []string) (string, error) {
+	cfg, approvedModels, err := loadTrackedRoleContract()
+	if err != nil {
+		return "", fmt.Errorf("load tracked RBAC contract: %w", err)
 	}
-
-	for _, role := range ValidRoles() {
-		candidate := normalizeModels(GetModelsForRole(role))
-		if slices.Equal(normalized, candidate) {
-			return role
-		}
+	role := strings.TrimSpace(cfg.InferLeastPrivilegedRole(models, approvedModels))
+	if role == "" {
+		return "", &ValidationError{Field: "role", Message: "no matching RBAC role configured"}
 	}
-
-	for _, role := range []string{"developer", "team-lead", "admin"} {
-		candidate := normalizeModels(GetModelsForRole(role))
-		if isSubset(normalized, candidate) {
-			return role
-		}
-	}
-
-	return "developer"
+	return role, nil
 }
 
 func findKey(keys []gateway.KeyInfo, alias string) (gateway.KeyInfo, error) {
@@ -291,35 +287,4 @@ func findKey(keys []gateway.KeyInfo, alias string) (gateway.KeyInfo, error) {
 
 func defaultReplacementAlias(sourceAlias string, now time.Time) string {
 	return strings.TrimSpace(sourceAlias) + "-rotated-" + now.UTC().Format("20060102150405")
-}
-
-func normalizeModels(models []string) []string {
-	result := make([]string, 0, len(models))
-	seen := make(map[string]struct{}, len(models))
-	for _, model := range models {
-		trimmed := strings.TrimSpace(model)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		result = append(result, trimmed)
-	}
-	slices.Sort(result)
-	return result
-}
-
-func isSubset(current []string, candidate []string) bool {
-	candidateSet := make(map[string]struct{}, len(candidate))
-	for _, model := range candidate {
-		candidateSet[model] = struct{}{}
-	}
-	for _, model := range current {
-		if _, ok := candidateSet[model]; !ok {
-			return false
-		}
-	}
-	return true
 }
