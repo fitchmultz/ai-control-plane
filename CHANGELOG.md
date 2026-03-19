@@ -34,6 +34,7 @@ This repository uses:
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
 - Key-generation role validation, default-role resolution, model selection, and least-privileged role inference now derive from the tracked RBAC contract plus approved model catalog instead of duplicated hardcoded role/model mappings.
 - Doctor now consumes `internal/health` directly for shared health levels instead of routing that vocabulary through `internal/status`.
+- Typed domain ownership now aligns cleanly across RBAC, health, validation, release, and key workflows, closing the roadmap item for those package boundaries.
 - Disaster-recovery, HA, production handoff, and production-contract docs now distinguish `staged-local` proof from `separate-host` proof and remove the completed off-host recovery roadmap item.
 - Release bundles include explicit release metadata and version-source files.
 - Root README now presents the validated support boundary, examples, and release discipline more clearly.

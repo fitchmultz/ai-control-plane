@@ -55,7 +55,6 @@ Objective: build capabilities that create separation from DIY LiteLLM deployment
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 23 | **Unify typed ownership for RBAC, health, validation, release, and key domains.** Close the gap between documented architecture and package reality. | Clean domain ownership reduces maintenance drag and makes the operator surface more coherent. | Domain boundaries are implemented cleanly in typed packages, CLI surfaces use them directly, and tests cover the resulting contracts. |
 | 24 | **Standardize structured logging.** Make operations and forensics consistent across Go packages. | Consistent telemetry is foundational for supportability and incident response. | One logging contract exists, fields are consistent across workflows, and critical paths emit structured events suitable for SIEM and observability tooling. |
 | 25 | **Add metrics, tracing, and operational dashboards.** Improve operator visibility. | Great operator UX requires visibility, not just command success or failure. | Key request, enforcement, cost, error, backup, and readiness signals are exposed; dashboards and tracing guidance exist for supported deployments. |
 | 26 | **Add a vendor webhook and export ingestion surface.** Receive audit evidence programmatically instead of manually. | Automated evidence ingestion raises the ceiling on real-world usefulness. | A typed receiver and normalizer exist for supported vendor export flows, with schema validation and evidence-pipeline integration. |
