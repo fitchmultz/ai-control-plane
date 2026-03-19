@@ -24,6 +24,7 @@ func acpctlCommandSpec() *commandSpec {
 		envCommandSpec(),
 		chargebackCommandSpec(),
 		evidenceCommandSpec(),
+		policyCommandSpec(),
 		opsCommandSpec(),
 		statusCommandSpec(),
 		healthCommandSpec(),

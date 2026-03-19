@@ -72,7 +72,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - DLP overlay: `make up-dlp`
 - Offline deterministic runtime: `make up-offline`
 - TLS ingress overlay: `make up-tls`
-- Day-2 reporting and recovery: `make operator-report`, `make operator-dashboard`, `make chargeback-report`, `make db-backup`, `make db-backup-retention`, `make dr-drill`, `make ha-failover-drill`
+- Day-2 reporting and recovery: `make operator-report`, `make operator-dashboard`, `make chargeback-report`, `make db-backup`, `make db-backup-retention`, `make dr-drill`, `make ha-failover-drill`, `make validate-policy-rules`, `make policy-eval`
 - Certificate lifecycle: `make cert-status`, `make cert-renew`, `sudo make cert-renew-install SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env`
 - Host-first upgrade lifecycle: `make upgrade-plan FROM_VERSION=X.Y.Z`, `make upgrade-check FROM_VERSION=X.Y.Z`, `make upgrade-execute FROM_VERSION=X.Y.Z`, `make upgrade-rollback UPGRADE_RUN_DIR=...`
 - Key lifecycle: `make key-list`, `make key-inspect ALIAS=<alias>`, `make key-rotate ALIAS=<alias>`
@@ -97,6 +97,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - [Observability signal reference](docs/observability/OPERATOR_SIGNAL_REFERENCE.md)
 - [OTEL collector setup](docs/observability/OTEL_SETUP.md)
 - [Vendor evidence ingest](docs/evidence/VENDOR_EVIDENCE_INGEST.md)
+- [ACP custom policy engine](docs/policy/CUSTOM_POLICY_ENGINE.md)
 - [HA and failover topology](docs/deployment/HA_FAILOVER_TOPOLOGY.md)
 - [Active-passive HA failover runbook](docs/deployment/HA_FAILOVER_RUNBOOK.md)
 - [Compliance crosswalk](docs/COMPLIANCE_CROSSWALK.md)

@@ -21,6 +21,9 @@ _acpctl() {
         evidence)
             _acpctl_evidence
             ;;
+        policy)
+            _acpctl_policy
+            ;;
         ops)
             _acpctl_ops
             ;;
@@ -63,6 +66,7 @@ _acpctl_commands() {
         "env:Strict .env access helpers"
         "chargeback:Typed chargeback rendering helpers"
         "evidence:Vendor evidence ingest workflows"
+        "policy:ACP-native custom policy evaluation workflows"
         "ops:Operator reporting workflows"
         "status:Aggregated system health overview"
         "health:Run service health checks"
@@ -114,6 +118,13 @@ _acpctl_evidence() {
     _describe -t commands 'evidence subcommands' subcmds "$@"
 }
 
+_acpctl_policy() {
+    local subcmds=(
+        "eval:Evaluate local request/response records against custom ACP guardrails"
+    )
+    _describe -t commands 'policy subcommands' subcmds "$@"
+}
+
 _acpctl_ops() {
     local subcmds=(
         "report:Render a canonical operator status report"
@@ -153,6 +164,7 @@ _acpctl_validate() {
         "config:Validate deployment configuration (use --production for host contract checks)"
         "detections:Validate detection rule output"
         "siem-queries:Validate SIEM query sync"
+        "policy-rules:Validate the tracked ACP custom policy rule contract"
         "public-hygiene:Fail when local-only files are tracked by git"
         "license:Validate license policy structure and restricted references"
         "supply-chain:Run supply-chain policy and digest validation"

@@ -69,6 +69,9 @@ PERFORMANCE_CONCURRENCY ?= 2
 PERFORMANCE_MAX_TOKENS ?= 32
 PERFORMANCE_WAIT_TIMEOUT ?= 150
 PERFORMANCE_PROFILE ?=
+POLICY_RULES_FILE ?= demo/config/custom_policy_rules.yaml
+POLICY_INPUT ?= examples/policy-engine/request_response_eval.sample.json
+POLICY_OUTPUT_DIR ?= demo/logs/evidence/policy-eval
 
 # Go toolchain
 GO ?= go

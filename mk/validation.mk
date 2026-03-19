@@ -76,6 +76,22 @@ validate-siem-schema: ## Validate SIEM schema mappings
 		&& echo '$(COLOR_GREEN)✓ SIEM schema validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ SIEM schema validation failed$(COLOR_RESET)'; exit 1; }
 
+.PHONY: validate-policy-rules
+validate-policy-rules: ## Validate the tracked ACP custom policy rule contract
+	@echo '$(COLOR_BOLD)Validating ACP custom policy rules...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate policy-rules --file "$(POLICY_RULES_FILE)" \
+		&& echo '$(COLOR_GREEN)✓ Custom policy rule validation passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Custom policy rule validation failed$(COLOR_RESET)'; exit 1; }
+
+.PHONY: policy-eval
+policy-eval: ## Evaluate the sample/local request-response payload against ACP custom policy rules
+	@echo '$(COLOR_BOLD)Evaluating ACP custom policy rules...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) policy eval \
+		--rules-file "$(POLICY_RULES_FILE)" \
+		--file "$(POLICY_INPUT)" \
+		--output-dir "$(POLICY_OUTPUT_DIR)"
+	@echo '$(COLOR_GREEN)✓ Custom policy evaluation complete$(COLOR_RESET)'
+
 .PHONY: validate-compose-healthchecks
 validate-compose-healthchecks: ## Validate Docker Compose healthcheck syntax
 	@echo '$(COLOR_BOLD)Validating Docker Compose healthchecks...$(COLOR_RESET)'

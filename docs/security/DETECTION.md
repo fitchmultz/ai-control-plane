@@ -4,6 +4,8 @@
 
 The AI Control Plane includes SIEM-style detection rules for identifying security anomalies, policy violations, and cost risks. These rules analyze LiteLLM-managed usage/cost logs (e.g., `"LiteLLM_SpendLogs"`) and related budget tables to surface actionable insights.
 
+For ACP-native local request/response guardrail evaluation before evidence is normalized, use the separate custom policy engine workflow documented in [../policy/CUSTOM_POLICY_ENGINE.md](../policy/CUSTOM_POLICY_ENGINE.md). Detection rules remain the downstream monitoring and investigation surface.
+
 **Important:** In LiteLLM’s PostgreSQL schema, `"LiteLLM_SpendLogs"."api_key"` is a **token identifier** (not a human-friendly key alias). For operator-friendly attribution, join to `"LiteLLM_VerificationToken"` on `("LiteLLM_SpendLogs".api_key = "LiteLLM_VerificationToken".token)` and use `key_alias` (and `user_id` when populated).
 
 ## Rule Quality Status

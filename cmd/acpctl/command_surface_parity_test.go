@@ -36,7 +36,8 @@ import (
 
 func TestCommandSpec_ApprovedCommandInventory(t *testing.T) {
 	expected := map[string][]string{
-		"validate": {"lint", "config", "detections", "siem-queries", "public-hygiene", "license", "supply-chain", "secrets-audit", "compose-healthchecks", "headers", "env-access", "security"},
+		"validate": {"lint", "config", "detections", "siem-queries", "policy-rules", "public-hygiene", "license", "supply-chain", "secrets-audit", "compose-healthchecks", "headers", "env-access", "security"},
+		"policy":   {"eval"},
 		"db":       {"status", "backup", "backup-retention", "restore", "off-host-drill", "shell", "dr-drill"},
 		"key":      {"gen", "list", "inspect", "rotate", "revoke", "gen-dev", "gen-lead"},
 		"cert":     {"list", "inspect", "check", "renew", "renew-auto"},

@@ -23,6 +23,11 @@
 - **Claim:** Public-release hygiene and supply-chain boundaries are enforced.
 - **Evidence:** `mk/security.mk` (`public-hygiene-check`, `security-gate`, hardened image scan targets), `docs/ARTIFACTS.md`, `SECURITY.md`.
 
+## Custom policy enforcement evidence
+
+- **Claim:** ACP can evaluate local request/response records against ACP-owned guardrails and emit auditable policy decisions without overstating an always-on hosted enforcement service.
+- **Evidence:** `demo/config/custom_policy_rules.yaml`, `internal/policyengine/*`, `cmd/acpctl/cmd_policy.go`, `docs/policy/CUSTOM_POLICY_ENGINE.md`, `examples/policy-engine/*`, `make validate-policy-rules`, `make policy-eval`.
+
 ## Developer productivity
 
 - **Claim:** Local-first, repeatable make targets cover install, CI, runtime checks, and release verification.

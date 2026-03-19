@@ -71,6 +71,21 @@ Examples:
 cat export.json | ./scripts/acpctl.sh evidence ingest --format compliance-api
 ```
 
+### `policy`
+
+ACP-native custom policy evaluation workflows.
+
+| Subcommand | Summary |
+| --- | --- |
+| `eval` | Evaluate local request/response records against custom ACP guardrails |
+
+Examples:
+
+```bash
+./scripts/acpctl.sh policy eval --file examples/policy-engine/request_response_eval.sample.json
+cat request_response_eval.sample.json | ./scripts/acpctl.sh policy eval
+```
+
 ### `ops`
 
 Operator reporting workflows.
@@ -197,6 +212,7 @@ Configuration and policy validation operations.
 | `config` | Validate deployment configuration (use --production for host contract checks) |
 | `detections` | Validate detection rule output |
 | `siem-queries` | Validate SIEM query sync |
+| `policy-rules` | Validate the tracked ACP custom policy rule contract |
 | `public-hygiene` | Fail when local-only files are tracked by git |
 | `license` | Validate license policy structure and restricted references |
 | `supply-chain` | Run supply-chain policy and digest validation |
@@ -213,6 +229,7 @@ Examples:
 ./scripts/acpctl.sh validate config --production --secrets-env-file /etc/ai-control-plane/secrets.env
 ./scripts/acpctl.sh validate lint
 ./scripts/acpctl.sh validate detections
+./scripts/acpctl.sh validate policy-rules
 ```
 
 ### `db`

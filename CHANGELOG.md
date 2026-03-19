@@ -31,6 +31,7 @@ This repository uses:
 - External-review readiness documentation now packages the threat model, compliance crosswalk, evidence workflow, and claim-boundary guidance for future third-party assessments without overstating current validation.
 - Host-first observability now includes typed traffic, backup, and readiness status collectors plus a browser-friendly static operator dashboard snapshot via `make operator-dashboard`.
 - Typed vendor evidence ingest via `acpctl evidence ingest`, including compliance-export normalization, schema validation, artifact runs, and example payloads.
+- ACP-native local custom policy evaluation via `acpctl policy eval`, including tracked rule validation, request/response guardrail inspection, auditable decision artifacts, and sample policy-engine payloads.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
@@ -46,7 +47,7 @@ This repository uses:
 - Wave 2 operator adoption work is now productized through canonical make and `acpctl` entrypoints instead of manual key and reporting runbooks.
 - Host production docs and preflight checks now enforce the hardened support boundary: Debian 12+/Ubuntu 24.04+, verified SSH host keys, loopback-only non-TLS base access, and TLS for remote ingress.
 - Operator reporting now exposes recent routed traffic, backup freshness, and readiness-evidence freshness through `status`, `ops report`, and the new static HTML dashboard workflow.
-- Evidence handling now includes a typed local ingest surface for supported vendor compliance exports instead of requiring manual normalization.
+- Evidence handling now includes typed local ingest and policy-evaluation surfaces for supported vendor exports and ACP-native request/response guardrail evaluation instead of requiring manual normalization.
 
 ### Removed
 - Redundant empty placeholder packages: `internal/validate`, `internal/release`, and `internal/key`.

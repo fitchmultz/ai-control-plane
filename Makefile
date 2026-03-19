@@ -125,6 +125,8 @@ help-lint:
 	@echo '  $(COLOR_GREEN)lint-secrets$(COLOR_RESET)       Run secrets audit'
 	@echo '  $(COLOR_GREEN)format$(COLOR_RESET)             Format shell scripts'
 	@echo '  $(COLOR_GREEN)type-check$(COLOR_RESET)         Run Go type checks'
+	@echo '  $(COLOR_GREEN)validate-policy-rules$(COLOR_RESET) Validate tracked ACP custom policy rules'
+	@echo '  $(COLOR_GREEN)policy-eval$(COLOR_RESET)        Evaluate the sample/local request-response payload against custom policy rules'
 
 .PHONY: help-security
 help-security:

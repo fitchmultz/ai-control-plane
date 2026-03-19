@@ -23,6 +23,7 @@ GO_COVERAGE_CRITICAL_SPECS := \
 	./internal/gateway:85 \
 	./internal/chargeback:75 \
 	./internal/doctor:90 \
+	./internal/policyengine:90 \
 	./internal/status:85 \
 	./internal/status/collectors:90 \
 	./internal/status/runner:85

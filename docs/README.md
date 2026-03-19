@@ -8,6 +8,7 @@ Start here based on your role.
 - [Observability Signal Reference](observability/OPERATOR_SIGNAL_REFERENCE.md)
 - [OTEL Collector Setup](observability/OTEL_SETUP.md)
 - [Vendor Evidence Ingest](evidence/VENDOR_EVIDENCE_INGEST.md)
+- [ACP Custom Policy Engine](policy/CUSTOM_POLICY_ENGINE.md)
 - [HA And Failover Topology](deployment/HA_FAILOVER_TOPOLOGY.md)
 - [Active-Passive HA Failover Runbook](deployment/HA_FAILOVER_RUNBOOK.md)
 - [Certificate Lifecycle](deployment/CERTIFICATE_LIFECYCLE.md)
