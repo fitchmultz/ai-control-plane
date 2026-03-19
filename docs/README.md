@@ -18,6 +18,7 @@ Start here based on your role.
 
 - [Root README](../README.md)
 - [Compliance Crosswalk](COMPLIANCE_CROSSWALK.md)
+- [Security Whitepaper and Threat Model](security/SECURITY_WHITEPAPER_AND_THREAT_MODEL.md)
 - [Security And Governance](SECURITY_GOVERNANCE.md)
 - [Technical Architecture](technical-architecture.md)
 - [Support Matrix](reference/support-matrix.md)

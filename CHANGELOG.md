@@ -24,6 +24,7 @@ This repository uses:
 - Separate-host-aware off-host recovery manifests and evidence, including explicit `drill_mode`/`drill_host` labeling and a dedicated replacement-host manifest example.
 - Typed active-passive HA failover drill evidence via `acpctl host failover-drill` and `make ha-failover-drill`, plus a dedicated HA runbook, manifest example, and active-passive inventory example.
 - Buyer-safe compliance crosswalk covering SOC 2, ISO 27001, and NIST-style controls with explicit customer/shared/provider ownership.
+- Canonical security whitepaper and threat model covering architecture, trust boundaries, attacker paths, mitigations, residual risks, and control ownership.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

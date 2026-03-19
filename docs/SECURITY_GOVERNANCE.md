@@ -22,6 +22,7 @@ make security-gate
 ## References
 
 - [Compliance Crosswalk](COMPLIANCE_CROSSWALK.md)
+- [Security Whitepaper and Threat Model](security/SECURITY_WHITEPAPER_AND_THREAT_MODEL.md)
 - [Approved Models](reference/approved-models.md)
 - [Detection Rules Reference](reference/detections.md)
 - [Support Matrix](reference/support-matrix.md)

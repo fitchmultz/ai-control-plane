@@ -47,7 +47,6 @@ Objective: make security, procurement, and executive stakeholders comfortable sa
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 18 | **Publish a security whitepaper and threat model.** Strengthen technical credibility. | Procurement confidence improves when the risk story is explicit and professionally documented. | Architecture, trust boundaries, threats, mitigations, residual risks, and control ownership are documented in one buyer-safe artifact. |
 | 19 | **Publish public performance benchmarks and sizing guidance.** Move from “reference host only” to reproducible capacity evidence. | Buyers need sizing and performance evidence before they approve production spend. | Methodology, workload profiles, hardware and software baseline, results, and sizing caveats are published and reproducible. |
 | 20 | **Formalize CVE remediation and accepted-risk handling.** Make known limitations look governed rather than ad hoc. | Open vulnerabilities can be acceptable, but only when governance is credible and current. | Open CVEs have remediation plans or time-bounded accepted-risk records, a quarterly review cadence, and buyer-safe status communication. |
 | 21 | **Create an anonymized case-study and pilot closeout kit.** Turn delivery maturity into reusable external proof. | Social proof and measurable outcomes reduce sales friction. | A reusable case-study template, measurable outcomes format, and evidence-backed closeout packet exist for successful pilots. |
