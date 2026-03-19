@@ -20,6 +20,7 @@ package doctor
 import (
 	"context"
 
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -31,7 +32,7 @@ func (c gatewayHealthyCheck) Run(_ context.Context, opts Options) CheckResult {
 	return runtimeComponentCheck(opts, c.ID(), "Gateway Healthy", "gateway", "Gateway", func(component status.ComponentStatus) CheckResult {
 		if !component.Details.MasterKeyConfigured {
 			return withCheckDetails(
-				newCheckResult(c.ID(), "Gateway Healthy", status.HealthLevelUnhealthy, SeverityPrereq, "LITELLM_MASTER_KEY not set; cannot run authorized gateway check"),
+				newCheckResult(c.ID(), "Gateway Healthy", sharedhealth.LevelUnhealthy, SeverityPrereq, "LITELLM_MASTER_KEY not set; cannot run authorized gateway check"),
 				component.Details,
 				"Set LITELLM_MASTER_KEY in demo/.env",
 				"Or export it in your shell environment",
@@ -46,8 +47,8 @@ func (c gatewayHealthyCheck) Fix(ctx context.Context, opts Options) (bool, strin
 	return recoverGatewayRuntime(ctx, opts)
 }
 
-func severityForLevel(level status.HealthLevel) Severity {
-	if level == status.HealthLevelUnknown {
+func severityForLevel(level sharedhealth.Level) Severity {
+	if level == sharedhealth.LevelUnknown {
 		return SeverityRuntime
 	}
 	return SeverityDomain

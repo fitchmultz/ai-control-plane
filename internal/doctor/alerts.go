@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -33,7 +34,7 @@ import (
 type AlertFinding struct {
 	CheckID  string                  `json:"check_id"`
 	Name     string                  `json:"name"`
-	Level    status.HealthLevel      `json:"level"`
+	Level    sharedhealth.Level      `json:"level"`
 	Message  string                  `json:"message"`
 	Severity Severity                `json:"severity"`
 	Details  status.ComponentDetails `json:"details,omitempty"`
@@ -43,7 +44,7 @@ type AlertFinding struct {
 type AlertPayload struct {
 	Event     string             `json:"event"`
 	Source    string             `json:"source"`
-	Overall   status.HealthLevel `json:"overall"`
+	Overall   sharedhealth.Level `json:"overall"`
 	Timestamp string             `json:"timestamp"`
 	Findings  []AlertFinding     `json:"findings"`
 }
@@ -99,7 +100,7 @@ func (a SlackWebhookAdapter) Send(ctx context.Context, payload AlertPayload) err
 	}
 
 	color := "warning"
-	if payload.Overall == status.HealthLevelUnhealthy {
+	if payload.Overall == sharedhealth.LevelUnhealthy {
 		color = "danger"
 	}
 	fields := make([]field, 0, len(payload.Findings))
@@ -166,7 +167,7 @@ func NotifyActionableFindings(ctx context.Context, cfg config.AlertSettings, rep
 func BuildAlertPayload(report Report) AlertPayload {
 	findings := make([]AlertFinding, 0)
 	for _, result := range report.Results {
-		if result.Level == status.HealthLevelHealthy {
+		if result.Level == sharedhealth.LevelHealthy {
 			continue
 		}
 		if result.ID != "budget_findings" && result.ID != "detections_findings" {

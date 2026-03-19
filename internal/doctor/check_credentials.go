@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -41,7 +42,7 @@ func (c credentialsValidCheck) Run(_ context.Context, opts Options) CheckResult 
 
 		if !component.Details.MasterKeyConfigured {
 			return withCheckDetails(
-				newCheckResult(c.ID(), "Credentials Valid", status.HealthLevelUnhealthy, SeverityPrereq, "LITELLM_MASTER_KEY not set"),
+				newCheckResult(c.ID(), "Credentials Valid", sharedhealth.LevelUnhealthy, SeverityPrereq, "LITELLM_MASTER_KEY not set"),
 				details,
 				"Run: make install",
 				"Set LITELLM_MASTER_KEY environment variable",
@@ -50,7 +51,7 @@ func (c credentialsValidCheck) Run(_ context.Context, opts Options) CheckResult 
 
 		if component.Details.Error != "" && !component.Details.ModelsReachable {
 			return withCheckDetails(
-				newCheckResult(c.ID(), "Credentials Valid", status.HealthLevelWarning, SeverityDomain, "Gateway unreachable; cannot validate credentials"),
+				newCheckResult(c.ID(), "Credentials Valid", sharedhealth.LevelWarning, SeverityDomain, "Gateway unreachable; cannot validate credentials"),
 				details,
 				"Ensure services are running: make up",
 				"Check network connectivity",
@@ -60,7 +61,7 @@ func (c credentialsValidCheck) Run(_ context.Context, opts Options) CheckResult 
 		if component.Details.ModelsAuthorized && component.Details.ModelsHTTPStatus == 200 {
 			details.AuthStatus = "authorized"
 			return withCheckDetails(
-				newCheckResult(c.ID(), "Credentials Valid", status.HealthLevelHealthy, SeverityDomain, "Master key is valid"),
+				newCheckResult(c.ID(), "Credentials Valid", sharedhealth.LevelHealthy, SeverityDomain, "Master key is valid"),
 				details,
 			)
 		}
@@ -68,7 +69,7 @@ func (c credentialsValidCheck) Run(_ context.Context, opts Options) CheckResult 
 		if !component.Details.ModelsAuthorized {
 			details.AuthStatus = "unauthorized"
 			return withCheckDetails(
-				newCheckResult(c.ID(), "Credentials Valid", status.HealthLevelUnhealthy, SeverityDomain, "Master key is invalid or placeholder"),
+				newCheckResult(c.ID(), "Credentials Valid", sharedhealth.LevelUnhealthy, SeverityDomain, "Master key is invalid or placeholder"),
 				details,
 				"Regenerate master key: make key-gen-master",
 				"Check demo/.env for correct key",
@@ -76,7 +77,7 @@ func (c credentialsValidCheck) Run(_ context.Context, opts Options) CheckResult 
 		}
 
 		return withCheckDetails(
-			newCheckResult(c.ID(), "Credentials Valid", status.HealthLevelWarning, SeverityDomain, fmt.Sprintf("Unexpected response: %d", component.Details.ModelsHTTPStatus)),
+			newCheckResult(c.ID(), "Credentials Valid", sharedhealth.LevelWarning, SeverityDomain, fmt.Sprintf("Unexpected response: %d", component.Details.ModelsHTTPStatus)),
 			details,
 			"Check gateway status: make health",
 		)

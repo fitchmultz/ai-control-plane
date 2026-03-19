@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -52,7 +53,7 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 	if len(occupied) > 0 {
 		if occupiedPortsBelongToRunningACP(ctx, occupied, opts) {
 			return withCheckDetails(
-				newCheckResult(c.ID(), "Ports Free", status.HealthLevelHealthy, SeverityDomain, fmt.Sprintf("Required ports are bound by running AI Control Plane services: %v", occupied)),
+				newCheckResult(c.ID(), "Ports Free", sharedhealth.LevelHealthy, SeverityDomain, fmt.Sprintf("Required ports are bound by running AI Control Plane services: %v", occupied)),
 				status.ComponentDetails{
 					RequiredPorts: ports,
 					OccupiedPorts: occupied,
@@ -60,7 +61,7 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 			)
 		}
 		return withCheckDetails(
-			newCheckResult(c.ID(), "Ports Free", status.HealthLevelWarning, SeverityDomain, fmt.Sprintf("Ports already in use: %v (expected when services are already running)", occupied)),
+			newCheckResult(c.ID(), "Ports Free", sharedhealth.LevelWarning, SeverityDomain, fmt.Sprintf("Ports already in use: %v (expected when services are already running)", occupied)),
 			status.ComponentDetails{
 				RequiredPorts: ports,
 				OccupiedPorts: occupied,
@@ -73,7 +74,7 @@ func (c portsFreeCheck) Run(ctx context.Context, opts Options) CheckResult {
 	}
 
 	return withCheckDetails(
-		newCheckResult(c.ID(), "Ports Free", status.HealthLevelHealthy, SeverityDomain, fmt.Sprintf("All required ports available: %v", ports)),
+		newCheckResult(c.ID(), "Ports Free", sharedhealth.LevelHealthy, SeverityDomain, fmt.Sprintf("All required ports available: %v", ports)),
 		status.ComponentDetails{
 			RequiredPorts: ports,
 		},

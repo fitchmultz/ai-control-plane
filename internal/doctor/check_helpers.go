@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -63,7 +64,7 @@ func runtimeComponent(opts Options, name string) (status.ComponentStatus, bool) 
 	return component, ok
 }
 
-func newCheckResult(id string, name string, level status.HealthLevel, severity Severity, message string) CheckResult {
+func newCheckResult(id string, name string, level sharedhealth.Level, severity Severity, message string) CheckResult {
 	return CheckResult{
 		ID:       id,
 		Name:     name,
@@ -106,7 +107,7 @@ func runtimeInspectionMissing(id string, name string, component string) CheckRes
 	return newCheckResult(
 		id,
 		name,
-		status.HealthLevelUnknown,
+		sharedhealth.LevelUnknown,
 		SeverityRuntime,
 		fmt.Sprintf("%s runtime inspection did not produce a result", component),
 	)

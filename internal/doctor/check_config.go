@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -41,7 +42,7 @@ func (c configValidCheck) Run(ctx context.Context, opts Options) CheckResult {
 	}
 	if len(missingFiles) > 0 {
 		return withCheckDetails(
-			newCheckResult(c.ID(), "Config Valid", status.HealthLevelUnhealthy, SeverityPrereq, "Required deployment configuration files are missing"),
+			newCheckResult(c.ID(), "Config Valid", sharedhealth.LevelUnhealthy, SeverityPrereq, "Required deployment configuration files are missing"),
 			status.ComponentDetails{MissingFiles: missingFiles},
 			"Ensure repository is complete",
 			"Run: make install",
@@ -50,11 +51,11 @@ func (c configValidCheck) Run(ctx context.Context, opts Options) CheckResult {
 	envStatus, err := config.NewLoader().WithRepoRoot(opts.RepoRoot).RepoEnvStatus(ctx)
 	if err != nil || !envStatus.Exists {
 		return withCheckDetails(
-			newCheckResult(c.ID(), "Config Valid", status.HealthLevelWarning, SeverityPrereq, "Environment file demo/.env is missing"),
+			newCheckResult(c.ID(), "Config Valid", sharedhealth.LevelWarning, SeverityPrereq, "Environment file demo/.env is missing"),
 			status.ComponentDetails{},
 			"Run: make install-env",
 			"Populate required environment variables in demo/.env",
 		)
 	}
-	return newCheckResult(c.ID(), "Config Valid", status.HealthLevelHealthy, SeverityDomain, "Deployment configuration files are present")
+	return newCheckResult(c.ID(), "Config Valid", sharedhealth.LevelHealthy, SeverityDomain, "Deployment configuration files are present")
 }

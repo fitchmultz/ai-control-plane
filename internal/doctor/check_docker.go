@@ -26,6 +26,7 @@ import (
 	"context"
 	"strings"
 
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/proc"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
@@ -56,7 +57,7 @@ func (c dockerAvailableCheck) Run(ctx context.Context, opts Options) CheckResult
 			message = "Docker daemon requires permissions"
 		}
 		return withCheckDetails(
-			newCheckResult(c.ID(), "Docker Available", status.HealthLevelUnhealthy, SeverityPrereq, message),
+			newCheckResult(c.ID(), "Docker Available", sharedhealth.LevelUnhealthy, SeverityPrereq, message),
 			status.ComponentDetails{
 				Error: strings.TrimSpace(result.Stderr),
 			},
@@ -64,5 +65,5 @@ func (c dockerAvailableCheck) Run(ctx context.Context, opts Options) CheckResult
 		)
 	}
 
-	return newCheckResult(c.ID(), "Docker Available", status.HealthLevelHealthy, SeverityDomain, "Docker is available and daemon is accessible")
+	return newCheckResult(c.ID(), "Docker Available", sharedhealth.LevelHealthy, SeverityDomain, "Docker is available and daemon is accessible")
 }

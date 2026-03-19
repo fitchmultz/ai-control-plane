@@ -36,6 +36,7 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -55,7 +56,7 @@ const (
 type CheckResult struct {
 	ID          string                  `json:"id"`
 	Name        string                  `json:"name"`
-	Level       status.HealthLevel      `json:"level"`
+	Level       sharedhealth.Level      `json:"level"`
 	Severity    Severity                `json:"severity,omitempty"`
 	Message     string                  `json:"message"`
 	Details     status.ComponentDetails `json:"details,omitempty"`
@@ -88,7 +89,7 @@ type Options struct {
 
 // Report aggregates all check results.
 type Report struct {
-	Overall   status.HealthLevel `json:"overall"`
+	Overall   sharedhealth.Level `json:"overall"`
 	Timestamp string             `json:"timestamp"`
 	Duration  string             `json:"duration"`
 	Results   []CheckResult      `json:"results"`
@@ -115,7 +116,7 @@ func ExitCodeForReport(r Report) int {
 		case SeverityPrereq:
 			hasPrereq = true
 		case SeverityDomain:
-			if result.Level != status.HealthLevelHealthy {
+			if result.Level != sharedhealth.LevelHealthy {
 				hasDomain = true
 			}
 		}
@@ -127,7 +128,7 @@ func ExitCodeForReport(r Report) int {
 	if hasPrereq {
 		return exitcodes.ACPExitPrereq
 	}
-	if hasDomain || r.Overall != status.HealthLevelHealthy {
+	if hasDomain || r.Overall != sharedhealth.LevelHealthy {
 		return exitcodes.ACPExitDomain
 	}
 	return exitcodes.ACPExitSuccess
@@ -137,7 +138,7 @@ func ExitCodeForReport(r Report) int {
 func Run(ctx context.Context, checks []Check, opts Options) Report {
 	start := time.Now()
 	results := make([]CheckResult, 0, len(checks))
-	overall := status.HealthLevelHealthy
+	overall := sharedhealth.LevelHealthy
 
 	for _, check := range checks {
 		if _, skipped := opts.SkipChecks[check.ID()]; skipped {
@@ -147,7 +148,7 @@ func Run(ctx context.Context, checks []Check, opts Options) Report {
 		result := check.Run(ctx, opts)
 
 		// Attempt auto-remediation if requested and check is not healthy
-		if opts.Fix && result.Level != status.HealthLevelHealthy {
+		if opts.Fix && result.Level != sharedhealth.LevelHealthy {
 			if applied, msg, err := check.Fix(ctx, opts); err == nil && applied {
 				result.FixApplied = true
 				result.FixMessage = msg
@@ -158,10 +159,10 @@ func Run(ctx context.Context, checks []Check, opts Options) Report {
 			}
 		}
 
-		if result.Level == status.HealthLevelUnhealthy {
-			overall = status.HealthLevelUnhealthy
-		} else if result.Level == status.HealthLevelWarning && overall == status.HealthLevelHealthy {
-			overall = status.HealthLevelWarning
+		if result.Level == sharedhealth.LevelUnhealthy {
+			overall = sharedhealth.LevelUnhealthy
+		} else if result.Level == sharedhealth.LevelWarning && overall == sharedhealth.LevelHealthy {
+			overall = sharedhealth.LevelWarning
 		}
 
 		results = append(results, result)

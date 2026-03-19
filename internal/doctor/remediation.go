@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/mitchfultz/ai-control-plane/internal/docker"
-	"github.com/mitchfultz/ai-control-plane/internal/status"
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 )
 
 var runComposeUp = func(ctx context.Context, repoRoot string, services ...string) error {
@@ -44,7 +44,7 @@ var runComposeUp = func(ctx context.Context, repoRoot string, services ...string
 
 func recoverGatewayRuntime(ctx context.Context, opts Options) (bool, string, error) {
 	component, ok := runtimeComponent(opts, "gateway")
-	if !ok || component.Level == status.HealthLevelHealthy || !component.Details.MasterKeyConfigured {
+	if !ok || component.Level == sharedhealth.LevelHealthy || !component.Details.MasterKeyConfigured {
 		return false, "", nil
 	}
 
@@ -61,7 +61,7 @@ func recoverGatewayRuntime(ctx context.Context, opts Options) (bool, string, err
 
 func recoverEmbeddedDatabase(ctx context.Context, opts Options) (bool, string, error) {
 	component, ok := runtimeComponent(opts, "database")
-	if !ok || component.Level == status.HealthLevelHealthy || !strings.EqualFold(component.Details.Mode, "embedded") {
+	if !ok || component.Level == sharedhealth.LevelHealthy || !strings.EqualFold(component.Details.Mode, "embedded") {
 		return false, "", nil
 	}
 	if err := runComposeUp(ctx, opts.RepoRoot, "postgres"); err != nil {

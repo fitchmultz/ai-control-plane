@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/mitchfultz/ai-control-plane/internal/config"
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -38,7 +39,7 @@ func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 	statusResult := loader.RequiredRuntimeEnv(requiredVars)
 	if len(statusResult.Missing) > 0 {
 		return withCheckDetails(
-			newCheckResult(c.ID(), "Environment Variables Set", status.HealthLevelUnhealthy, SeverityPrereq, fmt.Sprintf("Missing required environment variables: %v", statusResult.Missing)),
+			newCheckResult(c.ID(), "Environment Variables Set", sharedhealth.LevelUnhealthy, SeverityPrereq, fmt.Sprintf("Missing required environment variables: %v", statusResult.Missing)),
 			status.ComponentDetails{
 				MissingVars: statusResult.Missing,
 			},
@@ -48,7 +49,7 @@ func (c envVarsSetCheck) Run(ctx context.Context, opts Options) CheckResult {
 		)
 	}
 	return withCheckDetails(
-		newCheckResult(c.ID(), "Environment Variables Set", status.HealthLevelHealthy, SeverityDomain, fmt.Sprintf("All required environment variables set (%d found)", len(statusResult.Found))),
+		newCheckResult(c.ID(), "Environment Variables Set", sharedhealth.LevelHealthy, SeverityDomain, fmt.Sprintf("All required environment variables set (%d found)", len(statusResult.Found))),
 		status.ComponentDetails{},
 	)
 }

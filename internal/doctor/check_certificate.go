@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/mitchfultz/ai-control-plane/internal/certlifecycle"
+	sharedhealth "github.com/mitchfultz/ai-control-plane/internal/health"
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
@@ -34,7 +35,7 @@ func (c certificateHealthyCheck) ID() string { return "certificate_healthy" }
 func (c certificateHealthyCheck) Run(_ context.Context, opts Options) CheckResult {
 	return runtimeComponentCheck(opts, c.ID(), "Certificate Healthy", "certificate", "Certificate", func(component status.ComponentStatus) CheckResult {
 		result := componentCheckResult(c.ID(), "Certificate Healthy", component, severityForLevel(component.Level))
-		if component.Level != status.HealthLevelHealthy {
+		if component.Level != sharedhealth.LevelHealthy {
 			result.Suggestions = append(result.Suggestions,
 				"List certificates: ./scripts/acpctl.sh cert list",
 				"Inspect details: ./scripts/acpctl.sh cert inspect --domain <host>",
