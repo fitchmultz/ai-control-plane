@@ -25,6 +25,7 @@ This repository uses:
 - Typed active-passive HA failover drill evidence via `acpctl host failover-drill` and `make ha-failover-drill`, plus a dedicated HA runbook, manifest example, and active-passive inventory example.
 - Buyer-safe compliance crosswalk covering SOC 2, ISO 27001, and NIST-style controls with explicit customer/shared/provider ownership.
 - Canonical security whitepaper and threat model covering architecture, trust boundaries, attacker paths, mitigations, residual risks, and control ownership.
+- `docs/PERFORMANCE_BASELINE.md` now serves as the published public benchmark and sizing artifact, with reproducible methodology, profile tables, hardware tiers, result bands, and explicit claim-boundary caveats.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

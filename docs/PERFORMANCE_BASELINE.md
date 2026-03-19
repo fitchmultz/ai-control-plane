@@ -1,41 +1,237 @@
-# Performance Baseline
+# Performance Benchmarks and Sizing Guidance
 
-This document defines the local performance harness for the validated host-first reference baseline.
+This document is the published performance and sizing artifact for the AI Control Plane host-first reference deployment.
 
-It is intentionally narrow. The goal is to answer, "what does this reference stack do on this host right now?" It is not meant to claim universal scale, customer-environment capacity, or production SLA proof.
+> **Claim boundary:** these benchmarks measure the current host-first reference stack on a specific host and configuration. They are useful as reproducible capacity evidence and regression evidence. They do **not** prove customer-environment capacity, production SLAs, WAN/provider latency, browser-route behavior, Kubernetes parity, or universal scale guarantees.
 
-## What This Harness Is For
+## What is published here
 
-Use the performance baseline to:
+This artifact publishes the roadmap-required benchmark inputs and interpretation rules:
 
-- measure gateway-added latency on the current host
-- compare one local run to another after a configuration change
-- produce a reference-host data point for buyer conversations
-- separate architecture claims from measured proof
+- methodology
+- workload profiles
+- hardware and software baseline
+- published result bands and interpretation guidance
+- sizing caveats
+- reproducibility steps
 
-Use it with the offline stack when you want deterministic, provider-independent results.
+The machine-readable source of truth for named workload profiles and hardware tiers is:
 
-## Canonical Commands
+- `demo/config/benchmark_thresholds.json`
 
-Start the offline stack if you want the most repeatable local result:
+The runnable harness is implemented in:
+
+- `internal/performance/baseline.go`
+- `internal/performance/profile.go`
+- `cmd/acpctl/cmd_benchmark.go`
+
+## Canonical commands
+
+Recommended reproducible path:
+
+```bash
+make up-offline
+make performance-baseline
+make performance-baseline PERFORMANCE_PROFILE=interactive
+make performance-baseline PERFORMANCE_PROFILE=burst
+make performance-baseline PERFORMANCE_PROFILE=sustained
+```
+
+Direct typed CLI remains available when you need machine-readable output:
+
+```bash
+./scripts/acpctl.sh benchmark baseline --json
+./scripts/acpctl.sh benchmark baseline --profile interactive --json
+./scripts/acpctl.sh benchmark baseline --profile burst --json
+./scripts/acpctl.sh benchmark baseline --profile sustained --json
+```
+
+## Benchmark methodology
+
+The benchmark harness measures the gateway by issuing concurrent HTTP requests to:
+
+- `POST /v1/chat/completions`
+
+For each measured request, the harness records:
+
+- per-request latency
+- success or failure status
+
+It then calculates:
+
+- total requests
+- success count
+- failure count
+- wall-clock duration
+- throughput in requests per second
+- average latency
+- p50 latency
+- p95 latency
+- minimum latency
+- maximum latency
+
+### Harness behavior
+
+| Aspect | Published behavior |
+| --- | --- |
+| Driver | `make performance-baseline` -> `acpctl benchmark baseline` |
+| Endpoint | `/v1/chat/completions` |
+| Default model | `mock-gpt` |
+| Default prompt shape | fixed short prompt for repeatability |
+| Default `max_tokens` | `32` |
+| Default raw baseline | `20` measured requests at concurrency `2` |
+| Named profiles | `interactive`, `burst`, `sustained` |
+| Warmup support | yes; named profiles define warmup counts |
+| Readiness guard | `make performance-baseline` waits for stack readiness before running |
+| Recommended mode for repeatability | offline stack with mock models |
+
+### Gateway URL resolution
+
+The benchmark target resolves in this order:
+
+1. `ACP_GATEWAY_URL`
+2. `GATEWAY_URL`
+3. `GATEWAY_HOST` + `LITELLM_PORT` + `ACP_GATEWAY_SCHEME` / `ACP_GATEWAY_TLS`
+4. fallback `http://127.0.0.1:4000`
+
+### Default lightweight baseline
+
+The default lightweight baseline exists for quick operator checks:
+
+- model: `mock-gpt`
+- warmup requests: `0`
+- measured requests: `20`
+- concurrency: `2`
+- `max_tokens`: `32`
+
+This is intentionally smaller than the named profiles so it is cheap to rerun during normal workflows.
+
+## Software baseline
+
+The published methodology assumes the current repository revision of the host-first reference deployment and benchmark harness.
+
+For the most repeatable local result, use:
+
+- the host-first Docker reference stack
+- the offline runtime path
+- mock models such as `mock-gpt` or `mock-claude`
+- the canonical Make entrypoint `make performance-baseline`
+
+This artifact documents how the repository measures performance today. If the harness changes, this document must change with it.
+
+## Workload profiles and published result bands
+
+Named workload profiles are defined in `demo/config/benchmark_thresholds.json` and runnable via `make performance-baseline PERFORMANCE_PROFILE=<name>`.
+
+| Profile | Description | Warmup Requests | Measured Requests | Concurrency | p95 Latency Max | Error Rate Max | Throughput Min | Estimated Cost Max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `interactive` | Low-latency interactive chat workloads (1-2 concurrent users) | 5 | 30 | 1 | 1800 ms | 1.0% | 1.0 req/s | $0.10 |
+| `burst` | Short-duration burst workloads (spikes in traffic) | 5 | 60 | 4 | 2500 ms | 2.0% | 3.0 req/s | $0.30 |
+| `sustained` | Sustained throughput workloads (batch processing, agents) | 10 | 100 | 6 | 3000 ms | 2.5% | 4.0 req/s | $0.50 |
+
+These published bands are **reference-host interpretation bands**, not customer contracts.
+
+### How to use the published bands
+
+- Use them to judge whether a local run looks healthy for the selected profile.
+- Use them to compare one local environment to another using the same benchmark shape.
+- Do **not** present them as guaranteed production numbers for a buyer's environment without rerunning there.
+
+## Reference host hardware tiers
+
+The benchmark catalog also publishes reference single-host hardware tiers.
+
+| Tier | CPU Cores | Memory | Storage | Network | Recommended For |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `single_host_minimum` | 4 | 8 GB | 50 GB | 100 Mbps | Development, testing, and light interactive workloads |
+| `single_host_recommended` | 8 | 16 GB | 100 GB | 1000 Mbps | Production interactive workloads up to 10 concurrent users |
+| `single_host_high_throughput` | 16 | 32 GB | 200 GB | 1000 Mbps | Burst and sustained throughput workloads, 20+ concurrent users |
+
+These are **starting-point sizing tiers**, not guaranteed capacity commitments.
+
+## Practical sizing guidance
+
+Use the tiers as a conservative starting point:
+
+- **Development, demos, and light validation:** start at `single_host_minimum`
+- **Production-oriented interactive workloads:** start at `single_host_recommended`
+- **Burst traffic, sustained throughput, or higher concurrency:** start at `single_host_high_throughput`
+
+Then rerun the named benchmark profiles using:
+
+- the customer's prompt sizes
+- the customer's model/provider path
+- the customer's real concurrency targets
+- the customer's database and observability topology
+
+If the customer wants a scale claim, measure their shape.
+
+## What the output means
+
+A benchmark summary reports:
+
+- total requests
+- concurrency
+- successes
+- failures
+- duration
+- throughput in requests per second
+- average latency
+- p50 latency
+- p95 latency
+- minimum latency
+- maximum latency
+
+Interpret the metrics as follows:
+
+| Signal | Why it matters |
+| --- | --- |
+| Failures | Any failure means the local stack did not complete cleanly for that run |
+| Throughput | Useful for comparing the same profile across hosts or configuration changes |
+| p50 latency | Midpoint experience for typical requests |
+| p95 latency | Tail latency; the most useful single buyer-facing latency signal in this harness |
+| Max latency | Helps identify isolated spikes or instability |
+| Avg latency | Good for trend comparison, but less important than p95 for user experience |
+
+## Result interpretation guidance
+
+### Healthy reference-host result
+
+A run is a healthy local reference-host data point when:
+
+- failures are `0`
+- throughput is at or above the selected profile's floor
+- p95 latency is within the selected profile's band
+- the host is otherwise healthy and not obviously cold-starting or resource-starved
+
+### If one threshold is missed
+
+- rerun once after the stack is warm
+- check `make health`
+- confirm the host is not under unrelated load
+- confirm the same model and profile were used
+
+### If multiple thresholds are missed or failures occur
+
+- do **not** present the result as a healthy reference-host baseline
+- investigate host saturation, Docker slowdown, gateway drift, or local dependency issues
+- rerun only after the environment is stable
+
+## Reproducibility guide
+
+### 1. Start the repeatable offline stack
 
 ```bash
 make up-offline
 ```
 
-Run the benchmark:
+### 2. Run the lightweight default baseline
 
 ```bash
 make performance-baseline
 ```
 
-Adjust the run shape when needed:
-
-```bash
-make performance-baseline PERFORMANCE_REQUESTS=40 PERFORMANCE_CONCURRENCY=4 PERFORMANCE_MODEL=mock-gpt
-```
-
-Run a named workload profile when you want the repository-defined shape:
+### 3. Run the published workload profiles
 
 ```bash
 make performance-baseline PERFORMANCE_PROFILE=interactive
@@ -43,113 +239,67 @@ make performance-baseline PERFORMANCE_PROFILE=burst
 make performance-baseline PERFORMANCE_PROFILE=sustained
 ```
 
-Direct CLI form:
+### 4. Capture machine-readable output when needed
 
 ```bash
-./scripts/acpctl.sh benchmark baseline --requests 20 --concurrency 2 --json
 ./scripts/acpctl.sh benchmark baseline --profile interactive --json
+./scripts/acpctl.sh benchmark baseline --profile burst --json
+./scripts/acpctl.sh benchmark baseline --profile sustained --json
 ```
 
-## Default Baseline Shape
+### 5. Compare like-for-like
 
-The default harness uses:
+Only compare runs that keep these constant:
 
-- gateway URL: resolved from `ACP_GATEWAY_URL` or `GATEWAY_URL`, then `GATEWAY_HOST` + `LITELLM_PORT` + `ACP_GATEWAY_SCHEME`/`ACP_GATEWAY_TLS`, then `http://127.0.0.1:4000`
-- model: `mock-gpt`
-- requests: `20`
-- concurrency: `2`
-- max tokens: `32`
+- profile or raw request shape
+- model
+- prompt shape
+- `max_tokens`
+- host tier
+- gateway configuration
+- database mode/topology
+- observability/security sidecars that add overhead
 
-These defaults are intentionally conservative so the command is lightweight and safe to rerun during operator workflows.
+## Honest sizing caveats
 
-Reference thresholds and hardware guidance are defined in `demo/config/benchmark_thresholds.json`.
+This artifact intentionally does **not** claim more than the repository currently proves.
 
-## What The Output Means
+It does **not** prove:
 
-The summary reports:
-
-- total requests
-- concurrency level
-- success and failure counts
-- wall-clock duration
-- throughput in requests per second
-- latency distribution: average, p50, p95, min, and max
-
-Interpret the result as a local reference-host baseline only.
-
-## Default Threshold Guidance
-
-For the default offline baseline shape (`mock-gpt`, `20` requests, concurrency `2`), use this guidance:
-
-| Signal | Healthy reference-host guidance | What it means |
-|---|---|---|
-| Failures | `0` | The baseline should complete cleanly in the validated reference environment |
-| Throughput | `>= 3 req/s` | Lower values usually mean the host is saturated, cold, or unhealthy |
-| p95 latency | `<= 2500 ms` | Above this, the local stack is too sluggish to present as a healthy baseline |
-| Average latency | `<= 1200 ms` | Sustained average latency above this suggests local contention or startup drag |
-| Max latency | Review if `> 5000 ms` | One slow request is acceptable; repeated spikes need explanation |
-
-These are operator guidance thresholds, not contractual service levels.
-
-## Interpreting Threshold Breaches
-
-If the baseline breaches one threshold:
-
-- rerun once after the stack is warm
-- confirm the host is not resource-constrained
-- check `make health` and recent restart activity
-
-If the baseline breaches multiple thresholds:
-
-- do not present the result as a healthy reference-host baseline
-- investigate local host saturation, Docker slowdown, or gateway configuration drift
-- regenerate the baseline before using it in a customer conversation
-
-## Workload Profiles
-
-The repository also carries broader reference profiles in `demo/config/benchmark_thresholds.json`:
-
-- `interactive`
-- `burst`
-- `sustained`
-
-Those profiles are now runnable through the benchmark command and Make target. Treat them as reference-host workload shapes, not universal proof. If you use a profile in a buyer conversation, rerun it in the target environment before making rollout claims.
-
-## What This Does Not Prove
-
-This harness does not prove:
-
-- customer-environment throughput
+- customer-environment throughput without rerunning there
 - WAN or provider latency
-- SaaS/browser route behavior
+- browser or SaaS-route behavior
 - Kubernetes/Helm parity
-- procurement-grade scale commitments
+- multi-host HA behavior
+- procurement-grade SLA commitments
 
-For enterprise conversations, present these numbers as:
+It must also be read alongside current limitations:
 
-- local baseline evidence
-- useful for regression detection
-- rerun required in the target customer environment
+- the supported host-first deployment remains constrained by the documented single-node / no-automatic-failover limitation
+- provider-backed runs can differ materially from offline mock-model runs
+- prompt size and token volume can dominate latency more than raw request count
+- database topology, TLS posture, logging, DLP/guardrails, and observability settings can change the result
+- offline token and cost estimates are approximations, not billing truth
 
-## Recommended Use In Sales And Delivery
+Primary limitation reference:
 
-Use the benchmark as supporting evidence, not as the lead proof artifact.
+- `docs/KNOWN_LIMITATIONS.md`
 
-It is strongest when paired with:
+## Local-only benchmark outputs
 
-- `make readiness-evidence`
-- `docs/ENTERPRISE_PILOT_PACKAGE.md`
-- `docs/PILOT_CONTROL_OWNERSHIP_MATRIX.md`
-- `docs/BROWSER_WORKSPACE_PROOF_TRACK.md`
+Per-run benchmark outputs are intentionally local-only runtime evidence. The committed artifact in this repository is the benchmark methodology, workload-profile catalog, hardware tiers, interpretation guidance, and sizing caveats documented here.
 
-That combination lets you say:
+When current numbers are needed, regenerate them locally from the current stack instead of treating old run captures as stable proof.
 
-- this is what the baseline does locally
-- this is what the repo can currently prove
-- this is what still must be validated in the customer environment
+## How to talk about scale without overclaiming
 
-## Recommended Talk Track
+Use this talk track:
 
-When a buyer asks about scale, the clean answer is:
+> We publish a repeatable benchmark methodology, named workload profiles, and reference host sizing tiers for the host-first stack. Those results are useful as local capacity evidence and regression evidence, but we still rerun the same benchmark in the customer environment before making rollout or spend commitments.
 
-> We keep a repeatable local reference-host baseline and treat it as regression evidence, not as universal capacity proof. We can show current throughput and latency on the validated host-first stack, then rerun the same measurement in your environment before making rollout claims.
+## Related documents
+
+- [ENTERPRISE_BUYER_OBJECTIONS.md](ENTERPRISE_BUYER_OBJECTIONS.md)
+- [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)
+- [ARTIFACTS.md](ARTIFACTS.md)
+- [DEPLOYMENT.md](DEPLOYMENT.md)

@@ -108,14 +108,14 @@ Primary references:
 
 ## 5. "Will this scale in our environment?"
 
-**Short answer:** The repo now ships a runnable local benchmark baseline and named workload profiles, but those results are still reference-host evidence rather than customer-environment capacity proof.
+**Short answer:** The repo now publishes a reproducible benchmark methodology, workload profiles, reference hardware tiers, and sizing caveats for the host-first reference stack, but those results are still reference-host evidence rather than customer-environment capacity proof.
 
 **Repo proof now:**
 - `make performance-baseline`
 - `make performance-baseline PERFORMANCE_PROFILE=interactive`
 - `make performance-baseline PERFORMANCE_PROFILE=burst`
 - `make performance-baseline PERFORMANCE_PROFILE=sustained`
-- Performance interpretation rules and thresholds are documented for the host-first reference baseline.
+- Published methodology, workload profiles, hardware tiers, result interpretation guidance, and sizing caveats live in `docs/PERFORMANCE_BASELINE.md`.
 
 **Customer dependency:**
 - load profile
