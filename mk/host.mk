@@ -11,6 +11,7 @@
 #   - Does not handle Kubernetes deployments
 
 INVENTORY ?= deploy/ansible/inventory/hosts.yml
+HA_FAILOVER_MANIFEST ?= demo/logs/recovery-inputs/ha_failover_drill.yaml
 
 .PHONY: cert-status
 cert-status: ## Check certificate lifecycle status
@@ -55,6 +56,11 @@ host-check: ## Run declarative host preflight/check mode
 host-apply: ## Run declarative host apply/converge
 	@echo '$(COLOR_BOLD)Running host apply mode...$(COLOR_RESET)'
 	@$(ACPCTL_BIN) host apply --inventory "$(INVENTORY)"
+
+.PHONY: ha-failover-drill
+ha-failover-drill: ## Validate a customer-operated active-passive failover drill manifest
+	@echo '$(COLOR_BOLD)Archiving active-passive failover drill evidence...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) host failover-drill --manifest "$(HA_FAILOVER_MANIFEST)"
 
 .PHONY: host-install
 host-install: ## Install systemd service and automated backup timer

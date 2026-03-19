@@ -85,7 +85,7 @@ Truthful availability boundary:
 - A host failure, local storage failure, or database failure can still take down the entire deployment because those components share one failure domain.
 - Customer-owned DNS, load balancers, and network controls determine any external traffic failover behavior.
 
-See [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) for the full failure-domain model, RPO/RTO truth, and the next credible active-passive pattern. See [deployment/DISASTER_RECOVERY.md](deployment/DISASTER_RECOVERY.md) for the supported restore workflow after failure.
+See [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) for the full failure-domain model, RPO/RTO truth, and the next credible active-passive pattern. See [deployment/HA_FAILOVER_RUNBOOK.md](deployment/HA_FAILOVER_RUNBOOK.md) for the customer-operated failover drill workflow and evidence contract. See [deployment/DISASTER_RECOVERY.md](deployment/DISASTER_RECOVERY.md) for the supported restore workflow after failure.
 
 ## Certificate Lifecycle Workflow
 
@@ -123,7 +123,8 @@ See [deployment/UPGRADE_MIGRATION.md](deployment/UPGRADE_MIGRATION.md) for the f
 
 ## Inventory Guidance
 
-Use `deploy/ansible/inventory/hosts.example.yml` as the starting point.
+Use `deploy/ansible/inventory/hosts.example.yml` as the starting point for the single-host supported baseline.
+Use `deploy/ansible/inventory/hosts.ha.example.yml` when preparing a customer-operated active-passive failover drill.
 
 Recommended patterns:
 
@@ -152,5 +153,6 @@ Use `make ci-pr` for fast deterministic checks and `make ci` for the full suppor
 - [Architecture](technical-architecture.md)
 - [Security And Governance](SECURITY_GOVERNANCE.md)
 - [HA And Failover Topology](deployment/HA_FAILOVER_TOPOLOGY.md)
+- [Active-Passive HA Failover Runbook](deployment/HA_FAILOVER_RUNBOOK.md)
 - [Disaster Recovery](deployment/DISASTER_RECOVERY.md)
 - [ACPCTL Reference](reference/acpctl.md)

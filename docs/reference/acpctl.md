@@ -300,6 +300,7 @@ Host-first deployment and operations.
 | `preflight` | Validate host readiness |
 | `check` | Run declarative host preflight/check mode |
 | `apply` | Run declarative host apply/converge |
+| `failover-drill` | Validate a customer-operated active-passive failover drill manifest and archive evidence |
 | `install` | Install systemd service and automated backup timer |
 | `uninstall` | Uninstall systemd service and automated backup timer |
 | `service-status` | Show service and backup timer status |
@@ -313,6 +314,7 @@ Examples:
 ./scripts/acpctl.sh host preflight
 ./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.yml
 ./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.yml
+./scripts/acpctl.sh host failover-drill --manifest demo/logs/recovery-inputs/ha_failover_drill.yaml
 ./scripts/acpctl.sh host install --service-user acp --backup-retention-keep 14
 ./scripts/acpctl.sh cert renew-auto --env-file /etc/ai-control-plane/secrets.env
 ```

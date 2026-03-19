@@ -1,0 +1,71 @@
+# AI Control Plane - Example Active-Passive HA Inventory
+#
+# Purpose: Example inventory for the customer-operated active-passive HA reference pattern.
+#          Copy this file to a host-local inventory and customize for your environment.
+#
+# Security Notes:
+#   - Do NOT commit real hostnames, IPs, or secrets to version control.
+#   - Keep secrets in external files referenced by path (password_file).
+#   - Verify SSH host keys instead of disabling StrictHostKeyChecking.
+#
+# Usage:
+#   cp hosts.ha.example.yml hosts.ha.yml
+#   # Edit hosts.ha.yml with your actual values
+#   ./scripts/acpctl.sh host check --inventory deploy/ansible/inventory/hosts.ha.yml --limit acp-passive-1
+#   ./scripts/acpctl.sh host apply --inventory deploy/ansible/inventory/hosts.ha.yml --limit acp-passive-1
+#
+# HA boundary note:
+#   - This inventory supports a customer-operated active-passive reference pattern only.
+#   - ACP does not automate failover, replication, or DNS/LB/VIP cutover.
+
+---
+all:
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_private_key_file: ~/.ssh/acp_gateway_key
+  children:
+    gateway:
+      hosts:
+        acp-active-1:
+          ansible_host: 192.168.1.122
+          ansible_user: ubuntu
+          ansible_port: 22
+          acp_repo_path: /opt/ai-control-plane
+          acp_env_file: /etc/ai-control-plane/secrets.env
+          acp_runtime_overlays: [tls]
+          acp_public_url: https://gateway.example.com
+          acp_ha_role: active
+          acp_ha_peer_host: acp-passive-1
+          acp_host_firewall_tls_allowed_cidrs:
+            - 203.0.113.0/24
+            - 2001:db8::/48
+          acp_external_db:
+            enabled: false
+            host: db.internal.example
+            port: 5432
+            database: litellm
+            user: litellm
+            sslmode: require
+            password_file: /etc/acp/secrets/postgres_password
+
+        acp-passive-1:
+          ansible_host: 192.168.1.123
+          ansible_user: ubuntu
+          ansible_port: 22
+          acp_repo_path: /opt/ai-control-plane
+          acp_env_file: /etc/ai-control-plane/secrets.env
+          acp_runtime_overlays: [tls]
+          acp_public_url: https://gateway.example.com
+          acp_ha_role: passive
+          acp_ha_peer_host: acp-active-1
+          acp_host_firewall_tls_allowed_cidrs:
+            - 203.0.113.0/24
+            - 2001:db8::/48
+          acp_external_db:
+            enabled: false
+            host: db.internal.example
+            port: 5432
+            database: litellm
+            user: litellm
+            sslmode: require
+            password_file: /etc/acp/secrets/postgres_password

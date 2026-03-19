@@ -15,6 +15,8 @@ Generated evidence is local-only and intentionally not committed. See [ARTIFACTS
 
 It does **not** prove customer-environment controls such as SWG/CASB enforcement, IdP policy correctness, browser management, or customer SIEM retention. Those must be validated during the pilot with customer-owned systems.
 
+When `READINESS_INCLUDE_PRODUCTION=1` is used and a truthful `demo/logs/recovery-inputs/ha_failover_drill.yaml` manifest is present, the production-only evidence plan also archives the customer-operated active-passive failover drill proof.
+
 ## Canonical Commands
 
 Baseline proof pack:

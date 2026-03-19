@@ -186,6 +186,7 @@ help-host:
 	@echo '  $(COLOR_GREEN)host-preflight$(COLOR_RESET)     Run preflight checks'
 	@echo '  $(COLOR_GREEN)host-check$(COLOR_RESET)         Check mode'
 	@echo '  $(COLOR_GREEN)host-apply$(COLOR_RESET)         Apply mode'
+	@echo '  $(COLOR_GREEN)ha-failover-drill$(COLOR_RESET)  Archive a customer-operated active-passive failover drill'
 	@echo '  $(COLOR_GREEN)host-install$(COLOR_RESET)       Install systemd service and backup timer'
 	@echo '  $(COLOR_GREEN)host-uninstall$(COLOR_RESET)     Remove systemd service and installed timers'
 	@echo '  $(COLOR_GREEN)host-service-status$(COLOR_RESET) Show service and installed timer status'

@@ -6,6 +6,7 @@ Start here based on your role.
 
 - [Operations And Deployment](DEPLOYMENT.md)
 - [HA And Failover Topology](deployment/HA_FAILOVER_TOPOLOGY.md)
+- [Active-Passive HA Failover Runbook](deployment/HA_FAILOVER_RUNBOOK.md)
 - [Certificate Lifecycle](deployment/CERTIFICATE_LIFECYCLE.md)
 - [Upgrade And Migration](deployment/UPGRADE_MIGRATION.md)
 - [Support](SUPPORT.md)

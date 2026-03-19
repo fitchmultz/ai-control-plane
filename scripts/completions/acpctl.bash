@@ -60,7 +60,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         host)
-            local subcmds="preflight check apply install uninstall service-status service-start service-stop service-restart"
+            local subcmds="preflight check apply failover-drill install uninstall service-status service-start service-stop service-restart"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         *)

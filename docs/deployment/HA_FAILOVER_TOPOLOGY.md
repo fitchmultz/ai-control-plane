@@ -137,9 +137,9 @@ Recommended characteristics:
 
 Important boundary:
 
-- This pattern is **reference guidance only** in the current repository.
-- The repo does **not** currently ship validated multi-host Ansible automation, automated PostgreSQL promotion, or a supported cutover controller for this pattern.
-- Do **not** present this pattern as a validated supported topology until the repo ships and tests it.
+- This pattern is **customer-operated reference guidance** in the current repository.
+- The repo now ships a typed failover-drill evidence workflow and runbook for manual active-passive proof, but ACP still does **not** automate multi-host failover, PostgreSQL promotion, or customer-owned cutover.
+- Do **not** present this pattern as automatic failover or a managed cutover controller.
 
 ## Decision Guide
 
@@ -153,6 +153,7 @@ Important boundary:
 ## Related Documents
 
 - [Operations And Deployment](../DEPLOYMENT.md)
+- [Active-Passive HA Failover Runbook](HA_FAILOVER_RUNBOOK.md)
 - [Disaster Recovery](DISASTER_RECOVERY.md)
 - [Single-Tenant Production Contract](SINGLE_TENANT_PRODUCTION_CONTRACT.md)
 - [Support](../SUPPORT.md)

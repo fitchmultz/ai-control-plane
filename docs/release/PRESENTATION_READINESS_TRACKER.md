@@ -21,6 +21,7 @@ The generated tracker for the latest run lives at:
 | --- | --- | --- |
 | Local CI Gate | The host-first validated baseline is green | `make ci` |
 | Production CI Gate | Customer-like host invariants pass when secrets are available | `make readiness-evidence READINESS_INCLUDE_PRODUCTION=1 SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env` |
+| Active-Passive Failover Drill Evidence | Customer-operated HA failover proof exists with replication, fencing, promotion, cutover, and postcheck evidence | `make ha-failover-drill HA_FAILOVER_MANIFEST=demo/logs/recovery-inputs/ha_failover_drill.yaml` |
 | Supply Chain Gate | The supply-chain contract passes | `make supply-chain-gate` |
 | Allowlist Expiry Gate | Time-bound exceptions remain within policy | `make supply-chain-allowlist-expiry-check` |
 | Release Bundle Gate | Deployment bundle builds and verifies | `make release-bundle`; `make release-bundle-verify` |

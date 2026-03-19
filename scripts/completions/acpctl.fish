@@ -77,6 +77,7 @@ complete -c acpctl -n '__fish_seen_subcommand_from upgrade' -a 'rollback' -d 'Re
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'preflight' -d 'Validate host readiness'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'check' -d 'Run declarative host preflight/check mode'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'apply' -d 'Run declarative host apply/converge'
+complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'failover-drill' -d 'Validate a customer-operated active-passive failover drill manifest and archive evidence'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'install' -d 'Install systemd service and automated backup timer'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'uninstall' -d 'Uninstall systemd service and automated backup timer'
 complete -c acpctl -n '__fish_seen_subcommand_from host' -a 'service-status' -d 'Show service and backup timer status'

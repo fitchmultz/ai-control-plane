@@ -1,0 +1,35 @@
+---
+# Purpose:
+#   Example active-passive HA failover drill manifest for customer-operated proof runs.
+# Responsibilities:
+#   - Show the required replication, fencing, promotion, cutover, and postcheck inputs.
+# Scope:
+#   - Example data only; operators must replace every placeholder before use.
+# Usage:
+#   - Copy to demo/logs/recovery-inputs/ha_failover_drill.yaml and update paths.
+# Invariants/Assumptions:
+#   - ACP validates evidence files after operators capture them; ACP does not automate the drill.
+#   - active_host and passive_host should match the selectors you plan to use with `acpctl host ... --limit`.
+#   - secrets_env_file must be the absolute path present on both hosts.
+#   - traffic_cutover.method must stay truthful to the customer-operated cutover path.
+drill_host: replacement-vm-1
+inventory_path: deploy/ansible/inventory/hosts.ha.example.yml
+secrets_env_file: /etc/ai-control-plane/secrets.env
+active_host: acp-active-1
+passive_host: acp-passive-1
+replication_evidence_path: /var/tmp/ai-control-plane-ha/replication-status.txt
+fencing:
+  method: ipmi-power-off
+  evidence_path: /var/tmp/ai-control-plane-ha/fencing-evidence.txt
+promotion:
+  promoted_host: acp-passive-1
+  evidence_path: /var/tmp/ai-control-plane-ha/promotion-evidence.txt
+traffic_cutover:
+  method: dns
+  evidence_path: /var/tmp/ai-control-plane-ha/traffic-cutover-evidence.txt
+postcheck_evidence_path: /var/tmp/ai-control-plane-ha/postcheck-evidence.txt
+expected_repo_version: v0.0.0-example
+notes: >
+  Capture replication evidence before fencing the primary. Then fence the old
+  primary, promote the passive node, run host convergence on the promoted host,
+  perform the customer-owned traffic swing, and record final health/smoke proof.

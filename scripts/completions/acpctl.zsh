@@ -206,6 +206,7 @@ _acpctl_host() {
         "preflight:Validate host readiness"
         "check:Run declarative host preflight/check mode"
         "apply:Run declarative host apply/converge"
+        "failover-drill:Validate a customer-operated active-passive failover drill manifest and archive evidence"
         "install:Install systemd service and automated backup timer"
         "uninstall:Uninstall systemd service and automated backup timer"
         "service-status:Show service and backup timer status"

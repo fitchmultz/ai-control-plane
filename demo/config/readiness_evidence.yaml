@@ -65,3 +65,16 @@ gates:
       Validates a customer-owned off-host backup copy by digest and scratch restore,
       and emits evidence proving rebuild can start from off-host inputs rather than
       canonical same-host demo/backups artifacts only.
+
+  - id: ha_failover_drill_evidence
+    title: Active-Passive Failover Drill Evidence
+    required: true
+    production_only: true
+    log_name: make-ha-failover-drill.log
+    command:
+      - ha-failover-drill
+      - HA_FAILOVER_MANIFEST=demo/logs/recovery-inputs/ha_failover_drill.yaml
+    notes: >
+      Validates a customer-operated active-passive failover drill manifest and archives
+      replication, fencing, promotion, traffic-cutover, and post-cutover evidence
+      without implying automatic failover support.
