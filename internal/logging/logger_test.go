@@ -64,3 +64,27 @@ func TestErrHelper(t *testing.T) {
 		t.Fatal("expected non-empty error string")
 	}
 }
+
+func TestWorkflowHelpersEmitCanonicalEvents(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(Options{
+		Writer: &buf,
+		Format: FormatText,
+		Level:  slog.LevelInfo,
+		Attrs:  []slog.Attr{slog.String("component", "test")},
+	})
+
+	ctx := WithLogger(context.Background(), logger)
+	workflowLogger := WorkflowLogger(ctx, slog.String("workflow", "demo"))
+	WorkflowStart(workflowLogger, slog.String("stage", "start"))
+	WorkflowWarn(workflowLogger, slog.String("stage", "warn"))
+	WorkflowFailure(workflowLogger, context.DeadlineExceeded, slog.String("stage", "failed"))
+	WorkflowComplete(workflowLogger, slog.String("stage", "complete"))
+
+	output := buf.String()
+	for _, want := range []string{"workflow.start", "workflow.warn", "workflow.failed", "workflow.complete", "workflow=demo", "error=\"context deadline exceeded\""} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("expected %q in log output, got %q", want, output)
+		}
+	}
+}

@@ -23,11 +23,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/mitchfultz/ai-control-plane/internal/closeout"
 	"github.com/mitchfultz/ai-control-plane/internal/exitcodes"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 )
@@ -118,6 +120,7 @@ func bindPilotCloseoutVerifyOptions(bindCtx commandBindContext, input parsedComm
 func runPilotCloseoutBundleBuildTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
 	options := raw.(closeout.Options)
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "pilot_closeout_bundle_build")))
 
 	printCommandSection(runCtx.Stdout, out, "Building pilot closeout bundle")
 	summary, err := closeout.Build(ctx, options)
@@ -133,9 +136,10 @@ func runPilotCloseoutBundleBuildTyped(ctx context.Context, runCtx commandRunCont
 	return exitcodes.ACPExitSuccess
 }
 
-func runPilotCloseoutBundleVerifyTyped(_ context.Context, runCtx commandRunContext, raw any) int {
+func runPilotCloseoutBundleVerifyTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
 	runDir := raw.(string)
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "pilot_closeout_bundle_verify")))
 
 	if runDir == "" {
 		resolvedRunDir, err := closeout.ResolveLatestRun(repopath.DemoLogsPath(runCtx.RepoRoot, "pilot-closeout"))
@@ -148,7 +152,7 @@ func runPilotCloseoutBundleVerifyTyped(_ context.Context, runCtx commandRunConte
 
 	printCommandSection(runCtx.Stdout, out, "Verifying pilot closeout bundle")
 	printCommandDetail(runCtx.Stdout, "Run directory", runDir)
-	summary, err := closeout.NewVerifier().VerifyRun(runDir)
+	summary, err := closeout.NewVerifier().VerifyRun(ctx, runDir)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain

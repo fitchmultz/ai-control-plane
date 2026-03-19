@@ -56,12 +56,18 @@ type VerificationResult struct {
 }
 
 // Verify verifies a release bundle
-func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*VerificationResult, error) {
-	result := &VerificationResult{}
-	logger := logging.FromContext(ctx).With(
+func (v *Verifier) Verify(ctx context.Context, bundlePath string) (result *VerificationResult, err error) {
+	result = &VerificationResult{}
+	logger := logging.WorkflowLogger(ctx,
 		slog.String("component", "bundle"),
 		slog.String("workflow", "release_bundle_verify"),
 	)
+	logging.WorkflowStart(logger, slog.String("bundle_path", bundlePath))
+	defer func() {
+		if err != nil {
+			logging.WorkflowFailure(logger, err, slog.String("bundle_path", bundlePath))
+		}
+	}()
 
 	// Resolve to absolute path
 	if !filepath.IsAbs(bundlePath) {
@@ -69,7 +75,7 @@ func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*Verification
 		bundlePath = filepath.Join(wd, bundlePath)
 	}
 
-	if _, err := os.Stat(bundlePath); err != nil {
+	if _, err = os.Stat(bundlePath); err != nil {
 		return nil, fmt.Errorf("bundle not found: %s", bundlePath)
 	}
 
@@ -97,7 +103,7 @@ func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*Verification
 
 	if expectedHash != actualHash {
 		result.Errors = append(result.Errors, "bundle tarball checksum mismatch - possible tampering")
-		logger.Error("workflow.complete", slog.String("status", "fail"), slog.String("reason", "checksum mismatch"))
+		logging.WorkflowFailure(logger, fmt.Errorf("checksum mismatch"), slog.String("bundle_path", bundlePath), slog.String("status", "fail"))
 		return result, nil
 	}
 	result.SidecarValid = true
@@ -109,7 +115,7 @@ func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*Verification
 	}
 	defer os.RemoveAll(extractDir)
 
-	if err := v.extractTarball(bundlePath, extractDir); err != nil {
+	if err = v.extractTarball(bundlePath, extractDir); err != nil {
 		return nil, fmt.Errorf("failed to extract bundle: %w", err)
 	}
 
@@ -122,8 +128,9 @@ func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*Verification
 	}
 	for _, file := range requiredFiles {
 		path := filepath.Join(extractDir, file)
-		if _, err := os.Stat(path); err != nil {
+		if _, err = os.Stat(path); err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("missing %s in bundle", file))
+			logging.WorkflowFailure(logger, fmt.Errorf("missing required bundle file"), slog.String("bundle_path", bundlePath), slog.String("missing_file", file), slog.String("status", "fail"))
 			return result, nil
 		}
 	}
@@ -132,14 +139,14 @@ func (v *Verifier) Verify(ctx context.Context, bundlePath string) (*Verification
 	// Verify payload checksums
 	payloadDir := filepath.Join(extractDir, "payload")
 	sha256sumsPath := filepath.Join(extractDir, "sha256sums.txt")
-	if err := v.verifyChecksums(payloadDir, sha256sumsPath); err != nil {
+	if err = v.verifyChecksums(payloadDir, sha256sumsPath); err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("payload checksum verification failed: %v", err))
-		logger.Error("workflow.complete", slog.String("status", "fail"), logging.Err(err))
+		logging.WorkflowFailure(logger, err, slog.String("bundle_path", bundlePath), slog.String("status", "fail"))
 		return result, nil
 	}
 	result.PayloadValid = true
 
-	logger.Info("workflow.complete", slog.String("status", "pass"), slog.String("bundle_path", bundlePath))
+	logging.WorkflowComplete(logger, slog.String("status", "pass"), slog.String("bundle_path", bundlePath))
 	return result, nil
 }
 

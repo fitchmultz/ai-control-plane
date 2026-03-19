@@ -111,7 +111,7 @@ func bindReadinessEvidenceVerifyOptions(bindCtx commandBindContext, input parsed
 func runReadinessEvidenceRunTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
 	options := raw.(readiness.Options)
-	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "readiness_evidence")))
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "readiness_evidence_run")))
 
 	printCommandSection(runCtx.Stdout, out, "Generating readiness evidence")
 	summary, err := readiness.RunContext(ctx, options)
@@ -132,9 +132,10 @@ func runReadinessEvidenceRunTyped(ctx context.Context, runCtx commandRunContext,
 	return exitcodes.ACPExitSuccess
 }
 
-func runReadinessEvidenceVerifyTyped(_ context.Context, runCtx commandRunContext, raw any) int {
+func runReadinessEvidenceVerifyTyped(ctx context.Context, runCtx commandRunContext, raw any) int {
 	out := output.New()
 	runDir := raw.(string)
+	ctx = logging.WithLogger(ctx, ensureWorkflowLogger(runCtx).With(slog.String("workflow", "readiness_evidence_verify")))
 
 	if runDir == "" {
 		resolvedRunDir, err := readiness.ResolveLatestRun(repopath.DemoLogsPath(runCtx.RepoRoot, "evidence"))
@@ -148,7 +149,7 @@ func runReadinessEvidenceVerifyTyped(_ context.Context, runCtx commandRunContext
 	printCommandSection(runCtx.Stdout, out, "Verifying readiness evidence")
 	printCommandDetail(runCtx.Stdout, "Run directory", runDir)
 
-	summary, err := readiness.NewVerifier().VerifyRun(runDir)
+	summary, err := readiness.NewVerifier().VerifyRun(ctx, runDir)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitDomain

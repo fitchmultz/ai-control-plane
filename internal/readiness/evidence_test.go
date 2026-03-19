@@ -70,7 +70,7 @@ func TestRunContextGeneratesArtifactsAndVerifierPasses(t *testing.T) {
 			t.Fatalf("missing generated file %s: %v", name, err)
 		}
 	}
-	verified, err := NewVerifier().VerifyRun(summary.RunDirectory)
+	verified, err := NewVerifier().VerifyRun(context.Background(), summary.RunDirectory)
 	if err != nil {
 		t.Fatalf("VerifyRun() error = %v", err)
 	}
@@ -176,7 +176,7 @@ func TestVerifyRunDetectsInventoryMismatch(t *testing.T) {
 	if err := os.WriteFile(inventoryPath, []byte("wrong-file.txt\n"), 0o644); err != nil {
 		t.Fatalf("overwrite inventory: %v", err)
 	}
-	_, err = NewVerifier().VerifyRun(summary.RunDirectory)
+	_, err = NewVerifier().VerifyRun(context.Background(), summary.RunDirectory)
 	if err == nil {
 		t.Fatal("expected verifier to detect inventory mismatch")
 	}

@@ -130,10 +130,6 @@ func RunContext(ctx context.Context, opts Options) (*Summary, error) {
 	if strings.TrimSpace(opts.RepoRoot) == "" {
 		return nil, fmt.Errorf("repo root is required")
 	}
-	logger := logging.FromContext(ctx).With(
-		slog.String("component", "readiness"),
-		slog.String("workflow", "evidence"),
-	)
 	if strings.TrimSpace(opts.OutputRoot) == "" {
 		opts.OutputRoot = filepath.Join(opts.RepoRoot, "demo", "logs", "evidence")
 	}
@@ -146,14 +142,25 @@ func RunContext(ctx context.Context, opts Options) (*Summary, error) {
 	if strings.TrimSpace(opts.SecretsEnvFile) == "" {
 		opts.SecretsEnvFile = productionSecretsDefault
 	}
+	logger := logging.WorkflowLogger(ctx,
+		slog.String("component", "readiness"),
+		slog.String("workflow", "readiness_evidence_run"),
+	)
+	logging.WorkflowStart(logger,
+		slog.String("output_root", opts.OutputRoot),
+		slog.String("bundle_version", opts.BundleVersion),
+		slog.Bool("include_production", opts.IncludeProduction),
+	)
 
 	run, err := artifactrun.Create(opts.OutputRoot, "readiness", nowUTC())
 	if err != nil {
+		logging.WorkflowFailure(logger, err)
 		return nil, err
 	}
 	productionEnabled := opts.IncludeProduction && artifactrun.FileExists(opts.SecretsEnvFile)
 	gates, err := materializeGates(opts, productionEnabled)
 	if err != nil {
+		logging.WorkflowFailure(logger, err)
 		return nil, err
 	}
 
@@ -171,7 +178,7 @@ func RunContext(ctx context.Context, opts Options) (*Summary, error) {
 		OverallStatus:      "PASS",
 	}
 	if opts.IncludeProduction && !productionEnabled {
-		logger.Warn("gate.production_skipped", slog.String("secrets_env_file", opts.SecretsEnvFile), slog.String("reason", "secrets file not found"))
+		logging.WorkflowWarn(logger, slog.String("secrets_env_file", opts.SecretsEnvFile), slog.String("reason", "production secrets unavailable"))
 	}
 
 	for _, gate := range gates {
@@ -223,9 +230,14 @@ func RunContext(ctx context.Context, opts Options) (*Summary, error) {
 	}
 
 	if err := persistRun(opts.OutputRoot, summary); err != nil {
+		logging.WorkflowFailure(logger, err, slog.String("run_directory", summary.RunDirectory))
 		return nil, err
 	}
-	logger.Info("workflow.complete", slog.String("run_id", summary.RunID), slog.String("run_directory", summary.RunDirectory), slog.String("overall_status", summary.OverallStatus))
+	logging.WorkflowComplete(logger,
+		slog.String("run_id", summary.RunID),
+		slog.String("run_directory", summary.RunDirectory),
+		slog.String("overall_status", summary.OverallStatus),
+	)
 	return summary, nil
 }
 
@@ -302,14 +314,24 @@ func writeArtifacts(runDir string, summary *Summary) error {
 }
 
 // VerifyRun validates the generated readiness evidence directory.
-func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
+func (v *Verifier) VerifyRun(ctx context.Context, runDir string) (summary *Summary, err error) {
+	logger := logging.WorkflowLogger(ctx,
+		slog.String("component", "readiness"),
+		slog.String("workflow", "readiness_evidence_verify"),
+	)
+	logging.WorkflowStart(logger, slog.String("run_directory", runDir))
+	defer func() {
+		if err != nil {
+			logging.WorkflowFailure(logger, err, slog.String("run_directory", runDir))
+		}
+	}()
+
 	summaryPath := filepath.Join(runDir, SummaryJSONName)
 	data, err := os.ReadFile(summaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("read readiness summary json: %w", err)
 	}
-	var summary Summary
-	if err := json.Unmarshal(data, &summary); err != nil {
+	if err = json.Unmarshal(data, &summary); err != nil {
 		return nil, fmt.Errorf("parse readiness summary json: %w", err)
 	}
 	if summary.RunDirectory == "" {
@@ -318,7 +340,7 @@ func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
 	if summary.RunDirectory != runDir {
 		return nil, fmt.Errorf("summary run_directory %q does not match requested directory %q", summary.RunDirectory, runDir)
 	}
-	if err := artifactrun.Verify(runDir, artifactrun.VerifyOptions{
+	if err = artifactrun.Verify(runDir, artifactrun.VerifyOptions{
 		InventoryName: InventoryFileName,
 		RequiredFiles: []string{
 			SummaryJSONName,
@@ -346,7 +368,12 @@ func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
 			return nil, fmt.Errorf("missing release bundle checksum referenced by readiness summary: %s", summary.BundleChecksumPath)
 		}
 	}
-	return &summary, nil
+	logging.WorkflowComplete(logger,
+		slog.String("run_id", summary.RunID),
+		slog.String("run_directory", summary.RunDirectory),
+		slog.String("overall_status", summary.OverallStatus),
+	)
+	return summary, nil
 }
 
 func renderSummaryMarkdown(summary *Summary) string {

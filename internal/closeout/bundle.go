@@ -28,6 +28,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/mitchfultz/ai-control-plane/internal/artifactrun"
 	"github.com/mitchfultz/ai-control-plane/internal/fsutil"
+	"github.com/mitchfultz/ai-control-plane/internal/logging"
 	"github.com/mitchfultz/ai-control-plane/internal/readiness"
 	"github.com/mitchfultz/ai-control-plane/internal/textutil"
 )
@@ -89,44 +91,61 @@ func NewVerifier() *Verifier {
 }
 
 // Build assembles a timestamped pilot closeout bundle.
-func Build(_ context.Context, opts Options) (*Summary, error) {
-	if err := textutil.RequireNonBlank("repo root", opts.RepoRoot); err != nil {
-		return nil, err
-	}
+func Build(ctx context.Context, opts Options) (summary *Summary, err error) {
 	if textutil.IsBlank(opts.OutputRoot) {
 		opts.OutputRoot = filepath.Join(opts.RepoRoot, "demo", "logs", "pilot-closeout")
 	}
-	if err := textutil.RequireNonBlank("customer", opts.Customer); err != nil {
+	logger := logging.WorkflowLogger(ctx,
+		slog.String("component", "closeout"),
+		slog.String("workflow", "pilot_closeout_bundle_build"),
+	)
+	logging.WorkflowStart(logger,
+		slog.String("output_root", opts.OutputRoot),
+		slog.String("customer", opts.Customer),
+		slog.String("pilot_name", opts.PilotName),
+	)
+	defer func() {
+		if err != nil {
+			logging.WorkflowFailure(logger, err)
+		}
+	}()
+
+	if err = textutil.RequireNonBlank("repo root", opts.RepoRoot); err != nil {
 		return nil, err
 	}
-	if err := textutil.RequireNonBlank("pilot name", opts.PilotName); err != nil {
+	if err = textutil.RequireNonBlank("customer", opts.Customer); err != nil {
+		return nil, err
+	}
+	if err = textutil.RequireNonBlank("pilot name", opts.PilotName); err != nil {
 		return nil, err
 	}
 	if textutil.IsBlank(opts.Decision) {
 		opts.Decision = "PENDING_REVIEW"
 	}
-	if err := textutil.RequireNonBlank("charter path", opts.CharterPath); err != nil {
+	if err = textutil.RequireNonBlank("charter path", opts.CharterPath); err != nil {
 		return nil, err
 	}
-	if err := textutil.RequireNonBlank("acceptance memo path", opts.AcceptanceMemoPath); err != nil {
+	if err = textutil.RequireNonBlank("acceptance memo path", opts.AcceptanceMemoPath); err != nil {
 		return nil, err
 	}
-	if err := textutil.RequireNonBlank("validation checklist path", opts.ValidationChecklist); err != nil {
+	if err = textutil.RequireNonBlank("validation checklist path", opts.ValidationChecklist); err != nil {
 		return nil, err
 	}
 	if textutil.IsBlank(opts.ReadinessRunDir) {
-		readinessRunDir, err := readiness.ResolveLatestRun(filepath.Join(opts.RepoRoot, "demo", "logs", "evidence"))
+		var readinessRunDir string
+		readinessRunDir, err = readiness.ResolveLatestRun(filepath.Join(opts.RepoRoot, "demo", "logs", "evidence"))
 		if err != nil {
 			return nil, fmt.Errorf("resolve latest readiness run: %w", err)
 		}
 		opts.ReadinessRunDir = readinessRunDir
 	}
 
-	if _, err := readiness.NewVerifier().VerifyRun(opts.ReadinessRunDir); err != nil {
+	if _, err = readiness.NewVerifier().VerifyRun(ctx, opts.ReadinessRunDir); err != nil {
 		return nil, fmt.Errorf("verify readiness run for bundle: %w", err)
 	}
 
-	run, err := artifactrun.Create(opts.OutputRoot, "pilot-closeout", nowUTC())
+	var run *artifactrun.Run
+	run, err = artifactrun.Create(opts.OutputRoot, "pilot-closeout", nowUTC())
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +153,7 @@ func Build(_ context.Context, opts Options) (*Summary, error) {
 	if err != nil {
 		return nil, err
 	}
-	summary := &Summary{
+	summary = &Summary{
 		RunID:               run.ID,
 		GeneratedAtUTC:      nowUTC().Format(time.RFC3339),
 		RepoRoot:            opts.RepoRoot,
@@ -150,23 +169,28 @@ func Build(_ context.Context, opts Options) (*Summary, error) {
 		OperatorChecklist:   opts.OperatorChecklist,
 	}
 
-	if err := copyBundleInput(run.Directory, "documents/pilot-charter.md", opts.CharterPath); err != nil {
+	if err = copyBundleInput(run.Directory, "documents/pilot-charter.md", opts.CharterPath); err != nil {
 		return nil, err
 	}
-	if err := copyBundleInput(run.Directory, "documents/pilot-acceptance-memo.md", opts.AcceptanceMemoPath); err != nil {
+	if err = copyBundleInput(run.Directory, "documents/pilot-acceptance-memo.md", opts.AcceptanceMemoPath); err != nil {
 		return nil, err
 	}
-	if err := copyBundleInput(run.Directory, "documents/pilot-customer-validation-checklist.md", opts.ValidationChecklist); err != nil {
+	if err = copyBundleInput(run.Directory, "documents/pilot-customer-validation-checklist.md", opts.ValidationChecklist); err != nil {
 		return nil, err
 	}
 	if !textutil.IsBlank(opts.OperatorChecklist) {
-		if err := copyBundleInput(run.Directory, "documents/pilot-operator-handoff-checklist.md", opts.OperatorChecklist); err != nil {
+		if err = copyBundleInput(run.Directory, "documents/pilot-operator-handoff-checklist.md", opts.OperatorChecklist); err != nil {
 			return nil, err
 		}
 	}
-	if err := persistRun(opts.OutputRoot, summary); err != nil {
+	if err = persistRun(opts.OutputRoot, summary); err != nil {
 		return nil, err
 	}
+	logging.WorkflowComplete(logger,
+		slog.String("run_id", summary.RunID),
+		slog.String("run_directory", summary.RunDirectory),
+		slog.String("decision", summary.Decision),
+	)
 	return summary, nil
 }
 
@@ -202,13 +226,23 @@ func writeArtifacts(runDir string, summary *Summary) error {
 }
 
 // VerifyRun validates the generated bundle.
-func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
+func (v *Verifier) VerifyRun(ctx context.Context, runDir string) (summary *Summary, err error) {
+	logger := logging.WorkflowLogger(ctx,
+		slog.String("component", "closeout"),
+		slog.String("workflow", "pilot_closeout_bundle_verify"),
+	)
+	logging.WorkflowStart(logger, slog.String("run_directory", runDir))
+	defer func() {
+		if err != nil {
+			logging.WorkflowFailure(logger, err, slog.String("run_directory", runDir))
+		}
+	}()
+
 	data, err := os.ReadFile(filepath.Join(runDir, SummaryJSONName))
 	if err != nil {
 		return nil, fmt.Errorf("read pilot closeout summary: %w", err)
 	}
-	var summary Summary
-	if err := json.Unmarshal(data, &summary); err != nil {
+	if err = json.Unmarshal(data, &summary); err != nil {
 		return nil, fmt.Errorf("parse pilot closeout summary: %w", err)
 	}
 	if textutil.IsBlank(summary.RunDirectory) {
@@ -217,13 +251,18 @@ func (v *Verifier) VerifyRun(runDir string) (*Summary, error) {
 	if summary.RunDirectory != runDir {
 		return nil, fmt.Errorf("summary run_directory %q does not match requested directory %q", summary.RunDirectory, runDir)
 	}
-	if err := artifactrun.Verify(runDir, artifactrun.VerifyOptions{
+	if err = artifactrun.Verify(runDir, artifactrun.VerifyOptions{
 		InventoryName: InventoryFileName,
 		RequiredFiles: []string{SummaryJSONName, SummaryMarkdown, InventoryFileName},
 	}); err != nil {
 		return nil, err
 	}
-	return &summary, nil
+	logging.WorkflowComplete(logger,
+		slog.String("run_id", summary.RunID),
+		slog.String("run_directory", summary.RunDirectory),
+		slog.String("decision", summary.Decision),
+	)
+	return summary, nil
 }
 
 func copyBundleInput(runDir string, relativeDestination string, sourcePath string) error {

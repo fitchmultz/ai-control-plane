@@ -63,7 +63,7 @@ func TestBuildAndVerify(t *testing.T) {
 	if !artifactrun.FileExists(filepath.Join(summary.RunDirectory, "evidence", "make-ci.log")) {
 		t.Fatal("expected copied readiness log in bundle")
 	}
-	verified, err := NewVerifier().VerifyRun(summary.RunDirectory)
+	verified, err := NewVerifier().VerifyRun(context.Background(), summary.RunDirectory)
 	if err != nil {
 		t.Fatalf("VerifyRun() error = %v", err)
 	}
@@ -123,7 +123,7 @@ func TestVerifyRunDetectsInventoryMismatch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(summary.RunDirectory, InventoryFileName), []byte("wrong-file.txt\n"), 0o644); err != nil {
 		t.Fatalf("overwrite inventory: %v", err)
 	}
-	_, err = NewVerifier().VerifyRun(summary.RunDirectory)
+	_, err = NewVerifier().VerifyRun(context.Background(), summary.RunDirectory)
 	if err == nil {
 		t.Fatal("expected inventory mismatch error")
 	}

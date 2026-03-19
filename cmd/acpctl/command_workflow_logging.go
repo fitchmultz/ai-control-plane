@@ -35,20 +35,17 @@ func workflowLogger(runCtx commandRunContext, workflow string, attrs ...any) *sl
 }
 
 func workflowStart(logger *slog.Logger, attrs ...any) {
-	logger.Info("workflow.start", attrs...)
+	logging.WorkflowStart(logger, attrs...)
 }
 
 func workflowWarn(logger *slog.Logger, attrs ...any) {
-	logger.Warn("workflow.warn", attrs...)
+	logging.WorkflowWarn(logger, attrs...)
 }
 
 func workflowFailure(logger *slog.Logger, err error, attrs ...any) {
-	args := make([]any, 0, len(attrs)+1)
-	args = append(args, logging.Err(err))
-	args = append(args, attrs...)
-	logger.Error("workflow.failed", args...)
+	logging.WorkflowFailure(logger, err, attrs...)
 }
 
 func workflowComplete(logger *slog.Logger, attrs ...any) {
-	logger.Info("workflow.complete", attrs...)
+	logging.WorkflowComplete(logger, attrs...)
 }

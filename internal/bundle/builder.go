@@ -64,14 +64,20 @@ func NewBuilder(repoRoot string, verbose bool) *Builder {
 }
 
 // Build creates a release bundle from the plan.
-func (b *Builder) Build(ctx context.Context, plan *Plan) error {
-	logger := logging.FromContext(ctx).With(
+func (b *Builder) Build(ctx context.Context, plan *Plan) (err error) {
+	logger := logging.WorkflowLogger(ctx,
 		slog.String("component", "bundle"),
 		slog.String("workflow", "release_bundle_build"),
 		slog.String("bundle_path", plan.BundlePath),
 	)
-	logger.Info("workflow.start", slog.String("output_dir", plan.OutputDir))
-	if err := fsutil.EnsurePrivateDir(plan.OutputDir); err != nil {
+	logging.WorkflowStart(logger, slog.String("output_dir", plan.OutputDir))
+	defer func() {
+		if err != nil {
+			logging.WorkflowFailure(logger, err)
+		}
+	}()
+
+	if err = fsutil.EnsurePrivateDir(plan.OutputDir); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -82,7 +88,7 @@ func (b *Builder) Build(ctx context.Context, plan *Plan) error {
 	defer os.RemoveAll(stageDir)
 
 	payloadDir := filepath.Join(stageDir, "payload")
-	if err := fsutil.EnsurePrivateDir(payloadDir); err != nil {
+	if err = fsutil.EnsurePrivateDir(payloadDir); err != nil {
 		return fmt.Errorf("failed to create payload directory: %w", err)
 	}
 
@@ -90,7 +96,7 @@ func (b *Builder) Build(ctx context.Context, plan *Plan) error {
 		logger.Info("stage.directory", slog.String("path", stageDir))
 	}
 
-	if err := b.copyPayloadFiles(ctx, payloadDir); err != nil {
+	if err = b.copyPayloadFiles(ctx, payloadDir); err != nil {
 		return err
 	}
 
@@ -98,12 +104,12 @@ func (b *Builder) Build(ctx context.Context, plan *Plan) error {
 	manifestPaths := append([]string(nil), CanonicalPaths...)
 	sort.Strings(manifestPaths)
 	manifestContent := strings.Join(manifestPaths, "\n") + "\n"
-	if err := fsutil.AtomicWritePrivateFile(installManifest, []byte(manifestContent)); err != nil {
+	if err = fsutil.AtomicWritePrivateFile(installManifest, []byte(manifestContent)); err != nil {
 		return fmt.Errorf("failed to create install manifest: %w", err)
 	}
 
 	sha256sumsPath := filepath.Join(stageDir, "sha256sums.txt")
-	if err := b.buildChecksums(payloadDir, sha256sumsPath); err != nil {
+	if err = b.buildChecksums(payloadDir, sha256sumsPath); err != nil {
 		return fmt.Errorf("failed to build checksums: %w", err)
 	}
 
@@ -122,19 +128,19 @@ func (b *Builder) Build(ctx context.Context, plan *Plan) error {
 		return fmt.Errorf("failed to marshal release metadata: %w", err)
 	}
 	metadataBytes = append(metadataBytes, '\n')
-	if err := fsutil.AtomicWritePrivateFile(releaseMetadataPath, metadataBytes); err != nil {
+	if err = fsutil.AtomicWritePrivateFile(releaseMetadataPath, metadataBytes); err != nil {
 		return fmt.Errorf("failed to create release metadata: %w", err)
 	}
 
-	if err := b.createReproducibleTarball(stageDir, plan.BundlePath); err != nil {
+	if err = b.createReproducibleTarball(stageDir, plan.BundlePath); err != nil {
 		return fmt.Errorf("failed to create tarball: %w", err)
 	}
 
-	if err := b.createChecksumSidecar(plan.BundlePath); err != nil {
+	if err = b.createChecksumSidecar(plan.BundlePath); err != nil {
 		return fmt.Errorf("failed to create checksum: %w", err)
 	}
 
-	logger.Info("workflow.complete", slog.String("bundle_path", plan.BundlePath))
+	logging.WorkflowComplete(logger, slog.String("bundle_path", plan.BundlePath))
 	return nil
 }
 
