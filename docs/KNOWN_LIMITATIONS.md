@@ -6,21 +6,27 @@ Track unresolved non-blocking issues required for transparent go/no-go decisions
 
 This document records Major and Minor findings that do not block presentation but must be tracked for transparency and follow-up. Blocker findings do not belong here; Blockers must be fixed before presentation.
 
+For CVEs, this file is the human-readable register. The canonical machine-readable exception inventory lives in [`demo/config/supply_chain_vulnerability_policy.json`](../demo/config/supply_chain_vulnerability_policy.json), and the governing process lives in [security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md).
+
 ## Entry Requirements
 
 Each open Major/Minor finding must include:
 - Owner (accountable for resolution)
 - Mitigation (current workaround or risk reduction)
-- Due Date (target for resolution)
+- Due Date (target for resolution or exception expiry)
 - Status (Open/In Progress/Closed)
 - Evidence Links (logs, tickets, docs)
+
+For CVEs, the evidence set must also point to the machine-readable allowlist record and the dated review log when an accepted-risk exception is active.
 
 ## Active Findings
 
 | Severity | Finding | Impact | Mitigation | Owner | Due Date | Status | Evidence Links |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Major | CVE-2026-0861 Supply-Chain Risk | Presidio images contain unpatched glibc vulnerability (MEDIUM severity). Risk accepted: exploitation requires local attacker + app bug chain. | Containers hardened with no-new-privileges, cap_drop:ALL. Vendor dependency on Microsoft for patched base images. Quarterly review. | platform-security | 2026-05-15 | Open | [supply_chain_vulnerability_policy.json](../demo/config/supply_chain_vulnerability_policy.json) |
-| Major | CVE-2026-26996 Supply-Chain Risk (Temporary Allowlist) | Minimatch ReDoS vulnerability (HIGH severity) in hardened LibreChat and LiteLLM images. Remediation remains tied to upstream patched dependency rollup and digest refresh. | Temporary time-bounded allowlist entries (expires 2026-07-31) with explicit risk rationale. Containers hardened with no-new-privileges and minimal capabilities. Tracked under ticket `SEC-2026-0228-MINIMATCH`. | platform-security | 2026-07-31 | In Progress | [supply_chain_vulnerability_policy.json](../demo/config/supply_chain_vulnerability_policy.json) |
+| Major | CVE-2026-0861 Supply-Chain Risk | Presidio images contain an unpatched glibc vulnerability (MEDIUM). Exploitation requires a local attacker plus an application bug chain. | Containers are hardened with `no-new-privileges` and dropped capabilities. Vendor patch remains blocked on Microsoft-published Presidio images. | platform-security | 2026-05-15 | Open | [supply_chain_vulnerability_policy.json](../demo/config/supply_chain_vulnerability_policy.json), [security/CVE_REVIEW_LOG.md](security/CVE_REVIEW_LOG.md) |
+| Major | CVE-2026-26278 Supply-Chain Risk | `fast-xml-parser` in the hardened LibreChat image carries a DoS issue via XML entity expansion. | XML processing remains limited to controlled inputs; container is hardened while upstream patching is pending. | platform-security | 2026-05-15 | Open | [supply_chain_vulnerability_policy.json](../demo/config/supply_chain_vulnerability_policy.json), [security/CVE_REVIEW_LOG.md](security/CVE_REVIEW_LOG.md) |
+| Major | CVE-2026-26960 Supply-Chain Risk | `tar` in the hardened LiteLLM image carries a symlink-chain file read/write issue. | LiteLLM runtime does not process untrusted archives in the supported path; container remains hardened while upstream patching is pending. | platform-security | 2026-05-15 | Open | [supply_chain_vulnerability_policy.json](../demo/config/supply_chain_vulnerability_policy.json), [security/CVE_REVIEW_LOG.md](security/CVE_REVIEW_LOG.md) |
+| Major | CVE-2026-26996 Supply-Chain Risk (Temporary Allowlist) | `minimatch` ReDoS vulnerability (HIGH) remains in hardened LibreChat and LiteLLM images until the upstream patch rollup is available. | Temporary time-bounded allowlist entries expire on `2026-07-31` with explicit remediation plan, hardening, and ticketed follow-up. | platform-security | 2026-07-31 | In Progress | [supply_chain_vulnerability_policy.json](../demo/config/supply_chain_vulnerability_policy.json), [security/CVE_REVIEW_LOG.md](security/CVE_REVIEW_LOG.md) |
 | Major | Single-Node Topology / No Automatic Failover | The supported host-first deployment converges one host only. Gateway, database, overlays, and local backup artifacts can share the same host/storage failure domain. Host or disk loss can cause a full outage until recovery completes. | Treat the current contract as backup-and-recovery, not HA. Keep off-host backup copies, document customer-owned DNS/LB failover, and use [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) when scoping availability requirements. | platform | 2026-06-30 | Open | [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md), [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Minor | Port 4000 Conflict | Gateway fail to start if port 4000 is occupied by other slots/services. | Stop conflicting services or use `LITELLM_HOST_PORT` override. | SRE | 2026-06-01 | Open | [README.md](../README.md#installation) |
 | Minor | Offline Token Estimation | Token counts in offline mode are estimated, not precise. | Use real providers for precise token usage validation. | Dev | 2026-03-15 | Open | [README.md](../README.md#offline-demo-mode) |
@@ -35,7 +41,8 @@ Each open Major/Minor finding must include:
 
 ## Process Rules
 
-1. **Blocker findings do not belong here** - Blockers must be fixed before presentation notification.
+1. **Blocker findings do not belong here** — Blockers must be fixed before presentation notification.
 2. **Major/Minor entries must be updated** whenever status changes.
 3. **Presentation readiness review** must reference this file directly.
 4. **Closed findings** move to the Closed Findings section with resolution summary.
+5. **CVE exceptions must stay time-bounded** and align to the live machine-readable policy plus the dated review log.

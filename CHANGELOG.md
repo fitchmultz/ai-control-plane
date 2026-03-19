@@ -26,6 +26,7 @@ This repository uses:
 - Buyer-safe compliance crosswalk covering SOC 2, ISO 27001, and NIST-style controls with explicit customer/shared/provider ownership.
 - Canonical security whitepaper and threat model covering architecture, trust boundaries, attacker paths, mitigations, residual risks, and control ownership.
 - `docs/PERFORMANCE_BASELINE.md` now serves as the published public benchmark and sizing artifact, with reproducible methodology, profile tables, hardware tiers, result bands, and explicit claim-boundary caveats.
+- Canonical CVE governance documentation now formalizes remediation, time-bounded accepted-risk handling, quarterly review records, and buyer-safe vulnerability status communication.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

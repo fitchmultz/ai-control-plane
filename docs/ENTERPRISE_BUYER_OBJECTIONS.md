@@ -173,3 +173,30 @@ Primary reference:
 - `docs/PILOT_SPONSOR_ONE_PAGER.md`
 - `docs/PILOT_CUSTOMER_VALIDATION_CHECKLIST.md`
 - `docs/PILOT_CLOSEOUT_EXAMPLES.md`
+
+---
+
+## 8. "What do you do when scanners show open CVEs?"
+
+**Short answer:** We disclose them, either remediate them or place them in time-bounded accepted-risk records, and review them at least quarterly.
+
+**Repo proof now:**
+- A canonical policy defines triage, remediation, accepted-risk, evidence, and buyer-safe communication rules.
+- The repo carries a machine-readable accepted-risk inventory with owner, ticket, expiry, review date, and remediation plan.
+- Human-readable status and dated review history are published.
+
+**Customer dependency:**
+- enterprise risk acceptance
+- target-environment compensating controls
+- buyer decision on whether current residual risk is acceptable
+
+**Do not claim:**
+- "We have zero open CVEs at all times."
+- "Upstream vulnerabilities are always patched immediately."
+- "Governed exceptions are the same thing as full elimination."
+
+Primary references:
+- `docs/security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md`
+- `docs/security/CVE_REVIEW_LOG.md`
+- `docs/KNOWN_LIMITATIONS.md`
+- `docs/SECURITY_GOVERNANCE.md`

@@ -59,16 +59,19 @@ If a Major/Minor issue cannot be resolved within the agreed pre-presentation tim
 
 ## Known Security Risks
 
-Document active security risk acceptances here. Link to detailed findings in `docs/KNOWN_LIMITATIONS.md`.
+Document active security risk acceptances here. Link to detailed findings in `docs/KNOWN_LIMITATIONS.md` and govern them under [`docs/security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md`](../security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md).
 
 | Risk ID | Severity | Description | Owner | Due Date | Status | Evidence |
 |---------|----------|-------------|-------|----------|--------|----------|
-| CVE-2026-0861 | Major | Presidio images contain unpatched glibc (MEDIUM). Exploitation requires local attacker + application bug + heap manipulation chain. | platform-security | 2026-05-15 | Accepted | [supply_chain_vulnerability_policy.json](../../demo/config/supply_chain_vulnerability_policy.json) |
+| CVE-2026-0861 | Major | Presidio images contain unpatched glibc (MEDIUM). Exploitation requires local attacker + application bug + heap manipulation chain. | platform-security | 2026-05-15 | Accepted | [supply_chain_vulnerability_policy.json](../../demo/config/supply_chain_vulnerability_policy.json), [CVE_REVIEW_LOG.md](../security/CVE_REVIEW_LOG.md) |
+| CVE-2026-26278 | Major | `fast-xml-parser` in the hardened LibreChat image carries a DoS issue via XML entity expansion. | platform-security | 2026-05-15 | Accepted | [supply_chain_vulnerability_policy.json](../../demo/config/supply_chain_vulnerability_policy.json), [CVE_REVIEW_LOG.md](../security/CVE_REVIEW_LOG.md) |
+| CVE-2026-26960 | Major | `tar` in the hardened LiteLLM image carries a symlink-chain file read/write issue. | platform-security | 2026-05-15 | Accepted | [supply_chain_vulnerability_policy.json](../../demo/config/supply_chain_vulnerability_policy.json), [CVE_REVIEW_LOG.md](../security/CVE_REVIEW_LOG.md) |
+| CVE-2026-26996 | Major | `minimatch` ReDoS remains temporarily allowlisted while the upstream patch rollup and digest refresh are pending. | platform-security | 2026-07-31 | Accepted | [supply_chain_vulnerability_policy.json](../../demo/config/supply_chain_vulnerability_policy.json), [CVE_REVIEW_LOG.md](../security/CVE_REVIEW_LOG.md) |
 
 **Risk Acceptance Criteria:**
-- All Major risks must have documented mitigation, owner, and review date
-- Risk acceptance must be reviewed at least quarterly
-- Vendor dependency risks require tracking ticket and vendor communication log
+- All Major risks must satisfy the record requirements in [`docs/security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md`](../security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md)
+- Risk acceptance must stay time-bounded and be reviewed at least quarterly
+- Vendor dependency risks require a tracking ticket plus an explicit remediation plan for removing the exception
 
 ## Final Go/No-Go Checklist
 

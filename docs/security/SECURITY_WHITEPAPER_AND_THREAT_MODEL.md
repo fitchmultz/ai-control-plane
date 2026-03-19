@@ -236,7 +236,8 @@ Operators --> make / acpctl --> deploy, validate, health, smoke, doctor,
 - `no-new-privileges`
 - dropped capabilities
 - supply-chain policy and security gates
-- tracked known limitations and risk acceptance disclosures
+- canonical CVE remediation and risk-acceptance policy
+- tracked known limitations and dated review disclosures
 
 **Residual risk:** open CVEs still exist and are governed, not eliminated.
 
@@ -310,7 +311,7 @@ These are disclosed intentionally and should be part of buyer and operator revie
 2. **Automatic failover is not part of the supported contract.** ACP now ships failover-drill evidence tooling, not automatic HA orchestration.
 3. **Bypass prevention is customer-dependent.** Without customer network and endpoint controls, direct vendor usage may remain possible.
 4. **Cloud-production claims are not yet validated.** This whitepaper is grounded in the host-first support boundary.
-5. **Open CVEs remain under governance.** Current known findings include CVE-2026-0861 and CVE-2026-26996 with explicit mitigation and review status in [KNOWN_LIMITATIONS.md](../KNOWN_LIMITATIONS.md).
+5. **Open CVEs remain under governance.** Current accepted-risk status, expiry windows, and quarterly review history live in [CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md), [CVE_REVIEW_LOG.md](CVE_REVIEW_LOG.md), [KNOWN_LIMITATIONS.md](../KNOWN_LIMITATIONS.md), and [`demo/config/supply_chain_vulnerability_policy.json`](../../demo/config/supply_chain_vulnerability_policy.json).
 6. **Metadata-first evidence is intentional but incomplete for transcript-centric investigations.** If customers ingest transcript-bearing exports, they need additional controls and retention discipline.
 7. **Offline and lab modes are not equivalent to production proof for every guardrail feature.** Especially for DLP and exact token-accounting behavior.
 
@@ -353,6 +354,8 @@ For recovery and availability review when applicable:
 - [../GO_TO_MARKET_SCOPE.md](../GO_TO_MARKET_SCOPE.md)
 - [../SHARED_RESPONSIBILITY_MODEL.md](../SHARED_RESPONSIBILITY_MODEL.md)
 - [../KNOWN_LIMITATIONS.md](../KNOWN_LIMITATIONS.md)
+- [CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md)
+- [CVE_REVIEW_LOG.md](CVE_REVIEW_LOG.md)
 - [../technical-architecture.md](../technical-architecture.md)
 - [ENTERPRISE_AUTH_ARCHITECTURE.md](ENTERPRISE_AUTH_ARCHITECTURE.md)
 - [DETECTION.md](DETECTION.md)
