@@ -59,6 +59,8 @@ func TestComponentDetailsLines(t *testing.T) {
 		HTTPStatus:          200,
 		ModelsHTTPStatus:    200,
 		MasterKeyConfigured: true,
+		TotalRequests24h:    12,
+		TotalSpend24h:       1.5,
 	}
 
 	lines := details.Lines()
@@ -68,6 +70,9 @@ func TestComponentDetailsLines(t *testing.T) {
 	}
 	if !strings.Contains(joined, "http_status: 200") {
 		t.Fatalf("expected http_status line, got %q", joined)
+	}
+	if !strings.Contains(joined, "total_requests_24h: 12") || !strings.Contains(joined, "total_spend_24h: 1.5") {
+		t.Fatalf("expected traffic detail lines, got %q", joined)
 	}
 }
 

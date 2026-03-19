@@ -26,11 +26,11 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/status"
 )
 
-func TestRenderSupportsMarkdownAndJSON(t *testing.T) {
+func TestRenderSupportsMarkdownJSONAndHTML(t *testing.T) {
 	report := status.StatusReport{
 		Overall: status.HealthLevelHealthy,
 		Components: map[string]status.ComponentStatus{
-			"gateway": {Name: "gateway", Level: status.HealthLevelHealthy, Message: "ok"},
+			"gateway": {Name: "gateway", Level: status.HealthLevelHealthy, Message: "ok", Details: status.ComponentDetails{BaseURL: "http://127.0.0.1:4000"}},
 		},
 		Timestamp: "2026-03-17T00:00:00Z",
 		Duration:  "10ms",
@@ -50,6 +50,14 @@ func TestRenderSupportsMarkdownAndJSON(t *testing.T) {
 	}
 	if ext != "json" || !strings.Contains(string(payload), `"overall": "healthy"`) {
 		t.Fatalf("unexpected json payload: ext=%q payload=%q", ext, payload)
+	}
+
+	payload, ext, err = Render(report, Request{Format: FormatHTML, Wide: true})
+	if err != nil {
+		t.Fatalf("Render(html) error = %v", err)
+	}
+	if ext != "html" || !strings.Contains(string(payload), "AI Control Plane Operator Dashboard") || !strings.Contains(string(payload), "base_url: http://127.0.0.1:4000") {
+		t.Fatalf("unexpected html payload: ext=%q payload=%q", ext, payload)
 	}
 }
 

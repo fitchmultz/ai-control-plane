@@ -50,6 +50,8 @@ type fakeReadonlySummaryReader struct {
 	budgetErr        error
 	detectionSummary db.DetectionSummary
 	detectionErr     error
+	trafficSummary   db.TrafficSummary
+	trafficErr       error
 }
 
 func (f fakeReadonlySummaryReader) KeySummary(context.Context) (db.KeySummary, error) {
@@ -62,6 +64,10 @@ func (f fakeReadonlySummaryReader) BudgetSummary(context.Context) (db.BudgetSumm
 
 func (f fakeReadonlySummaryReader) DetectionSummary(context.Context) (db.DetectionSummary, error) {
 	return f.detectionSummary, f.detectionErr
+}
+
+func (f fakeReadonlySummaryReader) TrafficSummary(context.Context) (db.TrafficSummary, error) {
+	return f.trafficSummary, f.trafficErr
 }
 
 func TestRunDBStatusRendersExpectedSections(t *testing.T) {

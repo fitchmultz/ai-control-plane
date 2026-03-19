@@ -5,6 +5,8 @@ Start here based on your role.
 ## I am an operator
 
 - [Operations And Deployment](DEPLOYMENT.md)
+- [Observability Signal Reference](observability/OPERATOR_SIGNAL_REFERENCE.md)
+- [OTEL Collector Setup](observability/OTEL_SETUP.md)
 - [HA And Failover Topology](deployment/HA_FAILOVER_TOPOLOGY.md)
 - [Active-Passive HA Failover Runbook](deployment/HA_FAILOVER_RUNBOOK.md)
 - [Certificate Lifecycle](deployment/CERTIFICATE_LIFECYCLE.md)

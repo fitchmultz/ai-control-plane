@@ -20,6 +20,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // ReadonlyService provides typed readonly inventory and audit summaries.
@@ -93,14 +94,11 @@ func (s *ReadonlyService) DetectionSummary(ctx context.Context) (DetectionSummar
 		return DetectionSummary{}, fmt.Errorf("database readonly service requires a connector")
 	}
 
-	tableCount, err := s.connector.scalarInt(ctx, `
-		SELECT COUNT(*) FROM information_schema.tables
-		WHERE table_schema = 'public' AND table_name = 'LiteLLM_SpendLogs';
-	`)
+	exists, err := s.spendLogsTableExists(ctx)
 	if err != nil {
 		return DetectionSummary{}, err
 	}
-	if tableCount == 0 {
+	if !exists {
 		return DetectionSummary{}, nil
 	}
 
@@ -141,4 +139,70 @@ func (s *ReadonlyService) DetectionSummary(ctx context.Context) (DetectionSummar
 		UniqueModels24h:      uniqueModels,
 		TotalEntries24h:      totalEntries,
 	}, nil
+}
+
+// TrafficSummary returns typed recent traffic, token, spend, and error counts.
+func (s *ReadonlyService) TrafficSummary(ctx context.Context) (TrafficSummary, error) {
+	if s == nil || s.connector == nil {
+		return TrafficSummary{}, fmt.Errorf("database readonly service requires a connector")
+	}
+
+	exists, err := s.spendLogsTableExists(ctx)
+	if err != nil {
+		return TrafficSummary{}, err
+	}
+	if !exists {
+		return TrafficSummary{}, nil
+	}
+
+	raw, err := s.connector.scalarString(ctx, `
+		SELECT
+			COALESCE(COUNT(*), 0) || '|' ||
+			COALESCE(SUM("prompt_tokens" + "completion_tokens"), 0) || '|' ||
+			COALESCE(SUM(spend), 0) || '|' ||
+			COUNT(*) FILTER (WHERE status != 'success')
+		FROM "LiteLLM_SpendLogs"
+		WHERE "startTime" > NOW() - INTERVAL '24 hours';
+	`)
+	if err != nil {
+		return TrafficSummary{}, err
+	}
+	parts := strings.Split(strings.TrimSpace(raw), "|")
+	if len(parts) != 4 {
+		return TrafficSummary{}, fmt.Errorf("unexpected traffic payload: %q", raw)
+	}
+	requests, err := parseInt64(parts[0])
+	if err != nil {
+		return TrafficSummary{}, err
+	}
+	tokens, err := parseInt64(parts[1])
+	if err != nil {
+		return TrafficSummary{}, err
+	}
+	spend, err := parseFloat(parts[2])
+	if err != nil {
+		return TrafficSummary{}, err
+	}
+	errorRequests, err := parseInt64(parts[3])
+	if err != nil {
+		return TrafficSummary{}, err
+	}
+	return TrafficSummary{
+		SpendLogsTableExists: true,
+		TotalRequests24h:     requests,
+		TotalTokens24h:       tokens,
+		TotalSpend24h:        spend,
+		ErrorRequests24h:     errorRequests,
+	}, nil
+}
+
+func (s *ReadonlyService) spendLogsTableExists(ctx context.Context) (bool, error) {
+	tableCount, err := s.connector.scalarInt(ctx, `
+		SELECT COUNT(*) FROM information_schema.tables
+		WHERE table_schema = 'public' AND table_name = 'LiteLLM_SpendLogs';
+	`)
+	if err != nil {
+		return false, err
+	}
+	return tableCount > 0, nil
 }

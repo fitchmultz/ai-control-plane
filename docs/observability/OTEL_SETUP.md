@@ -415,6 +415,44 @@ Telemetry is written to `demo/logs/otel/telemetry.jsonl` in JSON Lines format.
 make logs
 ```
 
+## Trace Workflow for Supported Deployments
+
+OTEL traces are only relevant for the **direct/bypass** path or for optional client-side correlation telemetry. Gateway-routed traffic already has its operational source of truth in PostgreSQL audit data plus the typed status/reporting surface.
+
+### Step 1: verify the collector is up
+
+```bash
+make otel-health
+```
+
+### Step 2: inspect recent trace-bearing records
+
+```bash
+jq -r '
+  select(.trace_id != null) |
+  [.timestamp, .trace_id, (.attributes["principal.id"] // "unknown"), (.attributes["ai.policy.action"] // "unknown"), (.attributes["ai.model"] // "unknown")] |
+  @tsv
+' demo/logs/otel/telemetry.jsonl | tail -n 20
+```
+
+### Step 3: focus one investigation on a single trace
+
+```bash
+TRACE_ID="trace-abc123"
+jq --arg trace_id "$TRACE_ID" 'select(.trace_id == $trace_id)' demo/logs/otel/telemetry.jsonl
+```
+
+### Step 4: correlate to gateway-routed evidence when dual telemetry exists
+
+Use the OTEL `trace_id` together with the gateway `request_id`/normalized trace field in your SIEM, or search the PostgreSQL audit log directly when the request also traversed LiteLLM.
+
+For day-2 operator triage, pair OTEL trace inspection with:
+
+- `make operator-report WIDE=1`
+- `make operator-dashboard`
+- `docs/observability/OPERATOR_SIGNAL_REFERENCE.md`
+- `docs/security/SIEM_INTEGRATION.md`
+
 ### SIEM Integration Examples
 
 **Splunk:**
@@ -515,6 +553,7 @@ OTEL provides visibility but NOT enforcement. For governance:
 
 ## Related Documentation
 
+- [OPERATOR_SIGNAL_REFERENCE.md](OPERATOR_SIGNAL_REFERENCE.md) - Canonical host-first signal and dashboard surface map
 - [SIEM_INTEGRATION.md](../security/SIEM_INTEGRATION.md) - Complete SIEM integration guide
 - [Normalized Schema](../../demo/config/normalized_schema.yaml) - Evidence schema definition
 - [Local Demo Implementation Plan](../LOCAL_DEMO_PLAN.md) - End-to-end demo flow

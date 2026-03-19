@@ -55,6 +55,21 @@ operator-report: install-binary ## Generate operator runtime report
 		$(if $(ARCHIVE_DIR),--archive-dir $(ARCHIVE_DIR),) \
 		$(if $(filter 1 true TRUE yes YES,$(WIDE)),--wide,)
 
+.PHONY: operator-dashboard
+operator-dashboard: install-binary ## Generate a static HTML operator dashboard snapshot
+	@echo '$(COLOR_BOLD)Generating operator dashboard...$(COLOR_RESET)'
+	@set -eu; \
+		umask 077; \
+		mkdir -p demo/logs/observability demo/logs/observability/archive; \
+		chmod 700 demo/logs/observability demo/logs/observability/archive; \
+		status=0; \
+		$(ACPCTL_BIN) ops report --format html --wide --archive-dir demo/logs/observability/archive > demo/logs/observability/operator-dashboard.html || status=$$?; \
+		case "$$status" in \
+			0) echo '$(COLOR_GREEN)✓ Wrote demo/logs/observability/operator-dashboard.html$(COLOR_RESET)' ;; \
+			1) echo '$(COLOR_YELLOW)! Wrote demo/logs/observability/operator-dashboard.html (runtime is degraded; dashboard snapshot still captured)$(COLOR_RESET)' ;; \
+			*) exit "$$status" ;; \
+		esac
+
 .PHONY: db-backup
 db-backup: ## Create database backup
 	@echo '$(COLOR_BOLD)Creating database backup...$(COLOR_RESET)'

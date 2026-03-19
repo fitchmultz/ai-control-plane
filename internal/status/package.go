@@ -99,6 +99,21 @@ type ComponentDetails struct {
 	MediumSeverityFindings int      `json:"medium_severity_findings,omitempty"`
 	UniqueModels24h        int      `json:"unique_models_24h,omitempty"`
 	TotalEntries24h        int      `json:"total_entries_24h,omitempty"`
+	TotalRequests24h       int64    `json:"total_requests_24h,omitempty"`
+	TotalTokens24h         int64    `json:"total_tokens_24h,omitempty"`
+	TotalSpend24h          float64  `json:"total_spend_24h,omitempty"`
+	ErrorRequests24h       int64    `json:"error_requests_24h,omitempty"`
+	ErrorRatePercent24h    float64  `json:"error_rate_percent_24h,omitempty"`
+	BackupPath             string   `json:"backup_path,omitempty"`
+	BackupSizeBytes        int64    `json:"backup_size_bytes,omitempty"`
+	LastBackupUTC          string   `json:"last_backup_utc,omitempty"`
+	BackupAge              string   `json:"backup_age,omitempty"`
+	ReadinessRunID         string   `json:"readiness_run_id,omitempty"`
+	ReadinessGeneratedAt   string   `json:"readiness_generated_at,omitempty"`
+	ReadinessOverallStatus string   `json:"readiness_overall_status,omitempty"`
+	ReadinessAge           string   `json:"readiness_age,omitempty"`
+	FailingGateCount       int      `json:"failing_gate_count,omitempty"`
+	SkippedGateCount       int      `json:"skipped_gate_count,omitempty"`
 	RequiredPorts          []int    `json:"required_ports,omitempty"`
 	OccupiedPorts          []int    `json:"occupied_ports,omitempty"`
 	MissingVars            []string `json:"missing_vars,omitempty"`
@@ -134,6 +149,16 @@ func (d ComponentDetails) lines() []string {
 	appendInt := func(label string, value int) {
 		if value != 0 {
 			lines = append(lines, fmt.Sprintf("%s: %d", label, value))
+		}
+	}
+	appendInt64 := func(label string, value int64) {
+		if value != 0 {
+			lines = append(lines, fmt.Sprintf("%s: %d", label, value))
+		}
+	}
+	appendFloat := func(label string, value float64) {
+		if value != 0 {
+			lines = append(lines, fmt.Sprintf("%s: %s", label, strconv.FormatFloat(value, 'f', -1, 64)))
 		}
 	}
 	appendPorts := func(label string, ports []int) {
@@ -197,6 +222,21 @@ func (d ComponentDetails) lines() []string {
 	appendInt("medium_severity_findings", d.MediumSeverityFindings)
 	appendInt("unique_models_24h", d.UniqueModels24h)
 	appendInt("total_entries_24h", d.TotalEntries24h)
+	appendInt64("total_requests_24h", d.TotalRequests24h)
+	appendInt64("total_tokens_24h", d.TotalTokens24h)
+	appendFloat("total_spend_24h", d.TotalSpend24h)
+	appendInt64("error_requests_24h", d.ErrorRequests24h)
+	appendFloat("error_rate_percent_24h", d.ErrorRatePercent24h)
+	appendText("backup_path", d.BackupPath)
+	appendInt64("backup_size_bytes", d.BackupSizeBytes)
+	appendText("last_backup_utc", d.LastBackupUTC)
+	appendText("backup_age", d.BackupAge)
+	appendText("readiness_run_id", d.ReadinessRunID)
+	appendText("readiness_generated_at", d.ReadinessGeneratedAt)
+	appendText("readiness_overall_status", d.ReadinessOverallStatus)
+	appendText("readiness_age", d.ReadinessAge)
+	appendInt("failing_gate_count", d.FailingGateCount)
+	appendInt("skipped_gate_count", d.SkippedGateCount)
 	appendPorts("required_ports", d.RequiredPorts)
 	appendPorts("occupied_ports", d.OccupiedPorts)
 	appendList("missing_vars", d.MissingVars)

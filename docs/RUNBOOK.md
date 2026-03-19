@@ -30,6 +30,7 @@ This runbook provides day-to-day operational procedures, incident response guida
 | Container status | `make ps` |
 | Database status | `make db-status` |
 | Operator runtime report | `make operator-report` |
+| Static HTML operator dashboard | `make operator-dashboard` |
 | Create backup | `make db-backup` |
 | Apply backup retention | `make db-backup-retention APPLY=1 KEEP=7` |
 | Restore backup | `make db-restore` |
@@ -80,6 +81,9 @@ make doctor FIX=1 NOTIFY=1
 ```bash
 # Generate the canonical runtime report and archive it locally
 make operator-report
+
+# Generate a browser-friendly static dashboard snapshot
+make operator-dashboard
 ```
 
 **Log Inspection:**

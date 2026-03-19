@@ -29,6 +29,7 @@ This repository uses:
 - Canonical CVE governance documentation now formalizes remediation, time-bounded accepted-risk handling, quarterly review records, and buyer-safe vulnerability status communication.
 - Pilot closeout materials now include a reusable closeout kit, an anonymized case-study template, a measurable outcomes scorecard template, and a filled Falcon example packet for external-proof reuse.
 - External-review readiness documentation now packages the threat model, compliance crosswalk, evidence workflow, and claim-boundary guidance for future third-party assessments without overstating current validation.
+- Host-first observability now includes typed traffic, backup, and readiness status collectors plus a browser-friendly static operator dashboard snapshot via `make operator-dashboard`.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
@@ -43,6 +44,7 @@ This repository uses:
 - `acpctl onboard` now performs post-write config linting plus actionable verification summaries for local contract issues, gateway reachability, and authorized model access.
 - Wave 2 operator adoption work is now productized through canonical make and `acpctl` entrypoints instead of manual key and reporting runbooks.
 - Host production docs and preflight checks now enforce the hardened support boundary: Debian 12+/Ubuntu 24.04+, verified SSH host keys, loopback-only non-TLS base access, and TLS for remote ingress.
+- Operator reporting now exposes recent routed traffic, backup freshness, and readiness-evidence freshness through `status`, `ops report`, and the new static HTML dashboard workflow.
 
 ### Removed
 - Redundant empty placeholder packages: `internal/validate`, `internal/release`, and `internal/key`.

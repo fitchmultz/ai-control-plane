@@ -78,6 +78,15 @@ type DetectionSummary struct {
 	TotalEntries24h      int  `json:"total_entries_24h"`
 }
 
+// TrafficSummary captures typed recent request, token, spend, and error counts.
+type TrafficSummary struct {
+	SpendLogsTableExists bool    `json:"spend_logs_table_exists"`
+	TotalRequests24h     int64   `json:"total_requests_24h"`
+	TotalTokens24h       int64   `json:"total_tokens_24h"`
+	TotalSpend24h        float64 `json:"total_spend_24h"`
+	ErrorRequests24h     int64   `json:"error_requests_24h"`
+}
+
 // ChargebackMetricsSummary captures typed aggregate request/token counts.
 type ChargebackMetricsSummary struct {
 	TotalRequests int64 `json:"total_requests"`
@@ -95,6 +104,7 @@ type ReadonlyServiceReader interface {
 	KeySummary(ctx context.Context) (KeySummary, error)
 	BudgetSummary(ctx context.Context) (BudgetSummary, error)
 	DetectionSummary(ctx context.Context) (DetectionSummary, error)
+	TrafficSummary(ctx context.Context) (TrafficSummary, error)
 }
 
 // BackupServiceReader narrows admin flows to backup and restore operations.

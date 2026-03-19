@@ -34,6 +34,9 @@ func TestReadonlyServiceRequiresConnector(t *testing.T) {
 	if _, err := service.DetectionSummary(context.Background()); err == nil {
 		t.Fatal("expected connector guard error")
 	}
+	if _, err := service.TrafficSummary(context.Background()); err == nil {
+		t.Fatal("expected connector guard error")
+	}
 }
 
 func TestReadonlyServiceKeySummary(t *testing.T) {
@@ -129,5 +132,50 @@ func TestReadonlyServiceDetectionSummaryWithSpendLogsTable(t *testing.T) {
 	}
 	if !summary.SpendLogsTableExists || summary.HighSeverity != 4 || summary.MediumSeverity != 3 || summary.UniqueModels24h != 5 || summary.TotalEntries24h != 11 {
 		t.Fatalf("unexpected detection summary: %+v", summary)
+	}
+}
+
+func TestReadonlyServiceTrafficSummary(t *testing.T) {
+	connector, mock := newExternalSQLMockConnector(t)
+	service := NewReadonlyService(connector)
+
+	expectExactQuery(mock, `
+		SELECT COUNT(*) FROM information_schema.tables
+		WHERE table_schema = 'public' AND table_name = 'LiteLLM_SpendLogs';
+	`, exactQueryRows("count").AddRow("1"))
+	expectExactQuery(mock, `
+		SELECT
+			COALESCE(COUNT(*), 0) || '|' ||
+			COALESCE(SUM("prompt_tokens" + "completion_tokens"), 0) || '|' ||
+			COALESCE(SUM(spend), 0) || '|' ||
+			COUNT(*) FILTER (WHERE status != 'success')
+		FROM "LiteLLM_SpendLogs"
+		WHERE "startTime" > NOW() - INTERVAL '24 hours';
+	`, exactQueryRows("count").AddRow("25|4096|12.3456|3"))
+
+	summary, err := service.TrafficSummary(context.Background())
+	if err != nil {
+		t.Fatalf("TrafficSummary() error = %v", err)
+	}
+	if !summary.SpendLogsTableExists || summary.TotalRequests24h != 25 || summary.TotalTokens24h != 4096 || summary.TotalSpend24h != 12.3456 || summary.ErrorRequests24h != 3 {
+		t.Fatalf("unexpected traffic summary: %+v", summary)
+	}
+}
+
+func TestReadonlyServiceTrafficSummaryWithoutSpendLogsTable(t *testing.T) {
+	connector, mock := newExternalSQLMockConnector(t)
+	service := NewReadonlyService(connector)
+
+	expectExactQuery(mock, `
+		SELECT COUNT(*) FROM information_schema.tables
+		WHERE table_schema = 'public' AND table_name = 'LiteLLM_SpendLogs';
+	`, exactQueryRows("count").AddRow("0"))
+
+	summary, err := service.TrafficSummary(context.Background())
+	if err != nil {
+		t.Fatalf("TrafficSummary() error = %v", err)
+	}
+	if summary.SpendLogsTableExists {
+		t.Fatalf("expected zero-value traffic summary when table is absent: %+v", summary)
 	}
 }

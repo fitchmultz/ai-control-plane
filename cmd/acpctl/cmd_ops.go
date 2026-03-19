@@ -49,10 +49,11 @@ func opsCommandSpec() *commandSpec {
 				Examples: []string{
 					"acpctl ops report",
 					"acpctl ops report --format json",
+					"acpctl ops report --format html --wide",
 					"acpctl ops report --wide",
 				},
 				Options: []commandOptionSpec{
-					{Name: "format", ValueName: "FORMAT", Summary: "Output format: markdown or json", Type: optionValueString, DefaultText: "markdown"},
+					{Name: "format", ValueName: "FORMAT", Summary: "Output format: markdown, json, or html", Type: optionValueString, DefaultText: "markdown"},
 					{Name: "wide", Summary: "Include extended component details", Type: optionValueBool},
 					{Name: "archive-dir", ValueName: "DIR", Summary: "Archive directory", Type: optionValueString, DefaultText: "demo/backups/operator-reports"},
 				},
@@ -116,7 +117,9 @@ func normalizeOpsReportFormat(raw string) (operatorreport.Format, error) {
 		return operatorreport.FormatMarkdown, nil
 	case "json":
 		return operatorreport.FormatJSON, nil
+	case "html":
+		return operatorreport.FormatHTML, nil
 	default:
-		return "", fmt.Errorf("invalid operator report format %q (expected markdown or json)", raw)
+		return "", fmt.Errorf("invalid operator report format %q (expected markdown, json, or html)", raw)
 	}
 }

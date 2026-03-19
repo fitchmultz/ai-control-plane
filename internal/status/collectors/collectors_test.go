@@ -23,6 +23,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +68,8 @@ type fakeReadonlyReader struct {
 	budgetErr        error
 	detectionSummary db.DetectionSummary
 	detectionErr     error
+	trafficSummary   db.TrafficSummary
+	trafficErr       error
 }
 
 func (f fakeReadonlyReader) KeySummary(context.Context) (db.KeySummary, error) {
@@ -77,6 +82,10 @@ func (f fakeReadonlyReader) BudgetSummary(context.Context) (db.BudgetSummary, er
 
 func (f fakeReadonlyReader) DetectionSummary(context.Context) (db.DetectionSummary, error) {
 	return f.detectionSummary, f.detectionErr
+}
+
+func (f fakeReadonlyReader) TrafficSummary(context.Context) (db.TrafficSummary, error) {
+	return f.trafficSummary, f.trafficErr
 }
 
 func TestCertificateCollectorCoversInactiveWarningAndHealthyBranches(t *testing.T) {
@@ -151,14 +160,46 @@ func TestCertificateCollectorCoversInactiveWarningAndHealthyBranches(t *testing.
 func TestGatewayCollectorCoversWarningAndHealthyBranches(t *testing.T) {
 	t.Parallel()
 
+	missingMasterKey := NewGatewayCollector(fakeGatewayReader{status: gateway.Status{
+		Scheme:              "http",
+		BaseURL:             "http://127.0.0.1:4000",
+		MasterKeyConfigured: false,
+	}}).Collect(context.Background())
+	if missingMasterKey.Level != status.HealthLevelWarning || !strings.Contains(missingMasterKey.Message, "LITELLM_MASTER_KEY not set") {
+		t.Fatalf("unexpected missing master key gateway status: %+v", missingMasterKey)
+	}
+
 	warning := NewGatewayCollector(fakeGatewayReader{status: gateway.Status{
-		Scheme: "http", BaseURL: "http://127.0.0.1:4000",
-		Health: gateway.Probe{Path: "/health", Reachable: true, Authorized: true, Healthy: true, HTTPStatus: http.StatusOK},
-		Models: gateway.Probe{Path: "/v1/models", Reachable: true, Authorized: false, Healthy: false, HTTPStatus: http.StatusUnauthorized},
+		Scheme:              "http",
+		BaseURL:             "http://127.0.0.1:4000",
+		MasterKeyConfigured: true,
+		Health:              gateway.Probe{Path: "/health", Reachable: true, Authorized: true, Healthy: true, HTTPStatus: http.StatusOK},
+		Models:              gateway.Probe{Path: "/v1/models", Reachable: true, Authorized: false, Healthy: false, HTTPStatus: http.StatusUnauthorized},
 	}})
 	warningStatus := warning.Collect(context.Background())
 	if warningStatus.Level != status.HealthLevelWarning || warningStatus.Details.ModelsHTTPStatus != http.StatusUnauthorized {
 		t.Fatalf("unexpected warning gateway status: %+v", warningStatus)
+	}
+
+	unreachable := NewGatewayCollector(fakeGatewayReader{status: gateway.Status{
+		Scheme:              "http",
+		BaseURL:             "http://127.0.0.1:4000",
+		MasterKeyConfigured: true,
+		Health:              gateway.Probe{Error: "connection refused"},
+	}}).Collect(context.Background())
+	if unreachable.Level != status.HealthLevelUnhealthy || unreachable.Details.Error != "connection refused" {
+		t.Fatalf("unexpected unreachable gateway status: %+v", unreachable)
+	}
+
+	modelsError := NewGatewayCollector(fakeGatewayReader{status: gateway.Status{
+		Scheme:              "http",
+		BaseURL:             "http://127.0.0.1:4000",
+		MasterKeyConfigured: true,
+		Health:              gateway.Probe{Reachable: true, Authorized: true, Healthy: true, HTTPStatus: http.StatusOK},
+		Models:              gateway.Probe{Error: "timeout", Reachable: false, Authorized: false},
+	}}).Collect(context.Background())
+	if modelsError.Level != status.HealthLevelWarning || modelsError.Details.Error != "timeout" {
+		t.Fatalf("unexpected models-error gateway status: %+v", modelsError)
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -214,6 +255,165 @@ func TestDatabaseCollectorCoversConfigErrorRuntimeErrorSchemaWarningAndHealthy(t
 	}
 }
 
+func TestBackupCollectorCoversMissingFreshAndStaleBranches(t *testing.T) {
+	t.Parallel()
+
+	missing := NewBackupCollector(t.TempDir()).Collect(context.Background())
+	if missing.Level != status.HealthLevelWarning || missing.Message != "No database backups found" {
+		t.Fatalf("unexpected missing backup status: %+v", missing)
+	}
+
+	repoRoot := t.TempDir()
+	backupDir := filepath.Join(repoRoot, "demo", "backups")
+	if err := os.MkdirAll(backupDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	freshPath := filepath.Join(backupDir, "litellm-backup-fresh.sql.gz")
+	if err := os.WriteFile(freshPath, []byte("fresh"), 0o600); err != nil {
+		t.Fatalf("WriteFile(fresh) error = %v", err)
+	}
+	freshTime := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(freshPath, freshTime, freshTime); err != nil {
+		t.Fatalf("Chtimes(fresh) error = %v", err)
+	}
+
+	fresh := NewBackupCollector(repoRoot).Collect(context.Background())
+	if fresh.Level != status.HealthLevelHealthy || fresh.Details.BackupPath != freshPath {
+		t.Fatalf("unexpected fresh backup status: %+v", fresh)
+	}
+
+	if err := os.Remove(freshPath); err != nil {
+		t.Fatalf("Remove(fresh) error = %v", err)
+	}
+	stalePath := filepath.Join(backupDir, "litellm-backup-stale.sql.gz")
+	if err := os.WriteFile(stalePath, []byte("stale"), 0o600); err != nil {
+		t.Fatalf("WriteFile(stale) error = %v", err)
+	}
+	staleTime := time.Now().Add(-(backupCriticalAge + time.Hour))
+	if err := os.Chtimes(stalePath, staleTime, staleTime); err != nil {
+		t.Fatalf("Chtimes(stale) error = %v", err)
+	}
+
+	stale := NewBackupCollector(repoRoot).Collect(context.Background())
+	if stale.Level != status.HealthLevelUnhealthy || stale.Details.BackupPath != stalePath {
+		t.Fatalf("unexpected stale backup status: %+v", stale)
+	}
+}
+
+func TestReadinessCollectorCoversMissingFailedAndHealthyBranches(t *testing.T) {
+	t.Parallel()
+
+	missing := NewReadinessCollector(t.TempDir()).Collect(context.Background())
+	if missing.Level != status.HealthLevelWarning || missing.Message != "No readiness evidence run found" {
+		t.Fatalf("unexpected missing readiness status: %+v", missing)
+	}
+
+	repoRoot := t.TempDir()
+	evidenceRoot := filepath.Join(repoRoot, "demo", "logs", "evidence")
+	runDir := filepath.Join(evidenceRoot, "readiness-fixture")
+	if err := os.MkdirAll(runDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(runDir) error = %v", err)
+	}
+	for _, name := range []string{"readiness-summary.md", "presentation-readiness-tracker.md", "go-no-go-decision.md"} {
+		if err := os.WriteFile(filepath.Join(runDir, name), []byte("fixture\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+	failedSummary := `{
+  "run_id": "readiness-fixture",
+  "generated_at_utc": "2026-03-18T00:00:00Z",
+  "run_directory": "` + runDir + `",
+  "overall_status": "FAIL",
+  "failing_gate_count": 1,
+  "skipped_gate_count": 0,
+  "gate_results": []
+}
+`
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(failedSummary), 0o600); err != nil {
+		t.Fatalf("WriteFile(summary.json) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "evidence-inventory.txt"), []byte("evidence-inventory.txt\ngo-no-go-decision.md\npresentation-readiness-tracker.md\nreadiness-summary.md\nsummary.json\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(inventory) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(evidenceRoot, "latest-run.txt"), []byte(runDir+"\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(latest-run.txt) error = %v", err)
+	}
+
+	failed := NewReadinessCollector(repoRoot).Collect(context.Background())
+	if failed.Level != status.HealthLevelUnhealthy || failed.Details.ReadinessOverallStatus != "FAIL" {
+		t.Fatalf("unexpected failed readiness status: %+v", failed)
+	}
+
+	bundlePath := filepath.Join(repoRoot, "bundle.tar.gz")
+	checksumPath := bundlePath + ".sha256"
+	if err := os.WriteFile(bundlePath, []byte("bundle"), 0o600); err != nil {
+		t.Fatalf("WriteFile(bundle) error = %v", err)
+	}
+	if err := os.WriteFile(checksumPath, []byte("checksum"), 0o600); err != nil {
+		t.Fatalf("WriteFile(checksum) error = %v", err)
+	}
+	freshSummary := `{
+  "run_id": "readiness-fixture",
+  "generated_at_utc": "` + time.Now().UTC().Format(time.RFC3339) + `",
+  "run_directory": "` + runDir + `",
+  "bundle_path": "` + bundlePath + `",
+  "bundle_checksum_path": "` + checksumPath + `",
+  "overall_status": "PASS",
+  "failing_gate_count": 0,
+  "skipped_gate_count": 1,
+  "gate_results": []
+}
+`
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(freshSummary), 0o600); err != nil {
+		t.Fatalf("WriteFile(summary.json fresh) error = %v", err)
+	}
+
+	healthy := NewReadinessCollector(repoRoot).Collect(context.Background())
+	if healthy.Level != status.HealthLevelHealthy || healthy.Details.ReadinessOverallStatus != "PASS" {
+		t.Fatalf("unexpected healthy readiness status: %+v", healthy)
+	}
+
+	staleSummary := `{
+  "run_id": "readiness-fixture",
+  "generated_at_utc": "` + time.Now().UTC().Add(-(readinessStaleAge + time.Hour)).Format(time.RFC3339) + `",
+  "run_directory": "` + runDir + `",
+  "bundle_path": "` + bundlePath + `",
+  "bundle_checksum_path": "` + checksumPath + `",
+  "overall_status": "PASS",
+  "failing_gate_count": 0,
+  "skipped_gate_count": 0,
+  "gate_results": []
+}
+`
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(staleSummary), 0o600); err != nil {
+		t.Fatalf("WriteFile(summary.json stale) error = %v", err)
+	}
+	stale := NewReadinessCollector(repoRoot).Collect(context.Background())
+	if stale.Level != status.HealthLevelWarning || !strings.Contains(stale.Message, "stale") {
+		t.Fatalf("unexpected stale readiness status: %+v", stale)
+	}
+
+	invalidSummary := `{
+  "run_id": "readiness-fixture",
+  "generated_at_utc": "not-a-timestamp",
+  "run_directory": "` + runDir + `",
+  "bundle_path": "` + bundlePath + `",
+  "bundle_checksum_path": "` + checksumPath + `",
+  "overall_status": "PASS",
+  "failing_gate_count": 0,
+  "skipped_gate_count": 0,
+  "gate_results": []
+}
+`
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(invalidSummary), 0o600); err != nil {
+		t.Fatalf("WriteFile(summary.json invalid) error = %v", err)
+	}
+	invalid := NewReadinessCollector(repoRoot).Collect(context.Background())
+	if invalid.Level != status.HealthLevelWarning || invalid.Details.Error == "" {
+		t.Fatalf("unexpected invalid-timestamp readiness status: %+v", invalid)
+	}
+}
+
 func TestKeysCollectorCoversWarningAndHealthyBranches(t *testing.T) {
 	t.Parallel()
 
@@ -264,6 +464,47 @@ func TestBudgetCollectorCoversWarningUnhealthyAndHealthyBranches(t *testing.T) {
 	healthyStatus := NewBudgetCollector(fakeReadonlyReader{budgetSummary: db.BudgetSummary{Total: 4}}).Collect(context.Background())
 	if healthyStatus.Level != status.HealthLevelHealthy {
 		t.Fatalf("expected healthy budget status, got %+v", healthyStatus)
+	}
+}
+
+func TestTrafficCollectorCoversWarningAndHealthyBranches(t *testing.T) {
+	t.Parallel()
+
+	errorStatus := NewTrafficCollector(fakeReadonlyReader{trafficErr: errors.New("missing spend logs")}).Collect(context.Background())
+	if errorStatus.Level != status.HealthLevelWarning || errorStatus.Details.Error != "missing spend logs" {
+		t.Fatalf("unexpected traffic error status: %+v", errorStatus)
+	}
+
+	noData := NewTrafficCollector(fakeReadonlyReader{trafficSummary: db.TrafficSummary{SpendLogsTableExists: false}}).Collect(context.Background())
+	if noData.Level != status.HealthLevelHealthy || noData.Message != "No gateway traffic data yet" {
+		t.Fatalf("unexpected no-data traffic status: %+v", noData)
+	}
+
+	warning := NewTrafficCollector(fakeReadonlyReader{trafficSummary: db.TrafficSummary{
+		SpendLogsTableExists: true,
+		TotalRequests24h:     20,
+		TotalTokens24h:       2000,
+		TotalSpend24h:        4.5,
+		ErrorRequests24h:     3,
+	}}).Collect(context.Background())
+	if warning.Level != status.HealthLevelWarning || warning.Details.ErrorRatePercent24h <= trafficErrorRateWarningThreshold {
+		t.Fatalf("unexpected warning traffic status: %+v", warning)
+	}
+
+	noRequests := NewTrafficCollector(fakeReadonlyReader{trafficSummary: db.TrafficSummary{SpendLogsTableExists: true}}).Collect(context.Background())
+	if noRequests.Level != status.HealthLevelHealthy || noRequests.Message != "No gateway traffic in last 24h" {
+		t.Fatalf("unexpected no-requests traffic status: %+v", noRequests)
+	}
+
+	healthy := NewTrafficCollector(fakeReadonlyReader{trafficSummary: db.TrafficSummary{
+		SpendLogsTableExists: true,
+		TotalRequests24h:     5,
+		TotalTokens24h:       500,
+		TotalSpend24h:        1.25,
+		ErrorRequests24h:     0,
+	}}).Collect(context.Background())
+	if healthy.Level != status.HealthLevelHealthy || healthy.Details.TotalRequests24h != 5 {
+		t.Fatalf("unexpected healthy traffic status: %+v", healthy)
 	}
 }
 
