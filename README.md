@@ -96,6 +96,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - [Deployment guide](docs/DEPLOYMENT.md)
 - [Observability signal reference](docs/observability/OPERATOR_SIGNAL_REFERENCE.md)
 - [OTEL collector setup](docs/observability/OTEL_SETUP.md)
+- [Vendor evidence ingest](docs/evidence/VENDOR_EVIDENCE_INGEST.md)
 - [HA and failover topology](docs/deployment/HA_FAILOVER_TOPOLOGY.md)
 - [Active-passive HA failover runbook](docs/deployment/HA_FAILOVER_RUNBOOK.md)
 - [Compliance crosswalk](docs/COMPLIANCE_CROSSWALK.md)

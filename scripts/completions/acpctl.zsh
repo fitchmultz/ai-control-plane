@@ -18,6 +18,9 @@ _acpctl() {
         chargeback)
             _acpctl_chargeback
             ;;
+        evidence)
+            _acpctl_evidence
+            ;;
         ops)
             _acpctl_ops
             ;;
@@ -59,6 +62,7 @@ _acpctl_commands() {
         "ci:CI and local gate helpers"
         "env:Strict .env access helpers"
         "chargeback:Typed chargeback rendering helpers"
+        "evidence:Vendor evidence ingest workflows"
         "ops:Operator reporting workflows"
         "status:Aggregated system health overview"
         "health:Run service health checks"
@@ -101,6 +105,13 @@ _acpctl_chargeback() {
         "payload:Render canonical chargeback webhook payload JSON"
     )
     _describe -t commands 'chargeback subcommands' subcmds "$@"
+}
+
+_acpctl_evidence() {
+    local subcmds=(
+        "ingest:Normalize supported vendor evidence into ACP schema artifacts"
+    )
+    _describe -t commands 'evidence subcommands' subcmds "$@"
 }
 
 _acpctl_ops() {

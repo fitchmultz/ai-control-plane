@@ -4,6 +4,8 @@
 
 The AI Control Plane can push real-time event notifications to external systems via webhooks. This enables integration with ticketing systems, chat platforms, SIEM tools, and custom automation without polling.
 
+This document is the **outbound webhook event reference**. For the supported host-first **inbound** normalization path that takes vendor export/webhook payloads from file or stdin and converts them into ACP evidence artifacts, use `acpctl evidence ingest` and see [../evidence/VENDOR_EVIDENCE_INGEST.md](../evidence/VENDOR_EVIDENCE_INGEST.md).
+
 ## Quick Start
 
 ### Enable Webhooks

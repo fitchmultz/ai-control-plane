@@ -16,6 +16,7 @@ This directory contains operator-facing example patterns.
 | `production-hardened/` | Production-oriented host workflow and validation path | `production-hardened/README.md` |
 | `offline-airgap/` | Deterministic offline demonstration/runtime pattern | `offline-airgap/README.md` |
 | `tls-ingress/` | TLS ingress overlay pattern | `tls-ingress/README.md` |
+| `vendor-evidence/` | Sample compliance export payload for `acpctl evidence ingest` | `vendor-evidence/README.md` |
 | `falcon-insurance-group/` | Sanitized pilot closeout artifact set, including a case study and measurable outcomes scorecard | `falcon-insurance-group/README.md` |
 
 ## Naming Rules

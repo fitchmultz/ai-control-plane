@@ -1,0 +1,18 @@
+{
+  "compliance_export": {
+    "request_id": "req-demo-001",
+    "model": "openai-gpt5.2",
+    "provider": "openai",
+    "created_at": "2026-03-19T19:00:00Z",
+    "policy_action": "allowed",
+    "session_id": "sess-demo-001",
+    "user": {
+      "email": "analyst@example.com"
+    },
+    "usage": {
+      "prompt_tokens": 128,
+      "completion_tokens": 256,
+      "total_cost": 0.0142
+    }
+  }
+}

@@ -55,7 +55,6 @@ Objective: build capabilities that create separation from DIY LiteLLM deployment
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 26 | **Add a vendor webhook and export ingestion surface.** Receive audit evidence programmatically instead of manually. | Automated evidence ingestion raises the ceiling on real-world usefulness. | A typed receiver and normalizer exist for supported vendor export flows, with schema validation and evidence-pipeline integration. |
 | 27 | **Add a custom policy engine.** Differentiate beyond LiteLLM-native guardrails. | Proprietary enforcement and policy logic are where long-term platform value can compound. | ACP-native policy evaluation can inspect requests and responses, apply custom guardrails, and emit auditable policy decisions. |
 | 28 | **Design multi-tenant isolation and service-provider billing.** Create a credible managed-service expansion path. | Multi-tenant claims need real isolation and billing boundaries, not marketing language. | Organization and workspace isolation, row-level access design, tenant-safe reporting, and chargeback boundaries are designed, documented, and validated before any multi-tenant claim is made. |
 

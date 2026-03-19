@@ -5,6 +5,7 @@ This folder maps repository claims to concrete commands, artifacts, and workshop
 ## Contents
 
 - `EVIDENCE_MAP.md` — Traceability from claims to concrete commands/files
+- `VENDOR_EVIDENCE_INGEST.md` — Local vendor export normalization workflow and artifacts
 - `DEMO_SCRIPT.md` — 5–10 minute demo runbook with expected outputs
 - `WORKSHOP_OUTLINE.md` — 45–60 minute guided workshop plan
 - `COOKBOOK_DETERMINISTIC_CI.md` — Reusable CI tiering pattern extracted from this repo

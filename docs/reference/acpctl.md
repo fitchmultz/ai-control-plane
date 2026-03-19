@@ -56,6 +56,21 @@ Examples:
 ./scripts/acpctl.sh chargeback payload --target generic
 ```
 
+### `evidence`
+
+Vendor evidence ingest workflows.
+
+| Subcommand | Summary |
+| --- | --- |
+| `ingest` | Normalize supported vendor evidence into ACP schema artifacts |
+
+Examples:
+
+```bash
+./scripts/acpctl.sh evidence ingest --format compliance-api --file examples/vendor-evidence/compliance_export.sample.json
+cat export.json | ./scripts/acpctl.sh evidence ingest --format compliance-api
+```
+
 ### `ops`
 
 Operator reporting workflows.
