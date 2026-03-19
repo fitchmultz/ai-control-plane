@@ -1371,7 +1371,7 @@ Validation failures will cause the CI gate to fail, preventing drift between det
 
 This section maps detection rules to rapid response playbooks. When high-severity detections trigger, follow the linked runbook procedures.
 
-Map these detections to customer-specific framework controls during pilot or production validation; this repository does not publish a normative framework crosswalk.
+Map these detections to customer-specific framework controls during pilot or production validation; the canonical buyer-safe mapping now lives in [../COMPLIANCE_CROSSWALK.md](../COMPLIANCE_CROSSWALK.md), but customer-specific implementation and auditor interpretation still remain environment-dependent.
 
 ### Detection-to-Response Mapping
 

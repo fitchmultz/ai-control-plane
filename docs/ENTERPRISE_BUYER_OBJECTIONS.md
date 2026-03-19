@@ -40,7 +40,7 @@ Primary references:
 
 **Repo proof now:**
 - The repo maps controls, runbooks, detections, and evidence flows.
-- The crosswalk is useful for scoping customer control ownership and evidence planning.
+- The canonical crosswalk maps SOC 2, ISO 27001, and NIST-style controls with explicit customer/shared/provider ownership for evidence planning.
 
 **Customer dependency:**
 - environment-specific implementation
@@ -52,6 +52,7 @@ Primary references:
 - "SOC 2 / ISO / CMMC certified by using this repo"
 
 Primary references:
+- `docs/COMPLIANCE_CROSSWALK.md`
 - `docs/GO_TO_MARKET_SCOPE.md`
 - `docs/PILOT_CONTROL_OWNERSHIP_MATRIX.md`
 

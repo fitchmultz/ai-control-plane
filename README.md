@@ -95,6 +95,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 - [Deployment guide](docs/DEPLOYMENT.md)
 - [HA and failover topology](docs/deployment/HA_FAILOVER_TOPOLOGY.md)
 - [Active-passive HA failover runbook](docs/deployment/HA_FAILOVER_RUNBOOK.md)
+- [Compliance crosswalk](docs/COMPLIANCE_CROSSWALK.md)
 - [Security and governance](docs/SECURITY_GOVERNANCE.md)
 - [Technical architecture](docs/technical-architecture.md)
 - [Examples](examples/README.md)
@@ -113,6 +114,7 @@ make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.e
 ## Canonical Docs
 
 - [Roadmap](docs/ROADMAP.md)
+- [Compliance Crosswalk](docs/COMPLIANCE_CROSSWALK.md)
 - [Support](docs/SUPPORT.md)
 - [Architecture](docs/technical-architecture.md)
 - [Operations And Deployment](docs/DEPLOYMENT.md)

@@ -47,7 +47,6 @@ Objective: make security, procurement, and executive stakeholders comfortable sa
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 17 | **Publish a compliance crosswalk.** Give security and procurement teams something concrete to review. | Mapped controls make due diligence faster and more credible. | A detailed control mapping exists for at least SOC 2, ISO 27001, and NIST-style controls, with customer, shared, and provider ownership called out. |
 | 18 | **Publish a security whitepaper and threat model.** Strengthen technical credibility. | Procurement confidence improves when the risk story is explicit and professionally documented. | Architecture, trust boundaries, threats, mitigations, residual risks, and control ownership are documented in one buyer-safe artifact. |
 | 19 | **Publish public performance benchmarks and sizing guidance.** Move from “reference host only” to reproducible capacity evidence. | Buyers need sizing and performance evidence before they approve production spend. | Methodology, workload profiles, hardware and software baseline, results, and sizing caveats are published and reproducible. |
 | 20 | **Formalize CVE remediation and accepted-risk handling.** Make known limitations look governed rather than ad hoc. | Open vulnerabilities can be acceptable, but only when governance is credible and current. | Open CVEs have remediation plans or time-bounded accepted-risk records, a quarterly review cadence, and buyer-safe status communication. |

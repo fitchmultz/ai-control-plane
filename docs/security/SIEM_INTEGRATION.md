@@ -6,7 +6,7 @@ This guide describes how to integrate the AI Control Plane with Security Informa
 
 Per the [Enterprise AI Control Plane Strategy](../ENTERPRISE_STRATEGY.md) (Section 4.2), the AI Control Plane implements a **normalized evidence pipeline** that unifies telemetry from multiple sources into a single schema for SIEM ingestion.
 
-Map this evidence pipeline to customer-specific control frameworks during pilot or production validation; this repository does not publish a normative framework crosswalk.
+Map this evidence pipeline to customer-specific control frameworks during pilot or production validation; the canonical buyer-safe mapping now lives in [../COMPLIANCE_CROSSWALK.md](../COMPLIANCE_CROSSWALK.md), but customer-specific implementation and auditor interpretation still remain environment-dependent.
 
 ## Architecture
 
