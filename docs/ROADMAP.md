@@ -47,7 +47,7 @@ Objective: make security, procurement, and executive stakeholders comfortable sa
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 22 | **Obtain external validation.** Add third-party credibility beyond self-assertion. | External review materially strengthens buyer confidence. | A security review, architecture review, or equivalent external assessment is completed and can be referenced in buyer conversations. |
+| 22 | **Obtain external validation.** Add third-party credibility beyond self-assertion. Prep work is collected in [security/EXTERNAL_REVIEW_READINESS.md](security/EXTERNAL_REVIEW_READINESS.md), but this item stays open until a real outside assessment exists. | External review materially strengthens buyer confidence. | A security review, architecture review, or equivalent external assessment is completed and can be referenced in buyer conversations. |
 
 ### Wave 5 — Product differentiation and deeper platform capability
 

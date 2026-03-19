@@ -75,7 +75,7 @@ Use these documents together instead of creating custom pilot prose from scratch
 | Detection pack to SIEM mapping consistency | Yes | `demo/config/detection_rules.yaml`, `demo/config/siem_queries.yaml`, `make validate-detections`, `make validate-siem-schema` |
 | Managed browser path architecture | Yes, architecture + config baseline | `docs/security/ENTERPRISE_AUTH_ARCHITECTURE.md`, `docs/tooling/LIBRECHAT.md` |
 | Customer-network egress blocking effectiveness | No | Customer environment validation required |
-| External compliance attestation | No | [Compliance crosswalk](COMPLIANCE_CROSSWALK.md) is planning/reference material, not certification |
+| External compliance attestation | No | [Compliance crosswalk](COMPLIANCE_CROSSWALK.md) and [security/EXTERNAL_REVIEW_READINESS.md](security/EXTERNAL_REVIEW_READINESS.md) are preparation material, not completed external validation |
 | Cloud-specific production hardening | Not yet in this repo baseline | `docs/GO_TO_MARKET_SCOPE.md` |
 
 ---

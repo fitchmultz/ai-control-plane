@@ -200,3 +200,29 @@ Primary references:
 - `docs/security/CVE_REVIEW_LOG.md`
 - `docs/KNOWN_LIMITATIONS.md`
 - `docs/SECURITY_GOVERNANCE.md`
+
+---
+
+## 9. "Has this been independently reviewed by a third party?"
+
+**Short answer:** Not yet.
+
+**Repo proof now:**
+- The repo has a canonical external-review readiness package that collects the threat model, control crosswalk, limitations register, CVE governance process, ownership boundaries, and regenerable evidence workflow.
+- ACP can prepare a reviewer-ready packet without pretending that packet is the review itself.
+
+**Customer dependency:**
+- selection and funding of the outside reviewer
+- target-environment scope for any hands-on assessment
+- buyer decision on what type of review is required
+
+**Do not claim:**
+- "This has already passed an external review."
+- "The readiness packet is equivalent to third-party validation."
+- "A local readiness run is the same thing as independent assessment."
+
+Primary references:
+- `docs/security/EXTERNAL_REVIEW_READINESS.md`
+- `docs/security/SECURITY_WHITEPAPER_AND_THREAT_MODEL.md`
+- `docs/COMPLIANCE_CROSSWALK.md`
+- `docs/release/GO_NO_GO.md`

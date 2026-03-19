@@ -331,6 +331,11 @@ These are disclosed intentionally and should be part of buyer and operator revie
 For detailed SOC 2, ISO 27001, and NIST-style control mapping, use the canonical [Compliance Crosswalk](../COMPLIANCE_CROSSWALK.md).
 This whitepaper explains the architecture and threat logic behind those mappings; the crosswalk explains how ownership and evidence align to external control families.
 
+## External review readiness
+
+This whitepaper is a key input to outside review, but it is not a substitute for outside review.
+Use [EXTERNAL_REVIEW_READINESS.md](EXTERNAL_REVIEW_READINESS.md) as the canonical pre-review packet and claim-boundary guide when preparing a third-party assessor or answering diligence questions about independent validation status.
+
 ## Recommended validation and evidence workflow
 
 For a current buyer-safe packet, pair this whitepaper with:

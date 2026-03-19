@@ -109,7 +109,8 @@ These issues should be disclosed during diligence instead of buried in later con
 2. **Cloud-production claims are not yet validated.** This crosswalk is grounded in the host-first support boundary, not in a completed AWS production validation.
 3. **Bypass prevention is customer-dependent.** ACP can govern routed traffic and support detective coverage, but customer network, endpoint, and workspace controls are still required for hard prevention claims.
 4. **Open CVEs are governed, not magically absent.** See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md), [security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md), and the supply-chain policy for current accepted-risk handling.
-5. **Metadata-first evidence reduces content risk, but customer exports may still need extra controls.** Especially when transcript-bearing vendor exports or external systems are included.
+5. **External validation is still pending.** The current repository includes an external-review readiness packet, not a completed third-party assessment. See [security/EXTERNAL_REVIEW_READINESS.md](security/EXTERNAL_REVIEW_READINESS.md).
+6. **Metadata-first evidence reduces content risk, but customer exports may still need extra controls.** Especially when transcript-bearing vendor exports or external systems are included.
 
 ## Recommended buyer packet pairing
 

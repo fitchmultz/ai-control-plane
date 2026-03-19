@@ -35,6 +35,7 @@ make security-gate
 
 - [Compliance Crosswalk](COMPLIANCE_CROSSWALK.md)
 - [Security Whitepaper and Threat Model](security/SECURITY_WHITEPAPER_AND_THREAT_MODEL.md)
+- [External Review Readiness](security/EXTERNAL_REVIEW_READINESS.md)
 - [CVE Remediation and Risk Acceptance Policy](security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md)
 - [CVE Review Log](security/CVE_REVIEW_LOG.md)
 - [Approved Models](reference/approved-models.md)

@@ -63,6 +63,7 @@ The strict pilot phase gate is documented in [PILOT_EXECUTION_MODEL.md](PILOT_EX
 - Kubernetes-first production positioning as the default recommendation
 - Customer commitments on egress-blocking effectiveness outside validated environments
 - Multi-tenant managed-service claims
+- completed third-party validation claims before an outside assessment exists
 - “Blocking all AI usage” claims
 
 ## Claim Discipline Rules
