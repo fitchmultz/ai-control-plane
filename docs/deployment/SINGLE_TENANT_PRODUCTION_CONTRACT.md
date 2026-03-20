@@ -29,7 +29,7 @@ The production contract is the host-first Docker deployment path described in [D
 - A passing `db-off-host-drill` is only as strong as its recorded `drill_mode`: `staged-local` is truthful single-machine staged validation, while `separate-host` is truthful separate-host or separate-VM recovery evidence. Neither mode implies ACP-native backup transport or HA automation.
 - Scheduled backups, restore drills, rollback artifacts, and off-host recovery evidence are part of the recovery contract, but they do **not** provide automatic failover.
 - Customer-owned DNS, load balancers, and network infrastructure determine any multi-host traffic cutover outside the current supported surface.
-- Availability expectations and the next credible HA pattern are documented in [HA_FAILOVER_TOPOLOGY.md](HA_FAILOVER_TOPOLOGY.md).
+- Availability expectations and the validated customer-operated active-passive reference pattern are documented in [HA_FAILOVER_TOPOLOGY.md](HA_FAILOVER_TOPOLOGY.md).
 - The supported host boundary is Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, and Docker Compose.
 - The tracked host playbook enforces baseline package/update posture, SSH hardening, private secrets-file permissions, explicit UFW defaults, and automated backup-timer installation.
 - The supported recovery contract includes scheduled backups, tracked retention, a repeatable scratch-restore verification drill, and typed rollback artifacts for future explicit upgrade edges.

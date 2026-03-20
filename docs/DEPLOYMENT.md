@@ -85,7 +85,7 @@ Truthful availability boundary:
 - A host failure, local storage failure, or database failure can still take down the entire deployment because those components share one failure domain.
 - Customer-owned DNS, load balancers, and network controls determine any external traffic failover behavior.
 
-See [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) for the full failure-domain model, RPO/RTO truth, and the next credible active-passive pattern. See [deployment/HA_FAILOVER_RUNBOOK.md](deployment/HA_FAILOVER_RUNBOOK.md) for the customer-operated failover drill workflow and evidence contract. See [deployment/DISASTER_RECOVERY.md](deployment/DISASTER_RECOVERY.md) for the supported restore workflow after failure.
+See [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) for the full failure-domain model, RPO/RTO truth, and the validated customer-operated active-passive reference pattern. See [deployment/HA_FAILOVER_RUNBOOK.md](deployment/HA_FAILOVER_RUNBOOK.md) for the customer-operated failover drill workflow and evidence contract. See [deployment/DISASTER_RECOVERY.md](deployment/DISASTER_RECOVERY.md) for the supported restore workflow after failure.
 
 ## Certificate Lifecycle Workflow
 

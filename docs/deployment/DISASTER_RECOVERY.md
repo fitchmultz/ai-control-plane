@@ -4,7 +4,7 @@ The supported disaster-recovery story is the **single-node** host-first Docker r
 
 This document covers **recovery after failure**. It does **not** describe automatic failover, clustered high availability, or promotion to a secondary node. Scheduled backups, scratch-restore drills, and typed restore workflows reduce recovery risk, but they do not remove the single-host failure domain.
 
-For topology limits, failure domains, and the next credible HA pattern, see [HA And Failover Topology](HA_FAILOVER_TOPOLOGY.md). For manual active-passive failover proof, see [Active-Passive HA Failover Runbook](HA_FAILOVER_RUNBOOK.md).
+For topology limits, failure domains, and the validated customer-operated active-passive reference pattern, see [HA And Failover Topology](HA_FAILOVER_TOPOLOGY.md). For manual active-passive failover proof, see [Active-Passive HA Failover Runbook](HA_FAILOVER_RUNBOOK.md).
 
 ## Recovery Boundary
 

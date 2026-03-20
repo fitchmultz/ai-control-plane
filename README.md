@@ -25,7 +25,7 @@ The canonical execution roadmap for outstanding work lives in [docs/ROADMAP.md](
 
 | Status | Boundary |
 | --- | --- |
-| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, pilot closeout artifacts, and an incubating design-only tenant isolation/billing package |
+| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, pilot closeout artifacts, a validated customer-operated active-passive HA failover drill evidence surface, and an incubating design-only tenant isolation/billing package |
 | Conditionally ready | Customer pilots on controlled Linux hosts with customer-owned network, IAM, SIEM, retention, and workspace controls validated |
 | Not yet validated | Broad cloud-production claims, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention |
 

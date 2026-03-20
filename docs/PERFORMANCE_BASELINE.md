@@ -275,7 +275,7 @@ It does **not** prove:
 
 It must also be read alongside current limitations:
 
-- the supported host-first deployment remains constrained by the documented single-node / no-automatic-failover limitation
+- the supported host-first deployment remains constrained by the documented single-node primary topology and customer-owned HA-operations limitation
 - provider-backed runs can differ materially from offline mock-model runs
 - prompt size and token volume can dominate latency more than raw request count
 - database topology, TLS posture, logging, DLP/guardrails, and observability settings can change the result

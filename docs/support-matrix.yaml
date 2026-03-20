@@ -15,6 +15,7 @@ public_docs:
   - docs/technical-architecture.md
   - docs/DEPLOYMENT.md
   - docs/deployment/CERTIFICATE_LIFECYCLE.md
+  - docs/deployment/HA_FAILOVER_RUNBOOK.md
   - docs/deployment/HA_FAILOVER_TOPOLOGY.md
   - docs/deployment/UPGRADE_MIGRATION.md
   - docs/deployment/UPGRADE_COMPATIBILITY_MATRIX.md
@@ -63,6 +64,19 @@ surfaces:
       - make readiness-evidence
       - make assessor-packet
       - make pilot-closeout-bundle
+
+  - id: ha-failover-drill-evidence
+    label: Active-passive HA failover drill evidence workflow
+    status: supported
+    summary: Customer-operated manual active-passive failover drill validation and private evidence archiving for replication readiness, fencing, promotion, customer-owned traffic cutover, and post-cutover checks. ACP does not automate PostgreSQL replication, promotion, fencing, or customer-owned DNS/load-balancer/VIP cutover.
+    owner: platform
+    paths:
+      - demo/config/ha_failover_drill.example.yaml
+      - docs/deployment/HA_FAILOVER_RUNBOOK.md
+      - docs/deployment/HA_FAILOVER_TOPOLOGY.md
+    validation:
+      - make ha-failover-drill
+      - acpctl host failover-drill
 
   - id: managed-ui-overlay
     label: Managed browser UI overlay

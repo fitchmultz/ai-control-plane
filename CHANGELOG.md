@@ -36,6 +36,7 @@ This repository uses:
 - A design-only multi-tenant isolation and billing package via `demo/config/tenant_design.yaml`, `acpctl tenant inspect|validate`, `acpctl validate tenant`, `make validate-tenant`, and a new ADR/policy doc set that defines organization/workspace isolation, row-level predicates, tenant-safe reporting, and provider billing boundaries without overstating current runtime support.
 
 ### Changed
+- Support, topology, and scope documents now promote the customer-operated active-passive HA failover drill evidence workflow to a validated supported surface while keeping automatic failover, ACP-managed replication, ACP-managed fencing/promotion, and customer-owned traffic cutover automation explicitly out of scope.
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
 - Key-generation role validation, default-role resolution, model selection, and least-privileged role inference now derive from the tracked RBAC contract plus approved model catalog instead of duplicated hardcoded role/model mappings.
 - Doctor now consumes `internal/health` directly for shared health levels instead of routing that vocabulary through `internal/status`.

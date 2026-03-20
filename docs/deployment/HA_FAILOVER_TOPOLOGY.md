@@ -1,8 +1,8 @@
 # HA And Failover Topology
 
-The validated production contract in this repository today is a **single-node** host-first deployment. This document explains what availability claims are truthful now, what the current failure domains are, and what the next credible HA pattern looks like.
+The primary validated deployment contract in this repository remains a **single-node** host-first deployment. In addition, the repository now validates a **customer-operated manual active-passive failover drill evidence surface** for a two-host reference pattern. This document explains what is primary today, what HA proof is now validated, and what ACP still does **not** automate.
 
-This is topology guidance, not runtime automation. Do not describe the current host-first deployment as automatic failover or multi-node high availability.
+This is topology and claim-boundary guidance, not runtime automation. Do not describe ACP as automatic failover, cluster orchestration, or ACP-managed PostgreSQL replication.
 
 ## Current Supported Topology
 
@@ -17,7 +17,7 @@ The current supported production topology is:
 - automated local backups via `ai-control-plane-backup.timer` (default: daily, keep 7)
 - recovery by restoring host access, restoring the database, re-applying the host deployment, and re-running health checks
 
-The tracked Ansible playbook, `deploy/ansible/playbooks/gateway_host.yml`, converges **one gateway host**. It does not deploy a cluster, a standby node, or automatic traffic cutover.
+The tracked Ansible playbook, `deploy/ansible/playbooks/gateway_host.yml`, still converges **one gateway host at a time**. The validated two-host reference pattern reuses that single-host convergence surface against each host before and after a manual promotion. ACP still does not ship a cluster playbook, replication controller, fencing controller, or automatic traffic-cutover controller.
 
 ```text
 Clients
@@ -91,16 +91,28 @@ The current host-first support boundary does **not** own these HA building block
 - monitoring/on-call procedures for customer infrastructure
 - customer-specific failover drills and acceptance criteria
 
-## Next Credible HA Pattern: Active-Passive With PostgreSQL Replication
+## Validated Active-Passive Reference Pattern: Manual Failover With PostgreSQL Replication
 
-If a deployment requires better availability than single-node recovery can provide, the next credible topology is **active-passive**, not active-active.
+The next credible HA pattern is now **validated as a customer-operated manual drill evidence surface**.
 
-Why this is the next credible step:
+Validated components now present in the repository:
+
+- typed failover-drill contract validation in `internal/ha`
+- operator command surface: `acpctl host failover-drill`
+- make entrypoint: `make ha-failover-drill`
+- repeatable private evidence bundling under `demo/logs/evidence/ha-failover-drill/`
+- operator runbook: [HA_FAILOVER_RUNBOOK.md](HA_FAILOVER_RUNBOOK.md)
+- example two-host inventory: `deploy/ansible/inventory/hosts.ha.example.yml`
+- production-only readiness-gate wiring in `demo/config/readiness_evidence.yaml`
+
+> Manual customer-operated active-passive failover proof only. ACP validates the drill contract and archives evidence for replication readiness, fencing, promotion, traffic cutover, and post-cutover checks. ACP does not automate PostgreSQL replication, promotion, or customer-owned DNS/load-balancer/VIP cutover.
+
+Why this is the validated next step:
 
 - it preserves one authoritative PostgreSQL writer
-- it reduces the largest current gap: total loss of service on single-host failure
-- it fits the current host-first operating model better than a multi-writer or clustered redesign
-- it keeps customer-owned traffic cutover explicit instead of implying magic automation
+- it reduces the single-host outage gap without pretending ACP ships automatic HA
+- it fits the existing host-first operating model by converging one host at a time
+- it keeps customer-owned fencing and traffic cutover explicit
 
 Reference pattern:
 
@@ -137,18 +149,19 @@ Recommended characteristics:
 
 Important boundary:
 
-- This pattern is **customer-operated reference guidance** in the current repository.
-- The repo now ships a typed failover-drill evidence workflow and runbook for manual active-passive proof, but ACP still does **not** automate multi-host failover, PostgreSQL promotion, or customer-owned cutover.
+- This pattern is a **validated customer-operated manual failover-drill evidence surface** in the current repository.
+- ACP still does **not** automate multi-host failover, PostgreSQL promotion, fencing, split-brain prevention, or customer-owned cutover.
 - Do **not** present this pattern as automatic failover or a managed cutover controller.
 
 ## Decision Guide
 
 | Requirement | Truthful answer today |
 | --- | --- |
-| "Can the supported host-first deployment survive a single-host outage without downtime?" | No. It is single-node. |
+| "Can the supported host-first deployment survive a single-host outage without downtime?" | The primary deployment topology is still single-node, so not by itself. |
 | "Do scheduled backups equal HA?" | No. They improve recovery, not failover. |
 | "Is disaster recovery supported?" | Yes. Backup, restore, scratch-restore drills, and re-apply workflows are part of the current contract. |
-| "Is there a next-step HA pattern?" | Yes. Active-passive with PostgreSQL replication is the next credible pattern, but it is not yet validated or supported as the primary topology. |
+| "Is there a validated HA pattern?" | Yes. A customer-operated active-passive reference pattern is validated through the typed failover-drill contract, runbook, inventory example, and repeatable evidence workflow. |
+| "Is automatic failover supported?" | No. ACP does not automate PostgreSQL replication, promotion, fencing, split-brain prevention, or customer-owned DNS/load-balancer/VIP cutover. |
 
 ## Related Documents
 

@@ -86,7 +86,7 @@ For production deployments, the supported repository baseline is a **single-node
 | Container health checks | They can restart services on the same host, but that is recovery, not failover. |
 | Automatic failover | Not part of the current supported repo contract. |
 | Current validated topology | One host running LiteLLM, PostgreSQL, and any selected overlays. |
-| Next credible HA pattern | Active-passive with PostgreSQL replication and customer-owned traffic cutover, documented as reference guidance only. |
+| Validated HA evidence pattern | Customer-operated active-passive failover-drill evidence with PostgreSQL replication guidance and customer-owned traffic cutover; ACP still does not automate failover. |
 
 See `docs/deployment/HA_FAILOVER_TOPOLOGY.md` for the explicit failure-domain and recovery-vs-failover model.
 

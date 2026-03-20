@@ -8,7 +8,7 @@ It contains outstanding work only. When an item is complete, remove it from this
 
 The roadmap must stay aligned to the current validated claim boundary:
 
-- **Validated now:** local host-first Docker reference implementation, typed operator workflows, readiness evidence, pilot closeout artifact generation, ACP-native assessor packet generation for external-review preparation, and an incubating design-only tenant isolation/billing package.
+- **Validated now:** local host-first Docker reference implementation, typed operator workflows, readiness evidence, pilot closeout artifact generation, ACP-native assessor packet generation for external-review preparation, a validated customer-operated active-passive HA failover drill evidence surface, and an incubating design-only tenant isolation/billing package.
 - **Conditionally ready:** customer pilots on controlled Linux hosts where customer-owned network, IAM, SIEM, retention, and workspace controls are validated.
 - **Not yet validated:** cloud-production enforcement claims, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention.
 
@@ -30,16 +30,15 @@ Primary claim-discipline references:
 
 ## Execution order
 
-Sequence is deliberate to minimize churn: prove the host-first HA path first, validate AWS on top of that baseline second, ship buyer-proof artifacts next, and only then invest in deeper platform differentiation.
+Sequence is deliberate to minimize churn: build on the now-validated host-first recovery and HA evidence baseline, validate AWS next, ship buyer-proof artifacts after that, and only then invest in deeper platform differentiation.
 
 ### Wave 3 — Host-first production readiness
 
-Objective: make the validated host-first path operationally defensible for real deployments and easier to procure.
+Objective: extend the now-validated host-first operating baseline into the next deployment environment without weakening claim discipline.
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 15 | **Validate the next credible HA path as a host-first active-passive reference pattern.** Turn the documented topology guidance into tested evidence. | Buyers and operators will trust a proven two-host failover pattern more than abstract HA language. It also resolves the newly documented single-node limitation more directly than cloud work. | A two-host active-passive reference path is validated with PostgreSQL replication guidance, fencing/promotion runbooks, customer-owned traffic-cutover guidance, and repeatable failover-drill evidence; unsupported automation remains explicitly out. |
-| 16 | **Validate the cloud path deliberately with AWS first.** Do not broaden claims without proof. | Cloud buyers need evidence, not architecture intent, but cloud expansion should follow the strongest host-first recovery and HA baseline. | An AWS-first path is validated with tested IaC, cloud hardening guidance, and a basic cost-estimation model; unsupported cloud claims remain explicitly out. |
+| 16 | **Validate the cloud path deliberately with AWS first.** Do not broaden claims without proof. | Cloud buyers need evidence, not architecture intent, but cloud expansion should follow the strongest validated host-first recovery and HA baseline. | An AWS-first path is validated with tested IaC, cloud hardening guidance, and a basic cost-estimation model; unsupported cloud claims remain explicitly out. |
 
 ### Wave 4 — Procurement credibility and buyer proof
 

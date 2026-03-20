@@ -7,6 +7,7 @@ The supported product surface is the **single-node** host-first Docker reference
 - `make up-offline` is the supported deterministic offline path.
 - `make up-tls` is the supported TLS ingress overlay.
 - `make ci`, `make ci-pr`, `make prod-smoke`, and the typed `acpctl` host/runtime workflows are the supported validation surface.
+- `make ha-failover-drill` and `./scripts/acpctl.sh host failover-drill --manifest ...` are the supported customer-operated active-passive HA failover-drill evidence surface.
 
 Support levels are defined in [support-matrix.yaml](support-matrix.yaml) and rendered in [reference/support-matrix.md](reference/support-matrix.md).
 
@@ -23,13 +24,28 @@ Start with [README.md](../README.md) for the public repo overview, [troubleshoot
 - Expect the supported host path to verify SSH host keys, enforce baseline host hardening (UFW defaults, unattended security updates, SSH hardening, private secrets-file permissions), install the automated backup timer contract, install the certificate renewal timer whenever the `tls` overlay is enabled, and use the typed upgrade framework for any future in-place release edge.
 - Treat outbound allow-listing, SWG/CASB policy, and broader perimeter controls as customer-owned responsibilities outside the host playbook.
 
+## Active-Passive Failover Drill Evidence
+
+The supported HA surface in this repository is the **manual evidence workflow**, not automatic cluster control.
+
+Supported entrypoints:
+
+- `make ha-failover-drill`
+- `./scripts/acpctl.sh host failover-drill --manifest <path>`
+
+Claim boundary:
+
+> Manual customer-operated active-passive failover proof only. ACP validates the drill contract and archives evidence for replication readiness, fencing, promotion, traffic cutover, and post-cutover checks. ACP does not automate PostgreSQL replication, promotion, or customer-owned DNS/load-balancer/VIP cutover.
+
+Use [deployment/HA_FAILOVER_RUNBOOK.md](deployment/HA_FAILOVER_RUNBOOK.md) for the operator sequence and [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) for topology truth, failure domains, and decision guidance.
+
 ## Availability Boundary
 
-- The supported host-first deployment is **single-node** today.
+- The primary supported deployment topology is **single-node** today.
 - Scheduled backups, restore drills, and typed recovery workflows are part of the supported contract.
+- A **validated customer-operated manual active-passive failover drill evidence workflow** is also supported.
 - Automatic failover to a secondary host is **not** part of the supported surface.
-- If operators or buyers ask for HA or failover expectations, use [deployment/HA_FAILOVER_TOPOLOGY.md](deployment/HA_FAILOVER_TOPOLOGY.md) to explain the current limit and the next credible active-passive pattern.
-- Customer-owned DNS, load balancers, off-host backups, and network infrastructure determine any broader availability posture beyond the supported single-node contract.
+- Customer-owned DNS, load balancers, off-host backups, fencing, PostgreSQL replication, and network infrastructure determine any broader availability posture beyond the supported ACP surfaces.
 
 ## Migration Notes
 
