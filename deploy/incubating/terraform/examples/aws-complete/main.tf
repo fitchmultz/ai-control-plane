@@ -10,6 +10,7 @@
 #------------------------------------------------------------------------------
 
 data "aws_availability_zones" "available" {
+  count = var.validation_only ? 0 : 1
   state = "available"
 }
 
@@ -18,8 +19,14 @@ data "aws_availability_zones" "available" {
 #------------------------------------------------------------------------------
 
 locals {
+  validation_availability_zones = [for suffix in ["a", "b", "c"] : "${var.aws_region}${suffix}"]
+
   # Use provided AZs or default to first 3 available AZs
-  azs = length(var.availability_zones) > 0 ? var.availability_zones : slice(data.aws_availability_zones.available.names, 0, 3)
+  azs = length(var.availability_zones) > 0 ? var.availability_zones : (
+    var.validation_only ? local.validation_availability_zones : slice(data.aws_availability_zones.available[0].names, 0, 3)
+  )
+
+  validation_account_id = var.validation_only ? var.validation_account_id : data.aws_caller_identity.current[0].account_id
 
   # Common tags merged with user-provided tags
   common_tags = merge(
@@ -37,60 +44,81 @@ locals {
       rds_instance_class = "db.t3.micro"
       rds_multi_az       = false
       single_nat_gateway = true
-      node_groups = {
+      node_groups = tomap({
         general = {
-          desired_size   = 2
-          min_size       = 1
-          max_size       = 3
-          instance_types = ["t3.medium"]
-          capacity_type  = "ON_DEMAND"
-          disk_size      = 50
-          labels = {
+          desired_size               = 2
+          min_size                   = 1
+          max_size                   = 3
+          instance_types             = tolist(["t3.medium"])
+          capacity_type              = "ON_DEMAND"
+          ami_type                   = "AL2_x86_64"
+          disk_size                  = 50
+          max_unavailable_percentage = 25
+          labels = tomap({
             role = "general"
-          }
+          })
+          taints                  = []
+          launch_template_id      = null
+          launch_template_version = null
+          remote_access           = null
+          tags                    = tomap({})
         }
-      }
+      })
     }
     staging = {
       rds_instance_class = "db.t3.small"
       rds_multi_az       = true
       single_nat_gateway = false
-      node_groups = {
+      node_groups = tomap({
         general = {
-          desired_size   = 2
-          min_size       = 2
-          max_size       = 5
-          instance_types = ["t3.medium"]
-          capacity_type  = "ON_DEMAND"
-          disk_size      = 50
-          labels = {
+          desired_size               = 2
+          min_size                   = 2
+          max_size                   = 5
+          instance_types             = tolist(["t3.medium"])
+          capacity_type              = "ON_DEMAND"
+          ami_type                   = "AL2_x86_64"
+          disk_size                  = 50
+          max_unavailable_percentage = 25
+          labels = tomap({
             role = "general"
-          }
+          })
+          taints                  = []
+          launch_template_id      = null
+          launch_template_version = null
+          remote_access           = null
+          tags                    = tomap({})
         }
-      }
+      })
     }
     production = {
       rds_instance_class = "db.t3.medium"
       rds_multi_az       = true
       single_nat_gateway = false
-      node_groups = {
+      node_groups = tomap({
         general = {
-          desired_size   = 3
-          min_size       = 2
-          max_size       = 10
-          instance_types = ["t3.large"]
-          capacity_type  = "ON_DEMAND"
-          disk_size      = 100
-          labels = {
+          desired_size               = 3
+          min_size                   = 2
+          max_size                   = 10
+          instance_types             = tolist(["t3.large"])
+          capacity_type              = "ON_DEMAND"
+          ami_type                   = "AL2_x86_64"
+          disk_size                  = 100
+          max_unavailable_percentage = 25
+          labels = tomap({
             role = "general"
-          }
+          })
+          taints                  = []
+          launch_template_id      = null
+          launch_template_version = null
+          remote_access           = null
+          tags                    = tomap({})
         }
-      }
+      })
     }
   }
 
   # Determine node groups (user-provided or environment default)
-  effective_node_groups = length(var.node_groups) > 0 ? var.node_groups : local.environment_config[var.environment].node_groups
+  effective_node_groups = merge(local.environment_config[var.environment].node_groups, var.node_groups)
 
   # Terraform examples now target the production-safe Helm contract only.
   helm_profile = "production"
@@ -311,12 +339,14 @@ module "secrets" {
 #------------------------------------------------------------------------------
 
 # S3 bucket for cross-region backup replication
-data "aws_caller_identity" "current" {}
+data "aws_caller_identity" "current" {
+  count = var.validation_only ? 0 : 1
+}
 
 resource "aws_s3_bucket" "backups" {
   count = var.backup_replication_enabled ? 1 : 0
 
-  bucket = "${var.name_prefix}-${var.environment}-backups-${data.aws_caller_identity.current.account_id}"
+  bucket = "${var.name_prefix}-${var.environment}-backups-${local.validation_account_id}"
 
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-${var.environment}-backups"

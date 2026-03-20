@@ -2,6 +2,8 @@
 
 This Terraform example deploys the complete AI Control Plane infrastructure on AWS, including:
 
+> Validation boundary: this example is backed by explicit internal `make tf-*` checks plus the AWS hardening and cost documents. It remains an incubating Terraform surface and does not replace the host-first primary production contract.
+
 - **VPC** with public and private subnets across multiple availability zones
 - **EKS** (Elastic Kubernetes Service) cluster with managed node groups
 - **RDS** (Relational Database Service) PostgreSQL instance for LiteLLM
@@ -88,7 +90,7 @@ export AWS_DEFAULT_REGION="us-east-1"
 ### 2. Initialize Terraform
 
 ```bash
-cd deploy/terraform/examples/aws-complete
+cd deploy/incubating/terraform/examples/aws-complete
 terraform init
 ```
 
@@ -127,7 +129,9 @@ The module provides environment-specific defaults based on the `environment` var
 | Single NAT Gateway | true | false | false |
 | Node Instance Type | t3.medium | t3.medium | t3.large |
 | Node Min/Max | 1-3 | 2-5 | 2-10 |
-| Helm Profile | demo | demo | production |
+| Helm Profile | production | production | production |
+
+> The AWS example always deploys the Helm chart using the production profile. Environment selection changes infrastructure sizing defaults, not the Helm security contract.
 
 ### Key Variables
 

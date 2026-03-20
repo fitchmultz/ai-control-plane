@@ -87,7 +87,7 @@ output "node_groups" {
 
 output "node_group_names" {
   description = "List of node group names"
-  value       = [for ng in aws_eks_node_group.this : ng.name]
+  value       = keys(aws_eks_node_group.this)
 }
 
 output "node_iam_role_arn" {

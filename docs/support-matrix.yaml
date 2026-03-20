@@ -134,10 +134,18 @@ surfaces:
   - id: terraform
     label: Terraform deployment assets
     status: incubating
-    summary: Retained in-repo under deploy/incubating for explicit internal exploration only.
+    summary: AWS-first Terraform assets are validated through explicit internal fmt, validate, and validation-only plan workflows plus AWS hardening guidance and a basic cost-estimation model. They remain under deploy/incubating and outside the supported host-first/default-CI operator surface. Azure and GCP remain incubating and unvalidated for external claims.
     owner: platform
+    paths:
+      - deploy/incubating/terraform/examples/aws-complete
+      - docs/deployment/TERRAFORM.md
+      - docs/security/AWS_CLOUD_HARDENING.md
+      - docs/deployment/AWS_COST_ESTIMATION.md
     validation:
-      - explicit internal checks only
+      - make tf-fmt-check
+      - make tf-validate
+      - make tf-plan-aws
+      - make tf-security-check (optional)
 
   - id: multi-tenant-isolation-design
     label: Multi-tenant isolation design package

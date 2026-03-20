@@ -20,6 +20,6 @@
 | Surface | Summary | Validation |
 | --- | --- | --- |
 | Helm deployment assets | Retained in-repo under deploy/incubating for explicit internal exploration only. | explicit internal checks only |
-| Terraform deployment assets | Retained in-repo under deploy/incubating for explicit internal exploration only. | explicit internal checks only |
+| Terraform deployment assets | AWS-first Terraform assets are validated through explicit internal fmt, validate, and validation-only plan workflows plus AWS hardening guidance and a basic cost-estimation model. They remain under deploy/incubating and outside the supported host-first/default-CI operator surface. Azure and GCP remain incubating and unvalidated for external claims. | make tf-fmt-check, make tf-validate, make tf-plan-aws, make tf-security-check (optional) |
 | Multi-tenant isolation design package | Design-only contract for future organization/workspace isolation, tenant-safe reporting, and service-provider billing boundaries. | make validate-tenant, acpctl tenant validate |
 

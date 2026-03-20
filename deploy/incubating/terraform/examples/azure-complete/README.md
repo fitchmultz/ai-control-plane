@@ -83,7 +83,7 @@ az account set --subscription "Your Subscription Name"
 ### 1. Copy Example Variables
 
 ```bash
-cd deploy/terraform/examples/azure-complete
+cd deploy/incubating/terraform/examples/azure-complete
 cp terraform.tfvars.example terraform.tfvars
 ```
 

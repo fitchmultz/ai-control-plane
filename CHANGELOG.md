@@ -34,9 +34,11 @@ This repository uses:
 - ACP-native local custom policy evaluation via `acpctl policy eval`, including tracked rule validation, request/response guardrail inspection, auditable decision artifacts, and sample policy-engine payloads.
 - ACP-native assessor handoff packaging via `acpctl deploy assessor-packet build|verify` and `make assessor-packet|assessor-packet-verify`, producing a verifiable external-review preparation packet with canonical reviewer docs, readiness evidence, and the referenced release bundle while keeping roadmap item #22 explicitly open.
 - A design-only multi-tenant isolation and billing package via `demo/config/tenant_design.yaml`, `acpctl tenant inspect|validate`, `acpctl validate tenant`, `make validate-tenant`, and a new ADR/policy doc set that defines organization/workspace isolation, row-level predicates, tenant-safe reporting, and provider billing boundaries without overstating current runtime support.
+- An AWS-first incubating cloud validation package via `make tf-fmt-check`, `make tf-validate`, `make tf-plan-aws`, `docs/deployment/TERRAFORM.md`, `docs/security/AWS_CLOUD_HARDENING.md`, `docs/deployment/AWS_COST_ESTIMATION.md`, and ADR 0003, keeping Terraform incubating while making AWS-specific claim boundaries explicit.
 
 ### Changed
 - Support, topology, and scope documents now promote the customer-operated active-passive HA failover drill evidence workflow to a validated supported surface while keeping automatic failover, ACP-managed replication, ACP-managed fencing/promotion, and customer-owned traffic cutover automation explicitly out of scope.
+- Cloud scope, roadmap, compliance, and whitepaper documents now recognize the AWS-first incubating Terraform validation package while keeping Azure/GCP and named-account/runtime cloud claims explicitly out of scope.
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.
 - Key-generation role validation, default-role resolution, model selection, and least-privileged role inference now derive from the tracked RBAC contract plus approved model catalog instead of duplicated hardcoded role/model mappings.
 - Doctor now consumes `internal/health` directly for shared health levels instead of routing that vocabulary through `internal/status`.

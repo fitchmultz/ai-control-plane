@@ -29,9 +29,9 @@ It should be paired with the [Compliance Crosswalk](../COMPLIANCE_CROSSWALK.md),
 
 This artifact stays inside the repository's current support and truth boundary:
 
-- **Validated now:** host-first Docker reference implementation, typed operator workflows, detection/SIEM validation, readiness evidence, pilot closeout artifacts, disaster-recovery drills, and customer-operated HA failover-drill evidence tooling.
+- **Validated now:** host-first Docker reference implementation, typed operator workflows, detection/SIEM validation, readiness evidence, pilot closeout artifacts, disaster-recovery drills, customer-operated HA failover-drill evidence tooling, and an AWS-first incubating cloud deployment package validated through explicit Terraform fmt, validate, and validation-only plan workflows plus AWS hardening guidance and a basic cost-estimation model.
 - **Conditionally ready:** customer pilots on controlled Linux hosts where the customer validates identity, network, SIEM, retention, secrets handling, and workspace/browser governance in the target environment.
-- **Not yet validated:** AWS/cloud-production enforcement claims, multi-tenant managed-service claims, and universal bypass prevention.
+- **Not yet validated:** Azure/GCP cloud deployment claims, AWS applied/runtime cloud-operation evidence beyond the explicit validation package, multi-tenant managed-service claims, and universal bypass prevention.
 
 ## Architecture overview
 
@@ -310,7 +310,7 @@ These are disclosed intentionally and should be part of buyer and operator revie
 1. **Single-node topology remains the primary validated baseline.** Host, disk, database, or Docker failure can still cause a full outage.
 2. **Automatic failover is not part of the supported contract.** ACP now ships failover-drill evidence tooling, not automatic HA orchestration.
 3. **Bypass prevention is customer-dependent.** Without customer network and endpoint controls, direct vendor usage may remain possible.
-4. **Cloud-production claims are not yet validated.** This whitepaper is grounded in the host-first support boundary.
+4. **Broad cloud-production claims are still not validated.** This whitepaper recognizes the AWS-first incubating Terraform validation package, but it remains grounded in the host-first support boundary and does not claim named-account AWS runtime proof or Azure/GCP validation.
 5. **Open CVEs remain under governance.** Current accepted-risk status, expiry windows, and quarterly review history live in [CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md), [CVE_REVIEW_LOG.md](CVE_REVIEW_LOG.md), [KNOWN_LIMITATIONS.md](../KNOWN_LIMITATIONS.md), and [`demo/config/supply_chain_vulnerability_policy.json`](../../demo/config/supply_chain_vulnerability_policy.json).
 6. **Metadata-first evidence is intentional but incomplete for transcript-centric investigations.** If customers ingest transcript-bearing exports, they need additional controls and retention discipline.
 7. **Offline and lab modes are not equivalent to production proof for every guardrail feature.** Especially for DLP and exact token-accounting behavior.

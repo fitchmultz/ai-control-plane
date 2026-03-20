@@ -51,7 +51,7 @@ aws dynamodb create-table \
 4. Initialize Terraform:
 
 ```bash
-cd deploy/terraform/examples/aws-complete
+cd deploy/incubating/terraform/examples/aws-complete
 cp ../../backend-examples/s3-backend.tf .
 # Edit s3-backend.tf with your bucket name
 terraform init
@@ -84,7 +84,7 @@ az storage container create \
 4. Initialize Terraform:
 
 ```bash
-cd deploy/terraform/examples/azure-complete
+cd deploy/incubating/terraform/examples/azure-complete
 cp ../../backend-examples/azurerm-backend.tf .
 # Edit azurerm-backend.tf with your values
 terraform init
@@ -107,7 +107,7 @@ gsutil versioning set on gs://ai-control-plane-tfstate
 4. Initialize Terraform:
 
 ```bash
-cd deploy/terraform/examples/gcp-complete
+cd deploy/incubating/terraform/examples/gcp-complete
 cp ../../backend-examples/gcs-backend.tf .
 # Edit gcs-backend.tf with your bucket name
 gcloud auth application-default login  # If not already done

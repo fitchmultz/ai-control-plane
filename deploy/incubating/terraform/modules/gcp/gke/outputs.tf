@@ -92,11 +92,11 @@ output "node_pools" {
   description = "Map of node pool names to their details"
   value = {
     for name, pool in google_container_node_pool.pools : name => {
-      name           = pool.name
-      id             = pool.id
+      name                = pool.name
+      id                  = pool.id
       instance_group_urls = pool.managed_instance_group_urls
-      node_count     = pool.node_count
-      version        = pool.version
+      node_count          = pool.node_count
+      version             = pool.version
     }
   }
 }

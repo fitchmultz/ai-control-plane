@@ -19,7 +19,7 @@ locals {
   all_tags = merge(local.default_tags, var.tags)
 
   # Determine which SSL certificate to use
-  use_managed_ssl = var.enable_https && length(var.managed_ssl_certificate_domains) > 0 && var.ssl_certificate == null
+  use_managed_ssl      = var.enable_https && length(var.managed_ssl_certificate_domains) > 0 && var.ssl_certificate == null
   use_self_managed_ssl = var.enable_https && var.ssl_certificate != null
 }
 

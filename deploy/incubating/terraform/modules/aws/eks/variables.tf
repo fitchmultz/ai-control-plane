@@ -11,6 +11,12 @@ variable "cluster_name" {
   }
 }
 
+variable "aws_partition" {
+  description = "AWS partition for IAM policy ARNs"
+  type        = string
+  default     = "aws"
+}
+
 variable "vpc_id" {
   description = "VPC ID where the cluster and nodes will be deployed"
   type        = string

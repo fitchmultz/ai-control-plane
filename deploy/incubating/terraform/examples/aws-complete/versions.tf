@@ -37,7 +37,13 @@ terraform {
 #------------------------------------------------------------------------------
 
 provider "aws" {
-  region = var.aws_region
+  region                      = var.aws_region
+  access_key                  = var.validation_only ? "validation-access-key" : null
+  secret_key                  = var.validation_only ? "validation-secret-key" : null
+  skip_credentials_validation = var.validation_only
+  skip_metadata_api_check     = var.validation_only
+  skip_region_validation      = var.validation_only
+  skip_requesting_account_id  = var.validation_only
 
   default_tags {
     tags = {

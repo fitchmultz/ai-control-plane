@@ -19,6 +19,8 @@ include mk/colors.mk
 include mk/install.mk
 include mk/lint.mk
 include mk/deploy.mk
+# Incubating-only cloud IaC validation targets stay hidden from public help and default CI.
+include mk/cloud-iac.mk
 include mk/production.mk
 include mk/offline.mk
 include mk/database.mk

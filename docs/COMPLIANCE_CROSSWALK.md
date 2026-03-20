@@ -9,9 +9,9 @@ Do **not** present this repository as automatically compliant, certified, or aud
 
 This crosswalk stays inside the current validated claim boundary:
 
-- **Validated now:** host-first Docker reference implementation, typed operator workflows, readiness evidence, pilot closeout artifacts, detection and SIEM contract validation, backup and recovery workflows, and the active-passive failover drill evidence surface.
+- **Validated now:** host-first Docker reference implementation, typed operator workflows, readiness evidence, pilot closeout artifacts, detection and SIEM contract validation, backup and recovery workflows, the active-passive failover drill evidence surface, and an AWS-first incubating cloud deployment package validated through explicit Terraform fmt, validate, and validation-only plan workflows plus AWS hardening guidance and a basic cost-estimation model.
 - **Conditionally ready:** customer pilots on controlled Linux hosts where customer-owned identity, network, SIEM, retention, and workspace controls are validated.
-- **Not yet validated:** AWS/cloud-production enforcement claims, multi-tenant managed-service claims, and universal browser-bypass prevention.
+- **Not yet validated:** Azure/GCP cloud deployment claims, AWS applied/runtime cloud-operation evidence beyond the explicit validation package, multi-tenant managed-service claims, and universal browser-bypass prevention.
 
 ## How to read this document
 
@@ -73,7 +73,7 @@ The mapping below uses Annex A control themes buyers commonly ask about during a
 | ISO 27001:2022 control | Control intent | Customer | Shared | Provider (ACP) | Evidence anchors | Notes / limits |
 | --- | --- | --- | --- | --- | --- | --- |
 | A.5.7, A.5.8 | Threat intelligence and project security planning | Own enterprise risk register, control acceptance, and project governance | Use ACP findings, roadmap, and governed CVE records in risk review | Provides documented architecture boundaries, roadmap discipline, known limitations register, and a canonical CVE governance process | [ENTERPRISE_STRATEGY.md](ENTERPRISE_STRATEGY.md), [ROADMAP.md](ROADMAP.md), [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md), [security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md) | This is planning support, not a formal ISMS program |
-| A.5.23 | Information security for use of cloud services | Own tenant configuration, cloud service approvals, and cloud-native controls | Validate customer cloud control stack during pilots or future AWS work | Provides host-first control surface and explicitly marks cloud-production claims as not yet validated | [GO_TO_MARKET_SCOPE.md](GO_TO_MARKET_SCOPE.md), [DEPLOYMENT.md](DEPLOYMENT.md) | AWS/cloud path is still a roadmap item, not a validated support claim |
+| A.5.23 | Information security for use of cloud services | Own tenant configuration, cloud service approvals, and cloud-native controls | Validate customer cloud control stack during pilots or future AWS work | Provides a host-first primary control surface plus an AWS-first incubating Terraform validation package with hardening guidance and a basic cost model | [GO_TO_MARKET_SCOPE.md](GO_TO_MARKET_SCOPE.md), [deployment/TERRAFORM.md](deployment/TERRAFORM.md), [deployment/AWS_COST_ESTIMATION.md](deployment/AWS_COST_ESTIMATION.md) | Azure/GCP remain unvalidated, and AWS still requires named-account apply/runtime proof before broader production claims |
 | A.5.30 | ICT readiness for business continuity | Own business continuity objectives and recovery time commitments | Run recovery and failover drills with customer operators | Provides recovery/failover runbooks, off-host drill validation, and evidence bundles | [deployment/DISASTER_RECOVERY.md](deployment/DISASTER_RECOVERY.md), [deployment/HA_FAILOVER_RUNBOOK.md](deployment/HA_FAILOVER_RUNBOOK.md) | ACP helps prove execution paths; customer still owns continuity policy and external dependencies |
 | A.6.3 | Information security awareness, education, and training | Own workforce training, acceptable-use policy, and admin training program | Use ACP runbooks and pilot materials for operator onboarding | Provides operator docs, buyer-safe runbooks, and pilot handoff materials | [RUNBOOK.md](RUNBOOK.md), [ENTERPRISE_PILOT_PACKAGE.md](ENTERPRISE_PILOT_PACKAGE.md), [templates/PILOT_OPERATOR_HANDOFF_CHECKLIST.md](templates/PILOT_OPERATOR_HANDOFF_CHECKLIST.md) | ACP is not a substitute for a customer training program |
 | A.8.2 | Privileged access rights | Own host, cloud, and directory-level privileged-access controls | Validate ACP administrative role boundaries and workflow approvals | Provides role-aware key lifecycle, host deployment surfaces, and documented admin boundaries | [policy/ROLE_BASED_ACCESS_CONTROL.md](policy/ROLE_BASED_ACCESS_CONTROL.md), [SHARED_RESPONSIBILITY_MODEL.md](SHARED_RESPONSIBILITY_MODEL.md), `make key-list` | ACP administrative access does not replace enterprise PAM |
@@ -106,7 +106,7 @@ This mapping uses NIST SP 800-53 Rev. 5 control families as the primary shorthan
 These issues should be disclosed during diligence instead of buried in later conversations:
 
 1. **Single-node baseline remains the primary validated topology.** ACP now ships HA failover-drill evidence tooling and runbooks, but automatic failover is still not part of the supported contract.
-2. **Cloud-production claims are not yet validated.** This crosswalk is grounded in the host-first support boundary, not in a completed AWS production validation.
+2. **Broad cloud-production claims are still not validated.** This crosswalk recognizes the AWS-first incubating Terraform validation package, but it does not claim named-account AWS runtime proof or Azure/GCP validation.
 3. **Bypass prevention is customer-dependent.** ACP can govern routed traffic and support detective coverage, but customer network, endpoint, and workspace controls are still required for hard prevention claims.
 4. **Open CVEs are governed, not magically absent.** See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md), [security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md), and the supply-chain policy for current accepted-risk handling.
 5. **External validation is still pending.** The current repository includes an external-review readiness packet, not a completed third-party assessment. See [security/EXTERNAL_REVIEW_READINESS.md](security/EXTERNAL_REVIEW_READINESS.md).
@@ -131,6 +131,6 @@ Do **not** use this crosswalk to claim any of the following unless separate evid
 - ISO 27001 certification
 - FedRAMP authorization or equivalence
 - CMMC compliance by default
-- universal cloud-production readiness
+- universal cloud-production readiness beyond the AWS-first validation package
 - universal browser-bypass prevention
 - automatic multi-node high availability

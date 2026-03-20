@@ -191,13 +191,13 @@ resource "azurerm_application_gateway" "this" {
 
   # HTTP rule - redirect to HTTPS if HTTPS is enabled, otherwise forward
   request_routing_rule {
-    name                       = "http-rule"
-    rule_type                  = "Basic"
-    http_listener_name         = "http-listener"
-    backend_address_pool_name  = var.enable_https ? null : "aks-backend-pool"
-    backend_http_settings_name = var.enable_https ? null : "http-settings"
+    name                        = "http-rule"
+    rule_type                   = "Basic"
+    http_listener_name          = "http-listener"
+    backend_address_pool_name   = var.enable_https ? null : "aks-backend-pool"
+    backend_http_settings_name  = var.enable_https ? null : "http-settings"
     redirect_configuration_name = var.enable_https ? "http-to-https-redirect" : null
-    priority                   = 100
+    priority                    = 100
   }
 
   dynamic "request_routing_rule" {

@@ -11,7 +11,7 @@ This document separates what is currently validated from what is only planned. D
 | Local host-first reference environment | ✅ Ready | Linux host Docker deployment, gateway controls, typed operator workflows, local CI, offline demo, generated readiness-evidence workflow, pilot closeout bundle workflow, and runnable benchmark profiles | Refresh evidence before external reuse |
 | Customer-operated active-passive HA failover drill evidence | ✅ Ready | A validated two-host active-passive reference drill with PostgreSQL replication guidance, fencing/promotion runbook steps, customer-owned traffic-cutover guidance, and repeatable evidence capture via `make ha-failover-drill` / `acpctl host failover-drill` | Re-run the drill in the named customer environment; ACP still does not automate replication, promotion, fencing, or traffic cutover |
 | Customer pilot on controlled Linux host | ⚠️ Conditionally ready | Architecture, deployment pattern, runbooks, SIEM integration pattern, budgets/chargeback model, workshop/demo flow, named control-owner matrix, and decision-grade pilot packet | Re-run evidence in the customer-like environment; validate identity, SIEM, secrets, retention, network controls, and customer-owned browser/workspace governance |
-| Cloud production / AWS-specific enforcement claims | ⏳ Not yet validated | Architecture and validation plan only | Complete AWS lab or customer-cloud validation for egress controls, cloud operations, and production hardening |
+| AWS-first cloud deployment validation package | ⚠️ Deliberately validated (AWS-only, incubating surface) | The AWS Terraform example is backed by explicit internal `terraform fmt` / `terraform validate` workflows, a validation-only AWS dry-run plan path, AWS hardening guidance, and a basic cost-estimation model. This supports evidence-backed AWS-first conversations without changing the host-first primary deployment contract. | Run named-account apply and runtime validation before production commitments; Azure and GCP remain incubating and explicitly out. |
 
 Generated evidence artifacts are intentionally not committed. See [docs/ARTIFACTS.md](ARTIFACTS.md).
 Customer-owned pilot obligations are documented in [PILOT_CONTROL_OWNERSHIP_MATRIX.md](PILOT_CONTROL_OWNERSHIP_MATRIX.md).
@@ -36,11 +36,17 @@ The strict pilot phase gate is documented in [PILOT_EXECUTION_MODEL.md](PILOT_EX
 - Confirm enforce-vs-detect boundaries in writing with the customer team
 - Follow the phase-gated pilot execution model through closeout decision
 
-### For cloud-production positioning
+### For AWS-first cloud positioning
 
-- Validate egress controls in AWS lab or the customer cloud environment
-- Validate operational ownership, backups, upgrades, and failure handling in that environment
-- Refresh readiness artifacts immediately before the external decision
+- `make tf-validate` passes
+- `make tf-plan-aws` passes in validation-only mode for structural checks and in the named AWS account/region before external commitment
+- [security/AWS_CLOUD_HARDENING.md](security/AWS_CLOUD_HARDENING.md) is reviewed and implemented for the target environment
+- [deployment/AWS_COST_ESTIMATION.md](deployment/AWS_COST_ESTIMATION.md) is refreshed for the target region and usage profile
+- Environment-specific validation is refreshed immediately before external commitment
+
+### For Azure/GCP cloud positioning
+
+- Not yet validated in this repository
 
 ---
 
@@ -56,7 +62,7 @@ The strict pilot phase gate is documented in [PILOT_EXECUTION_MODEL.md](PILOT_EX
 - Primary validated path: host-first Linux deployment
 - A validated customer-operated active-passive failover-drill evidence workflow now proves the next credible two-host HA reference pattern without claiming automatic failover
 - Incubating deployment assets for Kubernetes/Helm remain in-repo for explicit internal exploration only
-- Cloud positioning is gated on environment-specific proof, not architecture intent alone
+- Cloud positioning is gated on the AWS-first validation package plus environment-specific proof, not architecture intent alone
 - The tracked multi-tenant package is design-only evidence (`demo/config/tenant_design.yaml` plus `make validate-tenant`), not a current managed-service claim
 
 ---

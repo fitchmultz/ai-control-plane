@@ -38,6 +38,23 @@ variable "tags" {
   default     = {}
 }
 
+variable "validation_only" {
+  description = "Enable provider-bootstrap validation mode for internal dry-run planning without live AWS lookups"
+  type        = bool
+  default     = false
+}
+
+variable "validation_account_id" {
+  description = "Placeholder AWS account ID used only when validation_only is true"
+  type        = string
+  default     = "123456789012"
+
+  validation {
+    condition     = can(regex("^[0-9]{12}$", var.validation_account_id))
+    error_message = "validation_account_id must be a 12-digit AWS account ID string."
+  }
+}
+
 #------------------------------------------------------------------------------
 # VPC Configuration
 #------------------------------------------------------------------------------
@@ -215,11 +232,6 @@ variable "alb_certificate_arn" {
   description = "ARN of the ACM certificate for HTTPS ingress (required if enable_ingress is true)"
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.enable_ingress ? length(trimspace(var.alb_certificate_arn)) > 0 : true
-    error_message = "alb_certificate_arn is required when enable_ingress=true."
-  }
 }
 
 #------------------------------------------------------------------------------
@@ -303,11 +315,6 @@ variable "ingress_host" {
   description = "Hostname for the ingress"
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.enable_ingress ? length(trimspace(var.ingress_host)) > 0 : true
-    error_message = "ingress_host is required when enable_ingress=true."
-  }
 }
 
 variable "ingress_class_name" {

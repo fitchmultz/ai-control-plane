@@ -40,11 +40,11 @@ output "public_ip_fqdn" {
 output "frontend_ip_configuration" {
   description = "Frontend IP configuration details"
   value = {
-    name                            = "public-frontend-ip"
-    public_ip_address_id            = azurerm_public_ip.this.id
-    private_ip_address              = null
-    private_ip_address_allocation   = null
-    subnet_id                       = null
+    name                          = "public-frontend-ip"
+    public_ip_address_id          = azurerm_public_ip.this.id
+    private_ip_address            = null
+    private_ip_address_allocation = null
+    subnet_id                     = null
   }
 }
 

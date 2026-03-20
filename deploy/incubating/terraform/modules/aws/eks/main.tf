@@ -16,13 +16,6 @@ terraform {
   }
 }
 
-#-------------------------------------------------------------------------------# Data Sources
-#-------------------------------------------------------------------------------
-
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
-data "aws_partition" "current" {}
-
 #-------------------------------------------------------------------------------# IAM Role - EKS Cluster
 #-------------------------------------------------------------------------------
 
@@ -51,14 +44,14 @@ resource "aws_iam_role" "cluster" {
 }
 
 resource "aws_iam_role_policy_attachment" "cluster_policy" {
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonEKSClusterPolicy"
+  policy_arn = "arn:${var.aws_partition}:iam::aws:policy/AmazonEKSClusterPolicy"
   role       = aws_iam_role.cluster.name
 }
 
 # Optional: Enable Security Groups for Pods
 resource "aws_iam_role_policy_attachment" "cluster_vpc_resource_controller" {
   count      = var.enable_security_groups_for_pods ? 1 : 0
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonEKSVPCResourceController"
+  policy_arn = "arn:${var.aws_partition}:iam::aws:policy/AmazonEKSVPCResourceController"
   role       = aws_iam_role.cluster.name
 }
 
@@ -90,17 +83,17 @@ resource "aws_iam_role" "node" {
 }
 
 resource "aws_iam_role_policy_attachment" "node_worker_policy" {
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  policy_arn = "arn:${var.aws_partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"
   role       = aws_iam_role.node.name
 }
 
 resource "aws_iam_role_policy_attachment" "node_cni_policy" {
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonEKS_CNI_Policy"
+  policy_arn = "arn:${var.aws_partition}:iam::aws:policy/AmazonEKS_CNI_Policy"
   role       = aws_iam_role.node.name
 }
 
 resource "aws_iam_role_policy_attachment" "node_container_registry" {
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  policy_arn = "arn:${var.aws_partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
   role       = aws_iam_role.node.name
 }
 

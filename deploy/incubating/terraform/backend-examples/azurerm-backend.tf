@@ -66,10 +66,10 @@ terraform {
     # tenant_id       = "00000000-0000-0000-0000-000000000000"
 
     # Option 3: OIDC (recommended for GitHub Actions, GitLab CI)
-    use_oidc             = true
-    subscription_id      = "00000000-0000-0000-0000-000000000000"
-    tenant_id            = "00000000-0000-0000-0000-000000000000"
-    client_id            = "00000000-0000-0000-0000-000000000000"
+    use_oidc        = true
+    subscription_id = "00000000-0000-0000-0000-000000000000"
+    tenant_id       = "00000000-0000-0000-0000-000000000000"
+    client_id       = "00000000-0000-0000-0000-000000000000"
     # client_id_file_path = "/path/to/client-id"  # Alternative to client_id
 
     # Option 4: Azure CLI (for local development)

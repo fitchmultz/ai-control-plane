@@ -25,9 +25,9 @@ The canonical execution roadmap for outstanding work lives in [docs/ROADMAP.md](
 
 | Status | Boundary |
 | --- | --- |
-| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, pilot closeout artifacts, a validated customer-operated active-passive HA failover drill evidence surface, and an incubating design-only tenant isolation/billing package |
+| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, pilot closeout artifacts, a validated customer-operated active-passive HA failover drill evidence surface, an AWS-first incubating cloud deployment package validated through explicit IaC fmt, validate, and validation-only plan workflows plus AWS hardening guidance and a basic cost-estimation model, and an incubating design-only tenant isolation/billing package |
 | Conditionally ready | Customer pilots on controlled Linux hosts with customer-owned network, IAM, SIEM, retention, and workspace controls validated |
-| Not yet validated | Broad cloud-production claims, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention |
+| Not yet validated | Azure/GCP cloud deployment claims, AWS applied/runtime cloud-operation evidence beyond the explicit AWS-first validation package, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention |
 
 - Supported runtime: host-first Docker baseline plus explicit overlays
 - Supported host boundary: Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, Docker Compose, and verified SSH host keys

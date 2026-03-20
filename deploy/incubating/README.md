@@ -5,7 +5,7 @@ This directory holds deployment tracks that are retained in-repo for explicit in
 ## Status
 
 - `helm/` contains incubating Helm assets.
-- `terraform/` contains incubating Terraform assets.
+- `terraform/` contains incubating Terraform assets, including an AWS-first validation package with explicit `make tf-*` checks, hardening guidance, and a basic cost-estimation model.
 
 ## Rules
 

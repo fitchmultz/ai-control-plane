@@ -97,15 +97,15 @@ output "node_pools" {
   description = "Map of created node pools"
   value = {
     for name, pool in azurerm_kubernetes_cluster_node_pool.user : name => {
-      id              = pool.id
-      name            = pool.name
-      vm_size         = pool.vm_size
-      node_count      = pool.node_count
+      id                  = pool.id
+      name                = pool.name
+      vm_size             = pool.vm_size
+      node_count          = pool.node_count
       enable_auto_scaling = pool.enable_auto_scaling
-      min_count       = pool.min_count
-      max_count       = pool.max_count
-      labels          = pool.node_labels
-      taints          = pool.node_taints
+      min_count           = pool.min_count
+      max_count           = pool.max_count
+      labels              = pool.node_labels
+      taints              = pool.node_taints
     }
   }
 }
@@ -113,11 +113,11 @@ output "node_pools" {
 output "system_node_pool" {
   description = "System node pool configuration"
   value = {
-    name            = azurerm_kubernetes_cluster.this.default_node_pool[0].name
-    vm_size         = azurerm_kubernetes_cluster.this.default_node_pool[0].vm_size
-    node_count      = azurerm_kubernetes_cluster.this.default_node_pool[0].node_count
+    name                = azurerm_kubernetes_cluster.this.default_node_pool[0].name
+    vm_size             = azurerm_kubernetes_cluster.this.default_node_pool[0].vm_size
+    node_count          = azurerm_kubernetes_cluster.this.default_node_pool[0].node_count
     enable_auto_scaling = azurerm_kubernetes_cluster.this.default_node_pool[0].enable_auto_scaling
-    min_count       = azurerm_kubernetes_cluster.this.default_node_pool[0].min_count
-    max_count       = azurerm_kubernetes_cluster.this.default_node_pool[0].max_count
+    min_count           = azurerm_kubernetes_cluster.this.default_node_pool[0].min_count
+    max_count           = azurerm_kubernetes_cluster.this.default_node_pool[0].max_count
   }
 }

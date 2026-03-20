@@ -33,8 +33,8 @@ variable "role_name" {
 variable "policy_statements" {
   description = "List of policy statements to include in the inline policy"
   type = list(object({
-    effect   = string
-    actions  = list(string)
+    effect    = string
+    actions   = list(string)
     resources = list(string)
   }))
   default = []

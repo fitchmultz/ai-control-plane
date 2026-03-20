@@ -63,7 +63,7 @@ This example deploys a production-ready AI Control Plane on GCP with the followi
 ### 1. Clone and Navigate
 
 ```bash
-cd deploy/terraform/examples/gcp-complete
+cd deploy/incubating/terraform/examples/gcp-complete
 ```
 
 ### 2. Configure Variables

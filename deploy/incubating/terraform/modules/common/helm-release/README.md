@@ -358,10 +358,10 @@ module "ai_control_plane" {
 
 ### Chart Path
 
-The default `chart_path` assumes the module is called from a Terraform configuration located at `deploy/terraform/examples/*/`. Adjust the path based on your actual directory structure:
+The default `chart_path` assumes the module is called from a Terraform configuration located at `deploy/incubating/terraform/examples/*/`. Adjust the path based on your actual directory structure:
 
 ```
-# If calling from deploy/terraform/modules/aws/eks/
+# If calling from deploy/incubating/terraform/modules/aws/eks/
 chart_path = "../../../helm/ai-control-plane"
 
 # If calling from root

@@ -286,11 +286,6 @@ variable "ingress_host" {
   description = "Hostname for the ingress"
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.ingress_enabled ? length(trimspace(var.ingress_host)) > 0 : true
-    error_message = "ingress_host is required when ingress_enabled=true."
-  }
 }
 
 variable "ingress_class_name" {
@@ -309,11 +304,6 @@ variable "ingress_cluster_issuer" {
   description = "cert-manager ClusterIssuer for ingress TLS automation"
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.ingress_enabled ? length(trimspace(var.ingress_cluster_issuer)) > 0 : true
-    error_message = "ingress_cluster_issuer is required when ingress_enabled=true."
-  }
 }
 
 variable "enable_autoscaling" {

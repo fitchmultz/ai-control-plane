@@ -60,6 +60,7 @@ resource "terraform_data" "deployment_guardrails" {
   input = {
     ingress_enabled            = var.ingress_enabled
     ingress_host               = var.ingress_host
+    ingress_cluster_issuer     = var.ingress_cluster_issuer
     log_analytics_workspace_id = var.log_analytics_workspace_id
   }
 
@@ -67,6 +68,11 @@ resource "terraform_data" "deployment_guardrails" {
     precondition {
       condition     = !var.ingress_enabled || var.ingress_host != ""
       error_message = "ingress_enabled=true requires ingress_host."
+    }
+
+    precondition {
+      condition     = !var.ingress_enabled || var.ingress_cluster_issuer != ""
+      error_message = "ingress_enabled=true requires ingress_cluster_issuer."
     }
 
     precondition {

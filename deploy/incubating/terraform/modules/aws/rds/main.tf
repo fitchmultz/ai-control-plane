@@ -6,7 +6,7 @@ locals {
     ManagedBy = "terraform"
     Module    = "rds-postgresql"
   }
-  
+
   all_tags = merge(local.default_tags, var.tags)
 }
 
@@ -150,8 +150,8 @@ resource "aws_db_instance" "this" {
   parameter_group_name = aws_db_parameter_group.this.name
 
   # Monitoring and logging
-  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
-  performance_insights_enabled    = var.performance_insights_enabled
+  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
+  performance_insights_enabled          = var.performance_insights_enabled
   performance_insights_retention_period = var.performance_insights_enabled ? var.performance_insights_retention_period : null
 
   # Auto minor version upgrade
