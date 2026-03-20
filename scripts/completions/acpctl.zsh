@@ -18,6 +18,9 @@ _acpctl() {
         chargeback)
             _acpctl_chargeback
             ;;
+        tenant)
+            _acpctl_tenant
+            ;;
         evidence)
             _acpctl_evidence
             ;;
@@ -65,6 +68,7 @@ _acpctl_commands() {
         "ci:CI and local gate helpers"
         "env:Strict .env access helpers"
         "chargeback:Typed chargeback rendering helpers"
+        "tenant:Inspect and validate the design-only multi-tenant package"
         "evidence:Vendor evidence ingest workflows"
         "policy:ACP-native custom policy evaluation workflows"
         "ops:Operator reporting workflows"
@@ -109,6 +113,14 @@ _acpctl_chargeback() {
         "payload:Render canonical chargeback webhook payload JSON"
     )
     _describe -t commands 'chargeback subcommands' subcmds "$@"
+}
+
+_acpctl_tenant() {
+    local subcmds=(
+        "inspect:Print a concise summary of the tracked tenant design package"
+        "validate:Validate the tracked tenant design package and truth markers"
+    )
+    _describe -t commands 'tenant subcommands' subcmds "$@"
 }
 
 _acpctl_evidence() {
@@ -166,6 +178,7 @@ _acpctl_validate() {
         "detections:Validate detection rule output"
         "siem-queries:Validate SIEM query sync"
         "policy-rules:Validate the tracked ACP custom policy rule contract"
+        "tenant:Validate the tracked tenant design package and truth markers"
         "public-hygiene:Fail when local-only files are tracked by git"
         "license:Validate license policy structure and restricted references"
         "supply-chain:Run supply-chain policy and digest validation"

@@ -26,7 +26,8 @@ GO_COVERAGE_CRITICAL_SPECS := \
 	./internal/policyengine:90 \
 	./internal/status:85 \
 	./internal/status/collectors:90 \
-	./internal/status/runner:85
+	./internal/status/runner:85 \
+	./internal/tenant:90
 GO_COVERAGE_ARTIFACT_DIR := local/coverage
 GO_COVERAGE_CRITICAL_PROFILE := $(GO_COVERAGE_ARTIFACT_DIR)/critical.out
 

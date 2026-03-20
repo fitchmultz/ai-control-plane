@@ -31,6 +31,7 @@ Expected policy dimensions:
 - model access scope
 - budget ceilings
 - approval authority (if implemented in downstream/private workflows)
+- future workspace-scoped role bindings in the design-only tenant package
 
 ## Canonical Operator Commands
 
@@ -93,6 +94,18 @@ make key-revoke ALIAS=<alias>
 make validate-detections
 make db-status
 ```
+
+## Public Snapshot Boundary
+
+Legacy command paths and legacy approval-queue scripts are not canonical in this repository snapshot.
+
+Not documented as operator entrypoints:
+- retired legacy script-path workflows
+
+Use only:
+- `make <target>`
+- `./scripts/acpctl.sh <group> <subcommand>`
+LTI_TENANT_ISOLATION_AND_BILLING.md) for that incubating design surface.
 
 ## Public Snapshot Boundary
 

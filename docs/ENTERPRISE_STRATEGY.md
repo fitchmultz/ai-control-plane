@@ -23,7 +23,7 @@ This strategy defines an AI Control Plane built on three foundations:
 
 This is standard security engineering applied to AI: choke points, identity, allowlists, logging, detection, and response.
 
-Validated scope in this repository: local host-first reference implementation, typed operator workflows, and evidence-generation patterns. Cloud-specific enforcement claims and generalized managed-service claims require additional environment-specific validation before external commitment.
+Validated scope in this repository: local host-first reference implementation, typed operator workflows, evidence-generation patterns, and an incubating design-only package for future multi-tenant isolation and billing. Cloud-specific enforcement claims and generalized managed-service claims still require additional environment-specific validation before external commitment.
 
 ## Non-Negotiable Control Truth
 

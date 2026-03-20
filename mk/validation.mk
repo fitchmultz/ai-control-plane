@@ -83,6 +83,19 @@ validate-policy-rules: ## Validate the tracked ACP custom policy rule contract
 		&& echo '$(COLOR_GREEN)✓ Custom policy rule validation passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Custom policy rule validation failed$(COLOR_RESET)'; exit 1; }
 
+.PHONY: validate-tenant
+validate-tenant: ## Validate the tracked design-only multi-tenant package
+	@echo '$(COLOR_BOLD)Validating the multi-tenant design package...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) validate tenant --file "$(TENANT_DESIGN_FILE)" \
+		&& echo '$(COLOR_GREEN)✓ Tenant design validation passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Tenant design validation failed$(COLOR_RESET)'; exit 1; }
+
+.PHONY: tenant-inspect
+tenant-inspect: ## Print a concise summary of the tracked multi-tenant design package
+	@echo '$(COLOR_BOLD)Inspecting the multi-tenant design package...$(COLOR_RESET)'
+	@$(ACPCTL_BIN) tenant inspect --file "$(TENANT_DESIGN_FILE)"
+	@echo '$(COLOR_GREEN)✓ Tenant design inspection complete$(COLOR_RESET)'
+
 .PHONY: policy-eval
 policy-eval: ## Evaluate the sample/local request-response payload against ACP custom policy rules
 	@echo '$(COLOR_BOLD)Evaluating ACP custom policy rules...$(COLOR_RESET)'

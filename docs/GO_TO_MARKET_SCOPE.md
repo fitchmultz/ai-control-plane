@@ -55,6 +55,7 @@ The strict pilot phase gate is documented in [PILOT_EXECUTION_MODEL.md](PILOT_EX
 - Primary validated path: host-first Linux deployment
 - Incubating deployment assets for Kubernetes/Helm remain in-repo for explicit internal exploration only
 - Cloud positioning is gated on environment-specific proof, not architecture intent alone
+- The tracked multi-tenant package is design-only evidence (`demo/config/tenant_design.yaml` plus `make validate-tenant`), not a current managed-service claim
 
 ---
 

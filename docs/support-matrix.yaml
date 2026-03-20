@@ -124,3 +124,15 @@ surfaces:
     owner: platform
     validation:
       - explicit internal checks only
+
+  - id: multi-tenant-isolation-design
+    label: Multi-tenant isolation design package
+    status: incubating
+    summary: Design-only contract for future organization/workspace isolation, tenant-safe reporting, and service-provider billing boundaries.
+    owner: platform
+    paths:
+      - demo/config/tenant_design.yaml
+      - docs/policy/MULTI_TENANT_ISOLATION_AND_BILLING.md
+    validation:
+      - make validate-tenant
+      - acpctl tenant validate

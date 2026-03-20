@@ -33,6 +33,7 @@ This repository uses:
 - Typed vendor evidence ingest via `acpctl evidence ingest`, including compliance-export normalization, schema validation, artifact runs, and example payloads.
 - ACP-native local custom policy evaluation via `acpctl policy eval`, including tracked rule validation, request/response guardrail inspection, auditable decision artifacts, and sample policy-engine payloads.
 - ACP-native assessor handoff packaging via `acpctl deploy assessor-packet build|verify` and `make assessor-packet|assessor-packet-verify`, producing a verifiable external-review preparation packet with canonical reviewer docs, readiness evidence, and the referenced release bundle while keeping roadmap item #22 explicitly open.
+- A design-only multi-tenant isolation and billing package via `demo/config/tenant_design.yaml`, `acpctl tenant inspect|validate`, `acpctl validate tenant`, `make validate-tenant`, and a new ADR/policy doc set that defines organization/workspace isolation, row-level predicates, tenant-safe reporting, and provider billing boundaries without overstating current runtime support.
 
 ### Changed
 - Release bundle and readiness workflows now default to the tracked root `VERSION` file.

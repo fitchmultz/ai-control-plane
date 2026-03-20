@@ -23,6 +23,10 @@ schemas:
     path: demo/config/demo_presets.yaml
     schema: docs/contracts/config/demo_presets.schema.json
 
+  - id: tenant-design
+    path: demo/config/tenant_design.yaml
+    schema: docs/contracts/config/tenant_design.schema.json
+
 naming:
   model_alias_pattern: '^[a-z0-9]+(?:[-.][a-z0-9]+)*$'
   role_name_pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'

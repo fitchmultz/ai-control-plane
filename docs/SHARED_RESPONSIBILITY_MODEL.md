@@ -12,6 +12,7 @@ This document sets the default operating boundary for implementation-only engage
 | AI Control Plane application behavior | Approves change windows and desired policies | Reviews release and incident outcomes | Owns defects, fixes, release quality, and operator workflows in the delivered application |
 | SIEM onboarding and evidence retention | Owns retention policy, case management, and downstream alert handling | Tunes fields, queries, and escalation handoffs | Provides normalized feed, detection logic, and runbooks |
 | FinOps allocation and chargeback policy | Owns cost-center taxonomy and budget policy | Confirms report consumers and chargeback cadence | Implements attribution mappings and reporting workflow |
+| Future multi-tenant managed-service boundary | Owns tenant legal/entity definition, customer invoice recipient, and customer-facing risk acceptance | Reviews workspace isolation model and escalation boundaries | Supplies the design-only tenant package today; would own runtime tenant enforcement only after future validation |
 | Day-2 operations under managed-service agreement | Provides access, approvals, and dependency ownership | Participates in incidents crossing customer-controlled systems | Owns agreed operational tasks, application incidents, and maintenance within the SOW |
 | Third-party outages and infrastructure faults | Owns vendor relationships for customer-controlled infrastructure | Coordinates impact assessment and communication | Owns application-side mitigation only when the issue is within the delivered platform |
 

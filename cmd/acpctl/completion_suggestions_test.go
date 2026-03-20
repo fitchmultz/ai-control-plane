@@ -23,7 +23,7 @@ import (
 
 func TestResolveSuggestionsRootAndSubcommands(t *testing.T) {
 	rootSuggestions := resolveSuggestions(nil, "", t.TempDir())
-	if !slices.Contains(rootSuggestions, "ci") || !slices.Contains(rootSuggestions, "deploy") {
+	if !slices.Contains(rootSuggestions, "ci") || !slices.Contains(rootSuggestions, "deploy") || !slices.Contains(rootSuggestions, "tenant") {
 		t.Fatalf("expected root suggestions to include current command tree, got %v", rootSuggestions)
 	}
 

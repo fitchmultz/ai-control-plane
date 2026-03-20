@@ -72,6 +72,7 @@ PERFORMANCE_PROFILE ?=
 POLICY_RULES_FILE ?= demo/config/custom_policy_rules.yaml
 POLICY_INPUT ?= examples/policy-engine/request_response_eval.sample.json
 POLICY_OUTPUT_DIR ?= demo/logs/evidence/policy-eval
+TENANT_DESIGN_FILE ?= demo/config/tenant_design.yaml
 
 # Go toolchain
 GO ?= go

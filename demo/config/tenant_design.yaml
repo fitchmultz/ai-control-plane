@@ -1,0 +1,144 @@
+# =============================================================================
+# AI Control Plane - Multi-Tenant Design Package (Design-Only)
+# =============================================================================
+# Purpose:
+#   - Track the incubating organization/workspace isolation and billing design
+#     contract before any runtime multi-tenant claim is made.
+#
+# Responsibilities:
+#   - Declare tenant boundaries, workspace-scoped key namespaces, and
+#     tenant-safe reporting/chargeback rules.
+#   - Capture service-provider billing boundaries separately from internal
+#     workspace chargeback allocation.
+#
+# Scope:
+#   - Design and validation only. This file does not enable runtime
+#     multi-tenant enforcement in the current product surface.
+#
+# Usage:
+#   - Validated by `make validate-tenant`.
+#   - Inspected via `./scripts/acpctl.sh tenant inspect`.
+#
+# Invariants/Assumptions:
+#   - design_state must remain `incubating`.
+#   - Workspaces own the write boundary and internal chargeback boundary.
+#   - Organization is the provider billing boundary for customer invoicing.
+# =============================================================================
+
+version: 1
+design_state: incubating
+
+organizations:
+  - id: falcon-insurance
+    display_name: Falcon Insurance
+    chargeback:
+      cost_center: cc-1000
+      bill_to: ap@falcon-insurance.example.com
+    workspaces:
+      - id: claims-adjuster
+        display_name: Claims Adjuster
+        key_namespace_prefix: falcon-insurance--claims-adjuster
+        allowed_models:
+          - openai-gpt5.2
+          - claude-haiku-4-5
+        role_bindings:
+          - role: developer
+            scope: workspace
+            subjects:
+              - kind: group
+                name: claims-adjusters
+          - role: auditor
+            scope: workspace
+            subjects:
+              - kind: group
+                name: claims-audit
+        chargeback:
+          cost_center: cc-1100
+          bill_to: claims-finops@falcon-insurance.example.com
+
+      - id: underwriting
+        display_name: Underwriting
+        key_namespace_prefix: falcon-insurance--underwriting
+        allowed_models:
+          - openai-gpt5.2
+          - claude-haiku-4-5
+          - claude-sonnet-4-5
+        role_bindings:
+          - role: team-lead
+            scope: workspace
+            subjects:
+              - kind: group
+                name: underwriting-leads
+          - role: developer
+            scope: workspace
+            subjects:
+              - kind: group
+                name: underwriting-engineering
+        chargeback:
+          cost_center: cc-1200
+          bill_to: underwriting-finops@falcon-insurance.example.com
+
+  - id: northwind-health
+    display_name: Northwind Health
+    chargeback:
+      cost_center: cc-2000
+      bill_to: ap@northwind-health.example.com
+    workspaces:
+      - id: care-ops
+        display_name: Care Operations
+        key_namespace_prefix: northwind-health--care-ops
+        allowed_models:
+          - openai-gpt5.2
+          - claude-haiku-4-5
+        role_bindings:
+          - role: team-lead
+            scope: workspace
+            subjects:
+              - kind: group
+                name: care-ops-leads
+          - role: developer
+            scope: workspace
+            subjects:
+              - kind: group
+                name: care-ops-automation
+        chargeback:
+          cost_center: cc-2100
+          bill_to: careops-finops@northwind-health.example.com
+
+row_level_access:
+  mode: design-only
+  required_predicates:
+    - organization_id
+    - workspace_id
+    - key_namespace_prefix
+  write_boundary: workspace
+
+reporting:
+  mode: design-only
+  tenant_safe_by_default: true
+  metadata_only: true
+  allowed_aggregation_levels:
+    - workspace
+    - organization
+  report_definitions:
+    - id: workspace-showback
+      aggregation: workspace
+      redaction: metadata-only
+      include_cross_organization_data: false
+    - id: organization-portfolio
+      aggregation: organization
+      redaction: metadata-only
+      include_cross_organization_data: false
+
+chargeback:
+  mode: design-only
+  billable_boundary: workspace
+  allow_cross_organization_allocation: false
+  require_workspace_cost_center: true
+
+provider_billing:
+  mode: design-only
+  customer_invoice_boundary: organization
+  passthrough_usage_costs: true
+  separate_platform_fee: true
+  forbid_cross_organization_subsidy: true

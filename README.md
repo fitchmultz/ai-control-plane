@@ -25,9 +25,9 @@ The canonical execution roadmap for outstanding work lives in [docs/ROADMAP.md](
 
 | Status | Boundary |
 | --- | --- |
-| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, and pilot closeout artifacts |
+| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, pilot closeout artifacts, and an incubating design-only tenant isolation/billing package |
 | Conditionally ready | Customer pilots on controlled Linux hosts with customer-owned network, IAM, SIEM, retention, and workspace controls validated |
-| Not yet validated | Broad cloud-production claims, multi-tenant managed-service claims, and universal browser-bypass prevention |
+| Not yet validated | Broad cloud-production claims, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention |
 
 - Supported runtime: host-first Docker baseline plus explicit overlays
 - Supported host boundary: Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, Docker Compose, and verified SSH host keys
@@ -63,6 +63,7 @@ Validate tracked config before changing deployment surfaces:
 ```bash
 make validate-config
 make validate-config-production SECRETS_ENV_FILE=/etc/ai-control-plane/secrets.env
+make validate-tenant
 ```
 
 ## Operator Paths
@@ -157,3 +158,4 @@ AI Control Plane is licensed under [Apache-2.0](LICENSE).
 - Project notice: [NOTICE](NOTICE)
 - Third-party license boundary: [docs/policy/THIRD_PARTY_LICENSE_MATRIX.md](docs/policy/THIRD_PARTY_LICENSE_MATRIX.md)
 - Customer-facing compliance summary: [docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md](docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md)
+D_PARTY_LICENSE_SUMMARY.md](docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md)

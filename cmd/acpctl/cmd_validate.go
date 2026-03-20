@@ -28,6 +28,7 @@ func validateCommandSpec() *commandSpec {
 			"acpctl validate lint",
 			"acpctl validate detections",
 			"acpctl validate policy-rules",
+			"acpctl validate tenant",
 		},
 		Children: []*commandSpec{
 			makeLeafSpec("lint", "Run static validation/lint gate", "lint"),
@@ -35,6 +36,7 @@ func validateCommandSpec() *commandSpec {
 			validateDetectionsCommandSpec(),
 			validateSIEMQueriesCommandSpec(),
 			validatePolicyRulesCommandSpec(),
+			validateTenantCommandSpec(),
 			validatePublicHygieneCommandSpec(),
 			validateLicenseCommandSpec(),
 			validateSupplyChainCommandSpec(),

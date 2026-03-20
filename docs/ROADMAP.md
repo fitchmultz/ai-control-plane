@@ -8,9 +8,9 @@ It contains outstanding work only. When an item is complete, remove it from this
 
 The roadmap must stay aligned to the current validated claim boundary:
 
-- **Validated now:** local host-first Docker reference implementation, typed operator workflows, readiness evidence, pilot closeout artifact generation, and ACP-native assessor packet generation for external-review preparation.
+- **Validated now:** local host-first Docker reference implementation, typed operator workflows, readiness evidence, pilot closeout artifact generation, ACP-native assessor packet generation for external-review preparation, and an incubating design-only tenant isolation/billing package.
 - **Conditionally ready:** customer pilots on controlled Linux hosts where customer-owned network, IAM, SIEM, retention, and workspace controls are validated.
-- **Not yet validated:** cloud-production enforcement claims, multi-tenant managed-service claims, and universal browser-bypass prevention.
+- **Not yet validated:** cloud-production enforcement claims, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention.
 
 Primary claim-discipline references:
 
@@ -55,7 +55,7 @@ Objective: build capabilities that create separation from DIY LiteLLM deployment
 
 | # | Initiative | Why it matters | Done when |
 | --- | --- | --- | --- |
-| 28 | **Design multi-tenant isolation and service-provider billing.** Create a credible managed-service expansion path. | Multi-tenant claims need real isolation and billing boundaries, not marketing language. | Organization and workspace isolation, row-level access design, tenant-safe reporting, and chargeback boundaries are designed, documented, and validated before any multi-tenant claim is made. |
+| 29 | **Implement tenant-safe runtime enforcement from the tracked design package.** Turn the design-only package into a validated runtime surface. | The design package is now in place, but managed-service claims still need real runtime isolation, scoped reporting, and customer-safe operating evidence. | Tenant-aware key issuance, query/report scoping, billing boundaries, and managed-service operations are implemented and validated in a dedicated environment or pilot before any shared-runtime multi-tenant claim is made. |
 
 ## Review cadence
 

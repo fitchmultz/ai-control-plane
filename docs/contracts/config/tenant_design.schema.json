@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-control-plane.local/contracts/config/tenant_design.schema.json",
+  "title": "AI Control Plane Tenant Design Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "design_state",
+    "organizations",
+    "row_level_access",
+    "reporting",
+    "chargeback",
+    "provider_billing"
+  ],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "design_state": {"type": "string", "const": "incubating"},
+    "organizations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/organization"}
+    },
+    "row_level_access": {"$ref": "#/$defs/rowLevelAccess"},
+    "reporting": {"$ref": "#/$defs/reporting"},
+    "chargeback": {"$ref": "#/$defs/chargebackDesign"},
+    "provider_billing": {"$ref": "#/$defs/providerBilling"}
+  },
+  "$defs": {
+    "tenantKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "chargebackBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cost_center", "bill_to"],
+      "properties": {
+        "cost_center": {"type": "string", "minLength": 1},
+        "bill_to": {"type": "string", "minLength": 1}
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["group", "user", "service"]},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "roleBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "scope", "subjects"],
+      "properties": {
+        "role": {"$ref": "#/$defs/tenantKey"},
+        "scope": {"type": "string", "enum": ["workspace"]},
+        "subjects": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/subject"}
+        }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "display_name",
+        "key_namespace_prefix",
+        "allowed_models",
+        "role_bindings",
+        "chargeback"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/tenantKey"},
+        "display_name": {"type": "string", "minLength": 1},
+        "key_namespace_prefix": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)$"},
+        "allowed_models": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "role_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/roleBinding"}
+        },
+        "chargeback": {"$ref": "#/$defs/chargebackBinding"}
+      }
+    },
+    "organization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "chargeback", "workspaces"],
+      "properties": {
+        "id": {"$ref": "#/$defs/tenantKey"},
+        "display_name": {"type": "string", "minLength": 1},
+        "chargeback": {"$ref": "#/$defs/chargebackBinding"},
+        "workspaces": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/workspace"}
+        }
+      }
+    },
+    "rowLevelAccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "required_predicates", "write_boundary"],
+      "properties": {
+        "mode": {"type": "string", "const": "design-only"},
+        "required_predicates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "write_boundary": {"type": "string", "enum": ["workspace"]}
+      }
+    },
+    "reportDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "aggregation", "redaction", "include_cross_organization_data"],
+      "properties": {
+        "id": {"$ref": "#/$defs/tenantKey"},
+        "aggregation": {"type": "string", "enum": ["workspace", "organization"]},
+        "redaction": {"type": "string", "enum": ["metadata-only"]},
+        "include_cross_organization_data": {"type": "boolean"}
+      }
+    },
+    "reporting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "tenant_safe_by_default",
+        "metadata_only",
+        "allowed_aggregation_levels",
+        "report_definitions"
+      ],
+      "properties": {
+        "mode": {"type": "string", "const": "design-only"},
+        "tenant_safe_by_default": {"type": "boolean"},
+        "metadata_only": {"type": "boolean"},
+        "allowed_aggregation_levels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "enum": ["workspace", "organization"]}
+        },
+        "report_definitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/reportDefinition"}
+        }
+      }
+    },
+    "chargebackDesign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "billable_boundary",
+        "allow_cross_organization_allocation",
+        "require_workspace_cost_center"
+      ],
+      "properties": {
+        "mode": {"type": "string", "const": "design-only"},
+        "billable_boundary": {"type": "string", "enum": ["workspace"]},
+        "allow_cross_organization_allocation": {"type": "boolean"},
+        "require_workspace_cost_center": {"type": "boolean"}
+      }
+    },
+    "providerBilling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "customer_invoice_boundary",
+        "passthrough_usage_costs",
+        "separate_platform_fee",
+        "forbid_cross_organization_subsidy"
+      ],
+      "properties": {
+        "mode": {"type": "string", "const": "design-only"},
+        "customer_invoice_boundary": {"type": "string", "enum": ["organization"]},
+        "passthrough_usage_costs": {"type": "boolean"},
+        "separate_platform_fee": {"type": "boolean"},
+        "forbid_cross_organization_subsidy": {"type": "boolean"}
+      }
+    }
+  }
+}

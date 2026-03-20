@@ -20,4 +20,5 @@
 | --- | --- | --- |
 | Helm deployment assets | Retained in-repo under deploy/incubating for explicit internal exploration only. | explicit internal checks only |
 | Terraform deployment assets | Retained in-repo under deploy/incubating for explicit internal exploration only. | explicit internal checks only |
+| Multi-tenant isolation design package | Design-only contract for future organization/workspace isolation, tenant-safe reporting, and service-provider billing boundaries. | make validate-tenant, acpctl tenant validate |
 

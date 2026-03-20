@@ -56,6 +56,23 @@ Examples:
 ./scripts/acpctl.sh chargeback payload --target generic
 ```
 
+### `tenant`
+
+Inspect and validate the design-only multi-tenant package.
+
+| Subcommand | Summary |
+| --- | --- |
+| `inspect` | Print a concise summary of the tracked tenant design package |
+| `validate` | Validate the tracked tenant design package and truth markers |
+
+Examples:
+
+```bash
+./scripts/acpctl.sh tenant inspect
+./scripts/acpctl.sh tenant inspect --format json
+./scripts/acpctl.sh tenant validate
+```
+
 ### `evidence`
 
 Vendor evidence ingest workflows.
@@ -215,6 +232,7 @@ Configuration and policy validation operations.
 | `detections` | Validate detection rule output |
 | `siem-queries` | Validate SIEM query sync |
 | `policy-rules` | Validate the tracked ACP custom policy rule contract |
+| `tenant` | Validate the tracked tenant design package and truth markers |
 | `public-hygiene` | Fail when local-only files are tracked by git |
 | `license` | Validate license policy structure and restricted references |
 | `supply-chain` | Run supply-chain policy and digest validation |
@@ -232,6 +250,7 @@ Examples:
 ./scripts/acpctl.sh validate lint
 ./scripts/acpctl.sh validate detections
 ./scripts/acpctl.sh validate policy-rules
+./scripts/acpctl.sh validate tenant
 ```
 
 ### `db`

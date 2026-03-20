@@ -151,6 +151,15 @@
 **Key Principle:**
 > Always distinguish "estimated usage cost" from "billable cost" when reporting to finance. Usage-based billing reconciles closely; subscription billing reconciles by seat assignment.
 
+### Multi-Tenant Design Boundary
+
+The tracked design-only multi-tenant package keeps two boundaries distinct:
+
+- **workspace** for internal showback/chargeback allocation
+- **organization** for provider/customer invoicing
+
+See [MULTI_TENANT_ISOLATION_AND_BILLING.md](MULTI_TENANT_ISOLATION_AND_BILLING.md) for the incubating contract. This is design evidence only, not current shared-runtime functionality.
+
 ---
 
 ## 5. Attribution Model

@@ -9,6 +9,7 @@ Start here based on your role.
 - [OTEL Collector Setup](observability/OTEL_SETUP.md)
 - [Vendor Evidence Ingest](evidence/VENDOR_EVIDENCE_INGEST.md)
 - [ACP Custom Policy Engine](policy/CUSTOM_POLICY_ENGINE.md)
+- [Multi-Tenant Isolation And Billing Design](policy/MULTI_TENANT_ISOLATION_AND_BILLING.md)
 - [HA And Failover Topology](deployment/HA_FAILOVER_TOPOLOGY.md)
 - [Active-Passive HA Failover Runbook](deployment/HA_FAILOVER_RUNBOOK.md)
 - [Certificate Lifecycle](deployment/CERTIFICATE_LIFECYCLE.md)
@@ -30,6 +31,7 @@ Start here based on your role.
 - [Security And Governance](SECURITY_GOVERNANCE.md)
 - [Technical Architecture](technical-architecture.md)
 - [Support Matrix](reference/support-matrix.md)
+- [Multi-Tenant Isolation And Billing Design](policy/MULTI_TENANT_ISOLATION_AND_BILLING.md)
 - [Roadmap](ROADMAP.md)
 
 ## I am a contributor

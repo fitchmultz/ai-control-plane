@@ -3,7 +3,7 @@ _acpctl_complete() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
 
-    local commands="ci env chargeback evidence policy ops status health doctor benchmark smoke completion onboard deploy validate db key cert upgrade host help"
+    local commands="ci env chargeback tenant evidence policy ops status health doctor benchmark smoke completion onboard deploy validate db key cert upgrade host help"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
@@ -21,6 +21,10 @@ _acpctl_complete() {
             ;;
         chargeback)
             local subcmds="report render payload"
+            COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
+            ;;
+        tenant)
+            local subcmds="inspect validate"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         evidence)
@@ -48,7 +52,7 @@ _acpctl_complete() {
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         validate)
-            local subcmds="lint config detections siem-queries policy-rules public-hygiene license supply-chain secrets-audit compose-healthchecks headers env-access security"
+            local subcmds="lint config detections siem-queries policy-rules tenant public-hygiene license supply-chain secrets-audit compose-healthchecks headers env-access security"
             COMPREPLY=( $(compgen -W "${subcmds}" -- "${cur}") )
             ;;
         db)
