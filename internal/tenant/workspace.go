@@ -35,6 +35,17 @@ type WorkspaceSelection struct {
 	Workspace    Workspace    `json:"workspace"`
 }
 
+// LookupOrganization resolves one organization from the design.
+func (d Design) LookupOrganization(organizationID string) (Organization, error) {
+	orgID := strings.TrimSpace(organizationID)
+	for _, org := range d.Organizations {
+		if org.ID == orgID {
+			return org, nil
+		}
+	}
+	return Organization{}, fmt.Errorf("organization %q not found", orgID)
+}
+
 // LookupWorkspace resolves one workspace under the named organization.
 func (d Design) LookupWorkspace(organizationID string, workspaceID string) (WorkspaceSelection, error) {
 	orgID := strings.TrimSpace(organizationID)

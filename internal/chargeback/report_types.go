@@ -28,6 +28,8 @@ package chargeback
 import (
 	"context"
 	"time"
+
+	"github.com/mitchfultz/ai-control-plane/internal/db"
 )
 
 const (
@@ -57,6 +59,14 @@ const (
 	PayloadTargetSlack   PayloadTarget = "slack"
 )
 
+type ReportScopeKind string
+
+const (
+	ReportScopeGlobal       ReportScopeKind = "global"
+	ReportScopeOrganization ReportScopeKind = "organization"
+	ReportScopeWorkspace    ReportScopeKind = "workspace"
+)
+
 type ReportCommandInput struct {
 	ReportMonth          string
 	Format               string
@@ -66,6 +76,19 @@ type ReportCommandInput struct {
 	BudgetAlertThreshold string
 	ForecastEnabled      *bool
 	Notify               bool
+	TenantFile           string
+	OrganizationID       string
+	WorkspaceID          string
+}
+
+// ReportScope captures the tenant boundary applied to a generated report.
+type ReportScope struct {
+	Kind           ReportScopeKind `json:"kind"`
+	Label          string          `json:"label"`
+	Aggregation    string          `json:"aggregation"`
+	OrganizationID string          `json:"organization_id,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	ArchiveSuffix  string          `json:"-"`
 }
 
 type RenderCommandInput struct {
@@ -94,6 +117,8 @@ type NotificationConfig struct {
 
 type ReportWorkflowInput struct {
 	Request      ReportRequest
+	Scope        ReportScope
+	QueryScope   *db.ChargebackQueryScope
 	RepoRoot     string
 	Notification NotificationConfig
 	Now          func() time.Time
@@ -165,6 +190,7 @@ type ReportInput struct {
 	ReportMonth        string
 	PeriodStart        string
 	PeriodEnd          string
+	Scope              ReportScope
 	TotalSpend         float64
 	TotalRequests      int64
 	TotalTokens        int64
@@ -247,7 +273,7 @@ type ReportRenderer interface {
 }
 
 type ReportArchiver interface {
-	Archive(repoRoot string, archiveDir string, reportMonth string, outputs ReportOutputs) (map[string]string, error)
+	Archive(repoRoot string, archiveDir string, reportMonth string, fileBase string, outputs ReportOutputs) (map[string]string, error)
 }
 
 type ReportNotifier interface {

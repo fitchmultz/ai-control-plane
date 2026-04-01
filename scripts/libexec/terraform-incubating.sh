@@ -98,24 +98,24 @@ version_gte() {
     local lhs="$1"
     local rhs="$2"
     local lhs_major lhs_minor lhs_patch rhs_major rhs_minor rhs_patch
-    IFS=. read -r lhs_major lhs_minor lhs_patch <<< "${lhs}"
-    IFS=. read -r rhs_major rhs_minor rhs_patch <<< "${rhs}"
+    IFS=. read -r lhs_major lhs_minor lhs_patch <<<"${lhs}"
+    IFS=. read -r rhs_major rhs_minor rhs_patch <<<"${rhs}"
     lhs_patch="${lhs_patch:-0}"
     rhs_patch="${rhs_patch:-0}"
 
-    if (( lhs_major > rhs_major )); then
+    if ((lhs_major > rhs_major)); then
         return 0
     fi
-    if (( lhs_major < rhs_major )); then
+    if ((lhs_major < rhs_major)); then
         return 1
     fi
-    if (( lhs_minor > rhs_minor )); then
+    if ((lhs_minor > rhs_minor)); then
         return 0
     fi
-    if (( lhs_minor < rhs_minor )); then
+    if ((lhs_minor < rhs_minor)); then
         return 1
     fi
-    (( lhs_patch >= rhs_patch ))
+    ((lhs_patch >= rhs_patch))
 }
 
 terraform_host_version() {
@@ -210,7 +210,7 @@ apply_plan_targets() {
         return 0
     fi
 
-    IFS=, read -r -a target_list <<< "${targets_csv}"
+    IFS=, read -r -a target_list <<<"${targets_csv}"
     for target in "${target_list[@]}"; do
         trimmed="$(printf '%s' "${target}" | awk '{$1=$1; print}')"
         [ -n "${trimmed}" ] || continue
@@ -220,7 +220,7 @@ apply_plan_targets() {
 
 run_plan_aws() {
     case "${TF_AWS_PLAN_MODE}" in
-    validation-only|live) ;;
+    validation-only | live) ;;
     *)
         bridge_log_error "TF_AWS_PLAN_MODE must be validation-only or live (got: ${TF_AWS_PLAN_MODE})"
         return "${ACP_EXIT_USAGE}"
@@ -292,7 +292,7 @@ plan-aws)
 security-check)
     run_security_check
     ;;
-help|-h|--help)
+help | -h | --help)
     show_help
     ;;
 *)

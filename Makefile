@@ -192,6 +192,10 @@ help-db:
 	@echo '  $(COLOR_GREEN)db-restore$(COLOR_RESET)         Restore from backup'
 	@echo '  $(COLOR_GREEN)db-shell$(COLOR_RESET)           Open database shell'
 	@echo '  $(COLOR_GREEN)dr-drill$(COLOR_RESET)           Run automated restore verification'
+	@echo ''
+	@echo 'Examples:'
+	@echo '  make chargeback-report REPORT_MONTH=2026-02'
+	@echo '  make chargeback-report ORG=falcon-insurance WORKSPACE=claims-adjuster REPORT_MONTH=2026-02'
 
 .PHONY: help-host
 help-host:

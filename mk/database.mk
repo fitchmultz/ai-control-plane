@@ -45,6 +45,9 @@ chargeback-report: install-binary ## Generate chargeback/showback report artifac
 		$(if $(filter 1 true TRUE yes YES,$(FORECAST)),--forecast,) \
 		$(if $(filter 1 true TRUE yes YES,$(NO_FORECAST)),--no-forecast,) \
 		$(if $(BUDGET_ALERT_THRESHOLD),--budget-alert-threshold $(BUDGET_ALERT_THRESHOLD),) \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),) \
 		$(if $(filter 1 true TRUE yes YES,$(NOTIFY)),--notify,) \
 		$(if $(filter 1 true TRUE yes YES,$(VERBOSE)),--verbose,)
 

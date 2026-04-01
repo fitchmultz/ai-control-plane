@@ -51,6 +51,7 @@ Examples:
 
 ```bash
 ./scripts/acpctl.sh chargeback report
+./scripts/acpctl.sh chargeback report --organization falcon-insurance --workspace claims-adjuster
 ./scripts/acpctl.sh chargeback render --format json
 ./scripts/acpctl.sh chargeback render --format csv
 ./scripts/acpctl.sh chargeback payload --target generic

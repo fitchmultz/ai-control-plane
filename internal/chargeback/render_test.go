@@ -37,6 +37,7 @@ func TestRenderJSONPreservesHostileContent(t *testing.T) {
 		ReportMonth:        "2026-02",
 		PeriodStart:        "2026-02-01",
 		PeriodEnd:          "2026-02-28",
+		Scope:              ReportScope{Kind: ReportScopeWorkspace, Label: "workspace/falcon-insurance/claims-adjuster", Aggregation: "workspace", OrganizationID: "falcon-insurance", WorkspaceID: "claims-adjuster"},
 		TotalSpend:         123.45,
 		TotalRequests:      9,
 		TotalTokens:        42,
@@ -81,6 +82,11 @@ func TestRenderJSONPreservesHostileContent(t *testing.T) {
 	if decoded["variance_analysis"].(map[string]any)["variance_percent"] != "N/A" {
 		t.Fatalf("variance N/A should remain string, got %#v", decoded["variance_analysis"].(map[string]any)["variance_percent"])
 	}
+	metadata := decoded["report_metadata"].(map[string]any)
+	scope := metadata["scope"].(map[string]any)
+	if scope["label"] != "workspace/falcon-insurance/claims-adjuster" {
+		t.Fatalf("scope label lost: %#v", scope["label"])
+	}
 }
 
 func TestRenderCSVEscapesAndSpreadsheetProtects(t *testing.T) {
@@ -104,7 +110,7 @@ func TestRenderCSVEscapesAndSpreadsheetProtects(t *testing.T) {
 		},
 	}
 
-	if err := RenderCSV(&output, "2026-02", rows); err != nil {
+	if err := RenderCSV(&output, "2026-02", "workspace/falcon-insurance/claims-adjuster", rows); err != nil {
 		t.Fatalf("RenderCSV returned error: %v", err)
 	}
 
@@ -121,6 +127,9 @@ func TestRenderCSVEscapesAndSpreadsheetProtects(t *testing.T) {
 	}
 	if got := records[2][1]; got != "'@cmd" {
 		t.Fatalf("expected spreadsheet protection for @-prefixed cell, got %q", got)
+	}
+	if got := records[1][7]; got != "workspace/falcon-insurance/claims-adjuster" {
+		t.Fatalf("expected scope column, got %q", got)
 	}
 }
 

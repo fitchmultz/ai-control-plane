@@ -48,7 +48,7 @@ type chargebackPayloadAdapterOptions struct {
 	Command chargeback.PayloadCommandInput
 }
 
-func bindChargebackReportOptions(input parsedCommandInput) chargebackReportAdapterOptions {
+func bindChargebackReportOptions(_ commandBindContext, input parsedCommandInput) (chargebackReportAdapterOptions, error) {
 	command := chargeback.ReportCommandInput{
 		ReportMonth:          input.NormalizedString("month"),
 		Format:               input.NormalizedString("format"),
@@ -57,6 +57,9 @@ func bindChargebackReportOptions(input parsedCommandInput) chargebackReportAdapt
 		AnomalyThreshold:     input.NormalizedString("anomaly-threshold"),
 		BudgetAlertThreshold: input.NormalizedString("budget-alert-threshold"),
 		Notify:               input.Bool("notify"),
+		TenantFile:           input.NormalizedString("tenant-file"),
+		OrganizationID:       input.NormalizedString("organization"),
+		WorkspaceID:          input.NormalizedString("workspace"),
 	}
 	if input.Bool("forecast") {
 		value := true
@@ -69,7 +72,7 @@ func bindChargebackReportOptions(input parsedCommandInput) chargebackReportAdapt
 	return chargebackReportAdapterOptions{
 		Command: command,
 		Verbose: input.Bool("verbose"),
-	}
+	}, nil
 }
 
 func bindChargebackRenderOptions(input parsedCommandInput) chargebackRenderAdapterOptions {
@@ -107,7 +110,7 @@ func runChargebackReportCommand(ctx context.Context, runCtx commandRunContext, r
 		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)
 		return exitcodes.ACPExitUsage
 	}
-	reader, err := db.NewChargebackReader(connector)
+	reader, err := db.NewChargebackReader(connector, workflowInput.QueryScope)
 	if err != nil {
 		workflowFailure(logger, err)
 		fmt.Fprintf(runCtx.Stderr, "Error: %v\n", err)

@@ -42,7 +42,7 @@ func (DefaultRenderer) Render(data ReportData) (ReportOutputs, error) {
 	if err != nil {
 		return ReportOutputs{}, fmt.Errorf("render json: %w", err)
 	}
-	csvPayload, err := renderCSVBytes(data.Input.ReportMonth, data.Input.CostCenters)
+	csvPayload, err := renderCSVBytes(data.Input.ReportMonth, data.Input.Scope.Label, data.Input.CostCenters)
 	if err != nil {
 		return ReportOutputs{}, fmt.Errorf("render csv: %w", err)
 	}
@@ -63,8 +63,8 @@ func RenderJSON(w io.Writer, input ReportInput) error {
 	return err
 }
 
-func RenderCSV(w io.Writer, reportMonth string, rows []CostCenterAllocation) error {
-	payload, err := renderCSVBytes(reportMonth, rows)
+func RenderCSV(w io.Writer, reportMonth string, scopeLabel string, rows []CostCenterAllocation) error {
+	payload, err := renderCSVBytes(reportMonth, scopeLabel, rows)
 	if err != nil {
 		return err
 	}
@@ -73,6 +73,7 @@ func RenderCSV(w io.Writer, reportMonth string, rows []CostCenterAllocation) err
 }
 
 func renderJSONBytes(input ReportInput) ([]byte, error) {
+	input.Scope = normalizedReportScope(input.Scope)
 	payload := reportPayload{
 		SchemaVersion: input.SchemaVersion,
 		ReportMetadata: reportMetadata{
@@ -80,6 +81,7 @@ func renderJSONBytes(input ReportInput) ([]byte, error) {
 			ReportMonth: input.ReportMonth,
 			PeriodStart: input.PeriodStart,
 			PeriodEnd:   input.PeriodEnd,
+			Scope:       input.Scope,
 		},
 		ExecutiveSummary: executiveSummary{
 			TotalSpend:                 input.TotalSpend,
@@ -131,7 +133,10 @@ func renderJSONBytes(input ReportInput) ([]byte, error) {
 	return output.Bytes(), nil
 }
 
-func renderCSVBytes(reportMonth string, rows []CostCenterAllocation) ([]byte, error) {
+func renderCSVBytes(reportMonth string, scopeLabel string, rows []CostCenterAllocation) ([]byte, error) {
+	if strings.TrimSpace(scopeLabel) == "" {
+		scopeLabel = normalizedReportScope(ReportScope{}).Label
+	}
 	var output bytes.Buffer
 	writer := csv.NewWriter(&output)
 	records := [][]string{{
@@ -142,6 +147,7 @@ func renderCSVBytes(reportMonth string, rows []CostCenterAllocation) ([]byte, er
 		"TokenCount",
 		"PercentOfTotal",
 		"ReportMonth",
+		"Scope",
 	}}
 
 	for _, row := range rows {
@@ -153,6 +159,7 @@ func renderCSVBytes(reportMonth string, rows []CostCenterAllocation) ([]byte, er
 			strconv.FormatInt(row.TokenCount, 10),
 			formatFloat(row.PercentOfTotal),
 			spreadsheetSafe(reportMonth),
+			spreadsheetSafe(scopeLabel),
 		})
 	}
 
@@ -179,10 +186,11 @@ type reportPayload struct {
 }
 
 type reportMetadata struct {
-	GeneratedAt string `json:"generated_at"`
-	ReportMonth string `json:"report_month"`
-	PeriodStart string `json:"period_start"`
-	PeriodEnd   string `json:"period_end"`
+	GeneratedAt string      `json:"generated_at"`
+	ReportMonth string      `json:"report_month"`
+	PeriodStart string      `json:"period_start"`
+	PeriodEnd   string      `json:"period_end"`
+	Scope       ReportScope `json:"scope"`
 }
 
 type executiveSummary struct {

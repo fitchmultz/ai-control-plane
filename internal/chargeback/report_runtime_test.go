@@ -108,6 +108,14 @@ func TestReportWorkflowBuildsOutputsAndArchives(t *testing.T) {
 			AnomalyThreshold:     100,
 			BudgetAlertThreshold: defaultBudgetAlertThreshold,
 		},
+		Scope: ReportScope{
+			Kind:           ReportScopeWorkspace,
+			Label:          "workspace/falcon-insurance/claims-adjuster",
+			Aggregation:    "workspace",
+			OrganizationID: "falcon-insurance",
+			WorkspaceID:    "claims-adjuster",
+			ArchiveSuffix:  "workspace-falcon-insurance-claims-adjuster",
+		},
 		RepoRoot: repoRoot,
 		Now: func() time.Time {
 			return time.Date(2026, time.February, 7, 12, 0, 0, 0, time.FixedZone("MST", -7*60*60))
@@ -126,6 +134,9 @@ func TestReportWorkflowBuildsOutputsAndArchives(t *testing.T) {
 	if !strings.Contains(result.Outputs.JSON, "\"schema_version\"") {
 		t.Fatalf("expected json payload, got %q", result.Outputs.JSON)
 	}
+	if !strings.Contains(result.Outputs.Markdown, "**Scope:** workspace/falcon-insurance/claims-adjuster") {
+		t.Fatalf("expected scoped markdown output, got %q", result.Outputs.Markdown)
+	}
 	if !result.Data.VarianceExceeded {
 		t.Fatal("expected variance threshold exceeded")
 	}
@@ -140,6 +151,9 @@ func TestReportWorkflowBuildsOutputsAndArchives(t *testing.T) {
 		}
 		if !strings.HasPrefix(path, filepath.Join(repoRoot, "demo", "backups", "chargeback")) {
 			t.Fatalf("unexpected archive path %s", path)
+		}
+		if !strings.Contains(filepath.Base(path), "workspace-falcon-insurance-claims-adjuster") {
+			t.Fatalf("expected scope-specific archive file name, got %s", filepath.Base(path))
 		}
 	}
 }

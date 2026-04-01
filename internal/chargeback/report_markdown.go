@@ -30,12 +30,15 @@ import (
 func RenderMarkdown(data ReportData) string {
 	var builder strings.Builder
 	input := data.Input
+	input.Scope = normalizedReportScope(input.Scope)
 	coverage := coveragePercent(input.TotalSpend, unattributedSpend(input.CostCenters))
 	unattributed := unattributedSpend(input.CostCenters)
 
 	builder.WriteString("# Financial Chargeback Report\n\n")
 	builder.WriteString(fmt.Sprintf("**Reporting Period:** %s to %s  \n", input.PeriodStart, input.PeriodEnd))
 	builder.WriteString(fmt.Sprintf("**Generated:** %s  \n", input.GeneratedAt))
+	builder.WriteString(fmt.Sprintf("**Scope:** %s  \n", input.Scope.Label))
+	builder.WriteString(fmt.Sprintf("**Aggregation:** %s  \n", input.Scope.Aggregation))
 	builder.WriteString("**Report Type:** Chargeback Allocation\n\n")
 	builder.WriteString("---\n\n")
 	builder.WriteString("## Executive Summary\n\n")

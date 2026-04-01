@@ -65,11 +65,12 @@ func (w ReportWorkflow) Run(ctx context.Context, input ReportWorkflowInput) (Rep
 		w.Notifier = WebhookNotifier{}
 	}
 
+	scope := normalizedReportScope(input.Scope)
 	monthRange, err := resolveMonthRange(input.Request.ReportMonth, input.Now())
 	if err != nil {
 		return ReportResult{}, err
 	}
-	data, err := collectReportData(ctx, w.Store, input.Request, monthRange, input.Now)
+	data, err := collectReportData(ctx, w.Store, input.Request, scope, monthRange, input.Now)
 	if err != nil {
 		return ReportResult{}, err
 	}
@@ -77,7 +78,7 @@ func (w ReportWorkflow) Run(ctx context.Context, input ReportWorkflowInput) (Rep
 	if err != nil {
 		return ReportResult{}, err
 	}
-	archived, err := w.Archiver.Archive(input.RepoRoot, input.Request.ArchiveDir, data.Range.ReportMonth, outputs)
+	archived, err := w.Archiver.Archive(input.RepoRoot, input.Request.ArchiveDir, data.Range.ReportMonth, archiveFileBase(data.Range.ReportMonth, scope), outputs)
 	if err != nil {
 		return ReportResult{}, err
 	}
@@ -109,7 +110,7 @@ func WriteSelectedOutput(out io.Writer, format ReportFormat, outputs ReportOutpu
 	}
 }
 
-func collectReportData(ctx context.Context, store Store, request ReportRequest, monthRange MonthRange, now func() time.Time) (ReportData, error) {
+func collectReportData(ctx context.Context, store Store, request ReportRequest, scope ReportScope, monthRange MonthRange, now func() time.Time) (ReportData, error) {
 	currentCostCenters, err := store.CostCenterAllocations(ctx, monthRange.MonthStart, monthRange.MonthEnd)
 	if err != nil {
 		return ReportData{}, fmt.Errorf("collect cost center allocations: %w", err)
@@ -171,6 +172,7 @@ func collectReportData(ctx context.Context, store Store, request ReportRequest, 
 		ReportMonth:        monthRange.ReportMonth,
 		PeriodStart:        monthRange.MonthStart,
 		PeriodEnd:          monthRange.MonthEnd,
+		Scope:              scope,
 		TotalSpend:         totalSpend,
 		TotalRequests:      metrics.TotalRequests,
 		TotalTokens:        metrics.TotalTokens,

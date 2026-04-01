@@ -18,6 +18,8 @@
 package chargeback
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -78,8 +80,48 @@ func TestNewReportWorkflowInputAppliesDefaultsAndEnvNotifications(t *testing.T) 
 	if !input.Request.ForecastEnabled {
 		t.Fatal("expected forecast enabled default")
 	}
+	if input.Scope.Kind != ReportScopeGlobal || input.Scope.Label != "global" {
+		t.Fatalf("expected global scope default, got %#v", input.Scope)
+	}
 	if input.Notification.GenericWebhookURL == "" || input.Notification.SlackWebhookURL == "" {
 		t.Fatalf("expected webhook URLs, got %#v", input.Notification)
+	}
+}
+
+func TestNewReportWorkflowInputResolvesWorkspaceScope(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repoRoot, "demo", "config"), 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "demo", "config", "tenant_design.yaml"), []byte(testTenantDesignYAML), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	input, err := NewReportWorkflowInput(ReportCommandInput{
+		OrganizationID: "falcon-insurance",
+		WorkspaceID:    "claims-adjuster",
+	}, fakeEnv{}, repoRoot, func() time.Time {
+		return time.Date(2026, time.March, 8, 12, 0, 0, 0, time.UTC)
+	})
+	if err != nil {
+		t.Fatalf("NewReportWorkflowInput returned error: %v", err)
+	}
+	if input.Scope.Kind != ReportScopeWorkspace || input.Scope.Label != "workspace/falcon-insurance/claims-adjuster" {
+		t.Fatalf("unexpected scope: %#v", input.Scope)
+	}
+	if input.QueryScope == nil || len(input.QueryScope.NamespacePrefixes) != 1 || input.QueryScope.NamespacePrefixes[0] != "falcon-insurance--claims-adjuster" {
+		t.Fatalf("unexpected query scope: %#v", input.QueryScope)
+	}
+}
+
+func TestNewReportWorkflowInputRejectsWorkspaceWithoutOrganization(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewReportWorkflowInput(ReportCommandInput{WorkspaceID: "claims-adjuster"}, fakeEnv{}, "/repo", nil)
+	if err == nil || !strings.Contains(err.Error(), "--organization is required") {
+		t.Fatalf("expected partial scope error, got %v", err)
 	}
 }
 
@@ -103,6 +145,11 @@ func TestNewRenderRequestDecodesEnvironmentPayloads(t *testing.T) {
 			"CHARGEBACK_BUDGET_RISK_THRESHOLD_EXCEEDED": "true",
 			"CHARGEBACK_EXHAUSTION_DATE":                "2026-02-20",
 			"CHARGEBACK_GENERATED_AT":                   "2026-03-08T18:00:00Z",
+			"CHARGEBACK_SCOPE_KIND":                     "workspace",
+			"CHARGEBACK_SCOPE_LABEL":                    "workspace/falcon-insurance/claims-adjuster",
+			"CHARGEBACK_SCOPE_AGGREGATION":              "workspace",
+			"CHARGEBACK_SCOPE_ORGANIZATION_ID":          "falcon-insurance",
+			"CHARGEBACK_SCOPE_WORKSPACE_ID":             "claims-adjuster",
 		},
 		int64Values:   map[string]*int64{"CHARGEBACK_DAYS_REMAINING": &daysRemaining},
 		float64Values: map[string]*float64{"CHARGEBACK_BUDGET_RISK_PERCENT": &budgetPercent},
@@ -118,6 +165,9 @@ func TestNewRenderRequestDecodesEnvironmentPayloads(t *testing.T) {
 	}
 	if request.Input.TotalSpend != 25.5 || len(request.Input.CostCenters) != 1 || len(request.Input.Anomalies) != 1 {
 		t.Fatalf("unexpected decoded render input: %#v", request.Input)
+	}
+	if request.Input.Scope.Label != "workspace/falcon-insurance/claims-adjuster" {
+		t.Fatalf("expected scope label, got %#v", request.Input.Scope)
 	}
 	if request.Input.BudgetRisk.BudgetPercent == nil || *request.Input.BudgetRisk.BudgetPercent != budgetPercent {
 		t.Fatalf("expected budget percent, got %#v", request.Input.BudgetRisk.BudgetPercent)
@@ -136,3 +186,62 @@ func TestNewPayloadRequestRejectsInvalidAnomalyJSON(t *testing.T) {
 		t.Fatalf("expected anomaly decode error, got %v", err)
 	}
 }
+
+const testTenantDesignYAML = `version: 1
+design_state: incubating
+organizations:
+  - id: falcon-insurance
+    display_name: Falcon Insurance
+    chargeback:
+      cost_center: cc-1000
+      bill_to: ap@falcon-insurance.example.com
+    workspaces:
+      - id: claims-adjuster
+        display_name: Claims Adjuster
+        key_namespace_prefix: falcon-insurance--claims-adjuster
+        allowed_models:
+          - openai-gpt5.2
+        role_bindings:
+          - role: developer
+            scope: workspace
+            subjects:
+              - kind: group
+                name: claims-adjusters
+        chargeback:
+          cost_center: cc-1100
+          bill_to: claims-finops@falcon-insurance.example.com
+row_level_access:
+  mode: design-only
+  required_predicates:
+    - organization_id
+    - workspace_id
+    - key_namespace_prefix
+  write_boundary: workspace
+reporting:
+  mode: design-only
+  tenant_safe_by_default: true
+  metadata_only: true
+  allowed_aggregation_levels:
+    - workspace
+    - organization
+  report_definitions:
+    - id: workspace-showback
+      aggregation: workspace
+      redaction: metadata-only
+      include_cross_organization_data: false
+    - id: organization-portfolio
+      aggregation: organization
+      redaction: metadata-only
+      include_cross_organization_data: false
+chargeback:
+  mode: design-only
+  billable_boundary: workspace
+  allow_cross_organization_allocation: false
+  require_workspace_cost_center: true
+provider_billing:
+  mode: design-only
+  customer_invoice_boundary: organization
+  passthrough_usage_costs: true
+  separate_platform_fee: true
+  forbid_cross_organization_subsidy: true
+`

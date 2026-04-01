@@ -6,6 +6,7 @@
 // Responsibilities:
 //   - Exercise typed aggregate parsing and error handling.
 //   - Cover nil/config-error guard rails on reader construction and query methods.
+//   - Assert tenant-scoped readers add namespace filters to chargeback queries.
 //
 // Scope:
 //   - Chargeback-reader behavior only.
@@ -27,14 +28,14 @@ import (
 )
 
 func TestNewChargebackReaderRequiresValidConnector(t *testing.T) {
-	if _, err := NewChargebackReader(nil); err == nil {
+	if _, err := NewChargebackReader(nil, nil); err == nil {
 		t.Fatal("expected nil connector rejection")
 	}
 
 	connector := &Connector{
 		settings: config.DatabaseSettings{AmbiguousErr: errors.New("ambiguous")},
 	}
-	if _, err := NewChargebackReader(connector); err == nil {
+	if _, err := NewChargebackReader(connector, nil); err == nil {
 		t.Fatal("expected config error rejection")
 	}
 }
@@ -48,7 +49,7 @@ func TestChargebackReaderScalarStringRequiresConnector(t *testing.T) {
 
 func TestChargebackReaderMetricsSummary(t *testing.T) {
 	connector, mock := newExternalSQLMockConnector(t)
-	reader, err := NewChargebackReader(connector)
+	reader, err := NewChargebackReader(connector, nil)
 	if err != nil {
 		t.Fatalf("NewChargebackReader() error = %v", err)
 	}
@@ -56,10 +57,11 @@ func TestChargebackReaderMetricsSummary(t *testing.T) {
 	expectExactQuery(mock, `
 SELECT
   COALESCE(COUNT(*), 0) || '|' ||
-  COALESCE(SUM("prompt_tokens" + "completion_tokens"), 0)
-FROM "LiteLLM_SpendLogs"
-WHERE "startTime" >= '2026-03-01 00:00:00'
-  AND "startTime" <= '2026-03-31 23:59:59';
+  COALESCE(SUM(COALESCE(s."prompt_tokens", 0) + COALESCE(s."completion_tokens", 0)), 0)
+FROM "LiteLLM_SpendLogs" s
+LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
+WHERE s."startTime" >= '2026-03-01 00:00:00'
+  AND s."startTime" <= '2026-03-31 23:59:59';
 `, exactQueryRows("value").AddRow("9|1200"))
 
 	summary, err := reader.MetricsSummary(context.Background(), "2026-03-01", "2026-03-31")
@@ -73,7 +75,7 @@ WHERE "startTime" >= '2026-03-01 00:00:00'
 
 func TestChargebackReaderMetricsSummaryRejectsMalformedPayload(t *testing.T) {
 	connector, mock := newExternalSQLMockConnector(t)
-	reader, err := NewChargebackReader(connector)
+	reader, err := NewChargebackReader(connector, nil)
 	if err != nil {
 		t.Fatalf("NewChargebackReader() error = %v", err)
 	}
@@ -81,10 +83,11 @@ func TestChargebackReaderMetricsSummaryRejectsMalformedPayload(t *testing.T) {
 	expectExactQuery(mock, `
 SELECT
   COALESCE(COUNT(*), 0) || '|' ||
-  COALESCE(SUM("prompt_tokens" + "completion_tokens"), 0)
-FROM "LiteLLM_SpendLogs"
-WHERE "startTime" >= '2026-03-01 00:00:00'
-  AND "startTime" <= '2026-03-31 23:59:59';
+  COALESCE(SUM(COALESCE(s."prompt_tokens", 0) + COALESCE(s."completion_tokens", 0)), 0)
+FROM "LiteLLM_SpendLogs" s
+LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
+WHERE s."startTime" >= '2026-03-01 00:00:00'
+  AND s."startTime" <= '2026-03-31 23:59:59';
 `, exactQueryRows("value").AddRow("broken"))
 
 	if _, err := reader.MetricsSummary(context.Background(), "2026-03-01", "2026-03-31"); err == nil {
@@ -94,16 +97,17 @@ WHERE "startTime" >= '2026-03-01 00:00:00'
 
 func TestChargebackReaderTotals(t *testing.T) {
 	connector, mock := newExternalSQLMockConnector(t)
-	reader, err := NewChargebackReader(connector)
+	reader, err := NewChargebackReader(connector, nil)
 	if err != nil {
 		t.Fatalf("NewChargebackReader() error = %v", err)
 	}
 
 	expectExactQuery(mock, `
-SELECT COALESCE(SUM(spend), 0)
-FROM "LiteLLM_SpendLogs"
-WHERE "startTime" >= '2026-03-01 00:00:00'
-  AND "startTime" <= '2026-03-31 23:59:59';
+SELECT COALESCE(SUM(s.spend), 0)
+FROM "LiteLLM_SpendLogs" s
+LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
+WHERE s."startTime" >= '2026-03-01 00:00:00'
+  AND s."startTime" <= '2026-03-31 23:59:59';
 `, exactQueryRows("value").AddRow("12.5"))
 	expectExactQuery(mock, `
 SELECT COALESCE(SUM(max_budget), 0) AS total_max_budget
@@ -130,7 +134,7 @@ WHERE max_budget > 0;
 
 func TestChargebackReaderJSONAccessors(t *testing.T) {
 	connector, mock := newExternalSQLMockConnector(t)
-	reader, err := NewChargebackReader(connector)
+	reader, err := NewChargebackReader(connector, nil)
 	if err != nil {
 		t.Fatalf("NewChargebackReader() error = %v", err)
 	}
@@ -155,6 +159,32 @@ func TestChargebackReaderJSONAccessors(t *testing.T) {
 	history, err := reader.HistoricalSpendJSON(context.Background(), 3, "2026-03-01")
 	if err != nil || history == "" {
 		t.Fatalf("HistoricalSpendJSON() = %q, %v", history, err)
+	}
+}
+
+func TestChargebackReaderAppliesScopedNamespaceFilters(t *testing.T) {
+	connector, mock := newExternalSQLMockConnector(t)
+	reader, err := NewChargebackReader(connector, &ChargebackQueryScope{NamespacePrefixes: []string{"falcon-insurance--claims-adjuster"}})
+	if err != nil {
+		t.Fatalf("NewChargebackReader() error = %v", err)
+	}
+
+	mock.ExpectQuery(`v\.key_alias LIKE 'falcon-insurance--claims-adjuster--%'`).WillReturnRows(exactQueryRows("value").AddRow("7.5"))
+	mock.ExpectQuery(`v\.key_alias LIKE 'falcon-insurance--claims-adjuster--%'`).WillReturnRows(exactQueryRows("value").AddRow("20.0"))
+
+	totalSpend, err := reader.TotalSpend(context.Background(), "2026-03-01", "2026-03-31")
+	if err != nil {
+		t.Fatalf("TotalSpend() error = %v", err)
+	}
+	if totalSpend != 7.5 {
+		t.Fatalf("TotalSpend() = %v, want 7.5", totalSpend)
+	}
+	totalBudget, err := reader.TotalBudget(context.Background())
+	if err != nil {
+		t.Fatalf("TotalBudget() error = %v", err)
+	}
+	if totalBudget != 20.0 {
+		t.Fatalf("TotalBudget() = %v, want 20", totalBudget)
 	}
 }
 

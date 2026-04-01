@@ -6,12 +6,14 @@
 // Responsibilities:
 //   - Serve chargeback JSON payloads and scalar aggregates through named methods.
 //   - Keep chargeback query text out of shared runtime and admin services.
+//   - Apply optional tenant-safe namespace scoping to chargeback queries.
 //
 // Scope:
 //   - Chargeback reporting queries only.
 //
 // Usage:
-//   - Construct via `NewChargebackReader(connector)` from chargeback composition.
+//   - Construct via `NewChargebackReader(connector, scope)` from chargeback
+//     composition.
 //
 // Invariants/Assumptions:
 //   - Public API stays domain-specific and avoids generic query execution.
@@ -27,17 +29,18 @@ import (
 // ChargebackReader provides chargeback-specific readonly queries.
 type ChargebackReader struct {
 	connector *Connector
+	scope     *ChargebackQueryScope
 }
 
 // NewChargebackReader creates a chargeback-specific readonly query service.
-func NewChargebackReader(connector *Connector) (*ChargebackReader, error) {
+func NewChargebackReader(connector *Connector, scope *ChargebackQueryScope) (*ChargebackReader, error) {
 	if connector == nil {
 		return nil, fmt.Errorf("database chargeback reader requires a connector")
 	}
 	if err := connector.ConfigError(); err != nil {
 		return nil, err
 	}
-	return &ChargebackReader{connector: connector}, nil
+	return &ChargebackReader{connector: connector, scope: scope}, nil
 }
 
 // CostCenterAllocationsJSON returns the canonical cost-center allocation payload.
@@ -59,7 +62,7 @@ WITH attribution AS (
   FROM "LiteLLM_SpendLogs" s
   LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
   WHERE s."startTime" >= '%s 00:00:00'
-    AND s."startTime" <= '%s 23:59:59'
+    AND s."startTime" <= '%s 23:59:59'%s
 ),
 aggregated AS (
   SELECT
@@ -87,7 +90,7 @@ SELECT COALESCE(
   '[]'::json
 )
 FROM aggregated;
-`, monthStart, monthEnd))
+`, monthStart, monthEnd, r.scope.spendLogAliasFilter("v.key_alias")))
 }
 
 // ModelAllocationsJSON returns the canonical model allocation payload.
@@ -95,13 +98,14 @@ func (r *ChargebackReader) ModelAllocationsJSON(ctx context.Context, monthStart 
 	return r.scalarString(ctx, fmt.Sprintf(`
 WITH aggregated AS (
   SELECT
-    COALESCE(model, 'unknown') AS model_name,
+    COALESCE(s.model, 'unknown') AS model_name,
     COUNT(*) AS request_count,
-    COALESCE(SUM("prompt_tokens" + "completion_tokens"), 0) AS token_count,
-    ROUND(COALESCE(SUM(spend), 0)::numeric, 4) AS spend_amount
-  FROM "LiteLLM_SpendLogs"
-  WHERE "startTime" >= '%s 00:00:00'
-    AND "startTime" <= '%s 23:59:59'
+    COALESCE(SUM(COALESCE(s."prompt_tokens", 0) + COALESCE(s."completion_tokens", 0)), 0) AS token_count,
+    ROUND(COALESCE(SUM(s.spend), 0)::numeric, 4) AS spend_amount
+  FROM "LiteLLM_SpendLogs" s
+  LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
+  WHERE s."startTime" >= '%s 00:00:00'
+    AND s."startTime" <= '%s 23:59:59'%s
   GROUP BY model_name
 )
 SELECT COALESCE(
@@ -117,7 +121,7 @@ SELECT COALESCE(
   '[]'::json
 )
 FROM aggregated;
-`, monthStart, monthEnd))
+`, monthStart, monthEnd, r.scope.spendLogAliasFilter("v.key_alias")))
 }
 
 // TopPrincipalsJSON returns the top-principals payload.
@@ -152,22 +156,23 @@ FROM (
   FROM "LiteLLM_SpendLogs" s
   LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
   WHERE s."startTime" >= '%s 00:00:00'
-    AND s."startTime" <= '%s 23:59:59'
+    AND s."startTime" <= '%s 23:59:59'%s
   GROUP BY v.key_alias
   ORDER BY SUM(s.spend) DESC
   LIMIT %d
 ) principals;
-`, monthStart, monthEnd, limit))
+`, monthStart, monthEnd, r.scope.spendLogAliasFilter("v.key_alias"), limit))
 }
 
 // TotalSpend returns the total spend for the month.
 func (r *ChargebackReader) TotalSpend(ctx context.Context, monthStart string, monthEnd string) (float64, error) {
 	raw, err := r.scalarString(ctx, fmt.Sprintf(`
-SELECT COALESCE(SUM(spend), 0)
-FROM "LiteLLM_SpendLogs"
-WHERE "startTime" >= '%s 00:00:00'
-  AND "startTime" <= '%s 23:59:59';
-`, monthStart, monthEnd))
+SELECT COALESCE(SUM(s.spend), 0)
+FROM "LiteLLM_SpendLogs" s
+LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
+WHERE s."startTime" >= '%s 00:00:00'
+  AND s."startTime" <= '%s 23:59:59'%s;
+`, monthStart, monthEnd, r.scope.spendLogAliasFilter("v.key_alias")))
 	if err != nil {
 		return 0, err
 	}
@@ -179,11 +184,12 @@ func (r *ChargebackReader) MetricsSummary(ctx context.Context, monthStart string
 	raw, err := r.scalarString(ctx, fmt.Sprintf(`
 SELECT
   COALESCE(COUNT(*), 0) || '|' ||
-  COALESCE(SUM("prompt_tokens" + "completion_tokens"), 0)
-FROM "LiteLLM_SpendLogs"
-WHERE "startTime" >= '%s 00:00:00'
-  AND "startTime" <= '%s 23:59:59';
-`, monthStart, monthEnd))
+  COALESCE(SUM(COALESCE(s."prompt_tokens", 0) + COALESCE(s."completion_tokens", 0)), 0)
+FROM "LiteLLM_SpendLogs" s
+LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
+WHERE s."startTime" >= '%s 00:00:00'
+  AND s."startTime" <= '%s 23:59:59'%s;
+`, monthStart, monthEnd, r.scope.spendLogAliasFilter("v.key_alias")))
 	if err != nil {
 		return ChargebackMetricsSummary{}, err
 	}
@@ -220,25 +226,38 @@ SELECT COALESCE(
 )
 FROM (
   SELECT
-    TO_CHAR(DATE_TRUNC('month', "startTime"), 'YYYY-MM') AS month,
-    COALESCE(SUM(spend), 0) AS monthly_spend
-  FROM "LiteLLM_SpendLogs"
-  WHERE "startTime" < '%s 00:00:00'
-    AND "startTime" >= '%s 00:00:00'::timestamp - INTERVAL '%d months'
-  GROUP BY DATE_TRUNC('month', "startTime")
+    TO_CHAR(DATE_TRUNC('month', s."startTime"), 'YYYY-MM') AS month,
+    COALESCE(SUM(s.spend), 0) AS monthly_spend
+  FROM "LiteLLM_SpendLogs" s
+  LEFT JOIN "LiteLLM_VerificationToken" v ON s.api_key = v.token
+  WHERE s."startTime" < '%s 00:00:00'
+    AND s."startTime" >= '%s 00:00:00'::timestamp - INTERVAL '%d months'%s
+  GROUP BY DATE_TRUNC('month', s."startTime")
   ORDER BY month DESC
   LIMIT %d
 ) history;
-`, monthStart, monthStart, monthsBack, monthsBack))
+`, monthStart, monthStart, monthsBack, r.scope.spendLogAliasFilter("v.key_alias"), monthsBack))
 }
 
 // TotalBudget returns the total configured positive budget.
 func (r *ChargebackReader) TotalBudget(ctx context.Context) (float64, error) {
-	raw, err := r.scalarString(ctx, `
+	query := `
 SELECT COALESCE(SUM(max_budget), 0) AS total_max_budget
 FROM "LiteLLM_BudgetTable"
 WHERE max_budget > 0;
-`)
+`
+	if r.scope != nil && len(dedupeChargebackPrefixes(r.scope.NamespacePrefixes)) > 0 {
+		query = fmt.Sprintf(`
+SELECT COALESCE(SUM(scoped.max_budget), 0) AS total_max_budget
+FROM (
+  SELECT DISTINCT b.budget_id, b.max_budget
+  FROM "LiteLLM_VerificationToken" v
+  JOIN "LiteLLM_BudgetTable" b ON v.budget_id = b.budget_id
+  WHERE b.max_budget > 0%s
+) scoped;
+`, r.scope.verificationAliasFilter("v.key_alias"))
+	}
+	raw, err := r.scalarString(ctx, query)
 	if err != nil {
 		return 0, err
 	}

@@ -67,6 +67,10 @@ func NewReportWorkflowInput(command ReportCommandInput, env Environment, repoRoo
 	if now == nil {
 		now = time.Now
 	}
+	scope, queryScope, err := resolveReportScope(repoRoot, command)
+	if err != nil {
+		return ReportWorkflowInput{}, err
+	}
 	return ReportWorkflowInput{
 		Request: ReportRequest{
 			ReportMonth:          textutil.Trim(command.ReportMonth),
@@ -78,7 +82,9 @@ func NewReportWorkflowInput(command ReportCommandInput, env Environment, repoRoo
 			BudgetAlertThreshold: budgetAlertThreshold,
 			Notify:               command.Notify,
 		},
-		RepoRoot: repoRoot,
+		Scope:      scope,
+		QueryScope: queryScope,
+		RepoRoot:   repoRoot,
 		Notification: NotificationConfig{
 			GenericWebhookURL: envString(env, "GENERIC_WEBHOOK_URL"),
 			SlackWebhookURL:   envString(env, "SLACK_WEBHOOK_URL"),
@@ -157,11 +163,18 @@ func decodeReportInput(env Environment, now func() time.Time) (ReportInput, erro
 	month1, month2, month3 := env.ChargebackForecast()
 	current := now()
 	return ReportInput{
-		SchemaVersion:      textutil.DefaultIfBlank(envString(env, "CHARGEBACK_SCHEMA_VERSION"), defaultSchemaVersion),
-		GeneratedAt:        textutil.DefaultIfBlank(envString(env, "CHARGEBACK_GENERATED_AT"), current.UTC().Format(time.RFC3339)),
-		ReportMonth:        envString(env, "CHARGEBACK_REPORT_MONTH"),
-		PeriodStart:        envString(env, "CHARGEBACK_MONTH_START"),
-		PeriodEnd:          envString(env, "CHARGEBACK_MONTH_END"),
+		SchemaVersion: textutil.DefaultIfBlank(envString(env, "CHARGEBACK_SCHEMA_VERSION"), defaultSchemaVersion),
+		GeneratedAt:   textutil.DefaultIfBlank(envString(env, "CHARGEBACK_GENERATED_AT"), current.UTC().Format(time.RFC3339)),
+		ReportMonth:   envString(env, "CHARGEBACK_REPORT_MONTH"),
+		PeriodStart:   envString(env, "CHARGEBACK_MONTH_START"),
+		PeriodEnd:     envString(env, "CHARGEBACK_MONTH_END"),
+		Scope: ReportScope{
+			Kind:           ReportScopeKind(textutil.DefaultIfBlank(envString(env, "CHARGEBACK_SCOPE_KIND"), string(ReportScopeGlobal))),
+			Label:          textutil.DefaultIfBlank(envString(env, "CHARGEBACK_SCOPE_LABEL"), "global"),
+			Aggregation:    textutil.DefaultIfBlank(envString(env, "CHARGEBACK_SCOPE_AGGREGATION"), "global"),
+			OrganizationID: envString(env, "CHARGEBACK_SCOPE_ORGANIZATION_ID"),
+			WorkspaceID:    envString(env, "CHARGEBACK_SCOPE_WORKSPACE_ID"),
+		},
 		TotalSpend:         envFloat(env, "CHARGEBACK_TOTAL_SPEND", 0),
 		TotalRequests:      envInt64(env, "CHARGEBACK_TOTAL_REQUESTS", 0),
 		TotalTokens:        envInt64(env, "CHARGEBACK_TOTAL_TOKENS", 0),
@@ -191,7 +204,7 @@ func decodeReportInput(env Environment, now func() time.Time) (ReportInput, erro
 func RenderToBytes(request RenderRequest) ([]byte, error) {
 	switch request.Format {
 	case ReportFormatCSV:
-		return renderCSVBytes(request.Input.ReportMonth, request.Input.CostCenters)
+		return renderCSVBytes(request.Input.ReportMonth, request.Input.Scope.Label, request.Input.CostCenters)
 	case ReportFormatJSON:
 		return renderJSONBytes(request.Input)
 	default:

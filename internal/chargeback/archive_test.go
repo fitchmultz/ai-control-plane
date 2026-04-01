@@ -29,7 +29,7 @@ func TestFileArchiverArchiveUsesPrivateModes(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	archived, err := (FileArchiver{}).Archive(repoRoot, defaultArchiveDir, "2026-02", ReportOutputs{
+	archived, err := (FileArchiver{}).Archive(repoRoot, defaultArchiveDir, "2026-02", "chargeback-report-2026-02", ReportOutputs{
 		Markdown: "# report\n",
 		JSON:     "{\"ok\":true}\n",
 		CSV:      "month,total\n2026-02,10\n",
