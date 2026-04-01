@@ -52,6 +52,7 @@ type keyGenOptions struct {
 
 type keyRevokeOptions struct {
 	Alias string
+	keyTenantScopeOptions
 }
 
 func keyCommandSpec() *commandSpec {
@@ -63,42 +64,50 @@ func keyCommandSpec() *commandSpec {
 			"acpctl key gen alice --budget 10.00",
 			"acpctl key gen svc-claims --organization falcon-insurance --workspace claims-adjuster --budget 10.00",
 			"acpctl key list",
-			"acpctl key inspect alice --month 2026-02",
-			"acpctl key rotate alice --replacement-alias alice-rotated",
-			"acpctl key revoke alice",
+			"acpctl key list --organization falcon-insurance",
+			"acpctl key inspect falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --month 2026-02",
+			"acpctl key rotate falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --dry-run",
+			"acpctl key revoke falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster",
 		},
 		Children: []*commandSpec{
 			keyGenCommandSpec("gen", "Generate a standard virtual key", ""),
 			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "list",
 				Summary:     "List virtual keys",
-				Description: "List virtual keys and their configured limits.",
+				Description: "List virtual keys and their configured limits, optionally filtered to a tracked tenant boundary.",
 				Examples: []string{
 					"acpctl key list",
-					"acpctl key list --json",
+					"acpctl key list --organization falcon-insurance",
+					"acpctl key list --organization falcon-insurance --workspace claims-adjuster --json",
 				},
 				Options: []commandOptionSpec{
+					{Name: "organization", ValueName: "ORG", Summary: "Filter inventory to one tenant organization", Type: optionValueString},
+					{Name: "workspace", ValueName: "WORKSPACE", Summary: "Filter inventory to one tenant workspace; requires --organization", Type: optionValueString},
+					{Name: "tenant-file", ValueName: "PATH", Summary: "Tenant design file used to resolve lifecycle scope", Type: optionValueString, DefaultText: "demo/config/tenant_design.yaml"},
 					{Name: "json", Summary: "Output JSON", Type: optionValueBool},
 				},
-				Bind: bindParsedValue(func(input parsedCommandInput) keyListOptions {
-					return keyListOptions{JSON: input.Bool("json")}
+				Bind: bindParsed(func(input parsedCommandInput) (keyListOptions, error) {
+					return bindKeyListOptions(input)
 				}),
 				Run: runKeyList,
 			}),
 			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "inspect",
 				Summary:     "Inspect a virtual key and its usage",
-				Description: "Inspect a virtual key and summarize spend and usage for the selected report month.",
+				Description: "Inspect a virtual key and summarize spend and usage for the selected report month, optionally enforcing a tracked tenant boundary.",
 				Examples: []string{
 					"acpctl key inspect alice",
-					"acpctl key inspect alice --month 2026-02",
-					"acpctl key inspect alice --json",
+					"acpctl key inspect falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --month 2026-02",
+					"acpctl key inspect falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --json",
 				},
 				Arguments: []commandArgumentSpec{
 					{Name: "alias", Summary: "Key alias to inspect", Required: true},
 				},
 				Options: []commandOptionSpec{
 					{Name: "month", ValueName: "YYYY-MM", Summary: "Usage month", Type: optionValueString},
+					{Name: "organization", ValueName: "ORG", Summary: "Enforce one tenant organization boundary", Type: optionValueString},
+					{Name: "workspace", ValueName: "WORKSPACE", Summary: "Enforce one tenant workspace boundary; requires --organization", Type: optionValueString},
+					{Name: "tenant-file", ValueName: "PATH", Summary: "Tenant design file used to resolve lifecycle scope", Type: optionValueString, DefaultText: "demo/config/tenant_design.yaml"},
 					{Name: "json", Summary: "Output JSON", Type: optionValueBool},
 				},
 				Bind: bindParsed(func(input parsedCommandInput) (keyInspectOptions, error) {
@@ -109,11 +118,11 @@ func keyCommandSpec() *commandSpec {
 			newNativeCommandSpec(nativeCommandConfig{
 				Name:        "rotate",
 				Summary:     "Stage rotation for a virtual key",
-				Description: "Generate a replacement key, inspect current usage, and stage a controlled cutover.",
+				Description: "Generate a replacement key, inspect current usage, and stage a controlled cutover, optionally enforcing a tracked tenant boundary.",
 				Examples: []string{
 					"acpctl key rotate alice --replacement-alias alice-rotated",
-					"acpctl key rotate alice --dry-run",
-					"acpctl key rotate alice --revoke-old",
+					"acpctl key rotate falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --dry-run",
+					"acpctl key rotate falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --revoke-old",
 				},
 				Arguments: []commandArgumentSpec{
 					{Name: "alias", Summary: "Existing key alias", Required: true},
@@ -127,6 +136,9 @@ func keyCommandSpec() *commandSpec {
 					{Name: "duration", ValueName: "DUR", Summary: "Replacement budget duration", Type: optionValueString},
 					{Name: "role", ValueName: "ROLE", Summary: "Replacement role override", Type: optionValueString, Suggestions: func(string) []string { return keygen.ValidRoles() }},
 					{Name: "month", ValueName: "YYYY-MM", Summary: "Usage month for inspection context", Type: optionValueString},
+					{Name: "organization", ValueName: "ORG", Summary: "Enforce one tenant organization boundary", Type: optionValueString},
+					{Name: "workspace", ValueName: "WORKSPACE", Summary: "Enforce one tenant workspace boundary; requires --organization", Type: optionValueString},
+					{Name: "tenant-file", ValueName: "PATH", Summary: "Tenant design file used to resolve lifecycle scope", Type: optionValueString, DefaultText: "demo/config/tenant_design.yaml"},
 					{Name: "dry-run", Summary: "Preview the staged rotation plan without generating the replacement", Type: optionValueBool},
 					{Name: "revoke-old", Summary: "Immediately revoke the old key after generating the replacement", Type: optionValueBool},
 					{Name: "json", Summary: "Output JSON", Type: optionValueBool},
@@ -139,9 +151,14 @@ func keyCommandSpec() *commandSpec {
 			{
 				Name:        "revoke",
 				Summary:     "Revoke a virtual key by alias",
-				Description: "Revoke a virtual key by alias.",
+				Description: "Revoke a virtual key by alias, optionally enforcing a tracked tenant boundary.",
 				Arguments: []commandArgumentSpec{
 					{Name: "alias", Summary: "Key alias to revoke", Required: true},
+				},
+				Options: []commandOptionSpec{
+					{Name: "organization", ValueName: "ORG", Summary: "Enforce one tenant organization boundary", Type: optionValueString},
+					{Name: "workspace", ValueName: "WORKSPACE", Summary: "Enforce one tenant workspace boundary; requires --organization", Type: optionValueString},
+					{Name: "tenant-file", ValueName: "PATH", Summary: "Tenant design file used to resolve lifecycle scope", Type: optionValueString, DefaultText: "demo/config/tenant_design.yaml"},
 				},
 				Backend: commandBackend{
 					Kind:       commandBackendNative,
@@ -253,7 +270,11 @@ func bindKeyRevokeOptions(_ commandBindContext, input parsedCommandInput) (any, 
 	if alias == "" {
 		return nil, fmt.Errorf("alias is required")
 	}
-	return keyRevokeOptions{Alias: alias}, nil
+	scopeOptions, err := bindKeyTenantScopeOptions(input)
+	if err != nil {
+		return nil, err
+	}
+	return keyRevokeOptions{Alias: alias, keyTenantScopeOptions: scopeOptions}, nil
 }
 
 func runKeyGen(ctx context.Context, runCtx commandRunContext, raw any) int {
@@ -331,14 +352,26 @@ func runKeyRevoke(ctx context.Context, runCtx commandRunContext, raw any) int {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("%v\n"), err)
 		return exitcodes.ACPExitPrereq
 	}
+	tenantScope, err := resolveKeyLifecycleTenantScope(ctx, runCtx.RepoRoot, config.keyTenantScopeOptions)
+	if err != nil {
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Key revocation failed: %v\n"), err)
+		if isKeyLifecycleUsageError(err) {
+			return exitcodes.ACPExitUsage
+		}
+		return exitcodes.ACPExitRuntime
+	}
+	if err := keygen.RequireAliasInTenantScope(config.Alias, tenantScope); err != nil {
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Key revocation failed: %v\n"), err)
+		return exitcodes.ACPExitUsage
+	}
 
 	client := gateway.NewClient(gateway.WithMasterKey(acpconfig.NewLoader().Gateway(true).MasterKey))
-	printKeyRevokeProgress(runCtx.Stderr, config.Alias)
+	printKeyRevokeProgress(runCtx.Stderr, config.Alias, tenantScope)
 	if err := client.DeleteKey(ctx, config.Alias); err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("Key revocation failed: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
-	printKeyRevokeSuccess(runCtx.Stdout, out, config.Alias)
+	printKeyRevokeSuccess(runCtx.Stdout, out, config.Alias, tenantScope)
 
 	return exitcodes.ACPExitSuccess
 }

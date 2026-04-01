@@ -34,14 +34,22 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/output"
 )
 
+type keyTenantScopeOptions struct {
+	TenantFile     string
+	OrganizationID string
+	WorkspaceID    string
+}
+
 type keyListOptions struct {
 	JSON bool
+	keyTenantScopeOptions
 }
 
 type keyInspectOptions struct {
 	Alias string
 	Month string
 	JSON  bool
+	keyTenantScopeOptions
 }
 
 type keyRotateOptions struct {
@@ -57,6 +65,28 @@ type keyRotateOptions struct {
 	DryRun           bool
 	RevokeOld        bool
 	JSON             bool
+	keyTenantScopeOptions
+}
+
+func bindKeyTenantScopeOptions(input parsedCommandInput) (keyTenantScopeOptions, error) {
+	organizationID := input.NormalizedString("organization")
+	workspaceID := input.NormalizedString("workspace")
+	if organizationID == "" && workspaceID != "" {
+		return keyTenantScopeOptions{}, fmt.Errorf("--organization is required when --workspace is set")
+	}
+	return keyTenantScopeOptions{
+		TenantFile:     input.NormalizedString("tenant-file"),
+		OrganizationID: organizationID,
+		WorkspaceID:    workspaceID,
+	}, nil
+}
+
+func bindKeyListOptions(input parsedCommandInput) (keyListOptions, error) {
+	scopeOptions, err := bindKeyTenantScopeOptions(input)
+	if err != nil {
+		return keyListOptions{}, err
+	}
+	return keyListOptions{JSON: input.Bool("json"), keyTenantScopeOptions: scopeOptions}, nil
 }
 
 func bindKeyInspectOptions(input parsedCommandInput) (keyInspectOptions, error) {
@@ -64,10 +94,15 @@ func bindKeyInspectOptions(input parsedCommandInput) (keyInspectOptions, error) 
 	if alias == "" {
 		return keyInspectOptions{}, fmt.Errorf("alias is required")
 	}
+	scopeOptions, err := bindKeyTenantScopeOptions(input)
+	if err != nil {
+		return keyInspectOptions{}, err
+	}
 	return keyInspectOptions{
-		Alias: alias,
-		Month: input.String("month"),
-		JSON:  input.Bool("json"),
+		Alias:                 alias,
+		Month:                 input.String("month"),
+		JSON:                  input.Bool("json"),
+		keyTenantScopeOptions: scopeOptions,
 	}, nil
 }
 
@@ -92,19 +127,24 @@ func bindKeyRotateOptions(input parsedCommandInput) (keyRotateOptions, error) {
 	if err != nil {
 		return keyRotateOptions{}, fmt.Errorf("invalid parallel: %s", input.String("parallel"))
 	}
+	scopeOptions, err := bindKeyTenantScopeOptions(input)
+	if err != nil {
+		return keyRotateOptions{}, err
+	}
 	return keyRotateOptions{
-		Alias:            alias,
-		ReplacementAlias: input.String("replacement-alias"),
-		Budget:           budget,
-		RPM:              rpm,
-		TPM:              tpm,
-		Parallel:         parallel,
-		Duration:         input.String("duration"),
-		Role:             input.String("role"),
-		Month:            input.String("month"),
-		DryRun:           input.Bool("dry-run"),
-		RevokeOld:        input.Bool("revoke-old"),
-		JSON:             input.Bool("json"),
+		Alias:                 alias,
+		ReplacementAlias:      input.String("replacement-alias"),
+		Budget:                budget,
+		RPM:                   rpm,
+		TPM:                   tpm,
+		Parallel:              parallel,
+		Duration:              input.String("duration"),
+		Role:                  input.String("role"),
+		Month:                 input.String("month"),
+		DryRun:                input.Bool("dry-run"),
+		RevokeOld:             input.Bool("revoke-old"),
+		JSON:                  input.Bool("json"),
+		keyTenantScopeOptions: scopeOptions,
 	}, nil
 }
 
@@ -116,15 +156,22 @@ func runKeyList(ctx context.Context, runCtx commandRunContext, raw any) int {
 		return code
 	}
 
+	tenantScope, err := resolveKeyLifecycleTenantScope(ctx, runCtx.RepoRoot, opts.keyTenantScopeOptions)
+	if err != nil {
+		return writeKeyLifecycleError(runCtx, out, "Key listing failed", err)
+	}
+
 	keys, err := client.ListKeys(ctx)
 	if err != nil {
 		fmt.Fprintf(runCtx.Stderr, out.Fail("Key listing failed: %v\n"), err)
 		return exitcodes.ACPExitRuntime
 	}
+	keys = keygen.FilterKeysForTenantScope(keys, tenantScope)
 
 	if opts.JSON {
 		return writeJSONOutput(runCtx, keys)
 	}
+	printKeyTenantScope(runCtx.Stdout, tenantScope)
 	printKeyList(runCtx.Stdout, keys)
 	return exitcodes.ACPExitSuccess
 }
@@ -142,7 +189,12 @@ func runKeyInspect(ctx context.Context, runCtx commandRunContext, raw any) int {
 	}
 	defer closeFn()
 
-	inspection, err := keygen.InspectKey(ctx, client, readonly, opts.Alias, opts.Month, time.Now())
+	tenantScope, err := resolveKeyLifecycleTenantScope(ctx, runCtx.RepoRoot, opts.keyTenantScopeOptions)
+	if err != nil {
+		return writeKeyLifecycleError(runCtx, out, "Key inspection failed", err)
+	}
+
+	inspection, err := keygen.InspectKey(ctx, client, readonly, opts.Alias, opts.Month, time.Now(), tenantScope)
 	if err != nil {
 		return writeKeyLifecycleError(runCtx, out, "Key inspection failed", err)
 	}
@@ -167,6 +219,11 @@ func runKeyRotate(ctx context.Context, runCtx commandRunContext, raw any) int {
 	}
 	defer closeFn()
 
+	tenantScope, err := resolveKeyLifecycleTenantScope(ctx, runCtx.RepoRoot, opts.keyTenantScopeOptions)
+	if err != nil {
+		return writeKeyLifecycleError(runCtx, out, "Key rotation failed", err)
+	}
+
 	result, err := keygen.RotateKey(ctx, client, readonly, keygen.RotationRequest{
 		SourceAlias:      opts.Alias,
 		ReplacementAlias: opts.ReplacementAlias,
@@ -179,6 +236,7 @@ func runKeyRotate(ctx context.Context, runCtx commandRunContext, raw any) int {
 		ReportMonth:      opts.Month,
 		DryRun:           opts.DryRun,
 		RevokeOld:        opts.RevokeOld,
+		TenantScope:      tenantScope,
 	}, time.Now())
 	if err != nil {
 		return writeKeyLifecycleError(runCtx, out, "Key rotation failed", err)
@@ -189,6 +247,10 @@ func runKeyRotate(ctx context.Context, runCtx commandRunContext, raw any) int {
 	}
 	printKeyRotation(runCtx.Stdout, result)
 	return exitcodes.ACPExitSuccess
+}
+
+func resolveKeyLifecycleTenantScope(ctx context.Context, repoRoot string, opts keyTenantScopeOptions) (*keygen.TenantAccessScope, error) {
+	return keygen.ResolveTenantAccessScope(ctx, repoRoot, opts.TenantFile, opts.OrganizationID, opts.WorkspaceID)
 }
 
 func openKeyLifecycleClient(runCtx commandRunContext, out *output.Output) (*gateway.Client, int) {

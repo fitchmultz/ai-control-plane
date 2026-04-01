@@ -26,12 +26,19 @@ key-gen: install-binary ## Generate a standard virtual key
 
 .PHONY: key-list
 key-list: install-binary ## List virtual keys
-	@$(ACPCTL_BIN) key list $(if $(filter 1 true TRUE yes YES,$(JSON)),--json,)
+	@$(ACPCTL_BIN) key list \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),) \
+		$(if $(filter 1 true TRUE yes YES,$(JSON)),--json,)
 
 .PHONY: key-inspect
 key-inspect: install-binary ## Inspect a virtual key and its usage
 	@$(ACPCTL_BIN) key inspect $(if $(ALIAS),$(ALIAS),) \
 		$(if $(REPORT_MONTH),--month $(REPORT_MONTH),) \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),) \
 		$(if $(filter 1 true TRUE yes YES,$(JSON)),--json,)
 
 .PHONY: key-rotate
@@ -45,13 +52,19 @@ key-rotate: install-binary ## Stage or execute virtual key rotation
 		$(if $(DURATION),--duration $(DURATION),) \
 		$(if $(ROLE),--role $(ROLE),) \
 		$(if $(REPORT_MONTH),--month $(REPORT_MONTH),) \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),) \
 		$(if $(filter 1 true TRUE yes YES,$(DRY_RUN)),--dry-run,) \
 		$(if $(filter 1 true TRUE yes YES,$(REVOKE_OLD)),--revoke-old,) \
 		$(if $(filter 1 true TRUE yes YES,$(JSON)),--json,)
 
 .PHONY: key-revoke
 key-revoke: install-binary ## Revoke a virtual key by alias
-	@$(ACPCTL_BIN) key revoke $(if $(ALIAS),$(ALIAS),)
+	@$(ACPCTL_BIN) key revoke $(if $(ALIAS),$(ALIAS),) \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),)
 
 .PHONY: key-gen-dev
 key-gen-dev: install-binary ## Generate a developer key

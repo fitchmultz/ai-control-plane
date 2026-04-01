@@ -299,9 +299,10 @@ Examples:
 ./scripts/acpctl.sh key gen alice --budget 10.00
 ./scripts/acpctl.sh key gen svc-claims --organization falcon-insurance --workspace claims-adjuster --budget 10.00
 ./scripts/acpctl.sh key list
-./scripts/acpctl.sh key inspect alice --month 2026-02
-./scripts/acpctl.sh key rotate alice --replacement-alias alice-rotated
-./scripts/acpctl.sh key revoke alice
+./scripts/acpctl.sh key list --organization falcon-insurance
+./scripts/acpctl.sh key inspect falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --month 2026-02
+./scripts/acpctl.sh key rotate falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --dry-run
+./scripts/acpctl.sh key revoke falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster
 ```
 
 ### `cert`

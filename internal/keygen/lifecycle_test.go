@@ -19,6 +19,7 @@ package keygen
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,7 +72,7 @@ func TestInspectKey(t *testing.T) {
 	}
 	inspection, err := InspectKey(context.Background(), inventory, fakeUsageStore{
 		usage: KeyUsage{Alias: "alice", TotalSpend: 4.2, TotalRequests: 7, TotalTokens: 99},
-	}, "alice", "2026-02", time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC))
+	}, "alice", "2026-02", time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("InspectKey() error = %v", err)
 	}
@@ -133,7 +134,52 @@ func TestRotateKeyDryRunUsesTimestampedReplacementAlias(t *testing.T) {
 	if result.Replacement != nil || result.RevokedOld {
 		t.Fatalf("expected dry run result without side effects: %+v", result)
 	}
-	if result.ReplacementPlan.Request.KeyAlias != "demo-rotated-20260307090807" {
+	if result.ReplacementPlan.Request.KeyAlias != "demo-r260307090807" {
 		t.Fatalf("unexpected replacement alias: %q", result.ReplacementPlan.Request.KeyAlias)
+	}
+}
+
+func TestInspectKeyRejectsAliasOutsideTenantScope(t *testing.T) {
+	inventory := &fakeInventory{keys: []gateway.KeyInfo{{KeyAlias: "falcon-insurance--claims-adjuster--svc-claims__cc-1100"}}}
+	tenantScope := &TenantAccessScope{
+		OrganizationID:    "falcon-insurance",
+		WorkspaceID:       "claims-adjuster",
+		NamespacePrefixes: []string{"falcon-insurance--claims-adjuster"},
+	}
+
+	_, err := InspectKey(context.Background(), inventory, fakeUsageStore{}, "other-org--workspace--svc__cc-2200", "2026-02", time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC), tenantScope)
+	if err == nil || !strings.Contains(err.Error(), "outside tenant scope") {
+		t.Fatalf("expected tenant scope error, got %v", err)
+	}
+}
+
+func TestRotateKeyScopedDefaultReplacementPreservesAttributionSuffix(t *testing.T) {
+	inventory := &fakeInventory{
+		keys: []gateway.KeyInfo{{
+			KeyAlias:       "falcon-insurance--claims-adjuster--svc-claims__cc-1100",
+			MaxBudget:      5,
+			BudgetDuration: "30d",
+			Models:         []string{"openai-gpt5.2"},
+		}},
+	}
+	tenantScope := &TenantAccessScope{
+		OrganizationID:    "falcon-insurance",
+		WorkspaceID:       "claims-adjuster",
+		NamespacePrefixes: []string{"falcon-insurance--claims-adjuster"},
+	}
+
+	result, err := RotateKey(context.Background(), inventory, fakeUsageStore{}, RotationRequest{
+		SourceAlias: "falcon-insurance--claims-adjuster--svc-claims__cc-1100",
+		DryRun:      true,
+		TenantScope: tenantScope,
+	}, time.Date(2026, 3, 7, 9, 8, 7, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("RotateKey() error = %v", err)
+	}
+	if got, want := result.ReplacementPlan.Request.KeyAlias, "falcon-insurance--claims-adjuster--svc-r260307090807__cc-1100"; got != want {
+		t.Fatalf("replacement alias = %q, want %q", got, want)
+	}
+	if result.Original.TenantScope == nil || result.Original.TenantScope.Display() != "falcon-insurance/claims-adjuster" {
+		t.Fatalf("unexpected original tenant scope: %+v", result.Original.TenantScope)
 	}
 }

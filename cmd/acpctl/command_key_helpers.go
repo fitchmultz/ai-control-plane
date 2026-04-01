@@ -70,6 +70,13 @@ func printKeyGenerationProgress(out io.Writer, plan keygen.GenerateRequestPlan) 
 	fmt.Fprintln(out)
 }
 
+func printKeyTenantScope(out io.Writer, scope *keygen.TenantAccessScope) {
+	if scope == nil {
+		return
+	}
+	fmt.Fprintf(out, "Tenant Scope: %s\n\n", scope.Display())
+}
+
 func printKeyList(out io.Writer, keys []gateway.KeyInfo) {
 	if len(keys) == 0 {
 		fmt.Fprintln(out, "No virtual keys found.")
@@ -95,6 +102,9 @@ func printKeyInspection(out io.Writer, inspection keygen.Inspection) {
 	key := inspection.Key
 	usage := inspection.Usage
 
+	if inspection.TenantScope != nil {
+		fmt.Fprintf(out, "Tenant Scope: %s\n", inspection.TenantScope.Display())
+	}
 	fmt.Fprintf(out, "Alias: %s\n", key.Alias())
 	fmt.Fprintf(out, "Budget: $%.2f\n", key.MaxBudget)
 	fmt.Fprintf(out, "Budget Duration: %s\n", key.BudgetDuration)
@@ -114,6 +124,9 @@ func printKeyInspection(out io.Writer, inspection keygen.Inspection) {
 }
 
 func printKeyRotation(out io.Writer, result keygen.RotationResult) {
+	if result.Original.TenantScope != nil {
+		fmt.Fprintf(out, "Tenant Scope: %s\n", result.Original.TenantScope.Display())
+	}
 	fmt.Fprintf(out, "Original Alias: %s\n", result.Original.Key.Alias())
 	fmt.Fprintf(out, "Replacement Alias: %s\n", result.ReplacementPlan.Request.KeyAlias)
 	fmt.Fprintf(out, "Replacement Budget: $%.2f\n", result.ReplacementPlan.Request.MaxBudget)
@@ -136,11 +149,17 @@ func printKeyRotation(out io.Writer, result keygen.RotationResult) {
 	}
 }
 
-func printKeyRevokeProgress(out io.Writer, alias string) {
+func printKeyRevokeProgress(out io.Writer, alias string, scope *keygen.TenantAccessScope) {
+	if scope != nil {
+		fmt.Fprintf(out, "Tenant Scope: %s\n", scope.Display())
+	}
 	fmt.Fprintf(out, "Revoking key: %s\n", alias)
 }
 
-func printKeyRevokeSuccess(out io.Writer, printer *output.Output, alias string) {
+func printKeyRevokeSuccess(out io.Writer, printer *output.Output, alias string, scope *keygen.TenantAccessScope) {
 	printCommandSuccess(out, printer, "Key revocation complete")
+	if scope != nil {
+		fmt.Fprintf(out, "Tenant Scope: %s\n", scope.Display())
+	}
 	fmt.Fprintf(out, "Alias: %s\n", alias)
 }

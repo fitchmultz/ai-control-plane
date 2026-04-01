@@ -241,9 +241,10 @@ help-key:
 	@echo 'Examples:'
 	@echo '  make key-gen ALIAS=alice BUDGET=10.00'
 	@echo '  make key-gen ALIAS=svc-claims ORG=falcon-insurance WORKSPACE=claims-adjuster BUDGET=10.00'
-	@echo '  make key-inspect ALIAS=alice REPORT_MONTH=2026-02'
-	@echo '  make key-rotate ALIAS=alice DRY_RUN=1'
-	@echo '  make key-revoke ALIAS=alice'
+	@echo '  make key-list ORG=falcon-insurance'
+	@echo '  make key-inspect ALIAS=falcon-insurance--claims-adjuster--svc-claims__cc-1100 ORG=falcon-insurance WORKSPACE=claims-adjuster REPORT_MONTH=2026-02'
+	@echo '  make key-rotate ALIAS=falcon-insurance--claims-adjuster--svc-claims__cc-1100 ORG=falcon-insurance WORKSPACE=claims-adjuster DRY_RUN=1'
+	@echo '  make key-revoke ALIAS=falcon-insurance--claims-adjuster--svc-claims__cc-1100 ORG=falcon-insurance WORKSPACE=claims-adjuster'
 
 .PHONY: help-onboard
 help-onboard:

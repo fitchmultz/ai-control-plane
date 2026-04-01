@@ -113,15 +113,16 @@ The design package tightens the future contract by requiring:
 
 ## Current runtime cutover slice
 
-ACP can now derive workspace-scoped key-generation plans and tenant-scoped chargeback reports from this package with `acpctl key gen --organization <org> --workspace <workspace> ...` and `acpctl chargeback report --organization <org> [--workspace <workspace>] ...`.
+ACP can now derive workspace-scoped key-generation plans, tenant-scoped key lifecycle operations, and tenant-scoped chargeback reports from this package with `acpctl key gen --organization <org> --workspace <workspace> ...`, `acpctl key list|inspect|rotate|revoke --organization <org> [--workspace <workspace>] ...`, and `acpctl chargeback report --organization <org> [--workspace <workspace>] ...`.
 
 That cutover is intentionally narrow:
 - alias namespaces come from `key_namespace_prefix`
 - workspace chargeback projects into the existing `__cc-<digits>` alias token while workspace identity stays in the namespace prefix
 - model access is reduced to the intersection of the workspace allowlist and a workspace-bound RBAC role
+- key list/inspect/rotate/revoke can enforce tracked organization/workspace namespace boundaries, and tenant-managed rotations preserve the existing attribution suffix contract
 - chargeback queries are filtered to tracked workspace namespace prefixes and only allow metadata-only workspace/organization report shapes declared in the tenant design
 
-It does **not** add shared-runtime row-level query isolation outside the typed chargeback surface or managed-service operating proof.
+It does **not** add shared-runtime row-level query isolation outside the typed chargeback and key lifecycle surfaces or managed-service operating proof.
 
 ## Operating rule
 
@@ -135,9 +136,11 @@ make tenant-inspect
 ./scripts/acpctl.sh validate tenant
 ./scripts/acpctl.sh tenant inspect --format json
 ./scripts/acpctl.sh key gen svc-claims --organization falcon-insurance --workspace claims-adjuster --budget 10.00 --dry-run
+./scripts/acpctl.sh key list --organization falcon-insurance
+./scripts/acpctl.sh key inspect falcon-insurance--claims-adjuster--svc-claims__cc-1100 --organization falcon-insurance --workspace claims-adjuster --month 2026-02
 ./scripts/acpctl.sh chargeback report --organization falcon-insurance --workspace claims-adjuster --month 2026-02
 ```
 
 ## Claim boundary
 
-This package is evidence of design discipline plus initial workspace-scoped key issuance and tenant-scoped chargeback reporting cutovers, not evidence of shipped shared-runtime multi-tenant enforcement.
+This package is evidence of design discipline plus initial workspace-scoped key issuance, tenant-scoped key lifecycle, and tenant-scoped chargeback reporting cutovers, not evidence of shipped shared-runtime multi-tenant enforcement.

@@ -68,23 +68,25 @@ type KeyUsage struct {
 
 // Inspection combines the current key inventory entry with month-scoped usage.
 type Inspection struct {
-	Key   gateway.KeyInfo `json:"key"`
-	Usage KeyUsage        `json:"usage"`
+	Key         gateway.KeyInfo    `json:"key"`
+	Usage       KeyUsage           `json:"usage"`
+	TenantScope *TenantAccessScope `json:"tenant_scope,omitempty"`
 }
 
 // RotationRequest captures operator intent for key rotation.
 type RotationRequest struct {
-	SourceAlias      string  `json:"source_alias"`
-	ReplacementAlias string  `json:"replacement_alias,omitempty"`
-	Budget           float64 `json:"budget,omitempty"`
-	RPM              int     `json:"rpm,omitempty"`
-	TPM              int     `json:"tpm,omitempty"`
-	Parallel         int     `json:"parallel,omitempty"`
-	Duration         string  `json:"duration,omitempty"`
-	Role             string  `json:"role,omitempty"`
-	ReportMonth      string  `json:"report_month,omitempty"`
-	DryRun           bool    `json:"dry_run,omitempty"`
-	RevokeOld        bool    `json:"revoke_old,omitempty"`
+	SourceAlias      string             `json:"source_alias"`
+	ReplacementAlias string             `json:"replacement_alias,omitempty"`
+	Budget           float64            `json:"budget,omitempty"`
+	RPM              int                `json:"rpm,omitempty"`
+	TPM              int                `json:"tpm,omitempty"`
+	Parallel         int                `json:"parallel,omitempty"`
+	Duration         string             `json:"duration,omitempty"`
+	Role             string             `json:"role,omitempty"`
+	ReportMonth      string             `json:"report_month,omitempty"`
+	DryRun           bool               `json:"dry_run,omitempty"`
+	RevokeOld        bool               `json:"revoke_old,omitempty"`
+	TenantScope      *TenantAccessScope `json:"tenant_scope,omitempty"`
 }
 
 // RotationResult captures the planned and optional executed replacement state.
@@ -117,7 +119,7 @@ func ResolveMonthWindow(reportMonth string, now time.Time) (MonthWindow, error) 
 }
 
 // InspectKey loads the current key inventory entry plus month-scoped usage.
-func InspectKey(ctx context.Context, inventory Inventory, usageStore UsageStore, alias string, reportMonth string, now time.Time) (Inspection, error) {
+func InspectKey(ctx context.Context, inventory Inventory, usageStore UsageStore, alias string, reportMonth string, now time.Time, tenantScope *TenantAccessScope) (Inspection, error) {
 	if inventory == nil {
 		return Inspection{}, fmt.Errorf("key inventory is required")
 	}
@@ -126,6 +128,9 @@ func InspectKey(ctx context.Context, inventory Inventory, usageStore UsageStore,
 	}
 	alias = strings.TrimSpace(alias)
 	if err := ValidateAlias(alias); err != nil {
+		return Inspection{}, err
+	}
+	if err := RequireAliasInTenantScope(alias, tenantScope); err != nil {
 		return Inspection{}, err
 	}
 
@@ -155,14 +160,15 @@ func InspectKey(ctx context.Context, inventory Inventory, usageStore UsageStore,
 	}
 
 	return Inspection{
-		Key:   current,
-		Usage: usage,
+		Key:         current,
+		Usage:       usage,
+		TenantScope: cloneTenantAccessScope(tenantScope),
 	}, nil
 }
 
 // RotateKey stages or executes a replacement-key cutover for the selected alias.
 func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, req RotationRequest, now time.Time) (RotationResult, error) {
-	inspection, err := InspectKey(ctx, inventory, usageStore, req.SourceAlias, req.ReportMonth, now)
+	inspection, err := InspectKey(ctx, inventory, usageStore, req.SourceAlias, req.ReportMonth, now, req.TenantScope)
 	if err != nil {
 		return RotationResult{}, err
 	}
@@ -172,6 +178,9 @@ func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, 
 		replacementAlias = defaultReplacementAlias(req.SourceAlias, now)
 	}
 	if err := ValidateAlias(replacementAlias); err != nil {
+		return RotationResult{}, err
+	}
+	if err := ValidateReplacementAliasForTenantScope(req.SourceAlias, replacementAlias, req.TenantScope); err != nil {
 		return RotationResult{}, err
 	}
 
@@ -286,5 +295,28 @@ func findKey(keys []gateway.KeyInfo, alias string) (gateway.KeyInfo, error) {
 }
 
 func defaultReplacementAlias(sourceAlias string, now time.Time) string {
-	return strings.TrimSpace(sourceAlias) + "-rotated-" + now.UTC().Format("20060102150405")
+	trimmed := strings.TrimSpace(sourceAlias)
+	rotationToken := "-r" + now.UTC().Format("060102150405")
+	base, suffix, ok := strings.Cut(trimmed, "__")
+	suffixToken := ""
+	if ok {
+		suffixToken = "__" + suffix
+	}
+	maxBaseLength := 64 - len(rotationToken) - len(suffixToken)
+	if maxBaseLength < 1 {
+		maxBaseLength = 1
+	}
+	if len(base) > maxBaseLength {
+		candidate := base[:maxBaseLength]
+		if cut := strings.LastIndexAny(candidate, "-._"); cut > 0 {
+			candidate = candidate[:cut]
+		}
+		candidate = strings.TrimRight(candidate, "-._")
+		if strings.TrimSpace(candidate) != "" {
+			base = candidate
+		} else {
+			base = base[:maxBaseLength]
+		}
+	}
+	return base + rotationToken + suffixToken
 }
