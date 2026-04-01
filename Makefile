@@ -236,6 +236,7 @@ help-key:
 	@echo ''
 	@echo 'Examples:'
 	@echo '  make key-gen ALIAS=alice BUDGET=10.00'
+	@echo '  make key-gen ALIAS=svc-claims ORG=falcon-insurance WORKSPACE=claims-adjuster BUDGET=10.00'
 	@echo '  make key-inspect ALIAS=alice REPORT_MONTH=2026-02'
 	@echo '  make key-rotate ALIAS=alice DRY_RUN=1'
 	@echo '  make key-revoke ALIAS=alice'

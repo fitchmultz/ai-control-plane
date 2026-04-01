@@ -23,6 +23,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -35,14 +36,18 @@ import (
 )
 
 type keyGenOptions struct {
-	Alias    string
-	Budget   float64
-	RPM      int
-	TPM      int
-	Parallel int
-	Duration string
-	Role     string
-	DryRun   bool
+	RepoRoot       string
+	Alias          string
+	Budget         float64
+	RPM            int
+	TPM            int
+	Parallel       int
+	Duration       string
+	Role           string
+	DryRun         bool
+	TenantFile     string
+	OrganizationID string
+	WorkspaceID    string
 }
 
 type keyRevokeOptions struct {
@@ -56,6 +61,7 @@ func keyCommandSpec() *commandSpec {
 		Description: "Virtual key lifecycle operations.",
 		Examples: []string{
 			"acpctl key gen alice --budget 10.00",
+			"acpctl key gen svc-claims --organization falcon-insurance --workspace claims-adjuster --budget 10.00",
 			"acpctl key list",
 			"acpctl key inspect alice --month 2026-02",
 			"acpctl key rotate alice --replacement-alias alice-rotated",
@@ -156,6 +162,9 @@ func keyGenCommandSpec(name string, summary string, forcedRole string) *commandS
 		{Name: "tpm", ValueName: "TPM", Summary: "Tokens per minute limit", Type: optionValueInt},
 		{Name: "parallel", ValueName: "N", Summary: "Max parallel requests", Type: optionValueInt},
 		{Name: "duration", ValueName: "DUR", Summary: "Budget reset duration", Type: optionValueString, DefaultText: "30d"},
+		{Name: "organization", ValueName: "ORG", Summary: "Tenant organization id for workspace-scoped key generation", Type: optionValueString},
+		{Name: "workspace", ValueName: "WORKSPACE", Summary: "Tenant workspace id for workspace-scoped key generation", Type: optionValueString},
+		{Name: "tenant-file", ValueName: "PATH", Summary: "Tenant design file to use for workspace-scoped key generation", Type: optionValueString, DefaultText: "demo/config/tenant_design.yaml"},
 		{Name: "dry-run", Summary: "Preview the request without executing", Type: optionValueBool},
 	}
 	if forcedRole == "" {
@@ -181,15 +190,15 @@ func keyGenCommandSpec(name string, summary string, forcedRole string) *commandS
 		},
 		Backend: commandBackend{
 			Kind: commandBackendNative,
-			NativeBind: func(_ commandBindContext, input parsedCommandInput) (any, error) {
-				return bindKeyGenOptions(input, forcedRole)
+			NativeBind: func(bindCtx commandBindContext, input parsedCommandInput) (any, error) {
+				return bindKeyGenOptions(bindCtx, input, forcedRole)
 			},
 			NativeRun: runKeyGen,
 		},
 	}
 }
 
-func bindKeyGenOptions(input parsedCommandInput, forcedRole string) (any, error) {
+func bindKeyGenOptions(bindCtx commandBindContext, input parsedCommandInput, forcedRole string) (any, error) {
 	alias := input.Argument(0)
 	if alias == "" {
 		return nil, fmt.Errorf("alias is required")
@@ -210,19 +219,32 @@ func bindKeyGenOptions(input parsedCommandInput, forcedRole string) (any, error)
 	if err != nil {
 		return nil, fmt.Errorf("invalid parallel: %s", input.String("parallel"))
 	}
+	repoRoot, err := requireCommandRepoRoot(bindCtx)
+	if err != nil {
+		return nil, err
+	}
+	organizationID := input.NormalizedString("organization")
+	workspaceID := input.NormalizedString("workspace")
+	if (organizationID == "") != (workspaceID == "") {
+		return nil, fmt.Errorf("--organization and --workspace must be provided together")
+	}
 	role := forcedRole
 	if role == "" {
 		role = input.StringDefault("role", "developer")
 	}
 	return keyGenOptions{
-		Alias:    alias,
-		Budget:   budget,
-		RPM:      rpm,
-		TPM:      tpm,
-		Parallel: parallel,
-		Duration: input.StringDefault("duration", "30d"),
-		Role:     role,
-		DryRun:   input.Bool("dry-run"),
+		RepoRoot:       repoRoot,
+		Alias:          alias,
+		Budget:         budget,
+		RPM:            rpm,
+		TPM:            tpm,
+		Parallel:       parallel,
+		Duration:       input.StringDefault("duration", "30d"),
+		Role:           role,
+		DryRun:         input.Bool("dry-run"),
+		TenantFile:     input.NormalizedString("tenant-file"),
+		OrganizationID: organizationID,
+		WorkspaceID:    workspaceID,
 	}, nil
 }
 
@@ -238,17 +260,26 @@ func runKeyGen(ctx context.Context, runCtx commandRunContext, raw any) int {
 	options := raw.(keyGenOptions)
 	out := output.New()
 	plan, err := keygen.PlanGenerateRequest(keygen.GenerateRequestConfig{
-		Alias:    options.Alias,
-		Budget:   options.Budget,
-		RPM:      options.RPM,
-		TPM:      options.TPM,
-		Parallel: options.Parallel,
-		Duration: options.Duration,
-		Role:     options.Role,
+		Alias:            options.Alias,
+		Budget:           options.Budget,
+		RPM:              options.RPM,
+		TPM:              options.TPM,
+		Parallel:         options.Parallel,
+		Duration:         options.Duration,
+		Role:             options.Role,
+		RepoRoot:         options.RepoRoot,
+		TenantConfigPath: options.TenantFile,
+		OrganizationID:   options.OrganizationID,
+		WorkspaceID:      options.WorkspaceID,
 	})
 	if err != nil {
-		fmt.Fprintf(runCtx.Stderr, "Invalid key request: %v\n", err)
-		return exitcodes.ACPExitUsage
+		var validationErr *keygen.ValidationError
+		if errors.As(err, &validationErr) {
+			fmt.Fprintf(runCtx.Stderr, "Invalid key request: %v\n", err)
+			return exitcodes.ACPExitUsage
+		}
+		fmt.Fprintf(runCtx.Stderr, out.Fail("Key planning failed: %v\n"), err)
+		return exitcodes.ACPExitRuntime
 	}
 
 	if err := keygen.CheckPrerequisites(!options.DryRun); err != nil {

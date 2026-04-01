@@ -35,7 +35,10 @@ func loadTrackedRoleContract() (rbac.Config, []string, error) {
 	if err != nil {
 		return rbac.Config{}, nil, fmt.Errorf("resolve repo root: %w", err)
 	}
+	return loadTrackedRoleContractFromRepo(repoRoot)
+}
 
+func loadTrackedRoleContractFromRepo(repoRoot string) (rbac.Config, []string, error) {
 	cfg, err := rbac.LoadFile(repopath.DemoConfigPath(repoRoot, "roles.yaml"))
 	if err != nil {
 		return rbac.Config{}, nil, fmt.Errorf("load RBAC config: %w", err)

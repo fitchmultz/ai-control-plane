@@ -111,6 +111,17 @@ The design package tightens the future contract by requiring:
 - no implicit cross-tenant role inheritance
 - workspace model allowlists that must remain reachable from the tracked RBAC role catalog
 
+## Current runtime cutover slice
+
+ACP can now derive workspace-scoped key-generation plans from this package with `acpctl key gen --organization <org> --workspace <workspace> ...`.
+
+That cutover is intentionally narrow:
+- alias namespaces come from `key_namespace_prefix`
+- workspace chargeback projects into the existing `__cc-<digits>` alias token while workspace identity stays in the namespace prefix
+- model access is reduced to the intersection of the workspace allowlist and a workspace-bound RBAC role
+
+It does **not** add shared-runtime query isolation, tenant-safe report scoping, or managed-service operating proof.
+
 ## Operating rule
 
 Until runtime implementation exists, use one ACP deployment per customer boundary for any environment that requires strong tenant isolation.
@@ -122,8 +133,9 @@ make validate-tenant
 make tenant-inspect
 ./scripts/acpctl.sh validate tenant
 ./scripts/acpctl.sh tenant inspect --format json
+./scripts/acpctl.sh key gen svc-claims --organization falcon-insurance --workspace claims-adjuster --budget 10.00 --dry-run
 ```
 
 ## Claim boundary
 
-This package is evidence of design discipline, not evidence of shipped multi-tenant enforcement.
+This package is evidence of design discipline plus an initial workspace-scoped key-issuance cutover, not evidence of shipped shared-runtime multi-tenant enforcement.

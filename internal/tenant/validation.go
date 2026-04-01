@@ -196,6 +196,11 @@ func Validate(design Design, opts ValidationOptions) []string {
 			if design.Chargeback.RequireWorkspaceCostCenter && strings.TrimSpace(workspace.Chargeback.CostCenter) == "" {
 				addIssue("%s: organizations[%d].workspaces[%d].chargeback.cost_center must not be blank when chargeback.require_workspace_cost_center=true", sourcePath, orgIndex, workspaceIndex)
 			}
+			if costCenter := strings.TrimSpace(workspace.Chargeback.CostCenter); costCenter != "" {
+				if _, err := NormalizeChargebackCostCenterToken(costCenter); err != nil {
+					addIssue("%s: organizations[%d].workspaces[%d].chargeback.cost_center %q must be compatible with __cc-<digits> alias tokens", sourcePath, orgIndex, workspaceIndex, costCenter)
+				}
+			}
 			if strings.TrimSpace(workspace.Chargeback.BillTo) == "" {
 				addIssue("%s: organizations[%d].workspaces[%d].chargeback.bill_to must not be blank", sourcePath, orgIndex, workspaceIndex)
 			}
@@ -242,6 +247,9 @@ func Validate(design Design, opts ValidationOptions) []string {
 					}
 				}
 			}
+			if len(opts.RoleModels) > 0 && len(workspace.AllowedModels) > 0 && !workspaceHasFullRoleCoverage(workspace, opts.RoleModels) {
+				addIssue("%s: organizations[%d].workspaces[%d] must bind at least one role that covers all allowed_models for workspace-scoped key issuance", sourcePath, orgIndex, workspaceIndex)
+			}
 		}
 	}
 
@@ -263,6 +271,36 @@ func workspaceRoleModelReachable(bindings []RoleBinding, roleModels map[string]m
 		}
 	}
 	return reachable
+}
+
+func workspaceHasFullRoleCoverage(workspace Workspace, roleModels map[string]map[string]struct{}) bool {
+	allowed := make([]string, 0, len(workspace.AllowedModels))
+	for _, model := range workspace.AllowedModels {
+		trimmed := strings.TrimSpace(model)
+		if trimmed != "" {
+			allowed = append(allowed, trimmed)
+		}
+	}
+	for _, binding := range workspace.RoleBindings {
+		models, ok := roleModels[binding.Role]
+		if !ok {
+			continue
+		}
+		if _, wildcard := models[wildcardModel]; wildcard {
+			return true
+		}
+		covered := true
+		for _, model := range allowed {
+			if _, ok := models[model]; !ok {
+				covered = false
+				break
+			}
+		}
+		if covered {
+			return true
+		}
+	}
+	return false
 }
 
 func containsString(values []string, want string) bool {

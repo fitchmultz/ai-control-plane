@@ -195,6 +195,48 @@ func TestValidateFlagsOrganizationAndWorkspaceDrift(t *testing.T) {
 	}
 }
 
+func TestValidateFlagsWorkspaceKeyIssuanceDrift(t *testing.T) {
+	design := mustLoadValidationDesign(t)
+	design.Organizations[0].Workspaces[0].Chargeback.CostCenter = "finance"
+	issues := Validate(design, ValidationOptions{
+		SourcePath: "demo/config/tenant_design.yaml",
+		KnownModels: map[string]struct{}{
+			"openai-gpt5.2":    {},
+			"claude-haiku-4-5": {},
+		},
+		KnownRoles: map[string]struct{}{"developer": {}, "auditor": {}},
+		RoleModels: map[string]map[string]struct{}{
+			"developer": {"openai-gpt5.2": {}, "claude-haiku-4-5": {}},
+			"auditor":   {},
+		},
+	})
+	if !containsIssue(issues, "must be compatible with __cc-<digits> alias tokens") {
+		t.Fatalf("expected workspace cost-center token issue, got %v", issues)
+	}
+
+	design = mustLoadValidationDesign(t)
+	design.Organizations[0].Workspaces[0].AllowedModels = []string{"openai-gpt5.2", "claude-sonnet-4-5"}
+	design.Organizations[0].Workspaces[0].RoleBindings = []RoleBinding{{
+		Role:     "developer",
+		Scope:    IsolationBoundaryWorkspace,
+		Subjects: []SubjectRef{{Kind: SubjectKindGroup, Name: "claims-developers"}},
+	}}
+	issues = Validate(design, ValidationOptions{
+		SourcePath: "demo/config/tenant_design.yaml",
+		KnownModels: map[string]struct{}{
+			"openai-gpt5.2":     {},
+			"claude-sonnet-4-5": {},
+		},
+		KnownRoles: map[string]struct{}{"developer": {}},
+		RoleModels: map[string]map[string]struct{}{
+			"developer": {"openai-gpt5.2": {}},
+		},
+	})
+	if !containsIssue(issues, "must bind at least one role that covers all allowed_models for workspace-scoped key issuance") {
+		t.Fatalf("expected workspace coverage issue, got %v", issues)
+	}
+}
+
 func TestValidateAllowsWildcardRoleModel(t *testing.T) {
 	design := mustLoadValidationDesign(t)
 	design.Organizations[0].Workspaces[0].AllowedModels = []string{"claude-sonnet-4-5"}

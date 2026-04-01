@@ -135,6 +135,21 @@ default_role: developer
 model_tiers:
   standard: [openai-gpt5.2]
 `)
+	writeFile(t, filepath.Join(repoRoot, "demo", "config", "model_catalog.yaml"), `online_models:
+  - alias: openai-gpt5.2
+    upstream_model: openai/gpt-5.2
+    credential_env: OPENAI_API_KEY
+    managed_ui_default: true
+  - alias: claude-haiku-4-5
+    upstream_model: anthropic/claude-3.5-haiku
+    credential_env: ANTHROPIC_API_KEY
+    managed_ui_default: true
+  - alias: claude-sonnet-4-5
+    upstream_model: anthropic/claude-4.5-sonnet
+    credential_env: ANTHROPIC_API_KEY
+    managed_ui_default: false
+offline_models: []
+`)
 	writeFile(t, filepath.Join(repoRoot, "demo", "config", "tenant_design.yaml"), tenantDesignYAMLFixture)
 	writeFile(t, filepath.Join(repoRoot, "docs", "adr", "0002-multi-tenant-isolation-design.md"), `# 0002: Multi-tenant isolation design
 

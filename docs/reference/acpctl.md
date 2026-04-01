@@ -296,6 +296,7 @@ Examples:
 
 ```bash
 ./scripts/acpctl.sh key gen alice --budget 10.00
+./scripts/acpctl.sh key gen svc-claims --organization falcon-insurance --workspace claims-adjuster --budget 10.00
 ./scripts/acpctl.sh key list
 ./scripts/acpctl.sh key inspect alice --month 2026-02
 ./scripts/acpctl.sh key rotate alice --replacement-alias alice-rotated

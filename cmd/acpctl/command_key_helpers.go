@@ -33,6 +33,10 @@ import (
 func printKeyGenerationPlan(out io.Writer, printer *output.Output, title string, budget float64, plan keygen.GenerateRequestPlan) {
 	fmt.Fprintln(out, printer.Bold(title))
 	fmt.Fprintf(out, "Alias: %s\n", plan.Request.KeyAlias)
+	if plan.TenantScope != nil {
+		fmt.Fprintf(out, "Tenant Scope: %s/%s\n", plan.TenantScope.OrganizationID, plan.TenantScope.WorkspaceID)
+		fmt.Fprintf(out, "Namespace: %s\n", plan.TenantScope.NamespacePrefix)
+	}
 	fmt.Fprintf(out, "Budget: $%.2f\n", budget)
 	fmt.Fprintf(out, "Duration: %s\n", plan.Request.BudgetDuration)
 	fmt.Fprintf(out, "Role: %s\n", plan.Role)
@@ -50,6 +54,9 @@ func printKeyGenerationPlan(out io.Writer, printer *output.Output, title string,
 
 func printKeyGenerationProgress(out io.Writer, plan keygen.GenerateRequestPlan) {
 	fmt.Fprintf(out, "Generating key '%s' with budget: $%.2f (role: %s)\n", plan.Request.KeyAlias, plan.Request.MaxBudget, plan.Role)
+	if plan.TenantScope != nil {
+		fmt.Fprintf(out, "  Tenant scope: %s/%s\n", plan.TenantScope.OrganizationID, plan.TenantScope.WorkspaceID)
+	}
 	if plan.Request.RPMLimit > 0 {
 		fmt.Fprintf(out, "  RPM limit: %d\n", plan.Request.RPMLimit)
 	}

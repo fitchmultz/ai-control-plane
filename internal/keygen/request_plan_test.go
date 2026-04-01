@@ -18,7 +18,12 @@
 //   - Tests avoid live gateway calls.
 package keygen
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestPlanGenerateRequestAppliesDefaultsAndRoleModels(t *testing.T) {
 	t.Setenv("ACP_USER_ROLE", "")
@@ -82,6 +87,70 @@ func TestPlanGenerateRequestRejectsInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestPlanGenerateRequestAppliesTenantWorkspaceScope(t *testing.T) {
+	repoRoot := repoRootForKeygenTests(t)
+	t.Setenv("ACP_REPO_ROOT", repoRoot)
+	t.Setenv("ACP_USER_ROLE", "")
+
+	plan, err := PlanGenerateRequest(GenerateRequestConfig{
+		Alias:          "svc-claims",
+		Budget:         15,
+		RepoRoot:       repoRoot,
+		OrganizationID: "falcon-insurance",
+		WorkspaceID:    "claims-adjuster",
+	})
+	if err != nil {
+		t.Fatalf("PlanGenerateRequest() error = %v", err)
+	}
+	if plan.TenantScope == nil {
+		t.Fatal("expected tenant scope")
+	}
+	if plan.Request.KeyAlias != "falcon-insurance--claims-adjuster--svc-claims__cc-1100" {
+		t.Fatalf("alias = %q", plan.Request.KeyAlias)
+	}
+	if plan.Role != "developer" {
+		t.Fatalf("role = %q, want developer", plan.Role)
+	}
+	if len(plan.Models) != 2 {
+		t.Fatalf("models = %v, want 2 workspace-scoped models", plan.Models)
+	}
+}
+
+func TestPlanGenerateRequestRejectsTenantScopeDrift(t *testing.T) {
+	repoRoot := repoRootForKeygenTests(t)
+	t.Setenv("ACP_REPO_ROOT", repoRoot)
+
+	if _, err := PlanGenerateRequest(GenerateRequestConfig{
+		Alias:          "svc-claims",
+		Budget:         15,
+		RepoRoot:       repoRoot,
+		OrganizationID: "falcon-insurance",
+	}); err == nil || !strings.Contains(err.Error(), "both organization and workspace are required") {
+		t.Fatalf("expected missing workspace error, got %v", err)
+	}
+
+	if _, err := PlanGenerateRequest(GenerateRequestConfig{
+		Alias:          "svc-claims__team-oops",
+		Budget:         15,
+		RepoRoot:       repoRoot,
+		OrganizationID: "falcon-insurance",
+		WorkspaceID:    "claims-adjuster",
+	}); err == nil || !strings.Contains(err.Error(), "must not include __ tokens") {
+		t.Fatalf("expected alias suffix error, got %v", err)
+	}
+
+	if _, err := PlanGenerateRequest(GenerateRequestConfig{
+		Alias:          "svc-claims",
+		Budget:         15,
+		RepoRoot:       repoRoot,
+		OrganizationID: "falcon-insurance",
+		WorkspaceID:    "claims-adjuster",
+		Role:           "team-lead",
+	}); err == nil || !strings.Contains(err.Error(), "is not bound to workspace") {
+		t.Fatalf("expected workspace-bound role error, got %v", err)
+	}
+}
+
 func TestGenerateRequestPlanWithAliasClonesRequest(t *testing.T) {
 	plan, err := PlanGenerateRequest(GenerateRequestConfig{
 		Alias:  "demo-key",
@@ -99,4 +168,13 @@ func TestGenerateRequestPlanWithAliasClonesRequest(t *testing.T) {
 	if plan.Request.KeyAlias != "demo-key" {
 		t.Fatalf("original alias mutated to %q", plan.Request.KeyAlias)
 	}
+}
+
+func repoRootForKeygenTests(t *testing.T) string {
+	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	return filepath.Clean(filepath.Join(cwd, "..", ".."))
 }

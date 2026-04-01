@@ -19,6 +19,9 @@ key-gen: install-binary ## Generate a standard virtual key
 		$(if $(PARALLEL),--parallel $(PARALLEL),) \
 		$(if $(DURATION),--duration $(DURATION),) \
 		$(if $(ROLE),--role $(ROLE),) \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),) \
 		$(if $(filter 1 true TRUE yes YES,$(DRY_RUN)),--dry-run,)
 
 .PHONY: key-list
@@ -58,6 +61,9 @@ key-gen-dev: install-binary ## Generate a developer key
 		$(if $(TPM),--tpm $(TPM),) \
 		$(if $(PARALLEL),--parallel $(PARALLEL),) \
 		$(if $(DURATION),--duration $(DURATION),) \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),) \
 		$(if $(filter 1 true TRUE yes YES,$(DRY_RUN)),--dry-run,)
 
 .PHONY: key-gen-lead
@@ -68,4 +74,7 @@ key-gen-lead: install-binary ## Generate a team-lead key
 		$(if $(TPM),--tpm $(TPM),) \
 		$(if $(PARALLEL),--parallel $(PARALLEL),) \
 		$(if $(DURATION),--duration $(DURATION),) \
+		$(if $(ORG),--organization $(ORG),) \
+		$(if $(WORKSPACE),--workspace $(WORKSPACE),) \
+		$(if $(TENANT_FILE),--tenant-file $(TENANT_FILE),) \
 		$(if $(filter 1 true TRUE yes YES,$(DRY_RUN)),--dry-run,)

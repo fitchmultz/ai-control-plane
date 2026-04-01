@@ -4,7 +4,8 @@
 //   - Verify tenant design loading and summary behavior.
 //
 // Responsibilities:
-//   - Cover strict YAML loading and summary derivation.
+//   - Cover strict YAML loading, workspace lookup, and summary derivation.
+//   - Verify chargeback token normalization for workspace-scoped aliases.
 //   - Keep design-only helpers deterministic for CLI inspection.
 //
 // Scope:
@@ -58,6 +59,76 @@ func TestLoadFileRejectsUnknownFields(t *testing.T) {
 	if _, err := LoadFile(path); err == nil {
 		t.Fatal("expected strict YAML load error")
 	}
+}
+
+func TestLookupWorkspaceResolvesExistingPair(t *testing.T) {
+	design, err := LoadFile(writeDesignFixture(t, validDesignYAML))
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+
+	selection, err := design.LookupWorkspace("falcon-insurance", "underwriting")
+	if err != nil {
+		t.Fatalf("LookupWorkspace() error = %v", err)
+	}
+	if selection.Organization.ID != "falcon-insurance" || selection.Workspace.ID != "underwriting" {
+		t.Fatalf("unexpected selection: %+v", selection)
+	}
+}
+
+func TestLookupWorkspaceRejectsUnknownReferences(t *testing.T) {
+	design, err := LoadFile(writeDesignFixture(t, validDesignYAML))
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+
+	if _, err := design.LookupWorkspace("missing-org", "underwriting"); err == nil {
+		t.Fatal("expected unknown organization error")
+	}
+	if _, err := design.LookupWorkspace("falcon-insurance", "missing-workspace"); err == nil {
+		t.Fatal("expected unknown workspace error")
+	}
+}
+
+func TestNormalizeChargebackCostCenterToken(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       string
+		want      string
+		wantError bool
+	}{
+		{name: "prefixed", raw: "cc-1100", want: "1100"},
+		{name: "digits", raw: "1100", want: "1100"},
+		{name: "uppercase and spaces", raw: " CC-2100 ", want: "2100"},
+		{name: "invalid", raw: "finance", wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeChargebackCostCenterToken(tt.raw)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NormalizeChargebackCostCenterToken() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("NormalizeChargebackCostCenterToken() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func writeDesignFixture(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "tenant_design.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
 }
 
 const validDesignYAML = `version: 1

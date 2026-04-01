@@ -27,25 +27,33 @@ import (
 )
 
 type GenerateRequestConfig struct {
-	Alias    string
-	Budget   float64
-	RPM      int
-	TPM      int
-	Parallel int
-	Duration string
-	Role     string
-	Models   []string
+	Alias            string
+	Budget           float64
+	RPM              int
+	TPM              int
+	Parallel         int
+	Duration         string
+	Role             string
+	Models           []string
+	RepoRoot         string
+	TenantConfigPath string
+	OrganizationID   string
+	WorkspaceID      string
 }
 
 type GenerateRequestPlan struct {
-	Request gateway.GenerateKeyRequest
-	Role    string
-	Models  []string
+	Request     gateway.GenerateKeyRequest
+	Role        string
+	Models      []string
+	TenantScope *TenantScope
 }
 
 func PlanGenerateRequest(cfg GenerateRequestConfig) (GenerateRequestPlan, error) {
 	if err := ValidateAlias(cfg.Alias); err != nil {
 		return GenerateRequestPlan{}, err
+	}
+	if hasTenantScope(cfg) {
+		return planTenantGenerateRequest(cfg)
 	}
 
 	role, err := ResolveRole(cfg.Role)
