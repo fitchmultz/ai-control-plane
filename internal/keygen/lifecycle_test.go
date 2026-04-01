@@ -182,4 +182,70 @@ func TestRotateKeyScopedDefaultReplacementPreservesAttributionSuffix(t *testing.
 	if result.Original.TenantScope == nil || result.Original.TenantScope.Display() != "falcon-insurance/claims-adjuster" {
 		t.Fatalf("unexpected original tenant scope: %+v", result.Original.TenantScope)
 	}
+	if len(result.StageInstructions) == 0 || !strings.Contains(result.StageInstructions[1], "ORG=falcon-insurance WORKSPACE=claims-adjuster") {
+		t.Fatalf("expected scoped cutover instructions, got %+v", result.StageInstructions)
+	}
+}
+
+func TestRotateKeyRejectsTenantModelDriftAgainstTrackedWorkspacePolicy(t *testing.T) {
+	repoRoot := repoRootForKeygenTests(t)
+	t.Setenv("ACP_REPO_ROOT", repoRoot)
+
+	inventory := &fakeInventory{
+		keys: []gateway.KeyInfo{{
+			KeyAlias:       "falcon-insurance--claims-adjuster--svc-claims__cc-1100",
+			MaxBudget:      5,
+			BudgetDuration: "30d",
+			Models:         []string{"claude-sonnet-4-5"},
+		}},
+	}
+	tenantScope := &TenantAccessScope{
+		OrganizationID:    "falcon-insurance",
+		WorkspaceID:       "claims-adjuster",
+		NamespacePrefixes: []string{"falcon-insurance--claims-adjuster"},
+	}
+
+	_, err := RotateKey(context.Background(), inventory, fakeUsageStore{}, RotationRequest{
+		SourceAlias: "falcon-insurance--claims-adjuster--svc-claims__cc-1100",
+		DryRun:      true,
+		TenantScope: tenantScope,
+		RepoRoot:    repoRoot,
+	}, time.Date(2026, 3, 7, 9, 8, 7, 0, time.UTC))
+	if err == nil || !strings.Contains(err.Error(), "is not bound to workspace") {
+		t.Fatalf("expected tracked tenant policy rejection, got %v", err)
+	}
+}
+
+func TestRotateKeyOrganizationScopeDerivesWorkspaceForTenantPlanning(t *testing.T) {
+	repoRoot := repoRootForKeygenTests(t)
+	t.Setenv("ACP_REPO_ROOT", repoRoot)
+
+	inventory := &fakeInventory{
+		keys: []gateway.KeyInfo{{
+			KeyAlias:       "falcon-insurance--claims-adjuster--svc-claims__cc-1100",
+			MaxBudget:      5,
+			BudgetDuration: "30d",
+			Models:         []string{"openai-gpt5.2", "claude-haiku-4-5"},
+		}},
+	}
+	tenantScope := &TenantAccessScope{
+		OrganizationID:    "falcon-insurance",
+		NamespacePrefixes: []string{"falcon-insurance--claims-adjuster", "falcon-insurance--underwriting"},
+	}
+
+	result, err := RotateKey(context.Background(), inventory, fakeUsageStore{}, RotationRequest{
+		SourceAlias: "falcon-insurance--claims-adjuster--svc-claims__cc-1100",
+		DryRun:      true,
+		TenantScope: tenantScope,
+		RepoRoot:    repoRoot,
+	}, time.Date(2026, 3, 7, 9, 8, 7, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("RotateKey() error = %v", err)
+	}
+	if result.ReplacementPlan.TenantScope == nil || result.ReplacementPlan.TenantScope.WorkspaceID != "claims-adjuster" {
+		t.Fatalf("expected derived workspace-scoped plan, got %+v", result.ReplacementPlan.TenantScope)
+	}
+	if strings.Contains(result.StageInstructions[1], "WORKSPACE=") || !strings.Contains(result.StageInstructions[1], "ORG=falcon-insurance") {
+		t.Fatalf("expected organization-scoped instructions, got %+v", result.StageInstructions)
+	}
 }

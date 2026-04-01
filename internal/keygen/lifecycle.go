@@ -87,6 +87,8 @@ type RotationRequest struct {
 	DryRun           bool               `json:"dry_run,omitempty"`
 	RevokeOld        bool               `json:"revoke_old,omitempty"`
 	TenantScope      *TenantAccessScope `json:"tenant_scope,omitempty"`
+	RepoRoot         string             `json:"-"`
+	TenantConfigPath string             `json:"tenant_config_path,omitempty"`
 }
 
 // RotationResult captures the planned and optional executed replacement state.
@@ -228,8 +230,12 @@ func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, 
 		models = resolvedModels
 	}
 
-	plan, err := PlanGenerateRequest(GenerateRequestConfig{
-		Alias:    replacementAlias,
+	planAlias := replacementAlias
+	if req.TenantScope != nil {
+		planAlias = tenantRotationAliasSuffix(replacementAlias, req.TenantScope)
+	}
+	planConfig := GenerateRequestConfig{
+		Alias:    planAlias,
 		Budget:   budget,
 		RPM:      rpm,
 		TPM:      tpm,
@@ -237,20 +243,27 @@ func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, 
 		Duration: duration,
 		Role:     role,
 		Models:   models,
-	})
+	}
+	if req.TenantScope != nil {
+		organizationID, workspaceID, err := resolveRotationTenantPlanningScope(ctx, req)
+		if err != nil {
+			return RotationResult{}, err
+		}
+		planConfig.RepoRoot = req.RepoRoot
+		planConfig.TenantConfigPath = req.TenantConfigPath
+		planConfig.OrganizationID = organizationID
+		planConfig.WorkspaceID = workspaceID
+	}
+
+	plan, err := PlanGenerateRequest(planConfig)
 	if err != nil {
 		return RotationResult{}, err
 	}
 
 	result := RotationResult{
-		Original:        inspection,
-		ReplacementPlan: plan,
-		StageInstructions: []string{
-			fmt.Sprintf("Distribute the new secret for alias %q to consumers.", replacementAlias),
-			fmt.Sprintf("Verify cutover with: make key-inspect ALIAS=%s", replacementAlias),
-			fmt.Sprintf("Review old-key drift with: make key-inspect ALIAS=%s", req.SourceAlias),
-			fmt.Sprintf("When consumers have migrated, revoke the old key with: make key-revoke ALIAS=%s", req.SourceAlias),
-		},
+		Original:          inspection,
+		ReplacementPlan:   plan,
+		StageInstructions: buildRotationStageInstructions(req, replacementAlias),
 	}
 	if req.DryRun {
 		return result, nil
@@ -273,6 +286,76 @@ func RotateKey(ctx context.Context, inventory Inventory, usageStore UsageStore, 
 }
 
 // InferRole picks the least-privileged canonical role that matches the model set.
+func tenantRotationAliasSuffix(alias string, scope *TenantAccessScope) string {
+	trimmed := strings.TrimSpace(alias)
+	if scope == nil {
+		return trimmed
+	}
+	prefix := scope.matchingNamespacePrefix(trimmed)
+	if prefix == "" {
+		return trimmed
+	}
+	remainder := strings.TrimPrefix(trimmed, prefix+"--")
+	base, _, ok := strings.Cut(remainder, "__")
+	if ok {
+		return base
+	}
+	return remainder
+}
+
+func resolveRotationTenantPlanningScope(ctx context.Context, req RotationRequest) (string, string, error) {
+	if req.TenantScope == nil {
+		return "", "", nil
+	}
+	organizationID := strings.TrimSpace(req.TenantScope.OrganizationID)
+	workspaceID := strings.TrimSpace(req.TenantScope.WorkspaceID)
+	if organizationID == "" {
+		return "", "", &ValidationError{Field: "organization", Message: "organization is required for tenant-scoped rotation"}
+	}
+	if workspaceID != "" {
+		return organizationID, workspaceID, nil
+	}
+	design, err := loadTenantDesign(ctx, req.RepoRoot, req.TenantConfigPath)
+	if err != nil {
+		return "", "", err
+	}
+	organization, err := design.LookupOrganization(organizationID)
+	if err != nil {
+		return "", "", err
+	}
+	prefix := req.TenantScope.matchingNamespacePrefix(req.SourceAlias)
+	if prefix == "" {
+		return "", "", RequireAliasInTenantScope(req.SourceAlias, req.TenantScope)
+	}
+	for _, workspace := range organization.Workspaces {
+		if strings.TrimSpace(workspace.KeyNamespacePrefix) == prefix {
+			return organization.ID, workspace.ID, nil
+		}
+	}
+	return "", "", fmt.Errorf("organization %q has no workspace for namespace prefix %q", organization.ID, prefix)
+}
+
+func buildRotationStageInstructions(req RotationRequest, replacementAlias string) []string {
+	makeScopeArgs := ""
+	if req.TenantScope != nil {
+		if organizationID := strings.TrimSpace(req.TenantScope.OrganizationID); organizationID != "" {
+			makeScopeArgs += fmt.Sprintf(" ORG=%s", organizationID)
+		}
+		if workspaceID := strings.TrimSpace(req.TenantScope.WorkspaceID); workspaceID != "" {
+			makeScopeArgs += fmt.Sprintf(" WORKSPACE=%s", workspaceID)
+		}
+		if trimmed := strings.TrimSpace(req.TenantConfigPath); trimmed != "" {
+			makeScopeArgs += fmt.Sprintf(" TENANT_FILE=%s", trimmed)
+		}
+	}
+	return []string{
+		fmt.Sprintf("Distribute the new secret for alias %q to consumers.", replacementAlias),
+		fmt.Sprintf("Verify cutover with: make key-inspect ALIAS=%s%s", replacementAlias, makeScopeArgs),
+		fmt.Sprintf("Review old-key drift with: make key-inspect ALIAS=%s%s", req.SourceAlias, makeScopeArgs),
+		fmt.Sprintf("When consumers have migrated, revoke the old key with: make key-revoke ALIAS=%s%s", req.SourceAlias, makeScopeArgs),
+	}
+}
+
 func InferRole(models []string) (string, error) {
 	cfg, approvedModels, err := loadTrackedRoleContract()
 	if err != nil {

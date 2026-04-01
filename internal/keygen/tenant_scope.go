@@ -29,9 +29,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
-	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
 	"github.com/mitchfultz/ai-control-plane/internal/rbac"
 	"github.com/mitchfultz/ai-control-plane/internal/tenant"
 )
@@ -55,15 +53,11 @@ func planTenantGenerateRequest(cfg GenerateRequestConfig) (GenerateRequestPlan, 
 		return GenerateRequestPlan{}, &ValidationError{Field: "workspace", Message: "both organization and workspace are required for tenant-scoped key generation"}
 	}
 
-	repoRoot, err := config.NewLoader().WithRepoRoot(cfg.RepoRoot).RequireRepoRoot(context.Background())
+	repoRoot, err := resolveKeyRepoRoot(context.Background(), cfg.RepoRoot)
 	if err != nil {
-		return GenerateRequestPlan{}, fmt.Errorf("resolve repo root: %w", err)
+		return GenerateRequestPlan{}, err
 	}
-	designPath := repopath.ResolveRepoPath(repoRoot, tenant.DefaultDesignPath)
-	if trimmed := strings.TrimSpace(cfg.TenantConfigPath); trimmed != "" {
-		designPath = repopath.ResolveRepoPath(repoRoot, trimmed)
-	}
-	design, err := tenant.LoadFile(designPath)
+	design, err := loadTenantDesign(context.Background(), repoRoot, cfg.TenantConfigPath)
 	if err != nil {
 		return GenerateRequestPlan{}, err
 	}

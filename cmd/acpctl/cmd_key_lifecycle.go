@@ -237,6 +237,8 @@ func runKeyRotate(ctx context.Context, runCtx commandRunContext, raw any) int {
 		DryRun:           opts.DryRun,
 		RevokeOld:        opts.RevokeOld,
 		TenantScope:      tenantScope,
+		RepoRoot:         runCtx.RepoRoot,
+		TenantConfigPath: opts.TenantFile,
 	}, time.Now())
 	if err != nil {
 		return writeKeyLifecycleError(runCtx, out, "Key rotation failed", err)

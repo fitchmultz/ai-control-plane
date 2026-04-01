@@ -27,10 +27,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mitchfultz/ai-control-plane/internal/config"
 	"github.com/mitchfultz/ai-control-plane/internal/gateway"
-	repopath "github.com/mitchfultz/ai-control-plane/internal/paths"
-	"github.com/mitchfultz/ai-control-plane/internal/tenant"
 )
 
 // TenantAccessScope captures one resolved lifecycle access boundary.
@@ -52,15 +49,7 @@ func ResolveTenantAccessScope(ctx context.Context, repoRoot string, tenantConfig
 		return nil, &ValidationError{Field: "organization", Message: "organization is required when workspace is set"}
 	}
 
-	resolvedRepoRoot, err := config.NewLoader().WithRepoRoot(repoRoot).RequireRepoRoot(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolve repo root: %w", err)
-	}
-	designPath := repopath.ResolveRepoPath(resolvedRepoRoot, tenant.DefaultDesignPath)
-	if trimmed := strings.TrimSpace(tenantConfigPath); trimmed != "" {
-		designPath = repopath.ResolveRepoPath(resolvedRepoRoot, trimmed)
-	}
-	design, err := tenant.LoadFile(designPath)
+	design, err := loadTenantDesign(ctx, repoRoot, tenantConfigPath)
 	if err != nil {
 		return nil, err
 	}
