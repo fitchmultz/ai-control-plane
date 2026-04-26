@@ -10,6 +10,25 @@ Use it together with [CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](CVE_REMEDIA
 - Update this file in the same change set as any status, expiry, or mitigation changes.
 - Record the commands or evidence sources used for the review.
 
+## 2026-04-26 — Off-cycle hardened image remediation review
+
+- **Reviewers:** `platform-security`, `release-owner`
+- **Evidence commands validated in this cycle:** `make hardened-images-scan`, `docker buildx imagetools inspect ghcr.io/fitchmultz/acp/litellm-hardened:20260426`, `docker buildx imagetools inspect ghcr.io/fitchmultz/acp/librechat-hardened:20260426`
+- **Open CVEs reviewed:** `CVE-2026-0861`
+- **Remediated CVEs closed in this cycle:** `CVE-2026-26278`, `CVE-2026-26960`, `CVE-2026-26996`
+- **Outcome summary:**
+  - `CVE-2026-0861` remains a temporary accepted risk pending patched Presidio base images from Microsoft.
+  - `CVE-2026-26278` was remediated in refreshed hardened LibreChat image `ghcr.io/fitchmultz/acp/librechat-hardened:20260426`.
+  - `CVE-2026-26960` was remediated in refreshed hardened LiteLLM image `ghcr.io/fitchmultz/acp/litellm-hardened:20260426`.
+  - `CVE-2026-26996` was remediated by the hardened dependency rollup and no longer requires temporary allowlist entries.
+- **Required next action:** keep Presidio CVE expiry windows current and remove remaining allowlist entries as patched Presidio digests land.
+- **Next review due:** on or before `2026-06-19`, or sooner if exploitability changes, a vendor patch lands, or an expiry warning triggers.
+- **Canonical records updated in this cycle:**
+  - [KNOWN_LIMITATIONS.md](../KNOWN_LIMITATIONS.md)
+  - [`demo/config/supply_chain_vulnerability_policy.json`](../../demo/config/supply_chain_vulnerability_policy.json)
+  - [release/GO_NO_GO.md](../release/GO_NO_GO.md)
+  - [CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md](CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md)
+
 ## 2026-03-19 — Quarterly governance review
 
 - **Reviewers:** `platform-security`, `release-owner`

@@ -46,8 +46,8 @@ litellm:
 
   image:
     repository: ghcr.io/fitchmultz/acp/litellm-hardened
-    # Pinned digest for reproducibility (first-party hardened build 2026-02-12)
-    digest: "sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801"
+    # Pinned digest for reproducibility (first-party hardened build 2026-04-26)
+    digest: "sha256:c2f2b26327ab549e1be04975b0a6bd4524274ee5f23fa94c667c3731b6fd5016"
     pullPolicy: IfNotPresent
 
   # Service configuration

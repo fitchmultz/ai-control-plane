@@ -63,7 +63,7 @@ services:
 
   litellm:
     <<: *acp-security-defaults
-    image: ${LITELLM_IMAGE:-ghcr.io/fitchmultz/acp/litellm-hardened:20260212@sha256:6485f5d438ab23399903bfcd83d352b4cf50bcc63d87a252a423f99c5c132801}
+    image: ${LITELLM_IMAGE:-ghcr.io/fitchmultz/acp/litellm-hardened:20260426@sha256:c2f2b26327ab549e1be04975b0a6bd4524274ee5f23fa94c667c3731b6fd5016}
     pull_policy: ${ACP_PULL_POLICY:-missing}
     env_file:
       - ${ACP_RUNTIME_ENV_FILE:-.env}

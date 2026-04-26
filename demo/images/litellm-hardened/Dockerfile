@@ -13,11 +13,11 @@
 # - Does not pin upstream runtime digest updates automatically.
 #
 # Invariants/Assumptions:
-# - Base image follows docker.litellm.ai/berriai/litellm:main-stable pinned to the
-#   latest stable manifest available on 2026-03-06.
+# - Base image follows docker.litellm.ai/berriai/litellm:v1.83.7-stable.patch.1
+#   pinned to the selected stable patch manifest as of 2026-04-26.
 # - `litellm --config ...` entrypoint behavior is preserved.
 # - npm is not required for runtime proxy execution.
-FROM docker.litellm.ai/berriai/litellm:main-stable@sha256:cb7dc175c6e239557c36b5ccc262ac31359fdabbdee61a4afdd9c83525809802
+FROM docker.litellm.ai/berriai/litellm:v1.83.7-stable.patch.1@sha256:95d4bd975e39d33c3d5e0add0439d9a9e40f534ec79b2132133e96b3994d3192
 
 USER root
 WORKDIR /app
@@ -38,8 +38,9 @@ RUN pip install --no-cache-dir --upgrade pip==26.0.1
 # Address Python package CVEs identified by supply-chain gate scans.
 RUN pip install --no-cache-dir --upgrade \
     cryptography==46.0.5 \
+    orjson==3.11.6 \
     python-multipart==0.0.22 \
-    pillow==12.1.1
+    pillow==12.2.0
 
 # Prisma's generated Python client bakes cache paths for the build user and an
 # older engine layout; rewrite them to the writable runtime cache plus the
@@ -86,6 +87,9 @@ schema_path.write_text('\n'.join(deduped_lines) + '\n')
 PY
 RUN cd /usr/lib/python3.13/site-packages/litellm_proxy_extras && \
     DATABASE_URL=postgresql://prisma:prisma@127.0.0.1:5432/prisma prisma validate >/dev/null
+RUN rm -rf /app/.cache/prisma-python && \
+    mkdir -p /app/.cache && \
+    cp -a /root/.cache/prisma-python /app/.cache/prisma-python
 
 # Remove Node ecosystem artifacts unused by LiteLLM proxy runtime.
 RUN rm -rf \

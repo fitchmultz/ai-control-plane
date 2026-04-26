@@ -70,7 +70,7 @@ services:
 
   librechat:
     <<: *acp-security-defaults
-    image: ${LIBRECHAT_IMAGE:-ghcr.io/fitchmultz/acp/librechat-hardened:20260212@sha256:3243673fecc5f52b12b1537048c6aa698f0bf618173cf1bb58d6438b7ca489ae}
+    image: ${LIBRECHAT_IMAGE:-ghcr.io/fitchmultz/acp/librechat-hardened:20260426@sha256:a05a58648c29b25c952d98e6de4cf048e521498701bb17b3db11a574436eb935}
     pull_policy: ${ACP_PULL_POLICY:-missing}
     user: "1000:1000"
     env_file:
