@@ -64,6 +64,12 @@ func TestReadonlyServiceBudgetSummary(t *testing.T) {
 
 	expectExactQuery(mock, `SELECT COUNT(*) FROM "LiteLLM_BudgetTable";`, exactQueryRows("count").AddRow("8"))
 	expectExactQuery(mock, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'public'
+		AND table_name = 'LiteLLM_BudgetTable'
+		AND column_name = 'budget';
+	`, exactQueryRows("count").AddRow("1"))
+	expectExactQuery(mock, `
 		SELECT COUNT(*) FROM "LiteLLM_BudgetTable"
 		WHERE max_budget > 0 AND (budget::float / max_budget::float * 100) <= 20;
 	`, exactQueryRows("count").AddRow("2"))
@@ -78,6 +84,27 @@ func TestReadonlyServiceBudgetSummary(t *testing.T) {
 	}
 	if summary.Total != 8 || summary.HighUtilization != 2 || summary.Exhausted != 1 {
 		t.Fatalf("unexpected budget summary: %+v", summary)
+	}
+}
+
+func TestReadonlyServiceBudgetSummaryWithoutRemainingBudgetColumn(t *testing.T) {
+	connector, mock := newExternalSQLMockConnector(t)
+	service := NewReadonlyService(connector)
+
+	expectExactQuery(mock, `SELECT COUNT(*) FROM "LiteLLM_BudgetTable";`, exactQueryRows("count").AddRow("8"))
+	expectExactQuery(mock, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'public'
+		AND table_name = 'LiteLLM_BudgetTable'
+		AND column_name = 'budget';
+	`, exactQueryRows("count").AddRow("0"))
+
+	summary, err := service.BudgetSummary(context.Background())
+	if err != nil {
+		t.Fatalf("BudgetSummary() error = %v", err)
+	}
+	if summary.Total != 8 || summary.HighUtilization != 0 || summary.Exhausted != 0 {
+		t.Fatalf("unexpected budget summary without budget column: %+v", summary)
 	}
 }
 

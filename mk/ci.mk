@@ -25,10 +25,10 @@ ci: ## Local full CI gate (format drift check, lint, static/security checks, run
 		echo '$(COLOR_RED)✗ Docker Compose is required for make ci runtime stage$(COLOR_RESET)'; \
 		exit 2; \
 	fi; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true; \
-	trap 'ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true' EXIT; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent up-offline-ci; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent ci-runtime-checks
+	ACP_SLOT=ci-runtime LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true; \
+	trap 'ACP_SLOT=ci-runtime LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true' EXIT; \
+	ACP_SLOT=ci-runtime LITELLM_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent up-offline-ci; \
+	ACP_SLOT=ci-runtime LITELLM_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent ci-runtime-checks
 	@echo '$(COLOR_GREEN)✓ CI gate passed$(COLOR_RESET)'
 
 .PHONY: ci-pr
@@ -63,10 +63,10 @@ ci-nightly: ## Nightly checks (PR checks + runtime smoke + release bundle verifi
 	@echo '$(COLOR_BOLD)Running nightly CI checks...$(COLOR_RESET)'
 	@set -euo pipefail; \
 	$(MAKE) --silent ci-pr; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true; \
-	trap 'ACP_SLOT=ci-runtime $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true' EXIT; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent up-offline-ci; \
-	ACP_SLOT=ci-runtime $(MAKE) --silent ci-runtime-checks; \
+	ACP_SLOT=ci-runtime LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true; \
+	trap 'ACP_SLOT=ci-runtime LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent down-offline-clean >/dev/null 2>&1 || true' EXIT; \
+	ACP_SLOT=ci-runtime LITELLM_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent up-offline-ci; \
+	ACP_SLOT=ci-runtime LITELLM_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT) $(MAKE) --silent ci-runtime-checks; \
 	$(MAKE) --silent release-bundle; \
 	$(MAKE) --silent release-bundle-verify
 	@echo '$(COLOR_GREEN)✓ Nightly checks passed$(COLOR_RESET)'

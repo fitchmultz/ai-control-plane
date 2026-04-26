@@ -49,6 +49,7 @@ fi
 
 REPO_ROOT="$(test_repo_root)"
 VARIABLES_MK="${REPO_ROOT}/mk/variables.mk"
+DEPLOY_MK="${REPO_ROOT}/mk/deploy.mk"
 
 test_fixture_init make-env-scope-test
 TMP_ROOT="${TEST_TMP_ROOT}"
@@ -86,7 +87,13 @@ INLINE_MAKEFILE="${TMP_ROOT}/Makefile"
 cat >"${INLINE_MAKEFILE}" <<EOF
 include ${VARIABLES_MK}
 
-.PHONY: print-env compose-config print-db-mode
+.PHONY: hardened-images-build print-env compose-config print-db-mode print-build-images-disabled
+hardened-images-build:
+	@printf 'unexpected hardened image build\n'
+	@exit 1
+
+include ${DEPLOY_MK}
+
 print-env:
 	@env
 
@@ -95,11 +102,15 @@ compose-config:
 
 print-db-mode:
 	@printf '%s\n' "\$(DB_MODE)"
+
+print-build-images-disabled:
+	@\$(MAKE) --silent -f \$(firstword \$(MAKEFILE_LIST)) maybe-hardened-images-build ACP_RUNTIME_BUILD_HARDENED_IMAGES=0
 EOF
 
 run_make() {
     PATH="${STUB_BIN}:${PATH}" \
         ACP_TEST_DOCKER_LOG="${DOCKER_LOG}" \
+        env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL \
         make -s -C "${FIXTURE}" -f "${INLINE_MAKEFILE}" "$@"
 }
 
@@ -117,6 +128,12 @@ if [[ "$(run_make print-db-mode)" != "external" ]]; then
     exit 1
 fi
 echo "  ✓ non-secret database mode still resolves from demo/.env"
+
+if [[ "$(run_make print-build-images-disabled)" != "Skipping local hardened image build for this runtime lane" ]]; then
+    echo "  ✗ runtime image build disable flag was not honored"
+    exit 1
+fi
+echo "  ✓ runtime image build disable flag is honored"
 
 run_make compose-config
 expected_env_file="--env-file ${FIXTURE_REALPATH}/demo/.env"

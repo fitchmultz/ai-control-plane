@@ -18,8 +18,16 @@ validate-runtime-overlays: ## Validate supported runtime overlay selection
 		exit 64; \
 	fi
 
+.PHONY: maybe-hardened-images-build
+maybe-hardened-images-build: ## Build local hardened images unless explicitly disabled
+	@if [ "$(ACP_RUNTIME_BUILD_HARDENED_IMAGES)" = "1" ]; then \
+		$(MAKE) --silent hardened-images-build; \
+	else \
+		echo '$(COLOR_YELLOW)Skipping local hardened image build for this runtime lane$(COLOR_RESET)'; \
+	fi
+
 .PHONY: up-runtime
-up-runtime: hardened-images-build validate-config validate-runtime-overlays ## Start runtime using the canonical overlay engine
+up-runtime: maybe-hardened-images-build validate-config validate-runtime-overlays ## Start runtime using the canonical overlay engine
 	@echo '$(COLOR_BOLD)Starting runtime overlays: $(if $(strip $(ACP_RUNTIME_OVERLAYS)),$(ACP_RUNTIME_OVERLAYS),base)$(COLOR_RESET)'
 	@if printf '%s' '$(strip $(subst $(space),,$(ACP_RUNTIME_OVERLAYS)))' | grep -Eq '(^|,)ui(,|$$)'; then \
 		$(MAKE) --silent validate-librechat-config COMPOSE_ENV_FILE="$(COMPOSE_ENV_FILE)"; \

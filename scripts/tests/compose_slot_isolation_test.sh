@@ -52,6 +52,12 @@ if ! grep -Fq '${LITELLM_HOST_PORT:-4000}:4000' "${COMPOSE_FILE}"; then
 fi
 printf '  ✓ compose exposes slot-specific LiteLLM host port overrides\n'
 
+if ! grep -q 'CI_RUNTIME_LITELLM_HOST_PORT' "${REPO_ROOT}/mk/variables.mk" || ! grep -q 'LITELLM_HOST_PORT=$(CI_RUNTIME_LITELLM_HOST_PORT)' "${REPO_ROOT}/mk/ci.mk"; then
+    printf '  ✗ CI runtime should use an isolated LiteLLM host port\n'
+    exit 1
+fi
+printf '  ✓ CI runtime uses an isolated LiteLLM host port\n'
+
 if ! grep -q 'name: ai_control_plane_pgdata_${ACP_SLOT:-active}' "${COMPOSE_FILE}"; then
     printf '  ✗ compose should use ACP_SLOT-scoped pgdata names\n'
     exit 1

@@ -143,8 +143,7 @@ func stubHostPreflightPrereqsWithoutSystemctl(t *testing.T, distro string, versi
 
 func installHostPreflightBoundaryFixture(t *testing.T, binDir string, distro string, version string) func() {
 	t.Helper()
-	originalPath := os.Getenv("PATH")
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+originalPath)
+	t.Setenv("PATH", binDir)
 
 	osReleasePath := filepath.Join(t.TempDir(), "os-release")
 	writeFileWithMode(t, osReleasePath, "ID="+distro+"\nVERSION_ID=\""+version+"\"\n", 0o644)

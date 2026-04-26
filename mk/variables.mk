@@ -11,6 +11,7 @@
 #   - Does not include other makefiles
 
 # Directories
+SHELL := /bin/bash
 COMPOSE_DIR := demo
 COMPOSE_FILE := $(COMPOSE_DIR)/docker-compose.yml
 COMPOSE_UI_FILE := $(COMPOSE_DIR)/docker-compose.ui.yml
@@ -33,6 +34,9 @@ ACP_RUNTIME_OVERLAYS ?=
 ACP_RUNTIME_PULL_POLICY ?= never
 ACP_RUNTIME_LITELLM_IMAGE ?= ai-control-plane/litellm-hardened:local
 ACP_RUNTIME_LIBRECHAT_IMAGE ?= ai-control-plane/librechat-hardened:local
+ACP_RUNTIME_LITELLM_FALLBACK_IMAGE ?= docker.litellm.ai/berriai/litellm:main-stable@sha256:cb7dc175c6e239557c36b5ccc262ac31359fdabbdee61a4afdd9c83525809802
+ACP_RUNTIME_BUILD_HARDENED_IMAGES ?= 1
+CI_RUNTIME_LITELLM_HOST_PORT ?= 4010
 ACP_RUNTIME_PRODUCTION_PROFILE ?= 0
 ACP_RUNTIME_OTEL_COLLECTOR_CONFIG_FILE ?= config.yaml
 

@@ -18,7 +18,7 @@ up-offline: ## Start offline mode services with locally built hardened images
 .PHONY: up-offline-ci
 up-offline-ci: ## Start offline mode services for CI using pinned fallback images
 	@echo '$(COLOR_BOLD)Starting offline mode services for CI...$(COLOR_RESET)'
-	@$(MAKE) --silent up-runtime ACP_RUNTIME_OVERLAYS=offline ACP_RUNTIME_PULL_POLICY=missing ACP_RUNTIME_LITELLM_IMAGE=
+	@$(MAKE) --silent up-runtime ACP_RUNTIME_OVERLAYS=offline ACP_RUNTIME_PULL_POLICY=missing ACP_RUNTIME_BUILD_HARDENED_IMAGES=0 ACP_RUNTIME_LITELLM_IMAGE="$(ACP_RUNTIME_LITELLM_FALLBACK_IMAGE)"
 	@echo '$(COLOR_GREEN)✓ Offline CI services started$(COLOR_RESET)'
 
 .PHONY: down-offline

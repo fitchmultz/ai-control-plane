@@ -67,6 +67,13 @@ func (s *ReadonlyService) BudgetSummary(ctx context.Context) (BudgetSummary, err
 	if err != nil {
 		return BudgetSummary{}, err
 	}
+	hasBudgetColumn, err := s.columnExists(ctx, "LiteLLM_BudgetTable", "budget")
+	if err != nil {
+		return BudgetSummary{}, err
+	}
+	if !hasBudgetColumn {
+		return BudgetSummary{Total: total}, nil
+	}
 	high, err := s.connector.scalarInt(ctx, `
 		SELECT COUNT(*) FROM "LiteLLM_BudgetTable"
 		WHERE max_budget > 0 AND (budget::float / max_budget::float * 100) <= 20;
@@ -197,12 +204,29 @@ func (s *ReadonlyService) TrafficSummary(ctx context.Context) (TrafficSummary, e
 }
 
 func (s *ReadonlyService) spendLogsTableExists(ctx context.Context) (bool, error) {
+	return s.tableExists(ctx, "LiteLLM_SpendLogs")
+}
+
+func (s *ReadonlyService) tableExists(ctx context.Context, tableName string) (bool, error) {
 	tableCount, err := s.connector.scalarInt(ctx, `
 		SELECT COUNT(*) FROM information_schema.tables
-		WHERE table_schema = 'public' AND table_name = 'LiteLLM_SpendLogs';
+		WHERE table_schema = 'public' AND table_name = '`+tableName+`';
 	`)
 	if err != nil {
 		return false, err
 	}
 	return tableCount > 0, nil
+}
+
+func (s *ReadonlyService) columnExists(ctx context.Context, tableName string, columnName string) (bool, error) {
+	columnCount, err := s.connector.scalarInt(ctx, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'public'
+		AND table_name = '`+tableName+`'
+		AND column_name = '`+columnName+`';
+	`)
+	if err != nil {
+		return false, err
+	}
+	return columnCount > 0, nil
 }
