@@ -61,7 +61,7 @@ func TestIsLocalOnlyTrackedPath_CoversCanonicalPrefixes(t *testing.T) {
 		{path: "demo/logs/runtime.log", want: true},
 		{path: "demo/backups/archive.tar.gz", want: true},
 		{path: "handoff-packet/report.md", want: true},
-		{path: ".ralph/state.json", want: true},
+		{path: ".cueloop/state.json", want: true},
 		{path: "docs/presentation/slides-internal/notes.md", want: true},
 		{path: "docs/presentation/slides-external/slide-1.png", want: true},
 		{path: "docs/presentation/slides-external/slide-1.pdf", want: false},

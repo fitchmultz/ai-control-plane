@@ -19,7 +19,7 @@
       "deploy/ansible/**/*.yaml"
     ],
     "exclude": [
-      ".ralph/**",
+      ".cueloop/**",
       ".git/**",
       "demo/logs/**",
       "demo/backups/**",

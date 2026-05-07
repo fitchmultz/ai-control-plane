@@ -25,6 +25,8 @@ import json
 from pathlib import Path
 import sys
 
+ExpiryHit = tuple[str, int | str, str, str]
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -93,15 +95,15 @@ def main() -> int:
             return 2
     else:
         today = dt.date.today()
-    warn_hits: list[tuple[str, int | str, str, str]] = []
-    fail_hits: list[tuple[str, int | str, str, str]] = []
+    warn_hits: list[ExpiryHit] = []
+    fail_hits: list[ExpiryHit] = []
 
     for entry in allowlist:
         if not isinstance(entry, dict):
             fail_hits.append(("UNKNOWN", "invalid-entry", "n/a", "n/a"))
             continue
 
-        identifier = f"{entry.get('id', 'UNKNOWN')}:{entry.get('package', 'unknown')}"
+        identifier = format_identifier(entry)
         ticket = str(entry.get("ticket", "n/a"))
         expires = entry.get("expires_on")
 
@@ -142,6 +144,14 @@ def main() -> int:
 
     print("✓ Allowlist expiry check passed")
     return 0
+
+
+def format_identifier(entry: dict[str, object]) -> str:
+    base = f"{entry.get('id', 'UNKNOWN')}:{entry.get('package', 'unknown')}"
+    image = entry.get("image")
+    if not isinstance(image, str) or image == "":
+        return base
+    return f"{base} @ {image}"
 
 
 if __name__ == "__main__":

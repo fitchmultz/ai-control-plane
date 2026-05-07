@@ -20,8 +20,8 @@
 !demo/.env.example
 # Note: Add !local/.env.example if that file is created in the future
 
-# Ralph task management state (contains cache and queue data)
-.ralph/
+# CueLoop workflow state (contains cache and queue data)
+.cueloop/
 
 # Database backups (may contain sensitive production data)
 demo/backups/
@@ -77,7 +77,7 @@ docs/
 # -----------------------------------------------------------------------------
 deploy/
 
-# Ralph documentation (agent guidelines)
+# Agent guidelines
 AGENTS.md
 
 # -----------------------------------------------------------------------------
@@ -166,4 +166,4 @@ local/
 # -----------------------------------------------------------------------------
 # MISC - Miscellaneous exclusions
 # -----------------------------------------------------------------------------
-# Note: .ralph/ is already excluded above; no need to exclude specific files
+# Note: .cueloop/ is already excluded above; no need to exclude specific files

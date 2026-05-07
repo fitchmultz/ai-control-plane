@@ -11,7 +11,7 @@ The following paths are generated during local runs and are gitignored:
 - `demo/logs/pilot-closeout/` — generated pilot closeout bundles and bundle pointers
 - `demo/backups/` — local backup artifacts
 - `handoff-packet/` — exportable handoff bundles created for internal transfer
-- `.ralph/` — local agent planning/cache state
+- `.cueloop/` — local agent planning/cache state
 - `docs/presentation/slides-external/*.png` — generated customer-facing slide image exports derived from the canonical external deck source
 
 ## Why These Are Not Committed

@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -52,7 +53,7 @@ func TestDecideRuntimeScopeWithExplicitPaths(t *testing.T) {
 	ctx := context.Background()
 
 	result, err := DecideRuntimeScope(ctx, DecisionOptions{
-		Paths:  []string{"docs/README.md", "AGENTS.md", "scripts/tests/onboard_help_contract_test.sh"},
+		Paths:  []string{"docs/README.md", "AGENTS.md", "scripts/tests/onboard_help_contract_test.sh", ".cueloop/config.jsonc"},
 		CIFull: "0",
 	})
 	if err != nil {
@@ -71,6 +72,35 @@ func TestDecideRuntimeScopeWithExplicitPaths(t *testing.T) {
 	}
 	if !result.ShouldRun {
 		t.Fatalf("expected Makefile to require runtime checks")
+	}
+}
+
+func TestPathNormalizationPreservesSignificantWhitespace(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizePath(" docs/config.yaml"); got != " docs/config.yaml" {
+		t.Fatalf("normalizePath() = %q, want significant whitespace preserved", got)
+	}
+
+	result, err := DecideRuntimeScope(context.Background(), DecisionOptions{
+		Paths:  []string{" docs/config.yaml"},
+		CIFull: "0",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.ShouldRun {
+		t.Fatalf("expected path with leading space to stay runtime-impacting")
+	}
+}
+
+func TestParseNullDelimitedSkipsEmptyNormalizedPaths(t *testing.T) {
+	t.Parallel()
+
+	got := parseNullDelimited("docs/README.md\x00.\x00\x00Makefile\x00")
+	want := []string{"docs/README.md", "Makefile"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseNullDelimited() = %v, want %v", got, want)
 	}
 }
 

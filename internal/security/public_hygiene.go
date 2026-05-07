@@ -53,7 +53,7 @@ func IsLocalOnlyTrackedPath(relPath string) bool {
 		return true
 	case strings.HasPrefix(relPath, "handoff-packet/"):
 		return true
-	case strings.HasPrefix(relPath, ".ralph/"):
+	case strings.HasPrefix(relPath, ".cueloop/"):
 		return true
 	case strings.HasPrefix(relPath, "docs/presentation/slides-internal/"):
 		return true

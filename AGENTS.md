@@ -130,7 +130,7 @@ make health      # Verify services
 - `make ci` intentionally starts the offline runtime with compose-pinned fallback images; local hardened image build/scan remains scoped to `make ci-heavy` and local dev targets such as `make up-offline`.
 - `make ci-pr` / `make ci-fast` now enforce `validate headers` and `validate env-access`; keep Go file headers compliant and never add direct `os.Getenv` / `envfile.LookupFile` calls outside `internal/config`
 - Never commit secrets (API keys, tokens, OAuth tokens)
-- Runtime artifacts and internal workflow state are local-only; do not track `demo/logs/`, `handoff-packet/`, `.ralph/`, `docs/presentation/slides-internal/`, or generated `docs/presentation/slides-external/*.png` exports (see `docs/ARTIFACTS.md`)
+- Runtime artifacts and internal workflow state are local-only; do not track `demo/logs/`, `handoff-packet/`, `.cueloop/`, `docs/presentation/slides-internal/`, or generated `docs/presentation/slides-external/*.png` exports (see `docs/ARTIFACTS.md`)
 - All executable scripts: `set -euo pipefail`, terminal-aware colors, `--help` menu
 - API testing: use low-cost models (`claude-haiku`, `gpt-4o-mini`)
 - Update relevant documentation when behavior changes

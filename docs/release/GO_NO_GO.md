@@ -63,7 +63,7 @@ Document active security risk acceptances here. Link to detailed findings in `do
 
 | Risk ID | Severity | Description | Owner | Due Date | Status | Evidence |
 |---------|----------|-------------|-------|----------|--------|----------|
-| CVE-2026-0861 | Major | Presidio images contain unpatched glibc (MEDIUM). Exploitation requires local attacker + application bug + heap manipulation chain. | platform-security | 2026-05-15 | Accepted | [supply_chain_vulnerability_policy.json](../../demo/config/supply_chain_vulnerability_policy.json), [CVE_REVIEW_LOG.md](../security/CVE_REVIEW_LOG.md) |
+| CVE-2026-0861 | Major | Presidio images contain unpatched glibc. Exploitation requires local attacker + application bug + heap manipulation chain. Current Microsoft Presidio `2.2.362`/`latest` images still report this CVE and add higher-severity findings, so ACP remains pinned to reviewed `2.2.361` digests. | platform-security | 2026-06-19 | Accepted | [supply_chain_vulnerability_policy.json](../../demo/config/supply_chain_vulnerability_policy.json), [CVE_REVIEW_LOG.md](../security/CVE_REVIEW_LOG.md) |
 
 **Risk Acceptance Criteria:**
 - All Major risks must satisfy the record requirements in [`docs/security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md`](../security/CVE_REMEDIATION_AND_RISK_ACCEPTANCE_POLICY.md)

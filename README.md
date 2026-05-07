@@ -158,4 +158,3 @@ AI Control Plane is licensed under [Apache-2.0](LICENSE).
 - Project notice: [NOTICE](NOTICE)
 - Third-party license boundary: [docs/policy/THIRD_PARTY_LICENSE_MATRIX.md](docs/policy/THIRD_PARTY_LICENSE_MATRIX.md)
 - Customer-facing compliance summary: [docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md](docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md)
-D_PARTY_LICENSE_SUMMARY.md](docs/deployment/THIRD_PARTY_LICENSE_SUMMARY.md)

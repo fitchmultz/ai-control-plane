@@ -143,22 +143,25 @@ func parseNullDelimited(input string) []string {
 		if len(part) == 0 {
 			continue
 		}
-		result = append(result, normalizePath(string(part)))
+		normalized := normalizePath(string(part))
+		if normalized == "" {
+			continue
+		}
+		result = append(result, normalized)
 	}
 	return result
 }
 
 func normalizePath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
+	if path == "" {
 		return ""
 	}
-	trimmed = strings.ReplaceAll(trimmed, "\\", "/")
-	trimmed = filepath.Clean(trimmed)
-	if trimmed == "." {
+	normalized := strings.ReplaceAll(path, "\\", "/")
+	normalized = filepath.Clean(normalized)
+	if normalized == "." {
 		return ""
 	}
-	return trimmed
+	return normalized
 }
 
 func isRuntimeImpacting(path string) bool {
@@ -168,7 +171,7 @@ func isRuntimeImpacting(path string) bool {
 		return false
 	case strings.HasPrefix(normalized, "docs/"):
 		return false
-	case strings.HasPrefix(normalized, ".ralph/"):
+	case strings.HasPrefix(normalized, ".cueloop/"):
 		return false
 	case strings.HasPrefix(normalized, "demo/logs/"):
 		return false

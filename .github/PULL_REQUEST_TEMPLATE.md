@@ -18,7 +18,7 @@ Commands run:
 ## Security + Data Handling
 
 - [ ] No secrets/tokens added to code, logs, or docs
-- [ ] No generated local artifacts committed (`demo/logs`, `handoff-packet`, `.ralph`)
+- [ ] No generated local artifacts committed (`demo/logs`, `handoff-packet`, `.cueloop`)
 
 ## Maintainer Notes
 

@@ -33,7 +33,7 @@ The following paths are scanned for license boundary enforcement:
 
 ### Excluded Paths
 
-- `.ralph/**` - Task queue and cache
+- `.cueloop/**` - Task queue and cache
 - `.git/**` - Version control
 - `demo/logs/**` - Application logs
 - `demo/backups/**` - Database backups

@@ -45,7 +45,7 @@ This report records the current license-boundary status for packaging-sensitive 
 ### Excluded Paths
 
 - `.git/**`
-- `.ralph/**`
+- `.cueloop/**`
 - `demo/logs/**`
 - `demo/backups/**`
 - `handoff-packet/**`

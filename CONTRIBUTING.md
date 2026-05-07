@@ -47,7 +47,7 @@ make health
 Do not commit:
 - `.env` files or credentials
 - generated logs/evidence bundles under `demo/logs/` or `handoff-packet/`
-- local agent/workflow state under `.ralph/`
+- local agent/workflow state under `.cueloop/`
 
 See [docs/ARTIFACTS.md](docs/ARTIFACTS.md) for artifact handling policy.
 
