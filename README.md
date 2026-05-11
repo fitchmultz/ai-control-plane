@@ -6,7 +6,11 @@
 
 AI Control Plane is a host-first Docker reference implementation for enterprise AI governance: a minimal LiteLLM + PostgreSQL runtime wrapped in typed operator workflows, truthful runtime gates, security validation, and evidence-producing delivery artifacts.
 
+Status: reference implementation, not a managed production service. The support boundary below is the source of truth for what is validated now, conditionally ready, or not yet validated.
+
 ![AI Control Plane architecture](docs/images/2026-03-05-19-30-architecture-hero.png)
+
+What you are seeing: local AI traffic flows through a LiteLLM gateway with policy controls, telemetry, detection hooks, and evidence-producing operator workflows.
 
 ## Why this repo exists
 
