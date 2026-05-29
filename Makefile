@@ -129,6 +129,7 @@ help-lint:
 	@echo '  $(COLOR_GREEN)lint-secrets$(COLOR_RESET)       Run secrets audit'
 	@echo '  $(COLOR_GREEN)format$(COLOR_RESET)             Format shell scripts'
 	@echo '  $(COLOR_GREEN)type-check$(COLOR_RESET)         Run Go type checks'
+	@echo '  $(COLOR_GREEN)go-vet$(COLOR_RESET)             Run Go vet static analysis'
 	@echo '  $(COLOR_GREEN)validate-policy-rules$(COLOR_RESET) Validate tracked ACP custom policy rules'
 	@echo '  $(COLOR_GREEN)validate-tenant$(COLOR_RESET)    Validate the tracked multi-tenant design package'
 	@echo '  $(COLOR_GREEN)tenant-inspect$(COLOR_RESET)     Print the tracked multi-tenant design summary'

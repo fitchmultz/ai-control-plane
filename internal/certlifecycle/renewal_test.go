@@ -21,6 +21,7 @@ package certlifecycle
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -102,6 +103,19 @@ func TestRenewRestoresSnapshotOnVerificationFailure(t *testing.T) {
 	}
 	if len(store.restored) != 1 {
 		t.Fatalf("expected rollback restore")
+	}
+}
+
+func TestRenewStopsPromptlyWhenContextIsCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	store := &fakeStore{list: []CertificateInfo{{DNSNames: []string{"gateway.example.com"}, NotAfter: time.Now().UTC().Add(2 * 24 * time.Hour), FingerprintSHA256: "OLD"}}}
+
+	_, err := Renew(ctx, store, RenewalRequest{RepoRoot: t.TempDir(), Domain: "gateway.example.com", ThresholdDays: 30, Force: true, Timeout: time.Minute})
+	if err == nil || !strings.Contains(err.Error(), context.Canceled.Error()) {
+		t.Fatalf("expected context cancellation error, got %v", err)
 	}
 }
 

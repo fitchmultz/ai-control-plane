@@ -129,12 +129,11 @@ cp scripts/completions/acpctl.fish ~/.config/fish/completions/acpctl.fish
 The completion system provides intelligent suggestions for:
 
 - **Root commands**: All top-level acpctl commands
-- **Group subcommands**: Subcommands for delegated groups (e.g., `deploy up`, `deploy health`)
+- **Group subcommands**: Subcommands for typed groups (e.g., `deploy readiness-evidence`, `deploy release-bundle`)
 - **Dynamic values**: Based on repository configuration:
-  - Model names: `MODEL=`, `SCENARIO_MODEL=` (parsed from `demo/config/litellm.yaml`)
-  - Scenario IDs: `SCENARIO=` (derived from tracked `demo/config/demo_presets.yaml`)
+  - Model names: `MODEL=` (parsed from `demo/config/litellm.yaml`)
   - Config keys: `CONFIG_KEY=` (parsed from config YAML files)
-  - Preset names: `PRESET=` (parsed from `demo/config/demo_presets.yaml`)
+  - Role names: `ROLE=` (parsed from tracked role configuration)
 
 ## Testing Completions
 
@@ -144,20 +143,17 @@ Verify completions are working:
 # List all root commands
 ./scripts/acpctl.sh __complete
 
-# Get deploy subcommands
-./scripts/acpctl.sh __complete deploy
+# Get deploy workflow completions
+./scripts/acpctl.sh __complete deploy readiness-evidence
 
 # Get key alias completions
 ./scripts/acpctl.sh __complete key gen ALIAS=
 
-# Get scenario completions
-./scripts/acpctl.sh __complete demo scenario SCENARIO=
-
 # Get model completions
 ./scripts/acpctl.sh __complete key gen MODEL=
 
-# Get preset completions
-./scripts/acpctl.sh __complete demo preset PRESET=
+# Get role completions
+./scripts/acpctl.sh __complete key gen ROLE=
 ```
 
 ## Completion Command Reference

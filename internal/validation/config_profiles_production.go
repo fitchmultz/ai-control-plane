@@ -96,8 +96,11 @@ func validateProductionSecretsEnvFile(path string) (map[string]string, []string,
 		"LITELLM_PUBLISH_HOST",
 		"LITELLM_PUBLIC_URL",
 		"LITELLM_SALT_KEY",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
 		"OTEL_INGEST_AUTH_TOKEN",
 		"OTEL_PUBLISH_HOST",
+		"OTEL_RESOURCE_DEPLOYMENT",
+		"OTEL_RESOURCE_ENVIRONMENT",
 		"POSTGRES_DB",
 		"POSTGRES_PASSWORD",
 		"POSTGRES_USER",
@@ -116,7 +119,14 @@ func validateProductionSecretsEnvFile(path string) (map[string]string, []string,
 		}
 	}
 
-	required := []string{"LITELLM_MASTER_KEY", "LITELLM_SALT_KEY", "DATABASE_URL"}
+	required := []string{
+		"LITELLM_MASTER_KEY",
+		"LITELLM_SALT_KEY",
+		"DATABASE_URL",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+		"OTEL_RESOURCE_ENVIRONMENT",
+		"OTEL_RESOURCE_DEPLOYMENT",
+	}
 	for _, key := range required {
 		if strings.TrimSpace(values[key]) == "" {
 			issues.Addf("%s: required key %s is missing or empty", path, key)
@@ -201,6 +211,7 @@ func validateProductionRuntimeValues(path string, values map[string]string) []st
 	issues := NewIssues()
 	issues.Extend(validateSecretValue(path, values, "LITELLM_MASTER_KEY", 32))
 	issues.Extend(validateSecretValue(path, values, "LITELLM_SALT_KEY", 32))
+	issues.Extend(validateProductionOTELExportValues(path, values))
 
 	if rawOTELHost := strings.TrimSpace(values["OTEL_PUBLISH_HOST"]); rawOTELHost != "" {
 		issues.Addf("%s: OTEL_PUBLISH_HOST is not allowed in the production contract; raw OTEL ports are fixed to localhost and remote ingest must use TLS /otel/*", path)
@@ -228,6 +239,44 @@ func validateProductionRuntimeValues(path string, values map[string]string) []st
 	}
 
 	return issues.ToSlice()
+}
+
+func validateProductionOTELExportValues(path string, values map[string]string) []string {
+	issues := NewIssues()
+	endpoint := strings.TrimSpace(values["OTEL_EXPORTER_OTLP_ENDPOINT"])
+	if endpoint != "" {
+		parsedEndpoint, err := url.Parse(endpoint)
+		if err != nil || parsedEndpoint == nil || parsedEndpoint.Hostname() == "" || !strings.EqualFold(parsedEndpoint.Scheme, "https") {
+			issues.Addf("%s: OTEL_EXPORTER_OTLP_ENDPOINT must be a valid https:// remote OTLP endpoint in production", path)
+		} else if isPlaceholderProductionValue(parsedEndpoint.Hostname()) || isPlaceholderProductionValue(endpoint) {
+			issues.Addf("%s: OTEL_EXPORTER_OTLP_ENDPOINT must not use placeholder/demo values", path)
+		}
+	}
+
+	for _, key := range []string{"OTEL_RESOURCE_ENVIRONMENT", "OTEL_RESOURCE_DEPLOYMENT"} {
+		value := strings.TrimSpace(values[key])
+		lowerValue := strings.ToLower(value)
+		if value == "" {
+			continue
+		}
+		if isPlaceholderProductionValue(lowerValue) {
+			issues.Addf("%s: %s must identify a real production telemetry context, not %q", path, key, value)
+		}
+	}
+	return issues.ToSlice()
+}
+
+func isPlaceholderProductionValue(value string) bool {
+	lowerValue := strings.ToLower(strings.TrimSpace(value))
+	if lowerValue == "demo" || lowerValue == "local" {
+		return true
+	}
+	for _, fragment := range []string{"change-me", "replace-with", "example", "placeholder", "your-"} {
+		if strings.Contains(lowerValue, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateDatabaseURL(path string, values map[string]string, mode string, parsed *url.URL) []string {

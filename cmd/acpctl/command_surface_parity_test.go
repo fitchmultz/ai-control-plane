@@ -73,9 +73,7 @@ func TestCommandSpec_ApprovedCommandInventory(t *testing.T) {
 func TestPublishedMakeTargetsResolve(t *testing.T) {
 	repoRoot := repoRootForParityTests(t)
 	targets := loadPublishedMakeTargets(t, repoRoot)
-	files := append(
-		documentationFiles(t, repoRoot),
-	)
+	files := documentationFiles(t, repoRoot)
 
 	var issues []string
 	for _, file := range files {

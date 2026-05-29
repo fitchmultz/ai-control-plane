@@ -6,7 +6,7 @@
 
 AI Control Plane is a host-first Docker reference implementation for enterprise AI governance: a minimal LiteLLM + PostgreSQL runtime wrapped in typed operator workflows, truthful runtime gates, security validation, and evidence-producing delivery artifacts.
 
-Status: reference implementation, not a managed production service. The support boundary below is the source of truth for what is validated now, conditionally ready, or not yet validated.
+Status: reference implementation, not a managed production service. The support source of truth is `docs/support-matrix.yaml`, rendered for readers in [docs/reference/support-matrix.md](docs/reference/support-matrix.md); the summary below is a convenience view.
 
 ![AI Control Plane architecture](docs/images/2026-03-05-19-30-architecture-hero.png)
 
@@ -29,9 +29,10 @@ The canonical execution roadmap for outstanding work lives in [docs/ROADMAP.md](
 
 | Status | Boundary |
 | --- | --- |
-| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, the typed upgrade framework, readiness evidence, pilot closeout artifacts, a validated customer-operated active-passive HA failover drill evidence surface, an AWS-first incubating cloud deployment package validated through explicit IaC fmt, validate, and validation-only plan workflows plus AWS hardening guidance and a basic cost-estimation model, and an incubating design-only tenant isolation/billing package |
+| Validated now | Host-first Docker reference implementation, typed operator workflows, scheduled backup and restore verification, typed upgrade framework, readiness evidence, pilot closeout artifacts, and customer-operated active-passive HA failover drill evidence surface |
 | Conditionally ready | Customer pilots on controlled Linux hosts with customer-owned network, IAM, SIEM, retention, and workspace controls validated |
-| Not yet validated | Azure/GCP cloud deployment claims, AWS applied/runtime cloud-operation evidence beyond the explicit AWS-first validation package, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention |
+| Incubating | AWS-first cloud deployment package with explicit IaC fmt, validate, validation-only plan workflows, AWS hardening guidance, and a basic cost-estimation model; design-only tenant isolation/billing package |
+| Not yet validated | Azure/GCP applied/runtime cloud deployment claims, AWS applied/runtime cloud-operation evidence beyond the explicit validation package, shared-runtime multi-tenant managed-service claims, and universal browser-bypass prevention |
 
 - Supported runtime: host-first Docker baseline plus explicit overlays
 - Supported host boundary: Debian 12+ or Ubuntu 24.04+ with systemd, apt, Docker, Docker Compose, and verified SSH host keys

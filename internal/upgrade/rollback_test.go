@@ -26,6 +26,44 @@ import (
 	"github.com/mitchfultz/ai-control-plane/internal/artifactrun"
 )
 
+func TestRollbackRejectsSummaryArtifactPathOutsideRunDir(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoRoot, "VERSION"), []byte("0.1.0\n"), 0o644); err != nil {
+		t.Fatalf("write VERSION: %v", err)
+	}
+
+	runDir := t.TempDir()
+	summary := Summary{
+		FromVersion:        "0.1.0",
+		ToVersion:          "0.2.0",
+		ConfigBackupPath:   filepath.Join(t.TempDir(), configBackupName),
+		DatabaseBackupPath: filepath.Join(runDir, databaseBackup),
+	}
+	if err := os.WriteFile(filepath.Join(runDir, configBackupName), []byte("KEY=value\n"), 0o600); err != nil {
+		t.Fatalf("write config backup: %v", err)
+	}
+	if err := os.WriteFile(summary.DatabaseBackupPath, []byte("not-gzip"), 0o600); err != nil {
+		t.Fatalf("write database backup: %v", err)
+	}
+	if err := artifactrun.WriteJSON(filepath.Join(runDir, SummaryJSONName), summary); err != nil {
+		t.Fatalf("write summary: %v", err)
+	}
+	if _, err := artifactrun.Finalize(runDir, t.TempDir(), artifactrun.FinalizeOptions{InventoryName: InventoryName}); err != nil {
+		t.Fatalf("Finalize() error = %v", err)
+	}
+
+	_, err := Rollback(context.Background(), RollbackOptions{
+		RepoRoot: repoRoot,
+		RunDir:   runDir,
+	})
+	if err == nil {
+		t.Fatal("expected rollback to reject artifact path outside run directory")
+	}
+	if !strings.Contains(err.Error(), "path must resolve to") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRollbackRequiresPreviousReleaseCheckout(t *testing.T) {
 	repoRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repoRoot, "VERSION"), []byte("0.2.0\n"), 0o644); err != nil {

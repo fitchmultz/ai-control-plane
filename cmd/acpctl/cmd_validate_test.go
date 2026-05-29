@@ -118,7 +118,10 @@ func TestRunValidateConfigProduction_Success(t *testing.T) {
 		"LITELLM_PUBLISH_HOST=127.0.0.1\n"+
 		"LITELLM_PUBLIC_URL=https://gateway.example.com\n"+
 		"LITELLM_SALT_KEY=prod-salt-token-abcdefghijklmnopqrstuvwxyz1234567890\n"+
-		"OTEL_INGEST_AUTH_TOKEN=otel-ingest-auth-token-abcdefghijklmnopqrstuvwxyz\n")
+		"OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.acme-corp.internal\n"+
+		"OTEL_INGEST_AUTH_TOKEN=otel-ingest-auth-token-abcdefghijklmnopqrstuvwxyz\n"+
+		"OTEL_RESOURCE_DEPLOYMENT=us-east-1\n"+
+		"OTEL_RESOURCE_ENVIRONMENT=production\n")
 	if err := os.Chmod(secretsPath, 0o600); err != nil {
 		t.Fatalf("chmod %s: %v", secretsPath, err)
 	}

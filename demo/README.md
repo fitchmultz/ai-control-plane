@@ -63,12 +63,15 @@ This shows the Docker-first runtime, typed operator surface, and offline validat
 2. **Start the services:**
 
    ```bash
-   # Primary operator path (from project root) - LiteLLM core only
+   # Primary operator path (from project root) - supported base runtime
+   make up
+
+   # Compatibility alias for the base runtime
    make up-core
 
-   # Full standard package (includes managed LibreChat stack)
+   # Optional managed UI overlay
    # Requires LibreChat secrets in demo/.env
-   make up
+   make up-ui
 
    # Secondary direct compose path (inspection/debugging only)
    docker compose up -d
@@ -316,7 +319,7 @@ make up-offline
 
 # Switch from offline to online
 make down-offline
-make up-core
+make up
 
 # Note: Database volumes are preserved between switches
 # but model configurations are different

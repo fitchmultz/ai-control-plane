@@ -35,20 +35,6 @@ flows:
       Gateway API access for clients and health endpoints
       (localhost binding default for security)
 
-  - id: flow-litellm-http-public-tls
-    source: client_host
-    destination: litellm_gateway
-    direction: ingress
-    protocol: tcp
-    port: 4000
-    exposure: public
-    tls_required_when_public: true
-    manifests:
-      - demo/docker-compose.tls.yml:services.litellm.ports
-    justification: >
-      Gateway API access in TLS mode
-      (public exposure via Caddy TLS termination)
-
   - id: flow-litellm-internal-helm
     source: ingress_controller
     destination: litellm_gateway
@@ -72,8 +58,8 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.litellm.depends_on
-      - demo/docker-compose.offline.yml:services.litellm.depends_on
+      - demo/docker-compose.yml:services.litellm.environment
+      - demo/docker-compose.yml:services.postgres
     justification: >
       Database connectivity for LiteLLM schema
       and token storage
@@ -87,8 +73,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.litellm.depends_on
-      - demo/docker-compose.offline.yml:services.litellm.depends_on
+      - demo/docker-compose.dlp.yml:services.presidio-analyzer.expose
     justification: >
       PII detection for request/response
       content filtering
@@ -102,8 +87,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.litellm.depends_on
-      - demo/docker-compose.offline.yml:services.litellm.depends_on
+      - demo/docker-compose.dlp.yml:services.presidio-anonymizer.expose
     justification: >
       PII anonymization/redaction for request/response
       content filtering
@@ -117,7 +101,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.offline.yml:services.litellm.depends_on
+      - demo/docker-compose.offline.yml:services.mock-upstream.expose
     justification: >
       Offline mode - LLM requests routed to mock upstream
       instead of external providers
@@ -139,20 +123,6 @@ flows:
     justification: >
       Database for LiteLLM token storage and audit logs
       (internal Docker network only)
-
-  - id: flow-postgres-offline-exposed
-    source: client_host
-    destination: postgres
-    direction: ingress
-    protocol: tcp
-    port: 5432
-    exposure: localhost
-    tls_required_when_public: true
-    manifests:
-      - demo/docker-compose.offline.yml:services.postgres.ports
-    justification: >
-      PostgreSQL exposed on localhost for
-      offline/demo debugging only
 
   - id: flow-postgres-helm-clusterip
     source: litellm_gateway
@@ -242,6 +212,21 @@ flows:
       Caddy reverse proxy to LiteLLM backend
       (internal Docker network)
 
+  - id: flow-caddy-otel-backend
+    source: caddy_proxy
+    destination: otel_collector
+    direction: egress
+    protocol: tcp
+    port: 4318
+    exposure: internal_only
+    tls_required_when_public: false
+    manifests:
+      - demo/docker-compose.yml:services.otel-collector
+      - demo/docker-compose.tls.yml:services.caddy.environment
+    justification: >
+      Caddy authenticated /otel/* reverse proxy to the OTLP/HTTP collector
+      endpoint for supported remote telemetry ingress
+
   # ============================================================================
   # OTel Collector (Optional Telemetry)
   # ============================================================================
@@ -301,8 +286,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.presidio-analyzer.expose
-      - demo/docker-compose.offline.yml:services.presidio-analyzer.expose
+      - demo/docker-compose.dlp.yml:services.presidio-analyzer.expose
     justification: >
       PII analysis service - detects sensitive entities in text
       (internal Docker network only)
@@ -316,8 +300,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.presidio-anonymizer.expose
-      - demo/docker-compose.offline.yml:services.presidio-anonymizer.expose
+      - demo/docker-compose.dlp.yml:services.presidio-anonymizer.expose
     justification: >
       PII anonymization service - masks/redacts sensitive entities
       (internal Docker network only)
@@ -335,9 +318,9 @@ flows:
     exposure: localhost
     tls_required_when_public: true
     manifests:
-      - demo/docker-compose.yml:services.librechat.ports
+      - demo/docker-compose.ui.yml:services.librechat.ports
     justification: >
-      LibreChat web UI (standard package,
+      LibreChat web UI (optional managed UI overlay,
       localhost by default for security)
 
   - id: flow-librechat-litellm
@@ -349,7 +332,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.librechat.depends_on
+      - demo/docker-compose.ui.yml:services.librechat.depends_on
     justification: >
       LibreChat connects to LiteLLM gateway
       for LLM API access (internal Docker network)
@@ -363,7 +346,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.librechat.environment
+      - demo/docker-compose.ui.yml:services.librechat.environment
     justification: >
       LibreChat internal MongoDB connectivity
       for session/chat storage
@@ -377,7 +360,7 @@ flows:
     exposure: internal_only
     tls_required_when_public: false
     manifests:
-      - demo/docker-compose.yml:services.librechat.environment
+      - demo/docker-compose.ui.yml:services.librechat.environment
     justification: >
       LibreChat internal Meilisearch connectivity
       for chat search functionality

@@ -66,7 +66,7 @@ For pilot packaging and customer-owned validation boundaries, see [Browser and W
 ## Prerequisites
 
 - Docker and Docker Compose (V2 preferred)
-- Running AI Control Plane base services (`make up-core` for the host-first baseline; `make up` only after LibreChat secrets are configured)
+- Running AI Control Plane base services (`make up` for the host-first baseline; `make up-ui` after LibreChat secrets are configured)
 - LiteLLM virtual key for LibreChat (generated via `make key-gen`)
 
 ## Quick Start
@@ -249,11 +249,11 @@ ORDER BY requests DESC;"
 ### Installation
 
 ```bash
-# 1. Start base services (includes LibreChat)
+# 1. Start the supported base runtime
 make up
 make health
 
-# 2. Configure environment variables
+# 2. Configure managed UI overlay environment variables
 echo "LIBRECHAT_CREDS_KEY=$(openssl rand -hex 32)" >> demo/.env
 echo "LIBRECHAT_CREDS_IV=$(openssl rand -hex 16)" >> demo/.env
 echo "LIBRECHAT_MEILI_MASTER_KEY=$(openssl rand -base64 32)" >> demo/.env
@@ -261,11 +261,11 @@ echo "JWT_SECRET=$(openssl rand -hex 32)" >> demo/.env
 echo "JWT_REFRESH_SECRET=$(openssl rand -hex 32)" >> demo/.env
 echo "LIBRECHAT_LITELLM_API_KEY=sk-your-virtual-key-here" >> demo/.env
 
-# 3. (Optional) explicitly restart LibreChat services only
-make librechat-up
+# 3. Start base services with the managed UI overlay
+make up-ui
 ```
 
-`make up` and `make librechat-up` both run `make validate-librechat-config` and fail fast if required values are missing. The default host-first proof path remains `make up-core`; LibreChat is an optional governed-browser layer on top of that baseline.
+`make up-ui` runs `make validate-librechat-config` and fails fast if required values are missing. The default host-first proof path is `make up` (or the compatibility alias `make up-core`); LibreChat is an optional governed-browser layer on top of that baseline.
 
 ### Bootstrap
 
@@ -340,9 +340,9 @@ If you need to revert configuration changes:
 # Restore librechat.yaml from git
 git checkout demo/config/librechat/librechat.yaml
 
-# Restart services
+# Restart the managed UI overlay
 make down
-make librechat-up
+make up-ui
 ```
 
 ## Troubleshooting
@@ -370,10 +370,10 @@ docker compose -f demo/docker-compose.yml exec postgres \
 **Solutions**:
 1. Verify models in `demo/config/librechat/librechat.yaml` match approved models
 2. Check that `fetch: false` is set (prevents dynamic model fetching)
-3. Restart LibreChat to reload config:
+3. Restart the managed UI overlay to reload config:
    ```bash
    make down
-   make librechat-up
+   make up-ui
    ```
 4. Run contract test to diagnose:
    ```bash
@@ -397,7 +397,7 @@ docker compose -f demo/docker-compose.yml logs litellm | grep -i spend
 
 ### Container Exits Immediately
 
-**Symptoms**: `make librechat-up` succeeds but container stops
+**Symptoms**: `make up-ui` succeeds but the managed UI container stops
 
 **Solutions**:
 1. Check logs: `make logs`

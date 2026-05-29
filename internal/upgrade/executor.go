@@ -323,18 +323,26 @@ func Rollback(ctx context.Context, opts RollbackOptions) (*Summary, error) {
 	if inventory == "" {
 		inventory = summary.Inventory
 	}
+	configBackupPath, err := rollbackArtifactPath(runDir, summary.ConfigBackupPath, configBackupName)
+	if err != nil {
+		return nil, wrap(ErrorKindRuntime, err)
+	}
+	databaseBackupPath, err := rollbackArtifactPath(runDir, summary.DatabaseBackupPath, databaseBackup)
+	if err != nil {
+		return nil, wrap(ErrorKindRuntime, err)
+	}
 	if err := artifactrun.Verify(runDir, artifactrun.VerifyOptions{
 		InventoryName: InventoryName,
 		RequiredFiles: []string{
-			filepath.Base(summary.ConfigBackupPath),
-			filepath.Base(summary.DatabaseBackupPath),
+			configBackupName,
+			databaseBackup,
 			SummaryJSONName,
 		},
 	}); err != nil {
 		return nil, wrap(ErrorKindRuntime, err)
 	}
 
-	if err := snapshotFile(summary.ConfigBackupPath, envFile); err != nil {
+	if err := snapshotFile(configBackupPath, envFile); err != nil {
 		return nil, wrap(ErrorKindRuntime, fmt.Errorf("restore config snapshot: %w", err))
 	}
 
@@ -347,7 +355,7 @@ func Rollback(ctx context.Context, opts RollbackOptions) (*Summary, error) {
 		return nil, wrap(ErrorKindDomain, fmt.Errorf("upgrade rollback is supported only for embedded database mode"))
 	}
 
-	reader, err := openCompressedSQLBackup(summary.DatabaseBackupPath)
+	reader, err := openCompressedSQLBackup(databaseBackupPath)
 	if err != nil {
 		return nil, wrap(ErrorKindRuntime, err)
 	}
@@ -379,6 +387,29 @@ func Rollback(ctx context.Context, opts RollbackOptions) (*Summary, error) {
 	summary.EnvFile = envFile
 	summary.Inventory = inventory
 	return &summary, nil
+}
+
+func rollbackArtifactPath(runDir string, recordedPath string, expectedName string) (string, error) {
+	if strings.TrimSpace(recordedPath) == "" {
+		return "", fmt.Errorf("upgrade summary missing %s path", expectedName)
+	}
+	runDirAbs, err := filepath.Abs(runDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve run directory: %w", err)
+	}
+	expectedPath := filepath.Join(runDirAbs, expectedName)
+	recordedClean := filepath.Clean(strings.TrimSpace(recordedPath))
+	if !filepath.IsAbs(recordedClean) {
+		recordedClean = filepath.Join(runDirAbs, recordedClean)
+	}
+	recordedAbs, err := filepath.Abs(recordedClean)
+	if err != nil {
+		return "", fmt.Errorf("resolve recorded %s path: %w", expectedName, err)
+	}
+	if recordedAbs != expectedPath {
+		return "", fmt.Errorf("upgrade summary %s path must resolve to %s inside the run directory", expectedName, expectedPath)
+	}
+	return expectedPath, nil
 }
 
 func requireCheckoutVersion(repoRoot string, targetVersion string) error {

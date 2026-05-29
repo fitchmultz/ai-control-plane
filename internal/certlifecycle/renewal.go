@@ -154,7 +154,10 @@ func Renew(ctx context.Context, store Store, req RenewalRequest) (RenewalResult,
 func waitForRenewedCertificate(ctx context.Context, store Store, before CertificateInfo, baseURL string, timeout time.Duration) (CertificateInfo, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		_ = touchGateway(baseURL)
+		if err := ctx.Err(); err != nil {
+			return CertificateInfo{}, err
+		}
+		_ = touchGateway(ctx, baseURL)
 		certs, err := store.List(ctx)
 		if err == nil {
 			for _, cert := range certs {
@@ -171,13 +174,21 @@ func waitForRenewedCertificate(ctx context.Context, store Store, before Certific
 			sleepFor = remaining
 		}
 		if sleepFor > 0 {
-			time.Sleep(sleepFor)
+			timer := time.NewTimer(sleepFor)
+			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
+				return CertificateInfo{}, ctx.Err()
+			case <-timer.C:
+			}
 		}
 	}
 	return CertificateInfo{}, fmt.Errorf("replacement certificate did not appear within %s", timeout)
 }
 
-func touchGateway(baseURL string) error {
+func touchGateway(ctx context.Context, baseURL string) error {
 	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
 		return nil
@@ -187,7 +198,11 @@ func touchGateway(baseURL string) error {
 		transport.TLSClientConfig = insecureTLSConfig()
 	}
 	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
-	resp, err := client.Get(strings.TrimRight(trimmed, "/") + "/health")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(trimmed, "/")+"/health", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

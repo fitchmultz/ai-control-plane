@@ -123,6 +123,9 @@ POSTGRES_DB=litellm
 DATABASE_URL=postgresql://litellm:supersecurepostgres1@postgres:5432/litellm
 LITELLM_MASTER_KEY=0123456789abcdef0123456789abcdef
 LITELLM_SALT_KEY=abcdef0123456789abcdef0123456789
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.acme-corp.internal
+OTEL_RESOURCE_DEPLOYMENT=ci-test
+OTEL_RESOURCE_ENVIRONMENT=production
 EOF
 chmod 600 "${SECRETS_FILE}"
 

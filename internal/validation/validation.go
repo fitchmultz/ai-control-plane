@@ -22,6 +22,7 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/mitchfultz/ai-control-plane/internal/policy"
@@ -43,6 +44,9 @@ func ValidateDeploymentSurfaces(repoRoot string) ([]string, error) {
 			return nil, err
 		}
 		issues.Extend(targetIssues)
+		if target.Path == "demo/config/network_firewall_contract.yaml" {
+			issues.Extend(validateNetworkFirewallContractManifestPointers(repoRoot, target))
+		}
 		if policy.HasRule(target.Rules, policy.RuleHelmContracts) {
 			issues.Extend(validateHelmContracts(repoRoot, target))
 		}
@@ -91,6 +95,62 @@ func ValidateComposeHealthchecks(repoRoot string) ([]string, error) {
 		issues.Extend(targetIssues)
 	}
 	return issues.Sorted(), nil
+}
+
+func validateNetworkFirewallContractManifestPointers(repoRoot string, target policy.SurfaceTarget) []string {
+	root, err := policy.LoadYAMLTarget(repoRoot, target)
+	if err != nil {
+		return []string{fmt.Sprintf("%s: invalid YAML: %v", target.Path, err)}
+	}
+	flowsNode := policy.MappingValue(root, "flows")
+	if flowsNode == nil || flowsNode.Kind != yaml.SequenceNode {
+		return []string{fmt.Sprintf("%s: flows must be a sequence", target.Path)}
+	}
+
+	issues := NewIssues()
+	for _, flowNode := range flowsNode.Content {
+		if flowNode.Kind != yaml.MappingNode {
+			continue
+		}
+		flowID := policy.ScalarValue(policy.MappingValue(flowNode, "id"))
+		manifestsNode := policy.MappingValue(flowNode, "manifests")
+		if manifestsNode == nil || manifestsNode.Kind != yaml.SequenceNode {
+			issues.Addf("%s: flow %s must list manifest pointers", target.Path, flowID)
+			continue
+		}
+		for _, manifestNode := range manifestsNode.Content {
+			manifest := policy.ScalarValue(manifestNode)
+			filePath, yamlPath, ok := strings.Cut(manifest, ":")
+			if !ok || strings.TrimSpace(filePath) == "" || strings.TrimSpace(yamlPath) == "" {
+				issues.Addf("%s: flow %s has invalid manifest pointer %q", target.Path, flowID, manifest)
+				continue
+			}
+			manifestRoot, err := policy.LoadYAMLFile(filepath.Join(repoRoot, filepath.FromSlash(filePath)))
+			if err != nil {
+				issues.Addf("%s: flow %s manifest %s is unreadable YAML: %v", target.Path, flowID, filePath, err)
+				continue
+			}
+			if !yamlPathExists(manifestRoot, yamlPath) {
+				issues.Addf("%s: flow %s manifest pointer %s is missing", target.Path, flowID, manifest)
+			}
+		}
+	}
+	return issues.ToSlice()
+}
+
+func yamlPathExists(root *yaml.Node, yamlPath string) bool {
+	current := root
+	for _, part := range strings.Split(yamlPath, ".") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return false
+		}
+		current = policy.MappingValue(current, part)
+		if current == nil {
+			return false
+		}
+	}
+	return true
 }
 
 func validateStructureForTarget(repoRoot string, target policy.SurfaceTarget) ([]string, error) {

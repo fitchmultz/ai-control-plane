@@ -27,6 +27,17 @@ compose)
     ;;
 inspect)
     printf '/tmp/litellm-chatgpt.yaml -> /app/config.yaml\n'
+    printf '/tmp/auth/chatgpt -> /app/.config/litellm/chatgpt\n'
+    exit 0
+    ;;
+exec)
+    shift
+    if [[ "${1:-}" == "-u" ]]; then
+        shift 2
+    fi
+    if [[ "$*" == *'id -u'* ]]; then
+        printf '10001:10001'
+    fi
     exit 0
     ;;
 logs)

@@ -84,7 +84,7 @@ func Check(ctx context.Context, store Store, req CheckRequest) (CheckResult, err
 		)
 	}
 
-	live, liveErr := fetchLiveCertificate(req.BaseURL, req.Domain)
+	live, liveErr := fetchLiveCertificate(ctx, req.BaseURL, req.Domain)
 	if liveErr != nil {
 		result.Status = StatusUnhealthy
 		result.ValidationError = liveErr.Error()
@@ -143,7 +143,7 @@ func matchesStoredFingerprint(certs []CertificateInfo, fingerprint string) bool 
 	return false
 }
 
-func fetchLiveCertificate(rawBaseURL string, domain string) (*CertificateInfo, error) {
+func fetchLiveCertificate(ctx context.Context, rawBaseURL string, domain string) (*CertificateInfo, error) {
 	trimmed := strings.TrimSpace(rawBaseURL)
 	if trimmed == "" {
 		return nil, nil
@@ -171,16 +171,23 @@ func fetchLiveCertificate(rawBaseURL string, domain string) (*CertificateInfo, e
 		serverName = ""
 	}
 
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), &tls.Config{
-		InsecureSkipVerify: true, //nolint:gosec // certificate lifecycle intentionally inspects presented certs regardless of trust.
-		ServerName:         serverName,
-	})
+	dialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: 10 * time.Second},
+		Config: &tls.Config{
+			InsecureSkipVerify: true, //nolint:gosec // certificate lifecycle intentionally inspects presented certs regardless of trust.
+			ServerName:         serverName,
+		},
+	}
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 	if err != nil {
 		return nil, fmt.Errorf("dial live TLS endpoint %s: %w", net.JoinHostPort(host, port), err)
 	}
 	defer conn.Close()
-	state := conn.ConnectionState()
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return nil, fmt.Errorf("live TLS endpoint returned a non-TLS connection")
+	}
+	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return nil, fmt.Errorf("live TLS endpoint returned no peer certificates")
 	}

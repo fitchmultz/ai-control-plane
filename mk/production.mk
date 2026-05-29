@@ -9,6 +9,8 @@
 # Non-scope:
 #   - Does not handle host-first production deployment (see host.mk)
 
+PRODUCTION_GATEWAY_URL ?= $(or $(ACP_GATEWAY_URL),$(or $(GATEWAY_URL),https://127.0.0.1))
+
 .PHONY: up-production
 up-production: validate-config-production ## Start production profile with OTEL
 	@echo '$(COLOR_BOLD)Starting production profile...$(COLOR_RESET)'
@@ -30,7 +32,7 @@ up-production: validate-config-production ## Start production profile with OTEL
 .PHONY: prod-smoke
 prod-smoke: ## Run truthful runtime smoke checks
 	@echo '$(COLOR_BOLD)Running production smoke tests...$(COLOR_RESET)'
-	@ACP_GATEWAY_URL=https://127.0.0.1 $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
+	@ACP_GATEWAY_URL="$(PRODUCTION_GATEWAY_URL)" $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) smoke \
 		&& echo '$(COLOR_GREEN)✓ Production smoke tests passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Production smoke tests failed$(COLOR_RESET)'; exit 1; }
 
@@ -73,7 +75,7 @@ restart-tls: down-tls up-tls ## Restart TLS mode services
 .PHONY: tls-health
 tls-health: ## Run TLS health checks
 	@echo '$(COLOR_BOLD)Running TLS health checks...$(COLOR_RESET)'
-	@ACP_GATEWAY_URL=https://127.0.0.1 $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
+	@ACP_GATEWAY_URL="$(PRODUCTION_GATEWAY_URL)" $(COMPOSE_ENV_LITELLM_MASTER_KEY) $(ACPCTL_BIN) health \
 		&& echo '$(COLOR_GREEN)✓ TLS health checks passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ TLS health checks failed$(COLOR_RESET)'; exit 1; }
 

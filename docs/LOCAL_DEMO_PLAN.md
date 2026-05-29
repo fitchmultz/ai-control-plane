@@ -45,11 +45,11 @@ From repo root on the server:
 
 ```bash
 make install
-make up-core
+make up
 make health
 ```
 
-Use `make up` only after the managed LibreChat environment variables in `demo/.env` are populated. The core gateway proof path for pilots is `make up-core`.
+Use `make up-ui` only after the managed LibreChat environment variables in `demo/.env` are populated. The core gateway proof path for pilots is `make up` (`make up-core` remains a compatibility alias).
 
 Useful status commands:
 

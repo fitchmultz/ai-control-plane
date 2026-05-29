@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mitchfultz/ai-control-plane/internal/policy"
 	"github.com/mitchfultz/ai-control-plane/internal/testutil"
 )
 
@@ -171,6 +172,21 @@ func TestValidateDirectEnvAccessFlagsForbiddenCalls(t *testing.T) {
 	}
 }
 
+func TestValidateNetworkFirewallContractManifestPointers(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "docker-compose.yml"), "services:\n  litellm:\n    ports: []\n")
+	writeFixtureFile(t, filepath.Join(repoRoot, "demo", "config", "network_firewall_contract.yaml"), "flows:\n  - id: good-flow\n    manifests:\n      - demo/docker-compose.yml:services.litellm.ports\n  - id: stale-flow\n    manifests:\n      - demo/docker-compose.yml:services.litellm.depends_on\n")
+
+	issues := validateNetworkFirewallContractManifestPointers(repoRoot, policy.SurfaceTarget{Path: "demo/config/network_firewall_contract.yaml"})
+	joined := strings.Join(issues, "\n")
+	if !strings.Contains(joined, "stale-flow") || !strings.Contains(joined, "services.litellm.depends_on") {
+		t.Fatalf("expected stale manifest pointer issue, got %v", issues)
+	}
+	if strings.Contains(joined, "good-flow") {
+		t.Fatalf("did not expect good manifest pointer issue, got %v", issues)
+	}
+}
+
 func TestValidateDeploymentConfigProductionPassesCanonicalContract(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeValidDeploymentSurfaceRepo(t, repoRoot)
@@ -186,6 +202,68 @@ func TestValidateDeploymentConfigProductionPassesCanonicalContract(t *testing.T)
 	}
 	if len(issues) != 0 {
 		t.Fatalf("expected no issues, got %v", issues)
+	}
+}
+
+func TestValidateDeploymentConfigProductionRequiresRemoteOTELExportContext(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeValidDeploymentSurfaceRepo(t, repoRoot)
+	secretsPath := filepath.Join(t.TempDir(), "secrets.env")
+	writeEnvFixtureFile(t, secretsPath, strings.ReplaceAll(validProductionSecretsEnv(), "OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.acme-corp.internal\n", ""), 0o600)
+
+	issues, err := ValidateDeploymentConfig(repoRoot, ConfigValidationOptions{
+		Profile:        ConfigValidationProfileProduction,
+		SecretsEnvFile: secretsPath,
+	})
+	if err != nil {
+		t.Fatalf("ValidateDeploymentConfig returned error: %v", err)
+	}
+	joined := strings.Join(issues, "\n")
+	if !strings.Contains(joined, "required key OTEL_EXPORTER_OTLP_ENDPOINT is missing or empty") {
+		t.Fatalf("expected missing OTEL exporter endpoint issue, got %v", issues)
+	}
+}
+
+func TestValidateDeploymentConfigProductionRejectsPlaceholderOTELExporterEndpoint(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeValidDeploymentSurfaceRepo(t, repoRoot)
+	secretsPath := filepath.Join(t.TempDir(), "secrets.env")
+	content := strings.ReplaceAll(validProductionSecretsEnv(), "OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.acme-corp.internal\n", "OTEL_EXPORTER_OTLP_ENDPOINT=https://your-otel-backend.example.com\n")
+	writeEnvFixtureFile(t, secretsPath, content, 0o600)
+
+	issues, err := ValidateDeploymentConfig(repoRoot, ConfigValidationOptions{
+		Profile:        ConfigValidationProfileProduction,
+		SecretsEnvFile: secretsPath,
+	})
+	if err != nil {
+		t.Fatalf("ValidateDeploymentConfig returned error: %v", err)
+	}
+	joined := strings.Join(issues, "\n")
+	if !strings.Contains(joined, "OTEL_EXPORTER_OTLP_ENDPOINT must not use placeholder/demo values") {
+		t.Fatalf("expected placeholder OTEL exporter endpoint issue, got %v", issues)
+	}
+}
+
+func TestValidateDeploymentConfigProductionRejectsDemoOTELResourceContext(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeValidDeploymentSurfaceRepo(t, repoRoot)
+	secretsPath := filepath.Join(t.TempDir(), "secrets.env")
+	content := strings.ReplaceAll(validProductionSecretsEnv(), "OTEL_RESOURCE_ENVIRONMENT=production\n", "OTEL_RESOURCE_ENVIRONMENT=demo\n")
+	content = strings.ReplaceAll(content, "OTEL_RESOURCE_DEPLOYMENT=us-east-1\n", "OTEL_RESOURCE_DEPLOYMENT=local\n")
+	writeEnvFixtureFile(t, secretsPath, content, 0o600)
+
+	issues, err := ValidateDeploymentConfig(repoRoot, ConfigValidationOptions{
+		Profile:        ConfigValidationProfileProduction,
+		SecretsEnvFile: secretsPath,
+	})
+	if err != nil {
+		t.Fatalf("ValidateDeploymentConfig returned error: %v", err)
+	}
+	joined := strings.Join(issues, "\n")
+	for _, expected := range []string{"OTEL_RESOURCE_ENVIRONMENT must identify a real production telemetry context", "OTEL_RESOURCE_DEPLOYMENT must identify a real production telemetry context"} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected issue containing %q, got %v", expected, issues)
+		}
 	}
 }
 
@@ -313,7 +391,10 @@ func validProductionSecretsEnv() string {
 		"LITELLM_PUBLISH_HOST=127.0.0.1\n" +
 		"LITELLM_PUBLIC_URL=https://gateway.example.com\n" +
 		"LITELLM_SALT_KEY=prod-salt-token-abcdefghijklmnopqrstuvwxyz1234567890\n" +
-		"OTEL_INGEST_AUTH_TOKEN=otel-ingest-auth-token-abcdefghijklmnopqrstuvwxyz\n"
+		"OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.acme-corp.internal\n" +
+		"OTEL_INGEST_AUTH_TOKEN=otel-ingest-auth-token-abcdefghijklmnopqrstuvwxyz\n" +
+		"OTEL_RESOURCE_DEPLOYMENT=us-east-1\n" +
+		"OTEL_RESOURCE_ENVIRONMENT=production\n"
 }
 
 func writeValidConfigContractRepo(t *testing.T, repoRoot string) {

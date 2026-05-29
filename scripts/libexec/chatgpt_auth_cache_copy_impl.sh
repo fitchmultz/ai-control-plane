@@ -56,6 +56,20 @@ Exit codes:
 EOF
 }
 
+prepare_live_auth_cache_mount() {
+    local target_container="$1"
+    local live_dest_dir="$2"
+
+    local container_owner
+    container_owner="$(docker exec "${target_container}" sh -lc 'printf "%s:%s" "$(id -u)" "$(id -g)"' 2>/dev/null || true)"
+    if [ -z "${container_owner}" ]; then
+        bridge_log_error "Failed to resolve LiteLLM container user for ChatGPT auth cache sync"
+        return 1
+    fi
+
+    docker exec -u 0 "${target_container}" sh -lc "mkdir -p '${live_dest_dir}' && host_gid=\$(stat -c '%g' '${live_dest_dir}' 2>/dev/null || stat -f '%g' '${live_dest_dir}') && chown -R '${container_owner%%:*}':\"\${host_gid}\" '${live_dest_dir}' && chmod -R u+rwX,g+rwX,o-rwx '${live_dest_dir}'" >/dev/null 2>&1
+}
+
 resolve_target_container() {
     if [ -n "${CONTAINER}" ]; then
         printf '%s\n' "${CONTAINER}"
@@ -150,7 +164,9 @@ if [ -f "${DEST_FILE}" ]; then
 fi
 
 cp "${normalized_auth_file}" "${DEST_FILE}"
-chmod 600 "${DEST_FILE}"
+if ! chmod 600 "${DEST_FILE}" 2>/dev/null; then
+    chmod 660 "${DEST_FILE}" 2>/dev/null || true
+fi
 bridge_log_info "Wrote normalized auth cache to ${DEST_FILE}"
 
 if command -v docker >/dev/null 2>&1; then
@@ -168,15 +184,15 @@ if command -v docker >/dev/null 2>&1; then
         if [ -n "${container_home}" ]; then
             live_dest_dir="${container_home}/.config/litellm/chatgpt"
             live_dest_file="${live_dest_dir}/auth.json"
-            docker exec "${target_container}" sh -lc "mkdir -p '${live_dest_dir}'" >/dev/null 2>&1 || {
-                bridge_log_error "Failed to create live auth cache directory in ${target_container}"
+            prepare_live_auth_cache_mount "${target_container}" "${live_dest_dir}" || {
+                bridge_log_error "Failed to prepare live auth cache directory in ${target_container}"
                 exit "${ACP_EXIT_RUNTIME}"
             }
             docker exec -i "${target_container}" sh -lc "cat > '${live_dest_file}'" <"${normalized_auth_file}" || {
                 bridge_log_error "Failed to copy live auth cache into ${target_container}"
                 exit "${ACP_EXIT_RUNTIME}"
             }
-            docker exec "${target_container}" sh -lc "chmod 600 '${live_dest_file}'" >/dev/null 2>&1 || {
+            docker exec "${target_container}" sh -lc "chmod 660 '${live_dest_file}'" >/dev/null 2>&1 || {
                 bridge_log_error "Failed to set live auth cache permissions in ${target_container}"
                 exit "${ACP_EXIT_RUNTIME}"
             }

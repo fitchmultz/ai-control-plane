@@ -13,5 +13,5 @@ services:
   litellm:
     volumes:
       - ./config/litellm-chatgpt.yaml:/app/config.yaml:ro
-      - ./auth/chatgpt:/root/.config/litellm/chatgpt
+      - ./auth/chatgpt:/app/.config/litellm/chatgpt
       - ./logs/${ACP_SLOT:-active}/litellm:/var/log/litellm

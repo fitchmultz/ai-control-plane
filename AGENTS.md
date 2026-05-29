@@ -158,7 +158,7 @@ Source of truth: `internal/exitcodes/exitcodes.go`. Shell scripts must honor the
 Legacy shared shell-library patterns were retired. Keep shell scripts thin and move reusable logic into typed Go modules under `internal/*` and `cmd/acpctl/*`.
 - Chargeback reporting is fully typed under `acpctl chargeback report`; do not reintroduce `demo/scripts/chargeback_*` or Helm script mirroring.
 - `make script-tests` is the authoritative shell-surface gate; keep it aligned with the live wrappers/compatibility scripts in `scripts/` and `scripts/libexec/`, not deleted or typed-only flows.
-- `make generate` regenerates shell completions only; there is no Helm script-sync contract anymore.
+- `make generate` regenerates shell completions and generated reference docs; there is no Helm script-sync contract anymore.
 
 ---
 

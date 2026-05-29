@@ -117,11 +117,24 @@ func runArtifactRetention(_ context.Context, runCtx commandRunContext, raw any) 
 		return exitcodes.ACPExitSuccess
 	}
 
+	var deleteFailures []string
 	for _, stale := range evidenceStale {
-		deleteEvidenceDir(stale)
+		if err := deleteEvidenceDir(stale); err != nil {
+			deleteFailures = append(deleteFailures, fmt.Sprintf("%s: %v", stale, err))
+		}
 	}
 	for _, stale := range bundleFilesStale {
-		_ = os.Remove(stale)
+		if err := os.Remove(stale); err != nil {
+			deleteFailures = append(deleteFailures, fmt.Sprintf("%s: %v", stale, err))
+		}
+	}
+	if len(deleteFailures) > 0 {
+		workflowWarn(logger, "status", "delete_failed", "failures", len(deleteFailures))
+		fmt.Fprintln(runCtx.Stderr, out.Fail("Retention cleanup failed."))
+		for _, failure := range deleteFailures {
+			fmt.Fprintf(runCtx.Stderr, "  - %s\n", failure)
+		}
+		return exitcodes.ACPExitRuntime
 	}
 
 	fmt.Fprintln(runCtx.Stdout, "")
@@ -242,6 +255,7 @@ func computeStaleBundles(ordered []string, keep int, bundleRoot string) []string
 		}
 	}
 
+	sort.Strings(stale)
 	return stale
 }
 
@@ -272,12 +286,6 @@ func printStaleSummary(stdout *os.File, out *output.Output, config artifactReten
 	}
 }
 
-func deleteEvidenceDir(dir string) {
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() {
-			_ = os.Remove(path)
-		}
-		return nil
-	})
-	_ = os.RemoveAll(dir)
+func deleteEvidenceDir(dir string) error {
+	return os.RemoveAll(dir)
 }

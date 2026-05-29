@@ -88,6 +88,34 @@ resolve_litellm_container() {
     printf 'demo-litellm-1\n'
 }
 
+verify_chatgpt_auth_mount() {
+    local container_id
+    container_id="$(resolve_litellm_container)"
+
+    local mounts
+    mounts="$(docker inspect "${container_id}" --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}' 2>/dev/null || true)"
+    if ! printf '%s' "${mounts}" | grep -q '/app/.config/litellm/chatgpt'; then
+        bridge_log_error "ChatGPT auth cache mount is missing from LiteLLM container"
+        bridge_log_error "Expected demo/auth/chatgpt to be mounted at /app/.config/litellm/chatgpt"
+        return 1
+    fi
+
+    local container_owner
+    container_owner="$(docker exec "${container_id}" sh -lc 'printf "%s:%s" "$(id -u)" "$(id -g)"' 2>/dev/null || true)"
+    if [ -z "${container_owner}" ]; then
+        bridge_log_error "Failed to resolve LiteLLM container user for ChatGPT auth cache mount"
+        return 1
+    fi
+    if ! docker exec -u 0 "${container_id}" sh -lc "mkdir -p /app/.config/litellm/chatgpt && host_gid=\$(stat -c '%g' /app/.config/litellm/chatgpt 2>/dev/null || stat -f '%g' /app/.config/litellm/chatgpt) && chown -R '${container_owner%%:*}':\"\${host_gid}\" /app/.config/litellm/chatgpt && chmod -R u+rwX,g+rwX,o-rwx /app/.config/litellm/chatgpt" >/dev/null 2>&1; then
+        bridge_log_error "Failed to prepare ChatGPT auth cache mount ownership for LiteLLM container user"
+        return 1
+    fi
+    if ! docker exec "${container_id}" sh -c 'test -r /app/.config/litellm/chatgpt && test -w /app/.config/litellm/chatgpt' >/dev/null 2>&1; then
+        bridge_log_error "ChatGPT auth cache mount is not readable and writable by the LiteLLM container user"
+        return 1
+    fi
+}
+
 ensure_chatgpt_overlay_running() {
     if ! command -v docker >/dev/null 2>&1; then
         bridge_log_error "docker is required"
@@ -109,7 +137,8 @@ ensure_chatgpt_overlay_running() {
     mounts="$(docker inspect "${container_id}" --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}' 2>/dev/null || true)"
     if printf '%s' "${mounts}" | grep -q 'litellm-chatgpt.yaml'; then
         bridge_log_info "ChatGPT compose overlay already active"
-        return 0
+        verify_chatgpt_auth_mount
+        return $?
     fi
 
     bridge_log_info "Switching LiteLLM to ChatGPT overlay config"
@@ -117,6 +146,7 @@ ensure_chatgpt_overlay_running() {
         cd "${REPO_ROOT}/demo" &&
             ${compose_cmd} -f docker-compose.yml -f docker-compose.chatgpt.yml up -d litellm
     )
+    verify_chatgpt_auth_mount
 }
 
 print_device_prompt_from_logs() {

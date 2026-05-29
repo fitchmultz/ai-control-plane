@@ -148,8 +148,19 @@ format-check: ## Fail when shell scripts are not formatted with shfmt
 		echo '$(COLOR_YELLOW)  Install shfmt: https://github.com/mvdan/sh$(COLOR_RESET)'; \
 	fi
 
+.PHONY: go-vet
+go-vet: ## Run Go vet static analysis
+	@echo '$(COLOR_BOLD)Running Go vet...$(COLOR_RESET)'
+	@if ! command -v $(GO) >/dev/null 2>&1; then \
+		echo '$(COLOR_YELLOW)⚠ Go not installed - skipping go-vet$(COLOR_RESET)'; \
+		exit 0; \
+	fi
+	@$(GO) vet ./... \
+		&& echo '$(COLOR_GREEN)✓ Go vet passed$(COLOR_RESET)' \
+		|| { echo '$(COLOR_RED)✗ Go vet failed$(COLOR_RESET)'; exit 1; }
+
 .PHONY: type-check
-type-check: ## Run Go static/type checks via go test
+type-check: ## Run Go static/type checks via go build, vet, and compile-only tests
 	@echo '$(COLOR_BOLD)Running Go type checks...$(COLOR_RESET)'
 	@if ! command -v $(GO) >/dev/null 2>&1; then \
 		echo '$(COLOR_YELLOW)⚠ Go not installed - skipping type-check$(COLOR_RESET)'; \
@@ -158,6 +169,7 @@ type-check: ## Run Go static/type checks via go test
 	@$(GO) build ./... \
 		&& echo '$(COLOR_GREEN)✓ Go build passed (type check)$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Go build failed$(COLOR_RESET)'; exit 1; }
+	@$(MAKE) --silent go-vet
 	@$(GO) test ./... -run '^$$' >/dev/null 2>&1 \
 		&& echo '$(COLOR_GREEN)✓ Go test compile passed$(COLOR_RESET)' \
 		|| { echo '$(COLOR_RED)✗ Go test compile failed$(COLOR_RESET)'; exit 1; }
