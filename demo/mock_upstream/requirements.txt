@@ -23,5 +23,5 @@ markupsafe==3.0.3
     #   werkzeug
 packaging==26.0
     # via gunicorn
-werkzeug==3.1.5
+werkzeug==3.1.9
     # via flask
